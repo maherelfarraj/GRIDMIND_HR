@@ -3,20 +3,42 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Enterprise HRMS API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: dashboard
+    description: Executive dashboard
+  - name: employees
+    description: Employee master records
+  - name: departments
+    description: Organizational hierarchy
+  - name: roles
+    description: Role and permission management
+  - name: documents
+    description: Document management
+  - name: approvals
+    description: Workflow approval queues
+  - name: audit
+    description: Immutable audit history
+  - name: attendance
+    description: Attendance records
+  - name: devices
+    description: Attendance device management
+  - name: alerts
+    description: Security alerts
+  - name: users
+    description: System user accounts
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +46,951 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── Dashboard ───────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Executive dashboard summary metrics
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/activity:
+    get:
+      operationId: getDashboardActivity
+      tags: [dashboard]
+      summary: Recent activity feed
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /dashboard/attendance-overview:
+    get:
+      operationId: getDashboardAttendanceOverview
+      tags: [dashboard]
+      summary: Attendance overview by department
+      responses:
+        "200":
+          description: Attendance overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceOverview"
+
+  # ─── Employees ───────────────────────────────────────────────
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List all employees
+      parameters:
+        - in: query
+          name: departmentId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: status
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: search
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: page
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: limit
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeList"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Create a new employee record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+
+  /employees/{id}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get employee 360 profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Employee record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update employee record
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpdate"
+      responses:
+        "200":
+          description: Updated employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    delete:
+      operationId: deleteEmployee
+      tags: [employees]
+      summary: Delete employee record
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  /employees/{id}/documents:
+    get:
+      operationId: getEmployeeDocuments
+      tags: [employees]
+      summary: Get documents for an employee
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Employee documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+
+  /employees/{id}/attendance:
+    get:
+      operationId: getEmployeeAttendance
+      tags: [employees]
+      summary: Get attendance records for an employee
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+        - in: query
+          name: from
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: to
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Attendance records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceRecord"
+
+  # ─── Departments ─────────────────────────────────────────────
+  /departments:
+    get:
+      operationId: listDepartments
+      tags: [departments]
+      summary: List all departments
+      responses:
+        "200":
+          description: List of departments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Department"
+    post:
+      operationId: createDepartment
+      tags: [departments]
+      summary: Create a department
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepartmentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+
+  /departments/tree:
+    get:
+      operationId: getDepartmentTree
+      tags: [departments]
+      summary: Get full organizational hierarchy as a tree
+      responses:
+        "200":
+          description: Department tree
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DepartmentNode"
+
+  /departments/{id}:
+    get:
+      operationId: getDepartment
+      tags: [departments]
+      summary: Get a department
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateDepartment
+      tags: [departments]
+      summary: Update a department
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepartmentUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+    delete:
+      operationId: deleteDepartment
+      tags: [departments]
+      summary: Delete a department
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── Roles & Permissions ─────────────────────────────────────
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [roles]
+      summary: List all roles
+      responses:
+        "200":
+          description: Roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+    post:
+      operationId: createRole
+      tags: [roles]
+      summary: Create a role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+
+  /roles/{id}:
+    get:
+      operationId: getRole
+      tags: [roles]
+      summary: Get a role with its permissions
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+    patch:
+      operationId: updateRole
+      tags: [roles]
+      summary: Update a role
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+    delete:
+      operationId: deleteRole
+      tags: [roles]
+      summary: Delete a role
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  /permissions:
+    get:
+      operationId: listPermissions
+      tags: [roles]
+      summary: List all available permissions
+      responses:
+        "200":
+          description: Permissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Permission"
+
+  # ─── Documents ───────────────────────────────────────────────
+  /documents:
+    get:
+      operationId: listDocuments
+      tags: [documents]
+      summary: List all documents
+      parameters:
+        - in: query
+          name: employeeId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: category
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: status
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+    post:
+      operationId: createDocument
+      tags: [documents]
+      summary: Create a document record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+
+  /documents/{id}:
+    get:
+      operationId: getDocument
+      tags: [documents]
+      summary: Get a document
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+    patch:
+      operationId: updateDocument
+      tags: [documents]
+      summary: Update a document
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      summary: Delete a document
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── Approvals ───────────────────────────────────────────────
+  /approvals:
+    get:
+      operationId: listApprovals
+      tags: [approvals]
+      summary: List workflow approval requests
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: type
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: assignedToUserId
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Approvals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Approval"
+    post:
+      operationId: createApproval
+      tags: [approvals]
+      summary: Submit a workflow approval request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Approval"
+
+  /approvals/{id}:
+    get:
+      operationId: getApproval
+      tags: [approvals]
+      summary: Get an approval request
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Approval"
+
+  /approvals/{id}/decision:
+    patch:
+      operationId: decideApproval
+      tags: [approvals]
+      summary: Approve or reject a request
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalDecision"
+      responses:
+        "200":
+          description: Updated approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Approval"
+
+  # ─── Audit Log ───────────────────────────────────────────────
+  /audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [audit]
+      summary: Query immutable audit history
+      parameters:
+        - in: query
+          name: entityType
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: entityId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: actorUserId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: from
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: to
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: page
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: limit
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogList"
+
+  # ─── Attendance ──────────────────────────────────────────────
+  /attendance:
+    get:
+      operationId: listAttendance
+      tags: [attendance]
+      summary: List attendance records
+      parameters:
+        - in: query
+          name: employeeId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: departmentId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: from
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: to
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: page
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: limit
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Attendance records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceRecord"
+
+  /attendance/daily-summary:
+    get:
+      operationId: getAttendanceDailySummary
+      tags: [attendance]
+      summary: Daily attendance summary by department
+      responses:
+        "200":
+          description: Daily summary
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceDailySummary"
+
+  # ─── Attendance Devices ──────────────────────────────────────
+  /devices:
+    get:
+      operationId: listDevices
+      tags: [devices]
+      summary: List attendance devices
+      responses:
+        "200":
+          description: Devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceDevice"
+    post:
+      operationId: createDevice
+      tags: [devices]
+      summary: Register an attendance device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceDeviceInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceDevice"
+
+  /devices/{id}:
+    get:
+      operationId: getDevice
+      tags: [devices]
+      summary: Get device details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Device
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceDevice"
+    patch:
+      operationId: updateDevice
+      tags: [devices]
+      summary: Update device configuration
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceDeviceUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceDevice"
+    delete:
+      operationId: deleteDevice
+      tags: [devices]
+      summary: Remove a device
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  /devices/{id}/health:
+    get:
+      operationId: getDeviceHealth
+      tags: [devices]
+      summary: Get device health and connectivity status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Device health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceHealth"
+
+  # ─── Security Alerts ─────────────────────────────────────────
+  /alerts:
+    get:
+      operationId: listAlerts
+      tags: [alerts]
+      summary: List security alerts
+      parameters:
+        - in: query
+          name: severity
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: acknowledged
+          schema:
+            type: ["boolean", "null"]
+      responses:
+        "200":
+          description: Alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SecurityAlert"
+
+  /alerts/{id}/acknowledge:
+    patch:
+      operationId: acknowledgeAlert
+      tags: [alerts]
+      summary: Acknowledge a security alert
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertAcknowledgement"
+      responses:
+        "200":
+          description: Updated alert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityAlert"
+
+  # ─── Users ───────────────────────────────────────────────────
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List system users
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SystemUser"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a system user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemUserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemUser"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a system user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemUser"
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update a system user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemUserUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemUser"
+
+  /auth/me:
+    get:
+      operationId: getAuthMe
+      tags: [users]
+      summary: Get the current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemUser"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +998,692 @@ components:
       properties:
         status:
           type: string
+      required: [status]
+
+    # ── Dashboard ──────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      properties:
+        totalEmployees: { type: number }
+        activeEmployees: { type: number }
+        newHiresThisMonth: { type: number }
+        pendingApprovals: { type: number }
+        openAlerts: { type: number }
+        onLeaveToday: { type: number }
+        presentToday: { type: number }
+        absentToday: { type: number }
+        totalDepartments: { type: number }
+        totalDevices: { type: number }
+        onlineDevices: { type: number }
+        documentsPendingReview: { type: number }
       required:
+        - totalEmployees
+        - activeEmployees
+        - newHiresThisMonth
+        - pendingApprovals
+        - openAlerts
+        - onLeaveToday
+        - presentToday
+        - absentToday
+        - totalDepartments
+        - totalDevices
+        - onlineDevices
+        - documentsPendingReview
+
+    ActivityItem:
+      type: object
+      properties:
+        id: { type: number }
+        type: { type: string }
+        description: { type: string }
+        descriptionAr: { type: string }
+        actorName: { type: string }
+        entityType: { type: string }
+        entityId: { type: number }
+        createdAt: { type: string }
+      required: [id, type, description, descriptionAr, actorName, entityType, entityId, createdAt]
+
+    AttendanceOverview:
+      type: object
+      properties:
+        date: { type: string }
+        presentCount: { type: number }
+        absentCount: { type: number }
+        lateCount: { type: number }
+        onLeaveCount: { type: number }
+        byDepartment:
+          type: array
+          items:
+            $ref: "#/components/schemas/DepartmentAttendanceStat"
+      required: [date, presentCount, absentCount, lateCount, onLeaveCount, byDepartment]
+
+    DepartmentAttendanceStat:
+      type: object
+      properties:
+        departmentId: { type: number }
+        departmentName: { type: string }
+        present: { type: number }
+        absent: { type: number }
+        late: { type: number }
+        onLeave: { type: number }
+      required: [departmentId, departmentName, present, absent, late, onLeave]
+
+    # ── Employee ───────────────────────────────────────────
+    Employee:
+      type: object
+      properties:
+        id: { type: number }
+        employeeNumber: { type: string }
+        firstNameEn: { type: string }
+        lastNameEn: { type: string }
+        firstNameAr: { type: string }
+        lastNameAr: { type: string }
+        nationalId: { type: string }
+        jobTitleEn: { type: string }
+        jobTitleAr: { type: string }
+        departmentId: { type: number }
+        departmentNameEn: { type: string }
+        departmentNameAr: { type: string }
+        managerId: { type: ["integer", "null"] }
+        managerNameEn: { type: ["string", "null"] }
+        roleId: { type: number }
+        roleNameEn: { type: string }
+        status: { type: string }
+        employmentType: { type: string }
+        grade: { type: ["string", "null"] }
+        rankEn: { type: ["string", "null"] }
+        rankAr: { type: ["string", "null"] }
+        email: { type: string }
+        phone: { type: ["string", "null"] }
+        hireDate: { type: string }
+        contractEndDate: { type: ["string", "null"] }
+        nationality: { type: string }
+        photoUrl: { type: ["string", "null"] }
+        organizationType: { type: string }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required:
+        - id
+        - employeeNumber
+        - firstNameEn
+        - lastNameEn
+        - firstNameAr
+        - lastNameAr
+        - nationalId
+        - jobTitleEn
+        - jobTitleAr
+        - departmentId
+        - departmentNameEn
+        - departmentNameAr
+        - managerId
+        - managerNameEn
+        - roleId
+        - roleNameEn
+        - status
+        - employmentType
+        - email
+        - hireDate
+        - nationality
+        - organizationType
+        - createdAt
+        - updatedAt
+
+    EmployeeList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee"
+        total: { type: number }
+        page: { type: number }
+        limit: { type: number }
+      required: [data, total, page, limit]
+
+    EmployeeInput:
+      type: object
+      properties:
+        employeeNumber: { type: string }
+        firstNameEn: { type: string }
+        lastNameEn: { type: string }
+        firstNameAr: { type: string }
+        lastNameAr: { type: string }
+        nationalId: { type: string }
+        jobTitleEn: { type: string }
+        jobTitleAr: { type: string }
+        departmentId: { type: number }
+        managerId: { type: ["integer", "null"] }
+        roleId: { type: number }
+        status: { type: string }
+        employmentType: { type: string }
+        grade: { type: ["string", "null"] }
+        rankEn: { type: ["string", "null"] }
+        rankAr: { type: ["string", "null"] }
+        email: { type: string }
+        phone: { type: ["string", "null"] }
+        hireDate: { type: string }
+        contractEndDate: { type: ["string", "null"] }
+        nationality: { type: string }
+        photoUrl: { type: ["string", "null"] }
+        organizationType: { type: string }
+      required:
+        - employeeNumber
+        - firstNameEn
+        - lastNameEn
+        - firstNameAr
+        - lastNameAr
+        - nationalId
+        - jobTitleEn
+        - jobTitleAr
+        - departmentId
+        - roleId
+        - status
+        - employmentType
+        - email
+        - hireDate
+        - nationality
+        - organizationType
+
+    EmployeeUpdate:
+      type: object
+      properties:
+        firstNameEn: { type: string }
+        lastNameEn: { type: string }
+        firstNameAr: { type: string }
+        lastNameAr: { type: string }
+        jobTitleEn: { type: string }
+        jobTitleAr: { type: string }
+        departmentId: { type: number }
+        managerId: { type: ["integer", "null"] }
+        roleId: { type: number }
+        status: { type: string }
+        employmentType: { type: string }
+        grade: { type: ["string", "null"] }
+        rankEn: { type: ["string", "null"] }
+        rankAr: { type: ["string", "null"] }
+        email: { type: string }
+        phone: { type: ["string", "null"] }
+        contractEndDate: { type: ["string", "null"] }
+        photoUrl: { type: ["string", "null"] }
+
+    # ── Department ─────────────────────────────────────────
+    Department:
+      type: object
+      properties:
+        id: { type: number }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        code: { type: string }
+        parentId: { type: ["integer", "null"] }
+        parentNameEn: { type: ["string", "null"] }
+        headEmployeeId: { type: ["integer", "null"] }
+        headEmployeeNameEn: { type: ["string", "null"] }
+        organizationType: { type: string }
+        description: { type: ["string", "null"] }
+        employeeCount: { type: number }
+        createdAt: { type: string }
+      required: [id, nameEn, nameAr, code, parentId, headEmployeeId, organizationType, employeeCount, createdAt]
+
+    DepartmentNode:
+      type: object
+      properties:
+        id: { type: number }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        code: { type: string }
+        parentId: { type: ["integer", "null"] }
+        headEmployeeNameEn: { type: ["string", "null"] }
+        employeeCount: { type: number }
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/DepartmentNode"
+      required: [id, nameEn, nameAr, code, parentId, employeeCount, children]
+
+    DepartmentInput:
+      type: object
+      properties:
+        nameEn: { type: string }
+        nameAr: { type: string }
+        code: { type: string }
+        parentId: { type: ["integer", "null"] }
+        headEmployeeId: { type: ["integer", "null"] }
+        organizationType: { type: string }
+        description: { type: ["string", "null"] }
+      required: [nameEn, nameAr, code, organizationType]
+
+    DepartmentUpdate:
+      type: object
+      properties:
+        nameEn: { type: string }
+        nameAr: { type: string }
+        code: { type: string }
+        parentId: { type: ["integer", "null"] }
+        headEmployeeId: { type: ["integer", "null"] }
+        description: { type: ["string", "null"] }
+
+    # ── Role & Permissions ─────────────────────────────────
+    Role:
+      type: object
+      properties:
+        id: { type: number }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        description: { type: ["string", "null"] }
+        permissions:
+          type: array
+          items:
+            type: string
+        systemRole: { type: boolean }
+        userCount: { type: number }
+        createdAt: { type: string }
+      required: [id, nameEn, nameAr, permissions, systemRole, userCount, createdAt]
+
+    RoleInput:
+      type: object
+      properties:
+        nameEn: { type: string }
+        nameAr: { type: string }
+        description: { type: ["string", "null"] }
+        permissions:
+          type: array
+          items:
+            type: string
+      required: [nameEn, nameAr, permissions]
+
+    RoleUpdate:
+      type: object
+      properties:
+        nameEn: { type: string }
+        nameAr: { type: string }
+        description: { type: ["string", "null"] }
+        permissions:
+          type: array
+          items:
+            type: string
+
+    Permission:
+      type: object
+      properties:
+        key: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        module: { type: string }
+      required: [key, nameEn, nameAr, module]
+
+    # ── Documents ──────────────────────────────────────────
+    Document:
+      type: object
+      properties:
+        id: { type: number }
+        employeeId: { type: number }
+        employeeNameEn: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        category: { type: string }
+        status: { type: string }
+        fileUrl: { type: ["string", "null"] }
+        fileName: { type: ["string", "null"] }
+        fileSize: { type: ["integer", "null"] }
+        mimeType: { type: ["string", "null"] }
+        expiresAt: { type: ["string", "null"] }
+        issuedAt: { type: ["string", "null"] }
+        uploadedByUserId: { type: number }
+        uploadedByUserName: { type: string }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required:
+        - id
+        - employeeId
+        - employeeNameEn
+        - titleEn
+        - titleAr
+        - category
+        - status
+        - uploadedByUserId
+        - uploadedByUserName
+        - createdAt
+
+    DocumentInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        category: { type: string }
+        status: { type: string }
+        fileUrl: { type: ["string", "null"] }
+        fileName: { type: ["string", "null"] }
+        fileSize: { type: ["integer", "null"] }
+        mimeType: { type: ["string", "null"] }
+        expiresAt: { type: ["string", "null"] }
+        issuedAt: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+      required: [employeeId, titleEn, titleAr, category, status]
+
+    DocumentUpdate:
+      type: object
+      properties:
+        titleEn: { type: string }
+        titleAr: { type: string }
+        category: { type: string }
+        status: { type: string }
+        expiresAt: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+
+    # ── Approvals ──────────────────────────────────────────
+    Approval:
+      type: object
+      properties:
+        id: { type: number }
+        type: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        requestedByEmployeeId: { type: number }
+        requestedByEmployeeNameEn: { type: string }
+        assignedToUserId: { type: ["integer", "null"] }
+        assignedToUserName: { type: ["string", "null"] }
+        decidedAt: { type: ["string", "null"] }
+        decisionNote: { type: ["string", "null"] }
+        dueDate: { type: ["string", "null"] }
+        metadata: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required:
+        - id
+        - type
+        - titleEn
+        - titleAr
+        - status
+        - priority
+        - requestedByEmployeeId
+        - requestedByEmployeeNameEn
+        - createdAt
+
+    ApprovalInput:
+      type: object
+      properties:
+        type: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        priority: { type: string }
+        requestedByEmployeeId: { type: number }
+        assignedToUserId: { type: ["integer", "null"] }
+        dueDate: { type: ["string", "null"] }
+        metadata: { type: ["string", "null"] }
+      required: [type, titleEn, titleAr, priority, requestedByEmployeeId]
+
+    ApprovalDecision:
+      type: object
+      properties:
+        status: { type: string }
+        decisionNote: { type: ["string", "null"] }
+      required: [status]
+
+    # ── Audit Log ──────────────────────────────────────────
+    AuditLog:
+      type: object
+      properties:
+        id: { type: number }
+        actorUserId: { type: ["integer", "null"] }
+        actorUserName: { type: ["string", "null"] }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["integer", "null"] }
+        entityLabel: { type: ["string", "null"] }
+        changesJson: { type: ["string", "null"] }
+        ipAddress: { type: ["string", "null"] }
+        userAgent: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, action, entityType, createdAt]
+
+    AuditLogList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        total: { type: number }
+        page: { type: number }
+        limit: { type: number }
+      required: [data, total, page, limit]
+
+    # ── Attendance ─────────────────────────────────────────
+    AttendanceRecord:
+      type: object
+      properties:
+        id: { type: number }
+        employeeId: { type: number }
+        employeeNameEn: { type: string }
+        employeeNameAr: { type: string }
+        departmentId: { type: number }
+        departmentNameEn: { type: string }
+        date: { type: string }
+        checkInTime: { type: ["string", "null"] }
+        checkOutTime: { type: ["string", "null"] }
+        status: { type: string }
+        deviceId: { type: ["integer", "null"] }
+        deviceName: { type: ["string", "null"] }
+        lateMinutes: { type: ["integer", "null"] }
+        overtimeMinutes: { type: ["integer", "null"] }
+        workingHours: { type: ["number", "null"] }
+        notes: { type: ["string", "null"] }
+      required:
+        - id
+        - employeeId
+        - employeeNameEn
+        - employeeNameAr
+        - departmentId
+        - departmentNameEn
+        - date
         - status
 
+    AttendanceDailySummary:
+      type: object
+      properties:
+        departmentId: { type: number }
+        departmentNameEn: { type: string }
+        departmentNameAr: { type: string }
+        date: { type: string }
+        totalEmployees: { type: number }
+        present: { type: number }
+        absent: { type: number }
+        late: { type: number }
+        onLeave: { type: number }
+        attendanceRate: { type: number }
+      required:
+        - departmentId
+        - departmentNameEn
+        - departmentNameAr
+        - date
+        - totalEmployees
+        - present
+        - absent
+        - late
+        - onLeave
+        - attendanceRate
+
+    # ── Attendance Devices ─────────────────────────────────
+    AttendanceDevice:
+      type: object
+      properties:
+        id: { type: number }
+        name: { type: string }
+        serialNumber: { type: string }
+        model: { type: string }
+        vendor: { type: string }
+        type: { type: string }
+        ipAddress: { type: ["string", "null"] }
+        location: { type: string }
+        locationAr: { type: string }
+        departmentId: { type: ["integer", "null"] }
+        departmentNameEn: { type: ["string", "null"] }
+        status: { type: string }
+        lastSyncAt: { type: ["string", "null"] }
+        firmwareVersion: { type: ["string", "null"] }
+        integrationProtocol: { type: string }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required:
+        - id
+        - name
+        - serialNumber
+        - model
+        - vendor
+        - type
+        - location
+        - locationAr
+        - status
+        - integrationProtocol
+        - createdAt
+
+    AttendanceDeviceInput:
+      type: object
+      properties:
+        name: { type: string }
+        serialNumber: { type: string }
+        model: { type: string }
+        vendor: { type: string }
+        type: { type: string }
+        ipAddress: { type: ["string", "null"] }
+        location: { type: string }
+        locationAr: { type: string }
+        departmentId: { type: ["integer", "null"] }
+        status: { type: string }
+        firmwareVersion: { type: ["string", "null"] }
+        integrationProtocol: { type: string }
+        notes: { type: ["string", "null"] }
+      required: [name, serialNumber, model, vendor, type, location, locationAr, status, integrationProtocol]
+
+    AttendanceDeviceUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        ipAddress: { type: ["string", "null"] }
+        location: { type: string }
+        locationAr: { type: string }
+        departmentId: { type: ["integer", "null"] }
+        status: { type: string }
+        firmwareVersion: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+
+    DeviceHealth:
+      type: object
+      properties:
+        deviceId: { type: number }
+        deviceName: { type: string }
+        status: { type: string }
+        isOnline: { type: boolean }
+        lastPingAt: { type: ["string", "null"] }
+        lastSyncAt: { type: ["string", "null"] }
+        recordsToday: { type: number }
+        uptimePercent: { type: ["number", "null"] }
+        signalStrength: { type: ["string", "null"] }
+        errorLog:
+          type: array
+          items:
+            type: string
+        integrationNote: { type: string }
+      required:
+        - deviceId
+        - deviceName
+        - status
+        - isOnline
+        - recordsToday
+        - errorLog
+        - integrationNote
+
+    # ── Security Alerts ────────────────────────────────────
+    SecurityAlert:
+      type: object
+      properties:
+        id: { type: number }
+        severity: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        descriptionEn: { type: string }
+        descriptionAr: { type: string }
+        category: { type: string }
+        entityType: { type: ["string", "null"] }
+        entityId: { type: ["integer", "null"] }
+        acknowledged: { type: boolean }
+        acknowledgedByUserId: { type: ["integer", "null"] }
+        acknowledgedByUserName: { type: ["string", "null"] }
+        acknowledgedAt: { type: ["string", "null"] }
+        acknowledgedNote: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required:
+        - id
+        - severity
+        - titleEn
+        - titleAr
+        - descriptionEn
+        - descriptionAr
+        - category
+        - acknowledged
+        - createdAt
+
+    AlertAcknowledgement:
+      type: object
+      properties:
+        acknowledgedByUserId: { type: number }
+        acknowledgedNote: { type: ["string", "null"] }
+      required: [acknowledgedByUserId]
+
+    # ── System Users ───────────────────────────────────────
+    SystemUser:
+      type: object
+      properties:
+        id: { type: number }
+        username: { type: string }
+        email: { type: string }
+        fullNameEn: { type: string }
+        fullNameAr: { type: string }
+        roleId: { type: number }
+        roleNameEn: { type: string }
+        employeeId: { type: ["integer", "null"] }
+        isActive: { type: boolean }
+        lastLoginAt: { type: ["string", "null"] }
+        mfaEnabled: { type: boolean }
+        avatarUrl: { type: ["string", "null"] }
+        preferredLanguage: { type: string }
+        createdAt: { type: string }
+      required:
+        - id
+        - username
+        - email
+        - fullNameEn
+        - fullNameAr
+        - roleId
+        - roleNameEn
+        - isActive
+        - mfaEnabled
+        - preferredLanguage
+        - createdAt
+
+    SystemUserInput:
+      type: object
+      properties:
+        username: { type: string }
+        email: { type: string }
+        fullNameEn: { type: string }
+        fullNameAr: { type: string }
+        roleId: { type: number }
+        employeeId: { type: ["integer", "null"] }
+        isActive: { type: boolean }
+        preferredLanguage: { type: string }
+      required: [username, email, fullNameEn, fullNameAr, roleId, isActive, preferredLanguage]
+
+    SystemUserUpdate:
+      type: object
+      properties:
+        email: { type: string }
+        fullNameEn: { type: string }
+        fullNameAr: { type: string }
+        roleId: { type: number }
+        isActive: { type: boolean }
+        mfaEnabled: { type: boolean }
+        preferredLanguage: { type: string }
+        avatarUrl: { type: ["string", "null"] }

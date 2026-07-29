@@ -1,0 +1,1 @@
+- [HRMS architecture decisions](hrms-arch.md) — key constraints and conventions for the HRMS monorepo build.
