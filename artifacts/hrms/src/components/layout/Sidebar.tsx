@@ -19,7 +19,11 @@ import {
   CalendarOff,
   UserPlus,
   LogOut,
-  X
+  X,
+  Timer,
+  CalendarDays,
+  TrendingUp,
+  Fingerprint
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -41,6 +45,10 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
     { href: '/documents', icon: Files, labelEn: 'Documents', labelAr: 'المستندات' },
     { href: '/approvals', icon: CheckSquare, labelEn: 'Approvals', labelAr: 'الموافقات' },
     { href: '/attendance', icon: Clock, labelEn: 'Attendance', labelAr: 'الحضور' },
+    { href: '/shifts', icon: Timer, labelEn: 'Shifts', labelAr: 'الورديات' },
+    { href: '/rosters', icon: CalendarDays, labelEn: 'Roster', labelAr: 'الجدول الزمني' },
+    { href: '/overtime', icon: TrendingUp, labelEn: 'Overtime', labelAr: 'الوقت الإضافي' },
+    { href: '/punch-events', icon: Fingerprint, labelEn: 'Punch Log', labelAr: 'سجل البصمة' },
     { href: '/devices', icon: Cpu, labelEn: 'Devices', labelAr: 'الأجهزة' },
     { href: '/audit', icon: History, labelEn: 'Audit Log', labelAr: 'سجل التدقيق' },
     { href: '/alerts', icon: AlertTriangle, labelEn: 'Alerts', labelAr: 'التنبيهات' },

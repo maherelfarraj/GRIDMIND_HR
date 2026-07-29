@@ -22,6 +22,10 @@ import Alerts from '@/pages/alerts';
 import Users from '@/pages/users';
 import Login from '@/pages/login';
 import NotFound from '@/pages/not-found';
+import Shifts from '@/pages/shifts';
+import Rosters from '@/pages/rosters';
+import Overtime from '@/pages/overtime';
+import PunchEvents from '@/pages/punch-events';
 
 const queryClient = new QueryClient();
 
@@ -62,6 +66,10 @@ function ProtectedRouter() {
         <Route path="/audit" component={Audit} />
         <Route path="/attendance" component={Attendance} />
         <Route path="/devices" component={Devices} />
+        <Route path="/shifts" component={Shifts} />
+        <Route path="/rosters" component={Rosters} />
+        <Route path="/overtime" component={Overtime} />
+        <Route path="/punch-events" component={PunchEvents} />
         <Route path="/alerts" component={Alerts} />
         <Route path="/users" component={Users} />
         <Route component={NotFound} />

@@ -14,6 +14,10 @@ import devicesRouter from "./devices";
 import deviceMappingsRouter from "./deviceMappings";
 import alertsRouter from "./alerts";
 import usersRouter from "./users";
+import shiftsRouter from "./shifts";
+import rostersRouter from "./rosters";
+import overtimeRulesRouter from "./overtimeRules";
+import punchEventsRouter from "./punchEvents";
 
 const router: IRouter = Router();
 
@@ -32,5 +36,9 @@ router.use(devicesRouter);
 router.use(deviceMappingsRouter);
 router.use(alertsRouter);
 router.use(usersRouter);
+router.use(shiftsRouter);
+router.use(rostersRouter);
+router.use(overtimeRulesRouter);
+router.use(punchEventsRouter);
 
 export default router;

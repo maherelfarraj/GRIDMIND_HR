@@ -1301,3 +1301,641 @@ export const GetAuthMeResponse = zod.object({
 })
 
 
+/**
+ * @summary List all shift definitions
+ */
+export const ListShiftsResponseItem = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shiftCode": zod.string(),
+  "shiftType": zod.string(),
+  "startTime": zod.string(),
+  "endTime": zod.string(),
+  "breakMinutes": zod.number(),
+  "gracePeriodMinutes": zod.number(),
+  "maxOvertimeMinutes": zod.number(),
+  "color": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "assignedEmployeeCount": zod.number().optional(),
+  "createdAt": zod.string()
+})
+export const ListShiftsResponse = zod.array(ListShiftsResponseItem)
+
+
+/**
+ * @summary Create a new shift
+ */
+export const CreateShiftBody = zod.object({
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shiftCode": zod.string(),
+  "shiftType": zod.string().optional(),
+  "startTime": zod.string(),
+  "endTime": zod.string(),
+  "breakMinutes": zod.number().optional(),
+  "gracePeriodMinutes": zod.number().optional(),
+  "maxOvertimeMinutes": zod.number().optional(),
+  "color": zod.string().optional(),
+  "departmentId": zod.number().nullish(),
+  "isActive": zod.boolean().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateShiftResponse = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shiftCode": zod.string(),
+  "shiftType": zod.string(),
+  "startTime": zod.string(),
+  "endTime": zod.string(),
+  "breakMinutes": zod.number(),
+  "gracePeriodMinutes": zod.number(),
+  "maxOvertimeMinutes": zod.number(),
+  "color": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "assignedEmployeeCount": zod.number().optional(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get shift by ID
+ */
+export const GetShiftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetShiftResponse = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shiftCode": zod.string(),
+  "shiftType": zod.string(),
+  "startTime": zod.string(),
+  "endTime": zod.string(),
+  "breakMinutes": zod.number(),
+  "gracePeriodMinutes": zod.number(),
+  "maxOvertimeMinutes": zod.number(),
+  "color": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "assignedEmployeeCount": zod.number().optional(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update a shift
+ */
+export const UpdateShiftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateShiftBody = zod.object({
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shiftCode": zod.string(),
+  "shiftType": zod.string().optional(),
+  "startTime": zod.string(),
+  "endTime": zod.string(),
+  "breakMinutes": zod.number().optional(),
+  "gracePeriodMinutes": zod.number().optional(),
+  "maxOvertimeMinutes": zod.number().optional(),
+  "color": zod.string().optional(),
+  "departmentId": zod.number().nullish(),
+  "isActive": zod.boolean().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateShiftResponse = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shiftCode": zod.string(),
+  "shiftType": zod.string(),
+  "startTime": zod.string(),
+  "endTime": zod.string(),
+  "breakMinutes": zod.number(),
+  "gracePeriodMinutes": zod.number(),
+  "maxOvertimeMinutes": zod.number(),
+  "color": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "assignedEmployeeCount": zod.number().optional(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a shift
+ */
+export const DeleteShiftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteShiftResponse = zod.void()
+
+
+/**
+ * @summary Get roster entries for a shift in a date range
+ */
+export const GetShiftRosterParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetShiftRosterQueryParams = zod.object({
+  "weekStart": zod.coerce.string().nullish(),
+  "weekEnd": zod.coerce.string().nullish()
+})
+
+export const GetShiftRosterResponseItem = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "shiftId": zod.number().nullish(),
+  "date": zod.string(),
+  "isOffDay": zod.boolean(),
+  "isPublicHoliday": zod.boolean(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "firstNameEn": zod.string().nullish(),
+  "lastNameEn": zod.string().nullish(),
+  "firstNameAr": zod.string().nullish(),
+  "lastNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "jobTitleEn": zod.string().nullish(),
+  "jobTitleAr": zod.string().nullish(),
+  "shiftCode": zod.string().nullish(),
+  "shiftNameEn": zod.string().nullish(),
+  "shiftNameAr": zod.string().nullish(),
+  "shiftStartTime": zod.string().nullish(),
+  "shiftEndTime": zod.string().nullish(),
+  "shiftColor": zod.string().nullish()
+})
+export const GetShiftRosterResponse = zod.array(GetShiftRosterResponseItem)
+
+
+/**
+ * @summary Weekly roster view
+ */
+export const ListRostersQueryParams = zod.object({
+  "weekStart": zod.coerce.string().nullish(),
+  "weekEnd": zod.coerce.string().nullish(),
+  "departmentId": zod.coerce.number().int().nullish(),
+  "employeeId": zod.coerce.number().int().nullish()
+})
+
+export const ListRostersResponseItem = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "shiftId": zod.number().nullish(),
+  "date": zod.string(),
+  "isOffDay": zod.boolean(),
+  "isPublicHoliday": zod.boolean(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "firstNameEn": zod.string().nullish(),
+  "lastNameEn": zod.string().nullish(),
+  "firstNameAr": zod.string().nullish(),
+  "lastNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "jobTitleEn": zod.string().nullish(),
+  "jobTitleAr": zod.string().nullish(),
+  "shiftCode": zod.string().nullish(),
+  "shiftNameEn": zod.string().nullish(),
+  "shiftNameAr": zod.string().nullish(),
+  "shiftStartTime": zod.string().nullish(),
+  "shiftEndTime": zod.string().nullish(),
+  "shiftColor": zod.string().nullish()
+})
+export const ListRostersResponse = zod.array(ListRostersResponseItem)
+
+
+/**
+ * @summary Create or upsert a roster entry
+ */
+export const CreateRosterEntryBody = zod.object({
+  "employeeId": zod.number(),
+  "shiftId": zod.number().nullish(),
+  "date": zod.string(),
+  "isOffDay": zod.boolean().optional(),
+  "isPublicHoliday": zod.boolean().optional(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateRosterEntryResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "shiftId": zod.number().nullish(),
+  "date": zod.string(),
+  "isOffDay": zod.boolean(),
+  "isPublicHoliday": zod.boolean(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "firstNameEn": zod.string().nullish(),
+  "lastNameEn": zod.string().nullish(),
+  "firstNameAr": zod.string().nullish(),
+  "lastNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "jobTitleEn": zod.string().nullish(),
+  "jobTitleAr": zod.string().nullish(),
+  "shiftCode": zod.string().nullish(),
+  "shiftNameEn": zod.string().nullish(),
+  "shiftNameAr": zod.string().nullish(),
+  "shiftStartTime": zod.string().nullish(),
+  "shiftEndTime": zod.string().nullish(),
+  "shiftColor": zod.string().nullish()
+})
+
+
+/**
+ * @summary Bulk create/update roster entries
+ */
+export const BulkCreateRosterEntriesBody = zod.object({
+  "entries": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "shiftId": zod.number().nullish(),
+  "date": zod.string(),
+  "isOffDay": zod.boolean().optional(),
+  "isPublicHoliday": zod.boolean().optional(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+}))
+})
+
+export const BulkCreateRosterEntriesResponseItem = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "shiftId": zod.number().nullish(),
+  "date": zod.string(),
+  "isOffDay": zod.boolean(),
+  "isPublicHoliday": zod.boolean(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "firstNameEn": zod.string().nullish(),
+  "lastNameEn": zod.string().nullish(),
+  "firstNameAr": zod.string().nullish(),
+  "lastNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "jobTitleEn": zod.string().nullish(),
+  "jobTitleAr": zod.string().nullish(),
+  "shiftCode": zod.string().nullish(),
+  "shiftNameEn": zod.string().nullish(),
+  "shiftNameAr": zod.string().nullish(),
+  "shiftStartTime": zod.string().nullish(),
+  "shiftEndTime": zod.string().nullish(),
+  "shiftColor": zod.string().nullish()
+})
+export const BulkCreateRosterEntriesResponse = zod.array(BulkCreateRosterEntriesResponseItem)
+
+
+/**
+ * @summary Roster summary by shift for a week
+ */
+export const GetRosterSummaryQueryParams = zod.object({
+  "weekStart": zod.coerce.string().nullish(),
+  "weekEnd": zod.coerce.string().nullish()
+})
+
+export const GetRosterSummaryResponse = zod.object({
+  "summary": zod.array(zod.object({
+  "shiftId": zod.number(),
+  "shiftNameEn": zod.string(),
+  "shiftNameAr": zod.string(),
+  "shiftCode": zod.string(),
+  "color": zod.string(),
+  "totalAssignments": zod.number(),
+  "offDays": zod.number()
+})),
+  "totalRosterEntries": zod.number()
+})
+
+
+/**
+ * @summary Delete a roster entry
+ */
+export const DeleteRosterEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteRosterEntryResponse = zod.void()
+
+
+/**
+ * @summary List overtime rules
+ */
+export const ListOvertimeRulesResponseItem = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "deptNameEn": zod.string().nullish(),
+  "deptNameAr": zod.string().nullish(),
+  "maxDailyMinutes": zod.number(),
+  "maxWeeklyMinutes": zod.number(),
+  "multiplierWeekday": zod.number(),
+  "multiplierWeekend": zod.number(),
+  "multiplierHoliday": zod.number(),
+  "requiresApproval": zod.boolean(),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListOvertimeRulesResponse = zod.array(ListOvertimeRulesResponseItem)
+
+
+/**
+ * @summary Create an overtime rule
+ */
+export const CreateOvertimeRuleBody = zod.object({
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "maxDailyMinutes": zod.number().optional(),
+  "maxWeeklyMinutes": zod.number().optional(),
+  "multiplierWeekday": zod.number().optional(),
+  "multiplierWeekend": zod.number().optional(),
+  "multiplierHoliday": zod.number().optional(),
+  "requiresApproval": zod.boolean().optional(),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateOvertimeRuleResponse = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "deptNameEn": zod.string().nullish(),
+  "deptNameAr": zod.string().nullish(),
+  "maxDailyMinutes": zod.number(),
+  "maxWeeklyMinutes": zod.number(),
+  "multiplierWeekday": zod.number(),
+  "multiplierWeekend": zod.number(),
+  "multiplierHoliday": zod.number(),
+  "requiresApproval": zod.boolean(),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get overtime rule by ID
+ */
+export const GetOvertimeRuleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetOvertimeRuleResponse = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "deptNameEn": zod.string().nullish(),
+  "deptNameAr": zod.string().nullish(),
+  "maxDailyMinutes": zod.number(),
+  "maxWeeklyMinutes": zod.number(),
+  "multiplierWeekday": zod.number(),
+  "multiplierWeekend": zod.number(),
+  "multiplierHoliday": zod.number(),
+  "requiresApproval": zod.boolean(),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update an overtime rule
+ */
+export const UpdateOvertimeRuleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateOvertimeRuleBody = zod.object({
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "maxDailyMinutes": zod.number().optional(),
+  "maxWeeklyMinutes": zod.number().optional(),
+  "multiplierWeekday": zod.number().optional(),
+  "multiplierWeekend": zod.number().optional(),
+  "multiplierHoliday": zod.number().optional(),
+  "requiresApproval": zod.boolean().optional(),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateOvertimeRuleResponse = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "deptNameEn": zod.string().nullish(),
+  "deptNameAr": zod.string().nullish(),
+  "maxDailyMinutes": zod.number(),
+  "maxWeeklyMinutes": zod.number(),
+  "multiplierWeekday": zod.number(),
+  "multiplierWeekend": zod.number(),
+  "multiplierHoliday": zod.number(),
+  "requiresApproval": zod.boolean(),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete an overtime rule
+ */
+export const DeleteOvertimeRuleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteOvertimeRuleResponse = zod.void()
+
+
+/**
+ * @summary List punch events with filters
+ */
+export const ListPunchEventsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().int().nullish(),
+  "dateFrom": zod.coerce.string().nullish(),
+  "dateTo": zod.coerce.string().nullish(),
+  "eventType": zod.coerce.string().nullish(),
+  "source": zod.coerce.string().nullish(),
+  "isMissing": zod.coerce.string().nullish(),
+  "page": zod.coerce.number().int().nullish(),
+  "limit": zod.coerce.number().int().nullish()
+})
+
+export const ListPunchEventsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "deviceId": zod.number().nullish(),
+  "attendanceRecordId": zod.number().nullish(),
+  "eventTime": zod.string(),
+  "eventType": zod.string(),
+  "source": zod.string(),
+  "isVerified": zod.boolean(),
+  "isMissing": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "firstNameEn": zod.string().nullish(),
+  "lastNameEn": zod.string().nullish(),
+  "firstNameAr": zod.string().nullish(),
+  "lastNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "deviceName": zod.string().nullish(),
+  "deviceLocation": zod.string().nullish()
+})),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create a manual punch event
+ */
+export const CreatePunchEventBody = zod.object({
+  "employeeId": zod.number(),
+  "deviceId": zod.number().nullish(),
+  "attendanceRecordId": zod.number().nullish(),
+  "eventTime": zod.string(),
+  "eventType": zod.string(),
+  "source": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreatePunchEventResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "deviceId": zod.number().nullish(),
+  "attendanceRecordId": zod.number().nullish(),
+  "eventTime": zod.string(),
+  "eventType": zod.string(),
+  "source": zod.string(),
+  "isVerified": zod.boolean(),
+  "isMissing": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "firstNameEn": zod.string().nullish(),
+  "lastNameEn": zod.string().nullish(),
+  "firstNameAr": zod.string().nullish(),
+  "lastNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "deviceName": zod.string().nullish(),
+  "deviceLocation": zod.string().nullish()
+})
+
+
+/**
+ * @summary List events flagged as missing
+ */
+export const ListMissingPunchesResponseItem = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "deviceId": zod.number().nullish(),
+  "attendanceRecordId": zod.number().nullish(),
+  "eventTime": zod.string(),
+  "eventType": zod.string(),
+  "source": zod.string(),
+  "isVerified": zod.boolean(),
+  "isMissing": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "firstNameEn": zod.string().nullish(),
+  "lastNameEn": zod.string().nullish(),
+  "firstNameAr": zod.string().nullish(),
+  "lastNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "deviceName": zod.string().nullish(),
+  "deviceLocation": zod.string().nullish()
+})
+export const ListMissingPunchesResponse = zod.array(ListMissingPunchesResponseItem)
+
+
+/**
+ * @summary Get a single punch event
+ */
+export const GetPunchEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPunchEventResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "deviceId": zod.number().nullish(),
+  "attendanceRecordId": zod.number().nullish(),
+  "eventTime": zod.string(),
+  "eventType": zod.string(),
+  "source": zod.string(),
+  "isVerified": zod.boolean(),
+  "isMissing": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "firstNameEn": zod.string().nullish(),
+  "lastNameEn": zod.string().nullish(),
+  "firstNameAr": zod.string().nullish(),
+  "lastNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "deviceName": zod.string().nullish(),
+  "deviceLocation": zod.string().nullish()
+})
+
+
+/**
+ * @summary Verify or annotate a punch event
+ */
+export const UpdatePunchEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdatePunchEventBody = zod.object({
+  "isVerified": zod.boolean().optional(),
+  "isMissing": zod.boolean().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdatePunchEventResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "deviceId": zod.number().nullish(),
+  "attendanceRecordId": zod.number().nullish(),
+  "eventTime": zod.string(),
+  "eventType": zod.string(),
+  "source": zod.string(),
+  "isVerified": zod.boolean(),
+  "isMissing": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "firstNameEn": zod.string().nullish(),
+  "lastNameEn": zod.string().nullish(),
+  "firstNameAr": zod.string().nullish(),
+  "lastNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "deviceName": zod.string().nullish(),
+  "deviceLocation": zod.string().nullish()
+})
+
+

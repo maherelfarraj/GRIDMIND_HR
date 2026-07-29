@@ -1,6 +1,6 @@
 ---
 name: HRMS Architecture Decisions
-description: Key build constraints and conventions for the HRMS enterprise HR system
+description: Key build constraints and conventions for the HRMS enterprise HR system (Phase 1 + Phase 2)
 ---
 
 ## OpenAPI / Zod v3 compatibility
@@ -9,6 +9,13 @@ All `integer` types in `lib/api-spec/openapi.yaml` must use `number` — Orval 8
 **Why:** Workspace uses Zod v3; Orval 8.x emits Zod v4 syntax for integer types.
 
 **How to apply:** Any new integer fields in the OpenAPI spec must be declared as `type: number` (not `type: integer`).
+
+## OpenAPI YAML — new paths must go in the paths section, NOT components
+When adding new path blocks to `lib/api-spec/openapi.yaml`, the paths section ends just before `components:` at the top level. New paths (`/foo:`, `/foo/{id}:`) must be inserted within the `paths:` block (before the `components:` key), NOT inside `components:` or `components.schemas`.
+
+**Why:** When using Edit tool anchored on a schema name inside `components.schemas`, the new content gets inserted as siblings of that schema (inside components), not inside paths. This breaks Orval codegen.
+
+**How to apply:** Always anchor edits on content that is clearly inside the paths section, or use the Python split-and-reinsert technique if the YAML gets corrupted.
 
 ## lib/api-zod index re-export
 `lib/api-zod/src/index.ts` must export ONLY from `./generated/api` — not from a types re-export. A types re-export causes TS2308 collision on `GetEmployeeAttendanceParams` (and likely other params).
@@ -35,32 +42,40 @@ All `integer` types in `lib/api-spec/openapi.yaml` must use `number` — Orval 8
 ## Sidebar desktop layout
 The Sidebar must NOT use `fixed` positioning on desktop. Use `hidden md:flex` for desktop static layout, and only add `flex fixed inset-y-0 start-0 z-50` when `isMobileOpen` is true.
 
-**Why:** Combining `md:static` and `fixed inset-y-0` with Tailwind doesn't correctly override — desktop sidebar was covering content.
+**Why:** Combining `md:static` and `fixed inset-y-0` with Tailwind doesn't correctly override.
 
 ## routes/index.ts must import all route files
 `artifacts/api-server/src/routes/index.ts` is the single mount point for all domain routers. Adding a new route file requires importing it here with `router.use(...)`.
 
 ## Department list endpoint parentNameEn
-The `GET /departments` list route had `parentNameEn: null` hardcoded. Must build a dept map first and resolve parent names inline (avoids N+1 queries).
+The `GET /departments` list route resolves parent names inline using a dept map (no N+1). `parentNameEn` and `parentNameAr` both populated.
 
-**Why:** Frontend org tree and table both display parent names; null broke the tree view.
+## Phase 2 new tables (all seeded)
+- `shifts` — 8 shift definitions (AM/DS/PM/NS/XOP/ADM/FLX/ONC)
+- `rosters` — employee-shift assignments (195 entries, 13 days × 15 employees)
+- `overtime_rules` — 3 rules (Standard / Operations / Medical)
+- `punch_events` — 164 events (CLOCK_IN, CLOCK_OUT, BREAK_START/END, OVERTIME_START/END, missing flagged)
 
-## New DB tables (v2)
-- `device_employee_mappings` — device-to-employee enrollment (biometric type, access level, active flag)
-- `attendance_corrections` — punch correction requests with approval workflow (pending/approved/rejected)
-Both pushed and seeded.
+## Phase 2 new API routes
+- `/shifts` — CRUD + `/shifts/:id/roster` (GET with weekStart/weekEnd)
+- `/rosters` — GET with filters, POST (upsert), POST /bulk, GET /summary, DELETE /:id
+- `/overtime-rules` — CRUD
+- `/punch-events` — GET with filters, POST, GET /missing, GET /:id, PATCH /:id
 
-## New API routes (v2)
-- `GET/POST /devices/:id/mappings`, `DELETE /devices/:id/mappings/:employeeId`
-- `GET /attendance/corrections`, `POST /attendance/:id/correction`, `PATCH /attendance/corrections/:id/decision`
-- `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`
-- `GET /device-mappings?deviceId=X` (global filter)
+## Phase 2 new frontend pages
+- `src/pages/shifts.tsx` — shift cards grid with color-bordered cards, new shift dialog
+- `src/pages/rosters.tsx` — weekly grid table (employees × 7 days) with shift chips, week navigator
+- `src/pages/overtime.tsx` — 2-tab: OT rules cards + OT report with recharts BarChart
+- `src/pages/punch-events.tsx` — biometric audit log with event type/source badges, missing punch highlighting
+
+## Seed script
+Phase 2 seed is at `artifacts/api-server/src/lib/seed-phase2.ts`. Run via: `npx tsx artifacts/api-server/src/lib/seed-phase2.ts`
+
+## Codegen command
+`pnpm --filter @workspace/api-spec run codegen` — runs Orval → post-processes zod.int() → runs typecheck:libs. Must be run after any OpenAPI spec change.
 
 ## Database seed state
-DB is seeded with fictional data: 10 departments, 6 roles, 15 employees, 6 system users, 8 attendance devices, 13 documents, 10 approvals, attendance records for 2026-07-27/28/29, 8 security alerts, 15 audit log entries, 20 device-employee mappings, 6 attendance corrections.
-
-## Design subagent job
-The v2 design subagent ran as jobId `hrms-ui-v2:19` and completed. All 11 files built. Use `sendFollowup({ name: "hrms-ui-v2", message: "..." })` to continue it (do NOT use `subagent(...)` which starts a fresh one).
+DB is seeded with fictional data: 10 departments, 6 roles, 15 employees, 6 system users, 8 attendance devices, 13 documents, 10 approvals, attendance records for 2026-07-27/28/29, 8 security alerts, 15 audit log entries, 20 device-employee mappings, 6 attendance corrections, 8 shifts, 195 roster entries, 3 overtime rules, 164 punch events.
 
 ## Air-gap / deployment intent
-No Replit/Supabase/cloud API deps. Auth: localStorage-gated session + POST /auth/login (any password accepted in demo). Keycloak/LDAP integration banner shown in UI. Biometric SDK callout on Devices page.
+No Replit/Supabase/cloud API deps. Auth: localStorage-gated session + POST /auth/login (any password accepted in demo). All API routes at /api/* proxied by Vite dev server.

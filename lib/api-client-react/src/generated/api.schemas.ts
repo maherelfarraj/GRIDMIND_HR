@@ -506,6 +506,204 @@ export interface DeviceHealth {
   integrationNote: string;
 }
 
+export interface Shift {
+  id: number;
+  nameEn: string;
+  nameAr: string;
+  shiftCode: string;
+  shiftType: string;
+  startTime: string;
+  endTime: string;
+  breakMinutes: number;
+  gracePeriodMinutes: number;
+  maxOvertimeMinutes: number;
+  color: string;
+  /** @nullable */
+  departmentId?: number | null;
+  isActive: boolean;
+  /** @nullable */
+  notes?: string | null;
+  assignedEmployeeCount?: number;
+  createdAt: string;
+}
+
+export interface ShiftInput {
+  nameEn: string;
+  nameAr: string;
+  shiftCode: string;
+  shiftType?: string;
+  startTime: string;
+  endTime: string;
+  breakMinutes?: number;
+  gracePeriodMinutes?: number;
+  maxOvertimeMinutes?: number;
+  color?: string;
+  /** @nullable */
+  departmentId?: number | null;
+  isActive?: boolean;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface RosterEntry {
+  id: number;
+  employeeId: number;
+  /** @nullable */
+  shiftId?: number | null;
+  date: string;
+  isOffDay: boolean;
+  isPublicHoliday: boolean;
+  status: string;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  firstNameEn?: string | null;
+  /** @nullable */
+  lastNameEn?: string | null;
+  /** @nullable */
+  firstNameAr?: string | null;
+  /** @nullable */
+  lastNameAr?: string | null;
+  /** @nullable */
+  employeeNumber?: string | null;
+  /** @nullable */
+  jobTitleEn?: string | null;
+  /** @nullable */
+  jobTitleAr?: string | null;
+  /** @nullable */
+  shiftCode?: string | null;
+  /** @nullable */
+  shiftNameEn?: string | null;
+  /** @nullable */
+  shiftNameAr?: string | null;
+  /** @nullable */
+  shiftStartTime?: string | null;
+  /** @nullable */
+  shiftEndTime?: string | null;
+  /** @nullable */
+  shiftColor?: string | null;
+}
+
+export interface RosterInput {
+  employeeId: number;
+  /** @nullable */
+  shiftId?: number | null;
+  date: string;
+  isOffDay?: boolean;
+  isPublicHoliday?: boolean;
+  status?: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type RosterSummarySummaryItem = {
+  shiftId: number;
+  shiftNameEn: string;
+  shiftNameAr: string;
+  shiftCode: string;
+  color: string;
+  totalAssignments: number;
+  offDays: number;
+};
+
+export interface RosterSummary {
+  summary: RosterSummarySummaryItem[];
+  totalRosterEntries: number;
+}
+
+export interface OvertimeRule {
+  id: number;
+  nameEn: string;
+  nameAr: string;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  deptNameEn?: string | null;
+  /** @nullable */
+  deptNameAr?: string | null;
+  maxDailyMinutes: number;
+  maxWeeklyMinutes: number;
+  multiplierWeekday: number;
+  multiplierWeekend: number;
+  multiplierHoliday: number;
+  requiresApproval: boolean;
+  effectiveFrom: string;
+  /** @nullable */
+  effectiveTo?: string | null;
+  isActive: boolean;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface OvertimeRuleInput {
+  nameEn: string;
+  nameAr: string;
+  /** @nullable */
+  departmentId?: number | null;
+  maxDailyMinutes?: number;
+  maxWeeklyMinutes?: number;
+  multiplierWeekday?: number;
+  multiplierWeekend?: number;
+  multiplierHoliday?: number;
+  requiresApproval?: boolean;
+  effectiveFrom: string;
+  /** @nullable */
+  effectiveTo?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface PunchEvent {
+  id: number;
+  employeeId: number;
+  /** @nullable */
+  deviceId?: number | null;
+  /** @nullable */
+  attendanceRecordId?: number | null;
+  eventTime: string;
+  eventType: string;
+  source: string;
+  isVerified: boolean;
+  isMissing: boolean;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  /** @nullable */
+  firstNameEn?: string | null;
+  /** @nullable */
+  lastNameEn?: string | null;
+  /** @nullable */
+  firstNameAr?: string | null;
+  /** @nullable */
+  lastNameAr?: string | null;
+  /** @nullable */
+  employeeNumber?: string | null;
+  /** @nullable */
+  deviceName?: string | null;
+  /** @nullable */
+  deviceLocation?: string | null;
+}
+
+export interface PunchEventInput {
+  employeeId: number;
+  /** @nullable */
+  deviceId?: number | null;
+  /** @nullable */
+  attendanceRecordId?: number | null;
+  eventTime: string;
+  eventType: string;
+  source?: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface PunchEventsResponse {
+  data: PunchEvent[];
+  page: number;
+  limit: number;
+}
+
 export interface SecurityAlert {
   id: number;
   severity: string;
@@ -711,5 +909,92 @@ severity?: string | null;
  * @nullable
  */
 acknowledged?: boolean | null;
+};
+
+export type GetShiftRosterParams = {
+/**
+ * @nullable
+ */
+weekStart?: string | null;
+/**
+ * @nullable
+ */
+weekEnd?: string | null;
+};
+
+export type ListRostersParams = {
+/**
+ * @nullable
+ */
+weekStart?: string | null;
+/**
+ * @nullable
+ */
+weekEnd?: string | null;
+/**
+ * @nullable
+ */
+departmentId?: number | null;
+/**
+ * @nullable
+ */
+employeeId?: number | null;
+};
+
+export type BulkCreateRosterEntriesBody = {
+  entries: RosterInput[];
+};
+
+export type GetRosterSummaryParams = {
+/**
+ * @nullable
+ */
+weekStart?: string | null;
+/**
+ * @nullable
+ */
+weekEnd?: string | null;
+};
+
+export type ListPunchEventsParams = {
+/**
+ * @nullable
+ */
+employeeId?: number | null;
+/**
+ * @nullable
+ */
+dateFrom?: string | null;
+/**
+ * @nullable
+ */
+dateTo?: string | null;
+/**
+ * @nullable
+ */
+eventType?: string | null;
+/**
+ * @nullable
+ */
+source?: string | null;
+/**
+ * @nullable
+ */
+isMissing?: string | null;
+/**
+ * @nullable
+ */
+page?: number | null;
+/**
+ * @nullable
+ */
+limit?: number | null;
+};
+
+export type UpdatePunchEventBody = {
+  isVerified?: boolean;
+  isMissing?: boolean;
+  /** @nullable */
+  notes?: string | null;
 };
 

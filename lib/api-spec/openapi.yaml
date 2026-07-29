@@ -32,6 +32,14 @@ tags:
     description: Security alerts
   - name: users
     description: System user accounts
+  - name: shifts
+    description: Shift definitions
+  - name: rosters
+    description: Weekly roster scheduling
+  - name: overtime
+    description: Overtime rules and reporting
+  - name: punchEvents
+    description: Raw biometric punch event audit log
 
 paths:
   /healthz:
@@ -991,6 +999,452 @@ paths:
               schema:
                 $ref: "#/components/schemas/SystemUser"
 
+
+  # ─── Shifts ──────────────────────────────────────────────
+  /shifts:
+    get:
+      operationId: listShifts
+      tags: [shifts]
+      summary: List all shift definitions
+      responses:
+        "200":
+          description: List of shifts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shift"
+    post:
+      operationId: createShift
+      tags: [shifts]
+      summary: Create a new shift
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShiftInput"
+      responses:
+        "201":
+          description: Created shift
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shift"
+
+  /shifts/{id}:
+    get:
+      operationId: getShift
+      tags: [shifts]
+      summary: Get shift by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Shift
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shift"
+    patch:
+      operationId: updateShift
+      tags: [shifts]
+      summary: Update a shift
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShiftInput"
+      responses:
+        "200":
+          description: Updated shift
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shift"
+    delete:
+      operationId: deleteShift
+      tags: [shifts]
+      summary: Delete a shift
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  /shifts/{id}/roster:
+    get:
+      operationId: getShiftRoster
+      tags: [shifts]
+      summary: Get roster entries for a shift in a date range
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+        - in: query
+          name: weekStart
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: weekEnd
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Roster entries for shift
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RosterEntry"
+
+  # ─── Rosters ─────────────────────────────────────────────
+  /rosters:
+    get:
+      operationId: listRosters
+      tags: [rosters]
+      summary: Weekly roster view
+      parameters:
+        - in: query
+          name: weekStart
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: weekEnd
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: departmentId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: employeeId
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Roster entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RosterEntry"
+    post:
+      operationId: createRosterEntry
+      tags: [rosters]
+      summary: Create or upsert a roster entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RosterInput"
+      responses:
+        "201":
+          description: Created roster entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RosterEntry"
+
+  /rosters/bulk:
+    post:
+      operationId: bulkCreateRosterEntries
+      tags: [rosters]
+      summary: Bulk create/update roster entries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entries:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RosterInput"
+              required: [entries]
+      responses:
+        "201":
+          description: Created entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RosterEntry"
+
+  /rosters/summary:
+    get:
+      operationId: getRosterSummary
+      tags: [rosters]
+      summary: Roster summary by shift for a week
+      parameters:
+        - in: query
+          name: weekStart
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: weekEnd
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Roster summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RosterSummary"
+
+  /rosters/{id}:
+    delete:
+      operationId: deleteRosterEntry
+      tags: [rosters]
+      summary: Delete a roster entry
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── Overtime Rules ───────────────────────────────────────
+  /overtime-rules:
+    get:
+      operationId: listOvertimeRules
+      tags: [overtime]
+      summary: List overtime rules
+      responses:
+        "200":
+          description: Overtime rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OvertimeRule"
+    post:
+      operationId: createOvertimeRule
+      tags: [overtime]
+      summary: Create an overtime rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OvertimeRuleInput"
+      responses:
+        "201":
+          description: Created rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OvertimeRule"
+
+  /overtime-rules/{id}:
+    get:
+      operationId: getOvertimeRule
+      tags: [overtime]
+      summary: Get overtime rule by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Overtime rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OvertimeRule"
+    patch:
+      operationId: updateOvertimeRule
+      tags: [overtime]
+      summary: Update an overtime rule
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OvertimeRuleInput"
+      responses:
+        "200":
+          description: Updated rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OvertimeRule"
+    delete:
+      operationId: deleteOvertimeRule
+      tags: [overtime]
+      summary: Delete an overtime rule
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── Punch Events ─────────────────────────────────────────
+  /punch-events:
+    get:
+      operationId: listPunchEvents
+      tags: [punchEvents]
+      summary: List punch events with filters
+      parameters:
+        - in: query
+          name: employeeId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: dateFrom
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: dateTo
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: eventType
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: source
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: isMissing
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: page
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: limit
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Punch events list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PunchEventsResponse"
+    post:
+      operationId: createPunchEvent
+      tags: [punchEvents]
+      summary: Create a manual punch event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PunchEventInput"
+      responses:
+        "201":
+          description: Created punch event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PunchEvent"
+
+  /punch-events/missing:
+    get:
+      operationId: listMissingPunches
+      tags: [punchEvents]
+      summary: List events flagged as missing
+      responses:
+        "200":
+          description: Missing punch events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PunchEvent"
+
+  /punch-events/{id}:
+    get:
+      operationId: getPunchEvent
+      tags: [punchEvents]
+      summary: Get a single punch event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Punch event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PunchEvent"
+    patch:
+      operationId: updatePunchEvent
+      tags: [punchEvents]
+      summary: Verify or annotate a punch event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isVerified: { type: boolean }
+                isMissing: { type: boolean }
+                notes: { type: ["string", "null"] }
+      responses:
+        "200":
+          description: Updated punch event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PunchEvent"
+
+
 components:
   schemas:
     HealthStatus:
@@ -1595,6 +2049,191 @@ components:
         - errorLog
         - integrationNote
 
+    # ── Shifts ─────────────────────────────────────────────
+    Shift:
+      type: object
+      properties:
+        id: { type: number }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        shiftCode: { type: string }
+        shiftType: { type: string }
+        startTime: { type: string }
+        endTime: { type: string }
+        breakMinutes: { type: number }
+        gracePeriodMinutes: { type: number }
+        maxOvertimeMinutes: { type: number }
+        color: { type: string }
+        departmentId: { type: ["integer", "null"] }
+        isActive: { type: boolean }
+        notes: { type: ["string", "null"] }
+        assignedEmployeeCount: { type: number }
+        createdAt: { type: string }
+      required: [id, nameEn, nameAr, shiftCode, shiftType, startTime, endTime, breakMinutes, gracePeriodMinutes, maxOvertimeMinutes, color, isActive, createdAt]
+
+    ShiftInput:
+      type: object
+      properties:
+        nameEn: { type: string }
+        nameAr: { type: string }
+        shiftCode: { type: string }
+        shiftType: { type: string }
+        startTime: { type: string }
+        endTime: { type: string }
+        breakMinutes: { type: number }
+        gracePeriodMinutes: { type: number }
+        maxOvertimeMinutes: { type: number }
+        color: { type: string }
+        departmentId: { type: ["integer", "null"] }
+        isActive: { type: boolean }
+        notes: { type: ["string", "null"] }
+      required: [nameEn, nameAr, shiftCode, startTime, endTime]
+
+    # ── Rosters ─────────────────────────────────────────────
+    RosterEntry:
+      type: object
+      properties:
+        id: { type: number }
+        employeeId: { type: number }
+        shiftId: { type: ["integer", "null"] }
+        date: { type: string }
+        isOffDay: { type: boolean }
+        isPublicHoliday: { type: boolean }
+        status: { type: string }
+        notes: { type: ["string", "null"] }
+        firstNameEn: { type: ["string", "null"] }
+        lastNameEn: { type: ["string", "null"] }
+        firstNameAr: { type: ["string", "null"] }
+        lastNameAr: { type: ["string", "null"] }
+        employeeNumber: { type: ["string", "null"] }
+        jobTitleEn: { type: ["string", "null"] }
+        jobTitleAr: { type: ["string", "null"] }
+        shiftCode: { type: ["string", "null"] }
+        shiftNameEn: { type: ["string", "null"] }
+        shiftNameAr: { type: ["string", "null"] }
+        shiftStartTime: { type: ["string", "null"] }
+        shiftEndTime: { type: ["string", "null"] }
+        shiftColor: { type: ["string", "null"] }
+      required: [id, employeeId, date, isOffDay, isPublicHoliday, status]
+
+    RosterInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        shiftId: { type: ["integer", "null"] }
+        date: { type: string }
+        isOffDay: { type: boolean }
+        isPublicHoliday: { type: boolean }
+        status: { type: string }
+        notes: { type: ["string", "null"] }
+      required: [employeeId, date]
+
+    RosterSummary:
+      type: object
+      properties:
+        summary:
+          type: array
+          items:
+            type: object
+            properties:
+              shiftId: { type: number }
+              shiftNameEn: { type: string }
+              shiftNameAr: { type: string }
+              shiftCode: { type: string }
+              color: { type: string }
+              totalAssignments: { type: number }
+              offDays: { type: number }
+            required: [shiftId, shiftNameEn, shiftNameAr, shiftCode, color, totalAssignments, offDays]
+        totalRosterEntries: { type: number }
+      required: [summary, totalRosterEntries]
+
+    # ── Overtime Rules ───────────────────────────────────────
+    OvertimeRule:
+      type: object
+      properties:
+        id: { type: number }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        departmentId: { type: ["integer", "null"] }
+        deptNameEn: { type: ["string", "null"] }
+        deptNameAr: { type: ["string", "null"] }
+        maxDailyMinutes: { type: number }
+        maxWeeklyMinutes: { type: number }
+        multiplierWeekday: { type: number }
+        multiplierWeekend: { type: number }
+        multiplierHoliday: { type: number }
+        requiresApproval: { type: boolean }
+        effectiveFrom: { type: string }
+        effectiveTo: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, nameEn, nameAr, maxDailyMinutes, maxWeeklyMinutes, multiplierWeekday, multiplierWeekend, multiplierHoliday, requiresApproval, effectiveFrom, isActive, createdAt]
+
+    OvertimeRuleInput:
+      type: object
+      properties:
+        nameEn: { type: string }
+        nameAr: { type: string }
+        departmentId: { type: ["integer", "null"] }
+        maxDailyMinutes: { type: number }
+        maxWeeklyMinutes: { type: number }
+        multiplierWeekday: { type: number }
+        multiplierWeekend: { type: number }
+        multiplierHoliday: { type: number }
+        requiresApproval: { type: boolean }
+        effectiveFrom: { type: string }
+        effectiveTo: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+      required: [nameEn, nameAr, effectiveFrom]
+
+    # ── Punch Events ─────────────────────────────────────────
+    PunchEvent:
+      type: object
+      properties:
+        id: { type: number }
+        employeeId: { type: number }
+        deviceId: { type: ["integer", "null"] }
+        attendanceRecordId: { type: ["integer", "null"] }
+        eventTime: { type: string }
+        eventType: { type: string }
+        source: { type: string }
+        isVerified: { type: boolean }
+        isMissing: { type: boolean }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+        firstNameEn: { type: ["string", "null"] }
+        lastNameEn: { type: ["string", "null"] }
+        firstNameAr: { type: ["string", "null"] }
+        lastNameAr: { type: ["string", "null"] }
+        employeeNumber: { type: ["string", "null"] }
+        deviceName: { type: ["string", "null"] }
+        deviceLocation: { type: ["string", "null"] }
+      required: [id, employeeId, eventTime, eventType, source, isVerified, isMissing, createdAt]
+
+    PunchEventInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        deviceId: { type: ["integer", "null"] }
+        attendanceRecordId: { type: ["integer", "null"] }
+        eventTime: { type: string }
+        eventType: { type: string }
+        source: { type: string }
+        notes: { type: ["string", "null"] }
+      required: [employeeId, eventTime, eventType]
+
+    PunchEventsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PunchEvent"
+        page: { type: number }
+        limit: { type: number }
+      required: [data, page, limit]
+
     # ── Security Alerts ────────────────────────────────────
     SecurityAlert:
       type: object
@@ -1624,7 +2263,6 @@ components:
         - category
         - acknowledged
         - createdAt
-
     AlertAcknowledgement:
       type: object
       properties:
