@@ -26,6 +26,13 @@ import Shifts from '@/pages/shifts';
 import Rosters from '@/pages/rosters';
 import Overtime from '@/pages/overtime';
 import PunchEvents from '@/pages/punch-events';
+import Leave from '@/pages/leave';
+import LeaveBalances from '@/pages/leave-balances';
+import LeaveConfig from '@/pages/leave-config';
+import Payroll from '@/pages/payroll';
+import PayrollPayslip from '@/pages/payroll-payslip';
+import SalaryGrades from '@/pages/salary-grades';
+import PayComponents from '@/pages/pay-components';
 
 const queryClient = new QueryClient();
 
@@ -72,6 +79,13 @@ function ProtectedRouter() {
         <Route path="/punch-events" component={PunchEvents} />
         <Route path="/alerts" component={Alerts} />
         <Route path="/users" component={Users} />
+        <Route path="/leave" component={Leave} />
+        <Route path="/leave-balances" component={LeaveBalances} />
+        <Route path="/leave-config" component={LeaveConfig} />
+        <Route path="/payroll/payslip/:id" component={PayrollPayslip} />
+        <Route path="/payroll/grades" component={SalaryGrades} />
+        <Route path="/payroll/components" component={PayComponents} />
+        <Route path="/payroll" component={Payroll} />
         <Route component={NotFound} />
       </Switch>
     </Shell>

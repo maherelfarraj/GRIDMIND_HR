@@ -427,7 +427,7 @@ export default function Attendance() {
                             {lang === 'en' ? record.employeeNameEn : record.employeeNameAr}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {record.employeeNumber}
+                            {record.departmentNameEn}
                           </p>
                         </div>
                       </div>
@@ -444,7 +444,7 @@ export default function Attendance() {
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                         <Clock className="w-3 h-3" />
                         <span>{record.workingHours ? `${record.workingHours.toFixed(1)}h` : '-'}</span>
-                        {record.lateMinutes > 0 && (
+                        {(record.lateMinutes ?? 0) > 0 && (
                           <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-transparent text-xs ms-auto">
                             Late {record.lateMinutes}min
                           </Badge>

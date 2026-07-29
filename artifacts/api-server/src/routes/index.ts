@@ -18,6 +18,15 @@ import shiftsRouter from "./shifts";
 import rostersRouter from "./rosters";
 import overtimeRulesRouter from "./overtimeRules";
 import punchEventsRouter from "./punchEvents";
+import leaveTypesRouter from "./leaveTypes";
+import leaveBalancesRouter from "./leaveBalances";
+import leaveRequestsRouter from "./leaveRequests";
+import leaveDelegationsRouter from "./leaveDelegations";
+import publicHolidaysRouter from "./publicHolidays";
+import salaryGradesRouter from "./salaryGrades";
+import payComponentsRouter from "./payComponents";
+import payrollPeriodsRouter from "./payrollPeriods";
+import payrollRunsRouter from "./payrollRuns";
 
 const router: IRouter = Router();
 
@@ -40,5 +49,14 @@ router.use(shiftsRouter);
 router.use(rostersRouter);
 router.use(overtimeRulesRouter);
 router.use(punchEventsRouter);
+router.use(leaveTypesRouter);
+router.use(leaveBalancesRouter);
+router.use(leaveRequestsRouter);
+router.use(leaveDelegationsRouter);
+router.use(publicHolidaysRouter);
+router.use(salaryGradesRouter);
+router.use(payComponentsRouter);
+router.use(payrollPeriodsRouter);
+router.use(payrollRunsRouter);
 
 export default router;

@@ -23,7 +23,10 @@ import {
   Timer,
   CalendarDays,
   TrendingUp,
-  Fingerprint
+  Fingerprint,
+  Wallet,
+  SlidersHorizontal,
+  Receipt,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -55,9 +58,19 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
     { href: '/users', icon: Settings, labelEn: 'System Users', labelAr: 'مستخدمي النظام' },
   ];
 
+  const leaveItems = [
+    { href: '/leave', icon: CalendarOff, labelEn: 'Leave Requests', labelAr: 'طلبات الإجازة' },
+    { href: '/leave-balances', icon: CalendarDays, labelEn: 'Leave Balances', labelAr: 'أرصدة الإجازات' },
+    { href: '/leave-config', icon: SlidersHorizontal, labelEn: 'Leave Config', labelAr: 'إعداد الإجازات' },
+  ];
+
+  const payrollItems = [
+    { href: '/payroll', icon: Banknote, labelEn: 'Payroll Periods', labelAr: 'فترات الرواتب' },
+    { href: '/payroll/grades', icon: Wallet, labelEn: 'Salary Grades', labelAr: 'الدرجات الوظيفية' },
+    { href: '/payroll/components', icon: Receipt, labelEn: 'Pay Components', labelAr: 'مكونات الراتب' },
+  ];
+
   const comingSoonItems = [
-    { icon: Banknote, labelEn: 'Payroll', labelAr: 'الرواتب' },
-    { icon: CalendarOff, labelEn: 'Leave Mgmt', labelAr: 'إدارة الإجازات' },
     { icon: UserPlus, labelEn: 'Recruitment', labelAr: 'التوظيف' },
   ];
 
@@ -119,16 +132,55 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
           );
         })}
 
-        <div className="px-3 mt-8 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          {t('Leave Management', 'إدارة الإجازات')}
+        </div>
+        {leaveItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive 
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary" 
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          {t('Payroll', 'الرواتب')}
+        </div>
+        {payrollItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive 
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary" 
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
           {t('Coming Soon', 'قريباً')}
         </div>
-        
         {comingSoonItems.map((item) => (
           <div key={item.labelEn} className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground/30 cursor-not-allowed">
             <item.icon className="w-4 h-4" />
             <span className="flex-1">{t(item.labelEn, item.labelAr)}</span>
             <span className="text-[10px] bg-sidebar-accent px-1.5 py-0.5 rounded text-sidebar-foreground/50">
-              {t('Beta', 'بيتا')}
+              {t('Soon', 'قريباً')}
             </span>
           </div>
         ))}

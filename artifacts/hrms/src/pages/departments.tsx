@@ -45,11 +45,11 @@ export default function Departments() {
   const expandAll = () => {
     if (!tree) return;
     const allIds = new Set<number>();
-    const collectIds = (nodes: Department[]) => {
+    const collectIds = (nodes: { id: number; children?: unknown[] }[]) => {
       nodes.forEach(node => {
         allIds.add(node.id);
         if (node.children && node.children.length > 0) {
-          collectIds(node.children);
+          collectIds(node.children as { id: number; children?: unknown[] }[]);
         }
       });
     };
@@ -79,8 +79,9 @@ export default function Departments() {
     }
   };
 
-  const TreeNode = ({ node, level = 0 }: { node: Department; level?: number }) => {
-    const Icon = getOrgIcon(node.organizationType);
+  type TreeNodeData = { id: number; nameEn: string; nameAr: string; code: string; employeeCount: number; organizationType?: string; children?: unknown[] };
+  const TreeNode = ({ node, level = 0 }: { node: TreeNodeData; level?: number }) => {
+    const Icon = getOrgIcon(node.organizationType ?? 'commercial');
     const isExpanded = expandedNodes.has(node.id);
     const hasChildren = node.children && node.children.length > 0;
 
@@ -117,7 +118,7 @@ export default function Departments() {
           </div>
 
           {/* Icon */}
-          <Icon className={cn("w-5 h-5 shrink-0", getOrgColor(node.organizationType))} />
+          <Icon className={cn("w-5 h-5 shrink-0", getOrgColor(node.organizationType ?? 'commercial'))} />
 
           {/* Department info */}
           <div className="flex-1 min-w-0 flex items-center gap-3">
@@ -146,7 +147,7 @@ export default function Departments() {
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              {node.children!.map((child) => (
+              {(node.children as TreeNodeData[]).map((child) => (
                 <TreeNode key={child.id} node={child} level={level + 1} />
               ))}
             </motion.div>

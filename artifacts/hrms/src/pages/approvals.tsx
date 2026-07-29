@@ -69,7 +69,7 @@ export default function Approvals() {
     try {
       await decideApproval.mutateAsync({
         id,
-        decision: { decision: 'approved' },
+        data: { status: 'approved' },
       });
       
       toast({ 
@@ -93,7 +93,7 @@ export default function Approvals() {
     try {
       await decideApproval.mutateAsync({
         id,
-        decision: { decision: 'rejected', note },
+        data: { status: 'rejected', decisionNote: note },
       });
       
       toast({ 
@@ -278,16 +278,16 @@ export default function Approvals() {
                                   </div>
                                 ))}
                               </div>
-                              {item.notes && (
+                              {item.decisionNote && (
                                 <div className="p-3 rounded bg-background border">
-                                  <p className="text-xs text-muted-foreground mb-1">{t('Notes', 'ملاحظات')}</p>
-                                  <p className="text-sm">{item.notes}</p>
+                                  <p className="text-xs text-muted-foreground mb-1">{t('Decision Note', 'ملاحظة القرار')}</p>
+                                  <p className="text-sm">{item.decisionNote}</p>
                                 </div>
                               )}
                               {(item.status === 'approved' || item.status === 'rejected') && (
                                 <div className="p-3 rounded bg-background border">
                                   <p className="text-xs text-muted-foreground mb-1">
-                                    {t('Decision by', 'قرار من')}: {item.decidedByUsername || '-'}
+                                    {t('Decision by', 'قرار من')}: {item.assignedToUserName || '-'}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
                                     {t('On', 'في')}: {item.decidedAt ? new Date(item.decidedAt).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US') : '-'}

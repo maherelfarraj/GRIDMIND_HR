@@ -79,3 +79,29 @@ DB is seeded with fictional data: 10 departments, 6 roles, 15 employees, 6 syste
 
 ## Air-gap / deployment intent
 No Replit/Supabase/cloud API deps. Auth: localStorage-gated session + POST /auth/login (any password accepted in demo). All API routes at /api/* proxied by Vite dev server.
+
+## Phase 3 tables + seed (all pushed to DB)
+12 new tables: leaveTypes, leaveBalances, leaveRequests, leaveApprovalSteps, leaveAttachments, leaveDelegations, publicHolidays, salaryGrades, payComponents, payrollPeriods, payrollRuns, payrollRunLines. Seed script: `artifacts/api-server/src/lib/seed-phase3.ts`.
+Employee `grade` field (G6–G12) must match salary grade `gradeCode` exactly — mismatch causes 100% payroll exceptions. Salary grades G6–G12 are now seeded.
+
+## Leave approve/decide endpoint — decision values
+The `/leave-requests/:id/decide` route normalizes decision to `"approved"` / `"rejected"`. It accepts both the canonical form (`"approved"`) and shorthand (`"approve"`). Always pass `stepId` (the DB record id), not `stepNumber`. The route now accepts both `stepId` and legacy `stepNumber` for lookup.
+
+**Why:** Original route only accepted `"approve"`/`"reject"` shorthand but the frontend sends `"approved"`/`"rejected"`. Using `stepNumber` requires knowing the sequence; `stepId` is safer from the frontend.
+
+## Payroll calculate — Drizzle timestamp vs string date
+The `gte`/`lte` comparison for `punchEventsTable.eventTime` (a Drizzle `timestamp` column) requires a `Date` object, not a string. Pass `new Date(period.startDate)` and `new Date(period.endDate + "T23:59:59Z")` to avoid `value.toISOString is not a function`.
+
+**Why:** Drizzle's `PgTimestamp.mapToDriverValue` calls `.toISOString()` on the value, failing if it's a string.
+
+## Leave request steps key
+`enrichRequest()` returns steps under the key `steps` (not `approvalSteps`). Frontend uses `req?.steps ?? []`.
+
+## Phase 3 new frontend pages (7 total)
+leave.tsx, leave-balances.tsx, leave-config.tsx, payroll.tsx, payroll-payslip.tsx, salary-grades.tsx, pay-components.tsx — all registered in App.tsx and Sidebar.tsx.
+
+## Pre-existing TypeScript fixes applied
+- `approvals.tsx`: mutation body key `data` (not `decision`), status values `approved`/`rejected` (not `approve`/`reject`), field `decisionNote` (not `notes`), field `assignedToUserName` (not `decidedByUsername`)
+- `attendance.tsx`: `AttendanceRecord` has no `employeeNumber` (use `departmentNameEn`); `lateMinutes` is nullable (use `?? 0`)
+- `departments.tsx`: `DepartmentNode` has no `organizationType` — TreeNode uses optional field with `?? 'commercial'` fallback
+- `devices.tsx`: `DeviceHealth` fields are `signalStrength`, `recordsToday`, `errorLog.length`, `lastPingAt` (not `scanSuccessRate`, `totalScansToday`, `failedAttempts`, `lastHeartbeat`)

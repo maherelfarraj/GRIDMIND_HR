@@ -1445,6 +1445,857 @@ paths:
                 $ref: "#/components/schemas/PunchEvent"
 
 
+  # ── Leave Types ──────────────────────────────────────────────────────────
+  /leave-types:
+    get:
+      tags: [leave]
+      summary: List leave types
+      operationId: listLeaveTypes
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LeaveType" }
+    post:
+      tags: [leave]
+      summary: Create leave type
+      operationId: createLeaveType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveTypeInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveType" }
+
+  /leave-types/{id}:
+    get:
+      tags: [leave]
+      summary: Get leave type
+      operationId: getLeaveType
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveType" }
+    patch:
+      tags: [leave]
+      summary: Update leave type
+      operationId: updateLeaveType
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveTypeInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveType" }
+    delete:
+      tags: [leave]
+      summary: Delete leave type
+      operationId: deleteLeaveType
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: No Content
+
+  # ── Leave Balances ────────────────────────────────────────────────────────
+  /leave-balances:
+    get:
+      tags: [leave]
+      summary: List leave balances
+      operationId: listLeaveBalances
+      parameters:
+        - name: employeeId
+          in: query
+          schema: { type: number }
+        - name: year
+          in: query
+          schema: { type: number }
+        - name: leaveTypeId
+          in: query
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LeaveBalance" }
+    post:
+      tags: [leave]
+      summary: Create or upsert leave balance
+      operationId: createLeaveBalance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveBalanceInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveBalance" }
+
+  /leave-balances/{id}:
+    patch:
+      tags: [leave]
+      summary: Adjust leave balance
+      operationId: updateLeaveBalance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveBalanceInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveBalance" }
+
+  # ── Leave Requests ────────────────────────────────────────────────────────
+  /leave-requests:
+    get:
+      tags: [leave]
+      summary: List leave requests
+      operationId: listLeaveRequests
+      parameters:
+        - name: employeeId
+          in: query
+          schema: { type: number }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: leaveTypeId
+          in: query
+          schema: { type: number }
+        - name: startDate
+          in: query
+          schema: { type: string }
+        - name: endDate
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LeaveRequestSummary" }
+    post:
+      tags: [leave]
+      summary: Create leave request
+      operationId: createLeaveRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveRequestInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveRequestDetail" }
+
+  /leave-requests/{id}:
+    get:
+      tags: [leave]
+      summary: Get leave request detail
+      operationId: getLeaveRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveRequestDetail" }
+
+  /leave-requests/{id}/submit:
+    post:
+      tags: [leave]
+      summary: Submit a draft leave request
+      operationId: submitLeaveRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveRequestDetail" }
+
+  /leave-requests/{id}/decide:
+    post:
+      tags: [leave]
+      summary: Approve or reject an approval step
+      operationId: decideLeaveRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveDecisionInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveRequestDetail" }
+
+  /leave-requests/{id}/cancel:
+    post:
+      tags: [leave]
+      summary: Cancel a leave request
+      operationId: cancelLeaveRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveRequestDetail" }
+
+  /leave-requests/{id}/return-to-duty:
+    post:
+      tags: [leave]
+      summary: Record return-to-duty after approved leave
+      operationId: returnToDuty
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReturnToDutyInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveRequestDetail" }
+
+  /leave-requests/{id}/attachments:
+    post:
+      tags: [leave]
+      summary: Attach a document to a leave request
+      operationId: addLeaveAttachment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveAttachmentInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveAttachment" }
+
+  /leave-calendar:
+    get:
+      tags: [leave]
+      summary: Get approved/pending leaves for calendar overlay
+      operationId: getLeaveCalendar
+      parameters:
+        - name: startDate
+          in: query
+          schema: { type: string }
+        - name: endDate
+          in: query
+          schema: { type: string }
+        - name: departmentId
+          in: query
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LeaveCalendarEntry" }
+
+  # ── Leave Delegations ─────────────────────────────────────────────────────
+  /leave-delegations:
+    get:
+      tags: [leave]
+      summary: List leave delegations
+      operationId: listLeaveDelegations
+      parameters:
+        - name: delegatorId
+          in: query
+          schema: { type: number }
+        - name: activeOnly
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LeaveDelegation" }
+    post:
+      tags: [leave]
+      summary: Create delegation
+      operationId: createLeaveDelegation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveDelegationInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveDelegation" }
+
+  /leave-delegations/{id}:
+    patch:
+      tags: [leave]
+      summary: Update delegation
+      operationId: updateLeaveDelegation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveDelegationInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveDelegation" }
+    delete:
+      tags: [leave]
+      summary: Delete delegation
+      operationId: deleteLeaveDelegation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: No Content
+
+  # ── Public Holidays ───────────────────────────────────────────────────────
+  /public-holidays:
+    get:
+      tags: [leave]
+      summary: List public holidays
+      operationId: listPublicHolidays
+      parameters:
+        - name: year
+          in: query
+          schema: { type: number }
+        - name: applicableTo
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PublicHoliday" }
+    post:
+      tags: [leave]
+      summary: Create public holiday
+      operationId: createPublicHoliday
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublicHolidayInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicHoliday" }
+
+  /public-holidays/{id}:
+    patch:
+      tags: [leave]
+      summary: Update public holiday
+      operationId: updatePublicHoliday
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublicHolidayInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicHoliday" }
+    delete:
+      tags: [leave]
+      summary: Delete public holiday
+      operationId: deletePublicHoliday
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: No Content
+
+  # ── Salary Grades ─────────────────────────────────────────────────────────
+  /salary-grades:
+    get:
+      tags: [payroll]
+      summary: List salary grades
+      operationId: listSalaryGrades
+      parameters:
+        - name: organizationType
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SalaryGrade" }
+    post:
+      tags: [payroll]
+      summary: Create salary grade
+      operationId: createSalaryGrade
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SalaryGradeInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SalaryGrade" }
+
+  /salary-grades/{id}:
+    get:
+      tags: [payroll]
+      summary: Get salary grade
+      operationId: getSalaryGrade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SalaryGrade" }
+    patch:
+      tags: [payroll]
+      summary: Update salary grade
+      operationId: updateSalaryGrade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SalaryGradeInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SalaryGrade" }
+    delete:
+      tags: [payroll]
+      summary: Delete salary grade
+      operationId: deleteSalaryGrade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: No Content
+
+  # ── Pay Components ────────────────────────────────────────────────────────
+  /pay-components:
+    get:
+      tags: [payroll]
+      summary: List pay components
+      operationId: listPayComponents
+      parameters:
+        - name: type
+          in: query
+          schema: { type: string }
+        - name: applicableTo
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PayComponent" }
+    post:
+      tags: [payroll]
+      summary: Create pay component
+      operationId: createPayComponent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayComponentInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayComponent" }
+
+  /pay-components/{id}:
+    get:
+      tags: [payroll]
+      summary: Get pay component
+      operationId: getPayComponent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayComponent" }
+    patch:
+      tags: [payroll]
+      summary: Update pay component
+      operationId: updatePayComponent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayComponentInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayComponent" }
+    delete:
+      tags: [payroll]
+      summary: Delete pay component
+      operationId: deletePayComponent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: No Content
+
+  # ── Payroll Periods ───────────────────────────────────────────────────────
+  /payroll-periods:
+    get:
+      tags: [payroll]
+      summary: List payroll periods
+      operationId: listPayrollPeriods
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: year
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PayrollPeriod" }
+    post:
+      tags: [payroll]
+      summary: Create payroll period
+      operationId: createPayrollPeriod
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayrollPeriodInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollPeriod" }
+
+  /payroll-periods/{id}:
+    get:
+      tags: [payroll]
+      summary: Get payroll period
+      operationId: getPayrollPeriod
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollPeriod" }
+    patch:
+      tags: [payroll]
+      summary: Update payroll period metadata
+      operationId: updatePayrollPeriod
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayrollPeriodInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollPeriod" }
+
+  /payroll-periods/{id}/calculate:
+    post:
+      tags: [payroll]
+      summary: Calculate all employee runs for this period
+      operationId: calculatePayrollPeriod
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Calculation result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollCalculationResult" }
+
+  /payroll-periods/{id}/approve:
+    post:
+      tags: [payroll]
+      summary: First or second approval of payroll period
+      operationId: approvePayrollPeriod
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayrollApprovalInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollPeriod" }
+
+  /payroll-periods/{id}/close:
+    post:
+      tags: [payroll]
+      summary: Immutably close a fully approved payroll period
+      operationId: closePayrollPeriod
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollPeriod" }
+
+  # ── Payroll Runs ──────────────────────────────────────────────────────────
+  /payroll-runs:
+    get:
+      tags: [payroll]
+      summary: List payroll runs
+      operationId: listPayrollRuns
+      parameters:
+        - name: periodId
+          in: query
+          schema: { type: number }
+        - name: employeeId
+          in: query
+          schema: { type: number }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: hasException
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PayrollRunSummary" }
+
+  /payroll-runs/{id}:
+    get:
+      tags: [payroll]
+      summary: Get payroll run detail with line items
+      operationId: getPayrollRun
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollRunDetail" }
+    patch:
+      tags: [payroll]
+      summary: Update exception note on a payroll run
+      operationId: updatePayrollRun
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayrollRunPatch" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollRunDetail" }
+
+  /payroll-runs/{id}/payslip:
+    get:
+      tags: [payroll]
+      summary: Get payslip view for a run
+      operationId: getPayslip
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Payslip" }
+
 components:
   schemas:
     HealthStatus:
@@ -2325,3 +3176,516 @@ components:
         mfaEnabled: { type: boolean }
         preferredLanguage: { type: string }
         avatarUrl: { type: ["string", "null"] }
+
+    # ── Leave Types ───────────────────────────────────────────
+    LeaveType:
+      type: object
+      properties:
+        id: { type: number }
+        codeEn: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        descriptionEn: { type: ["string", "null"] }
+        descriptionAr: { type: ["string", "null"] }
+        category: { type: string }
+        defaultDaysPerYear: { type: number }
+        accrualFrequency: { type: string }
+        accrualAmount: { type: string }
+        maxCarryoverDays: { type: number }
+        requiresApproval: { type: boolean }
+        requiresAttachment: { type: boolean }
+        minAdvanceNoticeDays: { type: number }
+        maxConsecutiveDays: { type: ["number", "null"] }
+        applicableToGender: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        color: { type: string }
+        createdAt: { type: string }
+      required: [id, codeEn, nameEn, nameAr, category, defaultDaysPerYear, accrualFrequency, accrualAmount, maxCarryoverDays, requiresApproval, requiresAttachment, minAdvanceNoticeDays, isActive, color, createdAt]
+
+    LeaveTypeInput:
+      type: object
+      properties:
+        codeEn: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        descriptionEn: { type: ["string", "null"] }
+        descriptionAr: { type: ["string", "null"] }
+        category: { type: string }
+        defaultDaysPerYear: { type: number }
+        accrualFrequency: { type: string }
+        accrualAmount: { type: string }
+        maxCarryoverDays: { type: number }
+        requiresApproval: { type: boolean }
+        requiresAttachment: { type: boolean }
+        minAdvanceNoticeDays: { type: number }
+        maxConsecutiveDays: { type: ["number", "null"] }
+        applicableToGender: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        color: { type: string }
+      required: [codeEn, nameEn, nameAr]
+
+    # ── Leave Balances ────────────────────────────────────────
+    LeaveBalance:
+      type: object
+      properties:
+        id: { type: number }
+        employeeId: { type: number }
+        leaveTypeId: { type: number }
+        year: { type: number }
+        openingBalance: { type: string }
+        accrued: { type: string }
+        used: { type: string }
+        pending: { type: string }
+        adjustment: { type: string }
+        carriedOver: { type: string }
+        available: { type: string }
+        employeeNameEn: { type: string }
+        employeeNameAr: { type: string }
+        leaveTypeNameEn: { type: string }
+        leaveTypeNameAr: { type: string }
+        leaveTypeColor: { type: string }
+      required: [id, employeeId, leaveTypeId, year, openingBalance, accrued, used, pending, adjustment, carriedOver]
+
+    LeaveBalanceInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        leaveTypeId: { type: number }
+        year: { type: number }
+        openingBalance: { type: string }
+        accrued: { type: string }
+        adjustment: { type: string }
+        carriedOver: { type: string }
+      required: [employeeId, leaveTypeId, year]
+
+    # ── Leave Requests ────────────────────────────────────────
+    LeaveApprovalStep:
+      type: object
+      properties:
+        id: { type: number }
+        leaveRequestId: { type: number }
+        stepNumber: { type: number }
+        roleRequired: { type: ["string", "null"] }
+        assignedToEmployeeId: { type: ["number", "null"] }
+        status: { type: string }
+        decision: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        decidedAt: { type: ["string", "null"] }
+        delegatedToEmployeeId: { type: ["number", "null"] }
+      required: [id, leaveRequestId, stepNumber, status]
+
+    LeaveAttachment:
+      type: object
+      properties:
+        id: { type: number }
+        leaveRequestId: { type: number }
+        fileName: { type: string }
+        fileType: { type: ["string", "null"] }
+        fileSize: { type: ["number", "null"] }
+        fileUrl: { type: ["string", "null"] }
+        uploadedAt: { type: string }
+      required: [id, leaveRequestId, fileName, uploadedAt]
+
+    LeaveAttachmentInput:
+      type: object
+      properties:
+        fileName: { type: string }
+        fileType: { type: ["string", "null"] }
+        fileSize: { type: ["number", "null"] }
+        fileUrl: { type: ["string", "null"] }
+      required: [fileName]
+
+    LeaveRequestSummary:
+      type: object
+      properties:
+        id: { type: number }
+        requestNumber: { type: string }
+        employeeId: { type: number }
+        employeeNameEn: { type: string }
+        employeeNameAr: { type: string }
+        departmentId: { type: ["number", "null"] }
+        leaveTypeId: { type: number }
+        leaveTypeNameEn: { type: string }
+        leaveTypeNameAr: { type: string }
+        leaveTypeColor: { type: string }
+        leaveTypeCategory: { type: string }
+        startDate: { type: string }
+        endDate: { type: string }
+        totalDays: { type: string }
+        halfDay: { type: boolean }
+        status: { type: string }
+        returnedToWork: { type: boolean }
+        submittedAt: { type: ["string", "null"] }
+        decidedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, requestNumber, employeeId, employeeNameEn, leaveTypeId, leaveTypeNameEn, startDate, endDate, totalDays, status, returnedToWork, createdAt]
+
+    LeaveRequestDetail:
+      allOf:
+        - $ref: "#/components/schemas/LeaveRequestSummary"
+        - type: object
+          properties:
+            reasonEn: { type: ["string", "null"] }
+            reasonAr: { type: ["string", "null"] }
+            coveringEmployeeId: { type: ["number", "null"] }
+            coveringEmployeeNameEn: { type: ["string", "null"] }
+            returnDate: { type: ["string", "null"] }
+            returnNotes: { type: ["string", "null"] }
+            currentStepNumber: { type: number }
+            totalApprovalSteps: { type: number }
+            steps:
+              type: array
+              items: { $ref: "#/components/schemas/LeaveApprovalStep" }
+            attachments:
+              type: array
+              items: { $ref: "#/components/schemas/LeaveAttachment" }
+
+    LeaveRequestInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        leaveTypeId: { type: number }
+        startDate: { type: string }
+        endDate: { type: string }
+        totalDays: { type: number }
+        halfDay: { type: boolean }
+        halfDayPeriod: { type: ["string", "null"] }
+        reasonEn: { type: ["string", "null"] }
+        reasonAr: { type: ["string", "null"] }
+        coveringEmployeeId: { type: ["number", "null"] }
+      required: [employeeId, leaveTypeId, startDate, endDate, totalDays]
+
+    LeaveDecisionInput:
+      type: object
+      properties:
+        stepNumber: { type: number }
+        decision: { type: string }
+        notes: { type: ["string", "null"] }
+        decidedByEmployeeId: { type: ["number", "null"] }
+      required: [stepNumber, decision]
+
+    ReturnToDutyInput:
+      type: object
+      properties:
+        returnDate: { type: string }
+        returnNotes: { type: ["string", "null"] }
+
+    LeaveCalendarEntry:
+      type: object
+      properties:
+        id: { type: number }
+        requestNumber: { type: string }
+        employeeId: { type: number }
+        employeeNameEn: { type: string }
+        departmentId: { type: ["number", "null"] }
+        startDate: { type: string }
+        endDate: { type: string }
+        totalDays: { type: string }
+        status: { type: string }
+        leaveTypeNameEn: { type: string }
+        leaveTypeColor: { type: string }
+      required: [id, requestNumber, employeeId, employeeNameEn, startDate, endDate, totalDays, status, leaveTypeNameEn, leaveTypeColor]
+
+    # ── Leave Delegations ─────────────────────────────────────
+    LeaveDelegation:
+      type: object
+      properties:
+        id: { type: number }
+        delegatorEmployeeId: { type: number }
+        delegateeEmployeeId: { type: number }
+        delegatorNameEn: { type: string }
+        delegateeNameEn: { type: string }
+        startDate: { type: string }
+        endDate: { type: string }
+        reason: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        createdAt: { type: string }
+      required: [id, delegatorEmployeeId, delegateeEmployeeId, startDate, endDate, isActive, createdAt]
+
+    LeaveDelegationInput:
+      type: object
+      properties:
+        delegatorEmployeeId: { type: number }
+        delegateeEmployeeId: { type: number }
+        startDate: { type: string }
+        endDate: { type: string }
+        reason: { type: ["string", "null"] }
+        isActive: { type: boolean }
+      required: [delegatorEmployeeId, delegateeEmployeeId, startDate, endDate]
+
+    # ── Public Holidays ───────────────────────────────────────
+    PublicHoliday:
+      type: object
+      properties:
+        id: { type: number }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        date: { type: string }
+        year: { type: number }
+        isRecurring: { type: boolean }
+        applicableTo: { type: string }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, nameEn, nameAr, date, year, isRecurring, applicableTo, createdAt]
+
+    PublicHolidayInput:
+      type: object
+      properties:
+        nameEn: { type: string }
+        nameAr: { type: string }
+        date: { type: string }
+        year: { type: number }
+        isRecurring: { type: boolean }
+        applicableTo: { type: string }
+        notes: { type: ["string", "null"] }
+      required: [nameEn, nameAr, date, year]
+
+    # ── Salary Grades ─────────────────────────────────────────
+    SalaryGrade:
+      type: object
+      properties:
+        id: { type: number }
+        gradeCode: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        step: { type: number }
+        baseSalary: { type: string }
+        housingAllowancePct: { type: string }
+        transportAllowancePct: { type: string }
+        currency: { type: string }
+        organizationType: { type: string }
+        isActive: { type: boolean }
+        createdAt: { type: string }
+      required: [id, gradeCode, nameEn, nameAr, step, baseSalary, housingAllowancePct, transportAllowancePct, currency, organizationType, isActive, createdAt]
+
+    SalaryGradeInput:
+      type: object
+      properties:
+        gradeCode: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        step: { type: number }
+        baseSalary: { type: number }
+        housingAllowancePct: { type: number }
+        transportAllowancePct: { type: number }
+        currency: { type: string }
+        organizationType: { type: string }
+        isActive: { type: boolean }
+      required: [gradeCode, nameEn, nameAr, baseSalary]
+
+    # ── Pay Components ────────────────────────────────────────
+    PayComponent:
+      type: object
+      properties:
+        id: { type: number }
+        codeEn: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        type: { type: string }
+        calculationMethod: { type: string }
+        value: { type: string }
+        percentageBase: { type: ["string", "null"] }
+        isTaxable: { type: boolean }
+        isMandatory: { type: boolean }
+        applicableTo: { type: string }
+        isActive: { type: boolean }
+        sortOrder: { type: number }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, codeEn, nameEn, nameAr, type, calculationMethod, value, isTaxable, isMandatory, applicableTo, isActive, sortOrder, createdAt]
+
+    PayComponentInput:
+      type: object
+      properties:
+        codeEn: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        type: { type: string }
+        calculationMethod: { type: string }
+        value: { type: number }
+        percentageBase: { type: ["string", "null"] }
+        isTaxable: { type: boolean }
+        isMandatory: { type: boolean }
+        applicableTo: { type: string }
+        isActive: { type: boolean }
+        sortOrder: { type: number }
+        notes: { type: ["string", "null"] }
+      required: [codeEn, nameEn, nameAr, type]
+
+    # ── Payroll Periods ───────────────────────────────────────
+    PayrollPeriod:
+      type: object
+      properties:
+        id: { type: number }
+        periodCode: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        periodType: { type: string }
+        startDate: { type: string }
+        endDate: { type: string }
+        payDate: { type: string }
+        status: { type: string }
+        totalEmployees: { type: number }
+        totalGrossSalary: { type: string }
+        totalDeductions: { type: string }
+        totalNetSalary: { type: string }
+        exceptionCount: { type: number }
+        currency: { type: string }
+        isClosed: { type: boolean }
+        firstApprovedAt: { type: ["string", "null"] }
+        secondApprovedAt: { type: ["string", "null"] }
+        closedAt: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, periodCode, nameEn, nameAr, periodType, startDate, endDate, payDate, status, totalEmployees, totalGrossSalary, totalDeductions, totalNetSalary, exceptionCount, currency, isClosed, createdAt]
+
+    PayrollPeriodInput:
+      type: object
+      properties:
+        periodCode: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        periodType: { type: string }
+        startDate: { type: string }
+        endDate: { type: string }
+        payDate: { type: string }
+        currency: { type: string }
+        notes: { type: ["string", "null"] }
+      required: [periodCode, nameEn, nameAr, startDate, endDate, payDate]
+
+    PayrollApprovalInput:
+      type: object
+      properties:
+        approverId: { type: ["number", "null"] }
+        note: { type: ["string", "null"] }
+
+    PayrollCalculationResult:
+      type: object
+      properties:
+        period: { $ref: "#/components/schemas/PayrollPeriod" }
+        runsCreated: { type: number }
+        exceptionCount: { type: number }
+      required: [period, runsCreated, exceptionCount]
+
+    # ── Payroll Runs ──────────────────────────────────────────
+    PayrollRunLine:
+      type: object
+      properties:
+        id: { type: number }
+        payrollRunId: { type: number }
+        payComponentId: { type: ["number", "null"] }
+        codeEn: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        type: { type: string }
+        amount: { type: string }
+        sortOrder: { type: number }
+      required: [id, payrollRunId, codeEn, nameEn, nameAr, type, amount, sortOrder]
+
+    PayrollRunSummary:
+      type: object
+      properties:
+        id: { type: number }
+        payrollPeriodId: { type: number }
+        employeeId: { type: number }
+        employeeNameEn: { type: string }
+        employeeNameAr: { type: string }
+        employeeNumber: { type: string }
+        jobTitleEn: { type: string }
+        departmentNameEn: { type: string }
+        grade: { type: ["string", "null"] }
+        baseSalary: { type: string }
+        grossSalary: { type: string }
+        totalDeductions: { type: string }
+        netSalary: { type: string }
+        overtimeHours: { type: string }
+        overtimePay: { type: string }
+        currency: { type: string }
+        hasException: { type: boolean }
+        exceptionNote: { type: ["string", "null"] }
+        status: { type: string }
+        calculatedAt: { type: ["string", "null"] }
+      required: [id, payrollPeriodId, employeeId, employeeNameEn, baseSalary, grossSalary, totalDeductions, netSalary, currency, hasException, status]
+
+    PayrollRunDetail:
+      allOf:
+        - $ref: "#/components/schemas/PayrollRunSummary"
+        - type: object
+          properties:
+            jobTitleAr: { type: string }
+            nationalId: { type: string }
+            periodNameEn: { type: string }
+            periodNameAr: { type: string }
+            periodStartDate: { type: string }
+            periodEndDate: { type: string }
+            payDate: { type: string }
+            workingDays: { type: number }
+            presentDays: { type: number }
+            absentDays: { type: number }
+            deductedLeaveDays: { type: string }
+            leaveDeductionAmount: { type: string }
+            totalEarnings: { type: string }
+            lines:
+              type: array
+              items: { $ref: "#/components/schemas/PayrollRunLine" }
+
+    PayrollRunPatch:
+      type: object
+      properties:
+        exceptionNote: { type: ["string", "null"] }
+        hasException: { type: boolean }
+        status: { type: string }
+
+    Payslip:
+      type: object
+      properties:
+        runId: { type: number }
+        employee:
+          type: object
+          properties:
+            id: { type: number }
+            employeeNumber: { type: string }
+            fullNameEn: { type: string }
+            fullNameAr: { type: string }
+            jobTitleEn: { type: string }
+            jobTitleAr: { type: string }
+            nationalId: { type: string }
+            grade: { type: ["string", "null"] }
+            departmentNameEn: { type: string }
+            departmentNameAr: { type: string }
+          required: [employeeNumber, fullNameEn, fullNameAr, jobTitleEn, jobTitleAr, nationalId, departmentNameEn, departmentNameAr]
+        period:
+          type: object
+          properties:
+            periodCode: { type: string }
+            nameEn: { type: string }
+            nameAr: { type: string }
+            startDate: { type: string }
+            endDate: { type: string }
+            payDate: { type: string }
+          required: [periodCode, nameEn, nameAr, startDate, endDate, payDate]
+        summary:
+          type: object
+          properties:
+            baseSalary: { type: string }
+            grossSalary: { type: string }
+            totalEarnings: { type: string }
+            totalDeductions: { type: string }
+            netSalary: { type: string }
+            overtimeHours: { type: string }
+            overtimePay: { type: string }
+            workingDays: { type: number }
+            presentDays: { type: number }
+            currency: { type: string }
+          required: [baseSalary, grossSalary, totalEarnings, totalDeductions, netSalary, overtimeHours, overtimePay, workingDays, presentDays, currency]
+        earnings:
+          type: array
+          items: { $ref: "#/components/schemas/PayrollRunLine" }
+        deductions:
+          type: array
+          items: { $ref: "#/components/schemas/PayrollRunLine" }
+        hasException: { type: boolean }
+        exceptionNote: { type: ["string", "null"] }
+        calculatedAt: { type: ["string", "null"] }
+      required: [runId, employee, period, summary, earnings, deductions, hasException]
+

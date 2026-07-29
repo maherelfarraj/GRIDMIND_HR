@@ -249,31 +249,31 @@ export default function Devices() {
                       <div className="flex items-center gap-3 p-3 rounded-md border">
                         <CheckCircle className="w-8 h-8 text-emerald-500" />
                         <div>
-                          <p className="text-xs text-muted-foreground">{t('Success Rate', 'معدل النجاح')}</p>
-                          <p className="text-lg font-bold">{deviceHealth.scanSuccessRate}%</p>
+                          <p className="text-xs text-muted-foreground">{t('Signal Strength', 'قوة الإشارة')}</p>
+                          <p className="text-lg font-bold">{deviceHealth.signalStrength ?? '-'}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 p-3 rounded-md border">
                         <Clock className="w-8 h-8 text-blue-500" />
                         <div>
-                          <p className="text-xs text-muted-foreground">{t('Scans Today', 'المسح اليوم')}</p>
-                          <p className="text-lg font-bold">{deviceHealth.totalScansToday}</p>
+                          <p className="text-xs text-muted-foreground">{t('Records Today', 'سجلات اليوم')}</p>
+                          <p className="text-lg font-bold">{deviceHealth.recordsToday}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 p-3 rounded-md border">
                         <XCircle className="w-8 h-8 text-destructive" />
                         <div>
-                          <p className="text-xs text-muted-foreground">{t('Failed Attempts', 'محاولات فاشلة')}</p>
-                          <p className="text-lg font-bold">{deviceHealth.failedAttempts}</p>
+                          <p className="text-xs text-muted-foreground">{t('Error Log Entries', 'إدخالات سجل الأخطاء')}</p>
+                          <p className="text-lg font-bold">{deviceHealth.errorLog?.length ?? 0}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 p-3 rounded-md border md:col-span-2">
                         <Activity className="w-8 h-8 text-muted-foreground" />
                         <div>
-                          <p className="text-xs text-muted-foreground">{t('Last Heartbeat', 'آخر نبضة')}</p>
+                          <p className="text-xs text-muted-foreground">{t('Last Ping', 'آخر نبضة')}</p>
                           <p className="text-sm font-semibold">
-                            {deviceHealth.lastHeartbeat 
-                              ? new Date(deviceHealth.lastHeartbeat).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US')
+                            {deviceHealth.lastPingAt
+                              ? new Date(deviceHealth.lastPingAt).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US')
                               : '-'
                             }
                           </p>

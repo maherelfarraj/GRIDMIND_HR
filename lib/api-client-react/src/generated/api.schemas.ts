@@ -778,6 +778,500 @@ export interface SystemUserUpdate {
   avatarUrl?: string | null;
 }
 
+export interface LeaveType {
+  id: number;
+  codeEn: string;
+  nameEn: string;
+  nameAr: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  category: string;
+  defaultDaysPerYear: number;
+  accrualFrequency: string;
+  accrualAmount: string;
+  maxCarryoverDays: number;
+  requiresApproval: boolean;
+  requiresAttachment: boolean;
+  minAdvanceNoticeDays: number;
+  /** @nullable */
+  maxConsecutiveDays?: number | null;
+  /** @nullable */
+  applicableToGender?: string | null;
+  isActive: boolean;
+  color: string;
+  createdAt: string;
+}
+
+export interface LeaveTypeInput {
+  codeEn: string;
+  nameEn: string;
+  nameAr: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  category?: string;
+  defaultDaysPerYear?: number;
+  accrualFrequency?: string;
+  accrualAmount?: string;
+  maxCarryoverDays?: number;
+  requiresApproval?: boolean;
+  requiresAttachment?: boolean;
+  minAdvanceNoticeDays?: number;
+  /** @nullable */
+  maxConsecutiveDays?: number | null;
+  /** @nullable */
+  applicableToGender?: string | null;
+  isActive?: boolean;
+  color?: string;
+}
+
+export interface LeaveBalance {
+  id: number;
+  employeeId: number;
+  leaveTypeId: number;
+  year: number;
+  openingBalance: string;
+  accrued: string;
+  used: string;
+  pending: string;
+  adjustment: string;
+  carriedOver: string;
+  available?: string;
+  employeeNameEn?: string;
+  employeeNameAr?: string;
+  leaveTypeNameEn?: string;
+  leaveTypeNameAr?: string;
+  leaveTypeColor?: string;
+}
+
+export interface LeaveBalanceInput {
+  employeeId: number;
+  leaveTypeId: number;
+  year: number;
+  openingBalance?: string;
+  accrued?: string;
+  adjustment?: string;
+  carriedOver?: string;
+}
+
+export interface LeaveApprovalStep {
+  id: number;
+  leaveRequestId: number;
+  stepNumber: number;
+  /** @nullable */
+  roleRequired?: string | null;
+  /** @nullable */
+  assignedToEmployeeId?: number | null;
+  status: string;
+  /** @nullable */
+  decision?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  /** @nullable */
+  delegatedToEmployeeId?: number | null;
+}
+
+export interface LeaveAttachment {
+  id: number;
+  leaveRequestId: number;
+  fileName: string;
+  /** @nullable */
+  fileType?: string | null;
+  /** @nullable */
+  fileSize?: number | null;
+  /** @nullable */
+  fileUrl?: string | null;
+  uploadedAt: string;
+}
+
+export interface LeaveAttachmentInput {
+  fileName: string;
+  /** @nullable */
+  fileType?: string | null;
+  /** @nullable */
+  fileSize?: number | null;
+  /** @nullable */
+  fileUrl?: string | null;
+}
+
+export interface LeaveRequestSummary {
+  id: number;
+  requestNumber: string;
+  employeeId: number;
+  employeeNameEn: string;
+  employeeNameAr?: string;
+  /** @nullable */
+  departmentId?: number | null;
+  leaveTypeId: number;
+  leaveTypeNameEn: string;
+  leaveTypeNameAr?: string;
+  leaveTypeColor?: string;
+  leaveTypeCategory?: string;
+  startDate: string;
+  endDate: string;
+  totalDays: string;
+  halfDay?: boolean;
+  status: string;
+  returnedToWork: boolean;
+  /** @nullable */
+  submittedAt?: string | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  createdAt: string;
+}
+
+export type LeaveRequestDetail = LeaveRequestSummary & ({
+  /** @nullable */
+  reasonEn?: string | null;
+  /** @nullable */
+  reasonAr?: string | null;
+  /** @nullable */
+  coveringEmployeeId?: number | null;
+  /** @nullable */
+  coveringEmployeeNameEn?: string | null;
+  /** @nullable */
+  returnDate?: string | null;
+  /** @nullable */
+  returnNotes?: string | null;
+  currentStepNumber?: number;
+  totalApprovalSteps?: number;
+  steps?: LeaveApprovalStep[];
+  attachments?: LeaveAttachment[];
+});
+
+export interface LeaveRequestInput {
+  employeeId: number;
+  leaveTypeId: number;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  halfDay?: boolean;
+  /** @nullable */
+  halfDayPeriod?: string | null;
+  /** @nullable */
+  reasonEn?: string | null;
+  /** @nullable */
+  reasonAr?: string | null;
+  /** @nullable */
+  coveringEmployeeId?: number | null;
+}
+
+export interface LeaveDecisionInput {
+  stepNumber: number;
+  decision: string;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  decidedByEmployeeId?: number | null;
+}
+
+export interface ReturnToDutyInput {
+  returnDate?: string;
+  /** @nullable */
+  returnNotes?: string | null;
+}
+
+export interface LeaveCalendarEntry {
+  id: number;
+  requestNumber: string;
+  employeeId: number;
+  employeeNameEn: string;
+  /** @nullable */
+  departmentId?: number | null;
+  startDate: string;
+  endDate: string;
+  totalDays: string;
+  status: string;
+  leaveTypeNameEn: string;
+  leaveTypeColor: string;
+}
+
+export interface LeaveDelegation {
+  id: number;
+  delegatorEmployeeId: number;
+  delegateeEmployeeId: number;
+  delegatorNameEn?: string;
+  delegateeNameEn?: string;
+  startDate: string;
+  endDate: string;
+  /** @nullable */
+  reason?: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface LeaveDelegationInput {
+  delegatorEmployeeId: number;
+  delegateeEmployeeId: number;
+  startDate: string;
+  endDate: string;
+  /** @nullable */
+  reason?: string | null;
+  isActive?: boolean;
+}
+
+export interface PublicHoliday {
+  id: number;
+  nameEn: string;
+  nameAr: string;
+  date: string;
+  year: number;
+  isRecurring: boolean;
+  applicableTo: string;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface PublicHolidayInput {
+  nameEn: string;
+  nameAr: string;
+  date: string;
+  year: number;
+  isRecurring?: boolean;
+  applicableTo?: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface SalaryGrade {
+  id: number;
+  gradeCode: string;
+  nameEn: string;
+  nameAr: string;
+  step: number;
+  baseSalary: string;
+  housingAllowancePct: string;
+  transportAllowancePct: string;
+  currency: string;
+  organizationType: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface SalaryGradeInput {
+  gradeCode: string;
+  nameEn: string;
+  nameAr: string;
+  step?: number;
+  baseSalary: number;
+  housingAllowancePct?: number;
+  transportAllowancePct?: number;
+  currency?: string;
+  organizationType?: string;
+  isActive?: boolean;
+}
+
+export interface PayComponent {
+  id: number;
+  codeEn: string;
+  nameEn: string;
+  nameAr: string;
+  type: string;
+  calculationMethod: string;
+  value: string;
+  /** @nullable */
+  percentageBase?: string | null;
+  isTaxable: boolean;
+  isMandatory: boolean;
+  applicableTo: string;
+  isActive: boolean;
+  sortOrder: number;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface PayComponentInput {
+  codeEn: string;
+  nameEn: string;
+  nameAr: string;
+  type: string;
+  calculationMethod?: string;
+  value?: number;
+  /** @nullable */
+  percentageBase?: string | null;
+  isTaxable?: boolean;
+  isMandatory?: boolean;
+  applicableTo?: string;
+  isActive?: boolean;
+  sortOrder?: number;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface PayrollPeriod {
+  id: number;
+  periodCode: string;
+  nameEn: string;
+  nameAr: string;
+  periodType: string;
+  startDate: string;
+  endDate: string;
+  payDate: string;
+  status: string;
+  totalEmployees: number;
+  totalGrossSalary: string;
+  totalDeductions: string;
+  totalNetSalary: string;
+  exceptionCount: number;
+  currency: string;
+  isClosed: boolean;
+  /** @nullable */
+  firstApprovedAt?: string | null;
+  /** @nullable */
+  secondApprovedAt?: string | null;
+  /** @nullable */
+  closedAt?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface PayrollPeriodInput {
+  periodCode: string;
+  nameEn: string;
+  nameAr: string;
+  periodType?: string;
+  startDate: string;
+  endDate: string;
+  payDate: string;
+  currency?: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface PayrollApprovalInput {
+  /** @nullable */
+  approverId?: number | null;
+  /** @nullable */
+  note?: string | null;
+}
+
+export interface PayrollCalculationResult {
+  period: PayrollPeriod;
+  runsCreated: number;
+  exceptionCount: number;
+}
+
+export interface PayrollRunLine {
+  id: number;
+  payrollRunId: number;
+  /** @nullable */
+  payComponentId?: number | null;
+  codeEn: string;
+  nameEn: string;
+  nameAr: string;
+  type: string;
+  amount: string;
+  sortOrder: number;
+}
+
+export interface PayrollRunSummary {
+  id: number;
+  payrollPeriodId: number;
+  employeeId: number;
+  employeeNameEn: string;
+  employeeNameAr?: string;
+  employeeNumber?: string;
+  jobTitleEn?: string;
+  departmentNameEn?: string;
+  /** @nullable */
+  grade?: string | null;
+  baseSalary: string;
+  grossSalary: string;
+  totalDeductions: string;
+  netSalary: string;
+  overtimeHours?: string;
+  overtimePay?: string;
+  currency: string;
+  hasException: boolean;
+  /** @nullable */
+  exceptionNote?: string | null;
+  status: string;
+  /** @nullable */
+  calculatedAt?: string | null;
+}
+
+export type PayrollRunDetail = PayrollRunSummary & {
+  jobTitleAr?: string;
+  nationalId?: string;
+  periodNameEn?: string;
+  periodNameAr?: string;
+  periodStartDate?: string;
+  periodEndDate?: string;
+  payDate?: string;
+  workingDays?: number;
+  presentDays?: number;
+  absentDays?: number;
+  deductedLeaveDays?: string;
+  leaveDeductionAmount?: string;
+  totalEarnings?: string;
+  lines?: PayrollRunLine[];
+};
+
+export interface PayrollRunPatch {
+  /** @nullable */
+  exceptionNote?: string | null;
+  hasException?: boolean;
+  status?: string;
+}
+
+export type PayslipEmployee = {
+  id?: number;
+  employeeNumber: string;
+  fullNameEn: string;
+  fullNameAr: string;
+  jobTitleEn: string;
+  jobTitleAr: string;
+  nationalId: string;
+  /** @nullable */
+  grade?: string | null;
+  departmentNameEn: string;
+  departmentNameAr: string;
+};
+
+export type PayslipPeriod = {
+  periodCode: string;
+  nameEn: string;
+  nameAr: string;
+  startDate: string;
+  endDate: string;
+  payDate: string;
+};
+
+export type PayslipSummary = {
+  baseSalary: string;
+  grossSalary: string;
+  totalEarnings: string;
+  totalDeductions: string;
+  netSalary: string;
+  overtimeHours: string;
+  overtimePay: string;
+  workingDays: number;
+  presentDays: number;
+  currency: string;
+};
+
+export interface Payslip {
+  runId: number;
+  employee: PayslipEmployee;
+  period: PayslipPeriod;
+  summary: PayslipSummary;
+  earnings: PayrollRunLine[];
+  deductions: PayrollRunLine[];
+  hasException: boolean;
+  /** @nullable */
+  exceptionNote?: string | null;
+  /** @nullable */
+  calculatedAt?: string | null;
+}
+
 export type ListEmployeesParams = {
 /**
  * @nullable
@@ -996,5 +1490,56 @@ export type UpdatePunchEventBody = {
   isMissing?: boolean;
   /** @nullable */
   notes?: string | null;
+};
+
+export type ListLeaveBalancesParams = {
+employeeId?: number;
+year?: number;
+leaveTypeId?: number;
+};
+
+export type ListLeaveRequestsParams = {
+employeeId?: number;
+status?: string;
+leaveTypeId?: number;
+startDate?: string;
+endDate?: string;
+};
+
+export type GetLeaveCalendarParams = {
+startDate?: string;
+endDate?: string;
+departmentId?: number;
+};
+
+export type ListLeaveDelegationsParams = {
+delegatorId?: number;
+activeOnly?: string;
+};
+
+export type ListPublicHolidaysParams = {
+year?: number;
+applicableTo?: string;
+};
+
+export type ListSalaryGradesParams = {
+organizationType?: string;
+};
+
+export type ListPayComponentsParams = {
+type?: string;
+applicableTo?: string;
+};
+
+export type ListPayrollPeriodsParams = {
+status?: string;
+year?: string;
+};
+
+export type ListPayrollRunsParams = {
+periodId?: number;
+employeeId?: number;
+status?: string;
+hasException?: string;
 };
 
