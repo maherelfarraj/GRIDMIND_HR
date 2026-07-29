@@ -77,6 +77,12 @@ Phase 2 seed is at `artifacts/api-server/src/lib/seed-phase2.ts`. Run via: `npx 
 ## Database seed state
 DB is seeded with fictional data: 10 departments, 6 roles, 15 employees, 6 system users, 8 attendance devices, 13 documents, 10 approvals, attendance records for 2026-07-27/28/29, 8 security alerts, 15 audit log entries, 20 device-employee mappings, 6 attendance corrections, 8 shifts, 195 roster entries, 3 overtime rules, 164 punch events.
 
+
+## Payroll module (Phase 3)
+- Canonical payroll implementation came from the leave-management branch: `salary_grades` (pct-based allowances, org type), `payroll_periods`, `payroll_runs` (per employee × period), `payroll_run_lines`, `pay_components`, `public_holidays`; routes salaryGrades/payComponents/payrollPeriods/payrollRuns; pages /payroll, /payroll/payslip/:id, /payroll/grades, /payroll/components.
+- A parallel simpler payroll engine (payroll_entries + routes/payroll.ts + seed-payroll.ts) was dropped at merge time in favor of the leave-integrated one — do not reintroduce it.
+- After adding schema files, run `npx tsc -b lib/db` — composite project; api-server typecheck reads stale dist/*.d.ts otherwise.
+
 ## Generated hook query options
 Orval hooks type `options.query` as full `UseQueryOptions` (requires `queryKey`), so passing partial options like `{ query: { refetchInterval: 60000 } }` needs an `as any` cast.
 
