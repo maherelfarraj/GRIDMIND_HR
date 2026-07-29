@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import authRouter from "./auth";
 import healthRouter from "./health";
 import dashboardRouter from "./dashboard";
 import employeesRouter from "./employees";
@@ -8,12 +9,15 @@ import documentsRouter from "./documents";
 import approvalsRouter from "./approvals";
 import auditRouter from "./audit";
 import attendanceRouter from "./attendance";
+import attendanceCorrectionsRouter from "./attendanceCorrections";
 import devicesRouter from "./devices";
+import deviceMappingsRouter from "./deviceMappings";
 import alertsRouter from "./alerts";
 import usersRouter from "./users";
 
 const router: IRouter = Router();
 
+router.use(authRouter);
 router.use(healthRouter);
 router.use(dashboardRouter);
 router.use(employeesRouter);
@@ -23,7 +27,9 @@ router.use(documentsRouter);
 router.use(approvalsRouter);
 router.use(auditRouter);
 router.use(attendanceRouter);
+router.use(attendanceCorrectionsRouter);
 router.use(devicesRouter);
+router.use(deviceMappingsRouter);
 router.use(alertsRouter);
 router.use(usersRouter);
 

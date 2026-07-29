@@ -1,5 +1,8 @@
 import { Link, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
+import { useAuth } from '@/hooks/use-auth';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { 
   LayoutDashboard, 
   Users, 
@@ -14,13 +17,21 @@ import {
   Settings,
   Banknote,
   CalendarOff,
-  UserPlus
+  UserPlus,
+  LogOut,
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function Sidebar() {
+interface SidebarProps {
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
   const [location] = useLocation();
   const { t, lang } = useLanguage();
+  const { user, logout } = useAuth();
 
   const navItems = [
     { href: '/', icon: LayoutDashboard, labelEn: 'Dashboard', labelAr: 'لوحة القيادة' },
@@ -42,9 +53,22 @@ export function Sidebar() {
     { icon: UserPlus, labelEn: 'Recruitment', labelAr: 'التوظيف' },
   ];
 
+  const userInitials = user ? (lang === 'en' ? user.fullNameEn : user.fullNameAr)
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() : 'U';
+
   return (
-    <aside className="w-64 border-e border-border bg-sidebar text-sidebar-foreground hidden md:flex flex-col flex-shrink-0">
-      <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
+    <aside className={cn(
+      "w-64 border-e border-border bg-sidebar text-sidebar-foreground flex flex-col flex-shrink-0 transition-transform duration-200",
+      // Desktop: normal static flow
+      "hidden md:flex",
+      // Mobile: fixed overlay
+      isMobileOpen && "flex fixed inset-y-0 start-0 z-50"
+    )}>
+      <div className="h-16 flex items-center px-6 border-b border-sidebar-border relative">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-primary rounded flex items-center justify-center">
             <ShieldCheck className="w-5 h-5 text-primary-foreground" />
@@ -53,6 +77,16 @@ export function Sidebar() {
             {t('HRMS Command', 'نظام الموارد')}
           </span>
         </div>
+        
+        {/* Mobile close button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden absolute end-2 top-1/2 -translate-y-1/2"
+          onClick={onMobileClose}
+        >
+          <X className="w-5 h-5" />
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
@@ -63,11 +97,11 @@ export function Sidebar() {
         {navItems.map((item) => {
           const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
           return (
-            <Link key={item.href} href={item.href}>
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
               <div className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer",
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
                 isActive 
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground" 
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary" 
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               )}>
                 <item.icon className="w-4 h-4" />
@@ -90,6 +124,34 @@ export function Sidebar() {
             </span>
           </div>
         ))}
+      </div>
+
+      {/* User info card */}
+      <div className="p-4 border-t border-sidebar-border">
+        <div className="flex items-center gap-3 mb-3">
+          <Avatar className="h-10 w-10">
+            <AvatarFallback className="bg-primary/20 text-primary font-semibold">
+              {userInitials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">
+              {user ? (lang === 'en' ? user.fullNameEn : user.fullNameAr) : 'User'}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {user?.username || 'username'}
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-destructive hover:border-destructive"
+          onClick={logout}
+        >
+          <LogOut className="w-4 h-4" />
+          {t('Sign Out', 'تسجيل الخروج')}
+        </Button>
       </div>
     </aside>
   );

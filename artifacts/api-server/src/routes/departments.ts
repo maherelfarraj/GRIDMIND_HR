@@ -46,10 +46,12 @@ router.get("/departments", async (req, res): Promise<void> => {
     .from(employeesTable)
     .groupBy(employeesTable.departmentId);
   const countMap = Object.fromEntries(empCounts.map((e) => [e.deptId, e.c]));
+  const deptMap = Object.fromEntries(depts.map((d) => [d.id, d]));
 
   const result = depts.map((d) => ({
     ...d,
-    parentNameEn: null,
+    parentNameEn: d.parentId ? (deptMap[d.parentId]?.nameEn ?? null) : null,
+    parentNameAr: d.parentId ? (deptMap[d.parentId]?.nameAr ?? null) : null,
     headEmployeeNameEn: null,
     employeeCount: countMap[d.id] ?? 0,
     createdAt: d.createdAt.toISOString(),

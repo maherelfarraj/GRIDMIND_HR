@@ -8,3 +8,5 @@ export * from "./auditLogs";
 export * from "./attendance";
 export * from "./devices";
 export * from "./securityAlerts";
+export * from "./deviceMappings";
+export * from "./attendanceCorrections";

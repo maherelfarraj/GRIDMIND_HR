@@ -1,6 +1,7 @@
 import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/components/theme-provider';
-import { useGetAuthMe } from '@workspace/api-client-react';
+import { useAuth } from '@/hooks/use-auth';
+import { useListAlerts } from '@workspace/api-client-react';
 import { Moon, Sun, Languages, Bell, Search, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,17 +12,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from '@/components/ui/input';
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const { lang, setLang, t } = useLanguage();
   const { theme, setTheme } = useTheme();
-  const { data: user } = useGetAuthMe();
+  const { user } = useAuth();
+  const { data: alerts } = useListAlerts();
 
+  const unacknowledgedCount = alerts?.filter(a => !a.acknowledgedAt).length || 0;
   const userInitial = user ? (lang === 'en' ? user.fullNameEn.charAt(0) : user.fullNameAr.charAt(0)) : 'A';
 
   return (
     <header className="h-16 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-6 shrink-0 sticky top-0 z-10">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="md:hidden">
+        <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick}>
           <Menu className="w-5 h-5" />
         </Button>
         <div className="relative hidden sm:block w-64">
@@ -65,7 +72,9 @@ export function Header() {
 
         <Button variant="ghost" size="icon" className="w-9 h-9 relative">
           <Bell className="w-4 h-4" />
-          <span className="absolute top-2 end-2 w-2 h-2 bg-destructive rounded-full" />
+          {unacknowledgedCount > 0 && (
+            <span className="absolute top-2 end-2 w-2 h-2 bg-destructive rounded-full" />
+          )}
         </Button>
 
         <div className="h-8 w-8 ms-2 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-primary font-semibold text-sm uppercase">

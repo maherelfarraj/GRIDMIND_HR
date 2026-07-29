@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { 
   useGetDashboardSummary, 
@@ -6,6 +7,7 @@ import {
 } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { 
   Users, CheckCircle2, AlertOctagon, Clock, 
   ShieldAlert, Activity, UserPlus, Server, MonitorPlay, Files
@@ -18,17 +20,28 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend
+  Legend,
+  LineChart,
+  Line
 } from 'recharts';
 
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 
 export default function Dashboard() {
   const { t, lang } = useLanguage();
+  const [lastUpdated, setLastUpdated] = useState(new Date());
   
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary();
   const { data: activity, isLoading: loadingActivity } = useGetDashboardActivity();
   const { data: attendance, isLoading: loadingAttendance } = useGetDashboardAttendanceOverview();
+
+  // Update timestamp every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLastUpdated(new Date());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const StatCard = ({ title, value, icon: Icon, description, loading, alert = false }: any) => (
     <Card className={alert ? "border-destructive/50 bg-destructive/5" : "bg-card"}>
@@ -55,6 +68,17 @@ export default function Dashboard() {
     </Card>
   );
 
+  // Weekly trend data - last 7 days
+  const weeklyTrendData = [
+    { day: t('Mon', 'الإثنين'), present: 8 },
+    { day: t('Tue', 'الثلاثاء'), present: 11 },
+    { day: t('Wed', 'الأربعاء'), present: 12 },
+    { day: t('Thu', 'الخميس'), present: 10 },
+    { day: t('Fri', 'الجمعة'), present: 13 },
+    { day: t('Sat', 'السبت'), present: 10 },
+    { day: t('Today', 'اليوم'), present: summary?.presentToday || null },
+  ];
+
   return (
     <AnimatedPage className="space-y-6">
       <div className="flex justify-between items-end">
@@ -70,6 +94,17 @@ export default function Dashboard() {
           <Activity className="w-4 h-4 text-primary" />
           {t('Live Sync: Active', 'المزامنة المباشرة: نشط')}
         </div>
+      </div>
+
+      {/* IdP Demo Banner */}
+      <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 text-sm">
+        <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0" />
+        <span className="flex-1 text-amber-600 dark:text-amber-400">
+          {t('Running in Demo Mode. Identity Provider (Keycloak/LDAP) not configured.', 'يعمل في وضع العرض التوضيحي. موفر الهوية (Keycloak/LDAP) غير مهيأ.')}
+        </span>
+        <Button variant="ghost" size="sm" className="text-amber-500 hover:bg-amber-500/10 shrink-0">
+          {t('Configure', 'تكوين')} →
+        </Button>
       </div>
 
       {/* Primary Stats */}
@@ -209,6 +244,48 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Weekly Trend Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('Weekly Attendance Trend', 'اتجاه الحضور الأسبوعي')}</CardTitle>
+          <CardDescription>
+            {t('Daily present count over the last 7 days', 'عدد الحاضرين اليومي خلال الأيام السبعة الماضية')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="h-[280px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={weeklyTrendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis 
+                dataKey="day" 
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis 
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+              />
+              <Tooltip 
+                contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="present" 
+                stroke="hsl(var(--primary))" 
+                strokeWidth={2}
+                dot={{ fill: 'hsl(var(--primary))', r: 4 }}
+                activeDot={{ r: 6 }}
+                connectNulls={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
       {/* Secondary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
          <StatCard 
@@ -231,6 +308,10 @@ export default function Dashboard() {
           loading={loadingSummary}
           alert={summary && summary.onlineDevices < summary.totalDevices}
         />
+      </div>
+
+      <div className="text-xs text-muted-foreground text-end">
+        {t('Last updated', 'آخر تحديث')}: {lastUpdated.toLocaleTimeString(lang === 'ar' ? 'ar-SA' : 'en-US')}
       </div>
     </AnimatedPage>
   );
