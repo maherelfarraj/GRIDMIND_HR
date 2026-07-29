@@ -46,6 +46,7 @@ import type {
   EmployeeInput,
   EmployeeList,
   EmployeeUpdate,
+  ExecutiveDashboard,
   GetEmployeeAttendanceParams,
   GetLeaveCalendarParams,
   GetRosterSummaryParams,
@@ -439,6 +440,83 @@ export function useGetDashboardAttendanceOverview<TData = Awaited<ReturnType<typ
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetDashboardAttendanceOverviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDashboardExecutiveUrl = () => {
+
+
+
+
+  return `/api/dashboard/executive`
+}
+
+/**
+ * @summary Executive analytics — attendance trend, coverage, OT cost, latecomers, heat map
+ */
+export const getDashboardExecutive = async ( options?: Parameters<typeof customFetch>[1]): Promise<ExecutiveDashboard> => {
+
+  return customFetch<ExecutiveDashboard>(getGetDashboardExecutiveUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDashboardExecutiveQueryKey = () => {
+    return [
+    `/api/dashboard/executive`
+    ] as const;
+    }
+
+
+export const getGetDashboardExecutiveQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardExecutive>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardExecutive>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDashboardExecutiveQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboardExecutive>>> = ({ signal }) => getDashboardExecutive({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDashboardExecutive>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDashboardExecutiveQueryResult = NonNullable<Awaited<ReturnType<typeof getDashboardExecutive>>>
+export type GetDashboardExecutiveQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Executive analytics — attendance trend, coverage, OT cost, latecomers, heat map
+ */
+
+export function useGetDashboardExecutive<TData = Awaited<ReturnType<typeof getDashboardExecutive>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardExecutive>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDashboardExecutiveQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

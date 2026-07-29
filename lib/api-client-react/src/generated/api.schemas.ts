@@ -24,6 +24,66 @@ export interface DashboardSummary {
   documentsPendingReview: number;
 }
 
+export type ExecutiveDashboardAttendanceTrendItem = {
+  date: string;
+  presentCount: number;
+  totalCount: number;
+  ratePct: number;
+};
+
+export type ExecutiveDashboardCoverageGapsItem = {
+  date: string;
+  shiftId: number;
+  shiftCode: string;
+  shiftNameEn: string;
+  shiftNameAr: string;
+  scheduled: number;
+  worked: number;
+  gap: number;
+};
+
+export type ExecutiveDashboardOtCostByDepartmentItem = {
+  departmentId: number;
+  departmentNameEn: string;
+  departmentNameAr: string;
+  otMinutes: number;
+  multiplier: number;
+  costIndex: number;
+};
+
+export type ExecutiveDashboardTopLatecomersItem = {
+  employeeId: number;
+  nameEn: string;
+  nameAr: string;
+  totalLateMinutes: number;
+  occurrences: number;
+};
+
+export type ExecutiveDashboardDepartmentHeatmapItemDaysItem = {
+  date: string;
+  rostered: number;
+  present: number;
+  ratePct: number;
+};
+
+export type ExecutiveDashboardDepartmentHeatmapItem = {
+  departmentId: number;
+  departmentNameEn: string;
+  departmentNameAr: string;
+  headcount: number;
+  days: ExecutiveDashboardDepartmentHeatmapItemDaysItem[];
+};
+
+export interface ExecutiveDashboard {
+  generatedAt: string;
+  todayCoveragePct: number;
+  attendanceTrend: ExecutiveDashboardAttendanceTrendItem[];
+  coverageGaps: ExecutiveDashboardCoverageGapsItem[];
+  otCostByDepartment: ExecutiveDashboardOtCostByDepartmentItem[];
+  topLatecomers: ExecutiveDashboardTopLatecomersItem[];
+  departmentHeatmap: ExecutiveDashboardDepartmentHeatmapItem[];
+}
+
 export interface ActivityItem {
   id: number;
   type: string;

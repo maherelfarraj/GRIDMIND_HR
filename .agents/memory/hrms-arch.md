@@ -77,6 +77,12 @@ Phase 2 seed is at `artifacts/api-server/src/lib/seed-phase2.ts`. Run via: `npx 
 ## Database seed state
 DB is seeded with fictional data: 10 departments, 6 roles, 15 employees, 6 system users, 8 attendance devices, 13 documents, 10 approvals, attendance records for 2026-07-27/28/29, 8 security alerts, 15 audit log entries, 20 device-employee mappings, 6 attendance corrections, 8 shifts, 195 roster entries, 3 overtime rules, 164 punch events.
 
+## Generated hook query options
+Orval hooks type `options.query` as full `UseQueryOptions` (requires `queryKey`), so passing partial options like `{ query: { refetchInterval: 60000 } }` needs an `as any` cast.
+
+## Dashboard history seed
+`artifacts/api-server/src/lib/seed-dashboard-history.ts` backfills 30 days of attendance (idempotent, skips existing dates, Fri/Sat off) so 30-day analytics have data. Re-run if DB is reseeded.
+
 ## Air-gap / deployment intent
 No Replit/Supabase/cloud API deps. Auth: localStorage-gated session + POST /auth/login (any password accepted in demo). All API routes at /api/* proxied by Vite dev server.
 

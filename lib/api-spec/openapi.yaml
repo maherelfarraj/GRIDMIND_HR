@@ -97,6 +97,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/AttendanceOverview"
 
+  /dashboard/executive:
+    get:
+      operationId: getDashboardExecutive
+      tags: [dashboard]
+      summary: Executive analytics — attendance trend, coverage, OT cost, latecomers, heat map
+      responses:
+        "200":
+          description: Executive dashboard analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutiveDashboard"
+
   # ─── Employees ───────────────────────────────────────────────
   /employees:
     get:
@@ -2334,6 +2347,87 @@ components:
         - totalDevices
         - onlineDevices
         - documentsPendingReview
+
+    ExecutiveDashboard:
+      type: object
+      properties:
+        generatedAt: { type: string }
+        todayCoveragePct: { type: number }
+        attendanceTrend:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string }
+              presentCount: { type: number }
+              totalCount: { type: number }
+              ratePct: { type: number }
+            required: [date, presentCount, totalCount, ratePct]
+        coverageGaps:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string }
+              shiftId: { type: number }
+              shiftCode: { type: string }
+              shiftNameEn: { type: string }
+              shiftNameAr: { type: string }
+              scheduled: { type: number }
+              worked: { type: number }
+              gap: { type: number }
+            required: [date, shiftId, shiftCode, shiftNameEn, shiftNameAr, scheduled, worked, gap]
+        otCostByDepartment:
+          type: array
+          items:
+            type: object
+            properties:
+              departmentId: { type: number }
+              departmentNameEn: { type: string }
+              departmentNameAr: { type: string }
+              otMinutes: { type: number }
+              multiplier: { type: number }
+              costIndex: { type: number }
+            required: [departmentId, departmentNameEn, departmentNameAr, otMinutes, multiplier, costIndex]
+        topLatecomers:
+          type: array
+          items:
+            type: object
+            properties:
+              employeeId: { type: number }
+              nameEn: { type: string }
+              nameAr: { type: string }
+              totalLateMinutes: { type: number }
+              occurrences: { type: number }
+            required: [employeeId, nameEn, nameAr, totalLateMinutes, occurrences]
+        departmentHeatmap:
+          type: array
+          items:
+            type: object
+            properties:
+              departmentId: { type: number }
+              departmentNameEn: { type: string }
+              departmentNameAr: { type: string }
+              headcount: { type: number }
+              days:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    date: { type: string }
+                    rostered: { type: number }
+                    present: { type: number }
+                    ratePct: { type: number }
+                  required: [date, rostered, present, ratePct]
+            required: [departmentId, departmentNameEn, departmentNameAr, headcount, days]
+      required:
+        - generatedAt
+        - todayCoveragePct
+        - attendanceTrend
+        - coverageGaps
+        - otCostByDepartment
+        - topLatecomers
+        - departmentHeatmap
 
     ActivityItem:
       type: object

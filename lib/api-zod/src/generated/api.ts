@@ -72,6 +72,58 @@ export const GetDashboardAttendanceOverviewResponse = zod.object({
 
 
 /**
+ * @summary Executive analytics — attendance trend, coverage, OT cost, latecomers, heat map
+ */
+export const GetDashboardExecutiveResponse = zod.object({
+  "generatedAt": zod.string(),
+  "todayCoveragePct": zod.number(),
+  "attendanceTrend": zod.array(zod.object({
+  "date": zod.string(),
+  "presentCount": zod.number(),
+  "totalCount": zod.number(),
+  "ratePct": zod.number()
+})),
+  "coverageGaps": zod.array(zod.object({
+  "date": zod.string(),
+  "shiftId": zod.number(),
+  "shiftCode": zod.string(),
+  "shiftNameEn": zod.string(),
+  "shiftNameAr": zod.string(),
+  "scheduled": zod.number(),
+  "worked": zod.number(),
+  "gap": zod.number()
+})),
+  "otCostByDepartment": zod.array(zod.object({
+  "departmentId": zod.number(),
+  "departmentNameEn": zod.string(),
+  "departmentNameAr": zod.string(),
+  "otMinutes": zod.number(),
+  "multiplier": zod.number(),
+  "costIndex": zod.number()
+})),
+  "topLatecomers": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "totalLateMinutes": zod.number(),
+  "occurrences": zod.number()
+})),
+  "departmentHeatmap": zod.array(zod.object({
+  "departmentId": zod.number(),
+  "departmentNameEn": zod.string(),
+  "departmentNameAr": zod.string(),
+  "headcount": zod.number(),
+  "days": zod.array(zod.object({
+  "date": zod.string(),
+  "rostered": zod.number(),
+  "present": zod.number(),
+  "ratePct": zod.number()
+}))
+}))
+})
+
+
+/**
  * @summary List all employees
  */
 export const ListEmployeesQueryParams = zod.object({
