@@ -13,12 +13,25 @@ import { AppButton, LangToggle } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
+import { ApiError } from '@workspace/api-client-react';
 import * as Haptics from 'expo-haptics';
 import { Redirect, useRouter } from 'expo-router';
 
+// Human-friendly wait duration: seconds under a minute, minutes otherwise.
+function formatRetryDuration(seconds: number, lang: 'en' | 'ar'): string {
+  if (seconds < 60) {
+    return lang === 'ar' ? `${seconds} ثانية` : `${seconds} seconds`;
+  }
+  const minutes = Math.ceil(seconds / 60);
+  if (lang === 'ar') {
+    return minutes === 1 ? 'دقيقة واحدة' : `${minutes} دقائق`;
+  }
+  return minutes === 1 ? '1 minute' : `${minutes} minutes`;
+}
+
 export default function LoginScreen() {
   const colors = useColors();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { user, login } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -41,8 +54,29 @@ export default function LoginScreen() {
       await login(username.trim(), password);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/(tabs)');
-    } catch {
-      setError(t('loginError'));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 429) {
+        // Account lockout: surface the bilingual message from the API and,
+        // when available, how long until the user can retry.
+        const data = (err.data ?? {}) as {
+          error?: string;
+          errorAr?: string;
+          retryAfterSeconds?: number;
+        };
+        const message =
+          (lang === 'ar' ? data.errorAr : data.error) ??
+          data.error ??
+          t('lockoutError');
+        const retry =
+          typeof data.retryAfterSeconds === 'number' && data.retryAfterSeconds > 0
+            ? lang === 'ar'
+              ? ` ${'يمكنك المحاولة مرة أخرى بعد'} ${formatRetryDuration(data.retryAfterSeconds, 'ar')}.`
+              : ` You can try again in ${formatRetryDuration(data.retryAfterSeconds, 'en')}.`
+            : '';
+        setError(message + retry);
+      } else {
+        setError(t('loginError'));
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);

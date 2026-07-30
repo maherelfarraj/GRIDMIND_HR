@@ -22,6 +22,10 @@ const strings = {
     ar: 'استخدم حساب قيادة الموارد البشرية الخاص بك',
   },
   loginError: { en: 'Invalid credentials', ar: 'بيانات اعتماد غير صالحة' },
+  lockoutError: {
+    en: 'Too many failed login attempts. Please try again later.',
+    ar: 'عدد كبير جدًا من محاولات تسجيل الدخول الفاشلة. يرجى المحاولة مرة أخرى لاحقًا.',
+  },
   home: { en: 'My Space', ar: 'مساحتي' },
   approvals: { en: 'Approvals', ar: 'الموافقات' },
   announcements: { en: 'Announcements', ar: 'الإعلانات' },
