@@ -3,6 +3,7 @@ import { useLanguage } from '@/hooks/use-language';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListLeaveBalances, useListLeaveTypes, useListEmployees, useUpdateLeaveBalance,
+  useAnnualLeaveReset,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { Layers, TrendingUp, CalendarDays, Settings2, Info } from 'lucide-react';
+import { Layers, TrendingUp, CalendarDays, Settings2, Info, RefreshCw } from 'lucide-react';
 import type { LeaveBalance } from '@workspace/api-client-react';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -129,11 +130,16 @@ function AdjustDialog({ balance, onClose }: AdjustDialogProps) {
 
 export default function LeaveBalancesPage() {
   const { t, lang } = useLanguage();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [yearFilter, setYearFilter] = useState('2025');
   const [leaveTypeFilter, setLeaveTypeFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [adjustTarget, setAdjustTarget] = useState<LeaveBalance | null>(null);
+  const [resetting, setResetting] = useState(false);
+
+  const annualResetMut = useAnnualLeaveReset();
 
   const { data: balances, isLoading } = useListLeaveBalances({
     year: Number(yearFilter),
@@ -141,6 +147,31 @@ export default function LeaveBalancesPage() {
   });
 
   const { data: leaveTypes } = useListLeaveTypes();
+
+  async function handleAnnualReset() {
+    const nextYear = Number(yearFilter) + 1;
+    if (!confirm(t(
+      `This will create ${nextYear} balance records for all employees, carrying over eligible days. Continue?`,
+      `سيؤدي هذا إلى إنشاء سجلات رصيد ${nextYear} لجميع الموظفين مع ترحيل الأيام المؤهلة. هل تريد الاستمرار؟`
+    ))) return;
+    setResetting(true);
+    try {
+      const result = await annualResetMut.mutateAsync({ data: { year: nextYear } });
+      queryClient.invalidateQueries({ queryKey: ['/api/leave-balances'] });
+      setYearFilter(String(nextYear));
+      toast({
+        title: t('Annual reset complete', 'اكتمل إعادة التعيين السنوي'),
+        description: t(
+          `Created ${result.created} balance records for ${result.year}.`,
+          `تم إنشاء ${result.created} سجل رصيد لعام ${result.year}.`
+        ),
+      });
+    } catch (e: any) {
+      toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
+    } finally {
+      setResetting(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const list = balances ?? [];
@@ -168,14 +199,25 @@ export default function LeaveBalancesPage() {
     <AnimatedPage>
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <Layers className="w-7 h-7 text-violet-600" />
-          <div>
-            <h1 className="text-2xl font-bold">{t('Leave Balances', 'أرصدة الإجازات')}</h1>
-            <p className="text-sm text-muted-foreground">
-              {t('Employee leave balance overview', 'نظرة عامة على أرصدة إجازات الموظفين')}
-            </p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Layers className="w-7 h-7 text-violet-600" />
+            <div>
+              <h1 className="text-2xl font-bold">{t('Leave Balances', 'أرصدة الإجازات')}</h1>
+              <p className="text-sm text-muted-foreground">
+                {t('Employee leave balance overview', 'نظرة عامة على أرصدة إجازات الموظفين')}
+              </p>
+            </div>
           </div>
+          <Button
+            variant="outline"
+            onClick={handleAnnualReset}
+            disabled={resetting}
+            className="gap-2"
+          >
+            <RefreshCw className={cn('w-4 h-4', resetting && 'animate-spin')} />
+            {t(`Reset to ${Number(yearFilter) + 1}`, `تعيين ${Number(yearFilter) + 1}`)}
+          </Button>
         </div>
 
         {/* Stats */}

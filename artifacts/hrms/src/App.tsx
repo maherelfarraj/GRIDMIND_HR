@@ -41,6 +41,21 @@ import SecurityClearances from '@/pages/security-clearances';
 import Mobilization from '@/pages/mobilization';
 import SecuritySettings from '@/pages/security-settings';
 import AdminAirgap from '@/pages/admin-airgap';
+import Recruitment from '@/pages/recruitment';
+import RecruitmentApplication from '@/pages/recruitment-application';
+import Onboarding from '@/pages/onboarding';
+import Probation from '@/pages/probation';
+import Performance from '@/pages/performance';
+import Disciplinary from '@/pages/disciplinary';
+import Training from '@/pages/training';
+import Skills from '@/pages/skills';
+import Succession from '@/pages/succession';
+import MyPortal from '@/pages/my-portal';
+import ManagerPortal from '@/pages/manager-portal';
+import DocumentManagement from '@/pages/document-management';
+import Reports from '@/pages/reports';
+import Notifications from '@/pages/notifications';
+import Deployment from '@/pages/deployment';
 
 const queryClient = new QueryClient();
 
@@ -102,6 +117,21 @@ function ProtectedRouter() {
         <Route path="/mobilization" component={Mobilization} />
         <Route path="/security-settings" component={SecuritySettings} />
         <Route path="/admin-airgap" component={AdminAirgap} />
+        <Route path="/recruitment/applications/:id" component={RecruitmentApplication} />
+        <Route path="/recruitment" component={Recruitment} />
+        <Route path="/onboarding" component={Onboarding} />
+        <Route path="/probation" component={Probation} />
+        <Route path="/performance" component={Performance} />
+        <Route path="/disciplinary" component={Disciplinary} />
+        <Route path="/training" component={Training} />
+        <Route path="/skills" component={Skills} />
+        <Route path="/succession" component={Succession} />
+        <Route path="/my" component={MyPortal} />
+        <Route path="/manager" component={ManagerPortal} />
+        <Route path="/document-management" component={DocumentManagement} />
+        <Route path="/reports" component={Reports} />
+        <Route path="/notifications" component={Notifications} />
+        <Route path="/deployment" component={Deployment} />
         <Route component={NotFound} />
       </Switch>
     </Shell>

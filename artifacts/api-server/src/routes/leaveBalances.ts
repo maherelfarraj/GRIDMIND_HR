@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, leaveBalancesTable, leaveTypesTable, employeesTable } from "@workspace/db";
+import { db, leaveBalancesTable, leaveTypesTable, employeesTable, auditLogsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
 const router = Router();
@@ -85,6 +85,77 @@ router.patch("/leave-balances/:id", async (req, res): Promise<void> => {
     .returning();
   if (!b) { res.status(404).json({ error: "Not found" }); return; }
   res.json(b);
+});
+
+// POST /leave-balances/annual-reset
+// Creates new year balance rows for every active employee × leave type,
+// carrying over min(balance_available, maxCarryoverDays) from the previous year.
+router.post("/leave-balances/annual-reset", async (req, res): Promise<void> => {
+  try {
+    const { year } = req.body;
+    if (!year) { res.status(400).json({ error: "year required" }); return; }
+    const newYear = parseInt(year, 10);
+    const prevYear = newYear - 1;
+
+    const employees = await db.select().from(employeesTable);
+    const leaveTypes = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.isActive, true));
+
+    let created = 0;
+
+    for (const emp of employees) {
+      for (const lt of leaveTypes) {
+        // Skip if already exists for this year
+        const [existing] = await db.select().from(leaveBalancesTable).where(
+          and(
+            eq(leaveBalancesTable.employeeId, emp.id),
+            eq(leaveBalancesTable.leaveTypeId, lt.id),
+            eq(leaveBalancesTable.year, newYear),
+          )
+        );
+        if (existing) continue;
+
+        // Find previous year balance to compute carryover
+        const [prev] = await db.select().from(leaveBalancesTable).where(
+          and(
+            eq(leaveBalancesTable.employeeId, emp.id),
+            eq(leaveBalancesTable.leaveTypeId, lt.id),
+            eq(leaveBalancesTable.year, prevYear),
+          )
+        );
+
+        let carryover = 0;
+        if (prev && lt.maxCarryoverDays > 0) {
+          const available = parseFloat(prev.openingBalance) + parseFloat(prev.accrued) +
+            parseFloat(prev.carriedOver) + parseFloat(prev.adjustment) -
+            parseFloat(prev.used) - parseFloat(prev.pending);
+          carryover = Math.min(Math.max(0, available), lt.maxCarryoverDays);
+        }
+
+        await db.insert(leaveBalancesTable).values({
+          employeeId: emp.id,
+          leaveTypeId: lt.id,
+          year: newYear,
+          openingBalance: String(lt.defaultDaysPerYear),
+          accrued: "0",
+          used: "0",
+          pending: "0",
+          adjustment: "0",
+          carriedOver: carryover.toFixed(2),
+        });
+        created++;
+      }
+    }
+
+    await db.insert(auditLogsTable).values({
+      action: "leave_balance.annual_reset",
+      entityType: "leave_balance",
+      changesJson: JSON.stringify({ year: newYear, created }),
+    });
+
+    res.json({ created, year: newYear });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
 });
 
 export default router;

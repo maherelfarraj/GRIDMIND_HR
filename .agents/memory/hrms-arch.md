@@ -143,3 +143,35 @@ GET /org-units/tree MUST be registered before GET /org-units/:id in Express, oth
 
 ## Phase 4 new frontend pages (8 total)
 system-config, military-hierarchy, duty-stations, postings, security-clearances, mobilization, security-settings, admin-airgap — all in artifacts/hrms/src/pages/, lazy-imported in App.tsx, linked in Sidebar.tsx under "Military & Government" and "System Admin" sections.
+
+## Phase 5 tables (19 schema files, all pushed + seeded via seed-phase5.ts)
+jobRequisitions, jobPostings, applicants, applications, interviewScores, backgroundChecks, jobOffers, employmentContracts, onboardingTemplates, employeeOnboarding (+ onboardingTemplateItems + onboardingTasks), probationRecords, equipmentIssuances (+ idCardRecords), competencies (+ competencyFrameworks), goalCycles (+ employeeGoals), appraisals (+ appraisalRecords + appraisalCompetencyRatings + calibrationSessions), disciplinaryRecords (+ commendations + promotionRecommendations), training (7 tables), succession (4 tables), selfService (3 tables).
+
+## Phase 5 seed
+`artifacts/api-server/src/lib/seed-phase5.ts` — requires `import { db } from "@workspace/db"` (not `"../lib/db.js"`). Map callbacks need explicit type annotations: `(item: typeof templateItems[0], idx: number)`.
+
+## Phase 5 frontend pages (11 total)
+recruitment, recruitment-application, onboarding, probation, performance, disciplinary, training, skills, succession, my-portal, manager-portal. All in artifacts/hrms/src/pages/, registered in App.tsx and Sidebar.tsx. Key type fixes: Employee has no `fullNameEn` (use firstNameEn+lastNameEn), no `badgeNumber` (use employeeNumber); LeaveBalance has no `.balance` (use `available ?? openingBalance`).
+
+## Phase 5 task implementations (tasks #8, #9, #10)
+- **#8 medical cert gating**: POST /leave-requests/:id/submit returns 422 ATTACHMENT_REQUIRED if leaveType.requiresAttachment=true and no attachments. Frontend shows cert upload panel.
+- **#9 revoke approved leave**: POST /leave-requests/:id/revoke restores balance (subtracts from used), resets roster rows status="scheduled", sets request status="cancelled".
+- **#10 annual leave reset**: POST /leave-balances/annual-reset iterates all employees × active leave types, skips existing rows for target year, computes carryover = min(available_prev_year, maxCarryoverDays).
+
+## zod.int() runtime crash fix
+After any codegen run, scan `lib/api-zod/src/generated/*.ts` and `lib/api-client-react/src/generated/*.ts` for `zod.int()` and replace with `zod.number()`. The codegen post-processor should handle it but a subagent's partial regeneration can miss the step. Command: `python3 -c "import glob; [open(f,'w').write(open(f).read().replace('zod.int()','zod.number()')) for f in glob.glob('lib/api-zod/src/generated/*.ts')]"`
+
+## Phase 6 tables (4 schema files, all pushed + seeded via seed-phase6.ts)
+- `lib/db/src/schema/documentManagement.ts` — documentCategories, enterpriseDocuments, documentVersions, documentAccessLogs, documentAcknowledgements, documentTemplates
+- `lib/db/src/schema/reporting.ts` — reportDefinitions, savedReportFilters, reportSchedules, reportOutputs
+- `lib/db/src/schema/notifications.ts` — notifications, notificationPreferences, escalationRules, approvalInboxItems
+- `lib/db/src/schema/deploymentOps.ts` — healthChecks, updatePackages, deploymentEvents, installationReadiness
+
+## Phase 6 routes (15 files, all mounted in routes/index.ts)
+documentCategories, enterpriseDocuments, documentTemplates, reportDefinitions, savedReportFilters, reportSchedules, reportOutputs, notifications, notificationPreferences, escalationRules, approvalInbox, healthChecks, updatePackages, deploymentEvents, installationReadiness. Key ordering: `POST /mark-all-read` before `/:id` in notifications; `GET /results` and `POST /run` before `/:id` in healthChecks; `POST /run` before `/:id` in installationReadiness.
+
+## Phase 6 frontend pages (4 total)
+document-management (3 tabs: Documents/Templates/Categories), reports (3 tabs: Run Reports/Scheduled/Output History), notifications (2 tabs: Inbox/Escalation Rules), deployment (4 tabs: Health Checks/Update Packages/Deployment Events/Readiness). Sidebar sections added: "Documents & Reports" and "System".
+
+## OpenAPI spec size history
+Phase 3: ~3,200 lines → Phase 4: ~5,300 → Phase 5: ~9,485 → Phase 6: ~11,068 lines, 401 operationIds, 4 new tags (Documents, Reports, Notifications, DeploymentOps).

@@ -1,3 +1,4 @@
+import React from 'react';
 import { Link, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
 import { useAuth } from '@/hooks/use-auth';
@@ -34,6 +35,16 @@ import {
   Activity,
   Server,
   SlidersVertical,
+  Briefcase,
+  ClipboardList,
+  GraduationCap,
+  BarChart3,
+  Target,
+  User,
+  FolderOpen,
+  BarChart2,
+  Bell,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -91,9 +102,39 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
     { href: '/admin-airgap', icon: Server, labelEn: 'Air-Gap Admin', labelAr: 'إدارة الفصل الجوي' },
   ];
 
-  const comingSoonItems = [
-    { icon: UserPlus, labelEn: 'Recruitment', labelAr: 'التوظيف' },
+  const recruitmentItems = [
+    { href: '/recruitment', icon: Briefcase, labelEn: 'Recruitment', labelAr: 'التوظيف' },
   ];
+
+  const onboardingDevItems = [
+    { href: '/onboarding', icon: ClipboardList, labelEn: 'Onboarding', labelAr: 'الاستقطاب' },
+    { href: '/probation', icon: Clock, labelEn: 'Probation', labelAr: 'فترة التجربة' },
+    { href: '/training', icon: GraduationCap, labelEn: 'Training', labelAr: 'التدريب' },
+    { href: '/skills', icon: BarChart3, labelEn: 'Skills', labelAr: 'المهارات' },
+  ];
+
+  const performanceItems = [
+    { href: '/performance', icon: Target, labelEn: 'Performance', labelAr: 'الأداء' },
+    { href: '/disciplinary', icon: AlertTriangle, labelEn: 'Disciplinary', labelAr: 'التأديب' },
+    { href: '/succession', icon: TrendingUp, labelEn: 'Succession', labelAr: 'التخطيط الوظيفي' },
+  ];
+
+  const selfServiceItems = [
+    { href: '/my', icon: User, labelEn: 'My Portal', labelAr: 'بوابتي' },
+    { href: '/manager', icon: Users, labelEn: 'Manager Portal', labelAr: 'بوابة المدير' },
+  ];
+
+  const docsReportsItems = [
+    { href: '/document-management', icon: FolderOpen, labelEn: 'Document Management', labelAr: 'إدارة المستندات' },
+    { href: '/reports', icon: BarChart2, labelEn: 'Reports & Analytics', labelAr: 'التقارير والتحليلات' },
+  ];
+
+  const systemPhase6Items = [
+    { href: '/notifications', icon: Bell, labelEn: 'Notifications', labelAr: 'الإشعارات' },
+    { href: '/deployment', icon: Activity, labelEn: 'Deployment & Health', labelAr: 'النشر والصحة' },
+  ];
+
+  const comingSoonItems: { icon: React.ComponentType<{ className?: string }>; labelEn: string; labelAr: string }[] = [];
 
   const userInitials = user ? (lang === 'en' ? user.fullNameEn : user.fullNameAr)
     .split(' ')
@@ -224,6 +265,132 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
                 "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
                 isActive 
                   ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary" 
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          {t('Recruitment', 'التوظيف')}
+        </div>
+        {recruitmentItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          {t('Onboarding & Development', 'الاستقطاب والتطوير')}
+        </div>
+        {onboardingDevItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          {t('Performance', 'الأداء')}
+        </div>
+        {performanceItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          {t('Self Service', 'الخدمة الذاتية')}
+        </div>
+        {selfServiceItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          <span className="flex items-center gap-1.5">
+            <FileText className="w-3 h-3" />
+            {t('Documents & Reports', 'المستندات والتقارير')}
+          </span>
+        </div>
+        {docsReportsItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          <span className="flex items-center gap-1.5">
+            <Server className="w-3 h-3" />
+            {t('System', 'النظام')}
+          </span>
+        </div>
+        {systemPhase6Items.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               )}>
                 <item.icon className="w-4 h-4" />

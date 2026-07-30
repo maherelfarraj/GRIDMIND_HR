@@ -1,9 +1,9 @@
 import { Router } from "express";
 import {
   db, leaveRequestsTable, leaveTypesTable, leaveBalancesTable,
-  leaveApprovalStepsTable, leaveAttachmentsTable, employeesTable, auditLogsTable,
+  leaveApprovalStepsTable, leaveAttachmentsTable, employeesTable, rostersTable, auditLogsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, or } from "drizzle-orm";
+import { eq, and, gte, lte, or, between } from "drizzle-orm";
 
 const router = Router();
 
@@ -148,6 +148,20 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
   const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
   if (!r) { res.status(404).json({ error: "Not found" }); return; }
   if (r.status !== "draft") { res.status(400).json({ error: "Only draft requests can be submitted" }); return; }
+
+  // Task #8: enforce medical certificate for leave types that require attachments
+  const [lt] = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.id, r.leaveTypeId));
+  if (lt?.requiresAttachment) {
+    const attachments = await db.select().from(leaveAttachmentsTable)
+      .where(eq(leaveAttachmentsTable.leaveRequestId, id));
+    if (attachments.length === 0) {
+      res.status(422).json({
+        error: "A medical certificate or supporting document is required for this leave type",
+        code: "ATTACHMENT_REQUIRED",
+      });
+      return;
+    }
+  }
 
   // Check balance availability
   const year = new Date(r.startDate).getFullYear();
@@ -326,6 +340,65 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
     .set({ status: "cancelled", updatedAt: new Date() })
     .where(eq(leaveRequestsTable.id, id))
     .returning();
+
+  res.json(await enrichRequest(updated));
+});
+
+// POST /leave-requests/:id/revoke — Task #9: revoke approved leave, restore balance + roster
+router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const { reason } = req.body;
+  const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
+  if (!r) { res.status(404).json({ error: "Not found" }); return; }
+  if (r.status !== "approved") {
+    res.status(400).json({ error: "Only approved leave requests can be revoked" });
+    return;
+  }
+
+  // Restore used balance → deduct from used, release pending (there shouldn't be any, but guard)
+  const year = new Date(r.startDate).getFullYear();
+  const [balance] = await db.select().from(leaveBalancesTable).where(
+    and(
+      eq(leaveBalancesTable.employeeId, r.employeeId),
+      eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
+      eq(leaveBalancesTable.year, year),
+    )
+  );
+  if (balance) {
+    const days = parseFloat(r.totalDays);
+    const newUsed = Math.max(0, parseFloat(balance.used) - days);
+    await db.update(leaveBalancesTable)
+      .set({ used: String(newUsed), updatedAt: new Date() })
+      .where(eq(leaveBalancesTable.id, balance.id));
+  }
+
+  // Restore roster entries: any roster row for this employee in [startDate, endDate]
+  // with status="leave" → back to "scheduled"
+  const rosterRows = await db.select().from(rostersTable).where(
+    and(
+      eq(rostersTable.employeeId, r.employeeId),
+      eq(rostersTable.status, "leave"),
+      between(rostersTable.date, r.startDate, r.endDate),
+    )
+  );
+  for (const row of rosterRows) {
+    await db.update(rostersTable)
+      .set({ status: "scheduled", notes: `Reverted — leave revoked (${r.requestNumber})`, updatedAt: new Date() })
+      .where(eq(rostersTable.id, row.id));
+  }
+
+  const [updated] = await db.update(leaveRequestsTable)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(eq(leaveRequestsTable.id, id))
+    .returning();
+
+  await db.insert(auditLogsTable).values({
+    action: "leave.revoked",
+    entityType: "leave_request",
+    entityId: id,
+    entityLabel: r.requestNumber,
+    changesJson: JSON.stringify({ reason: reason ?? null, rosterRowsRestored: rosterRows.length }),
+  });
 
   res.json(await enrichRequest(updated));
 });

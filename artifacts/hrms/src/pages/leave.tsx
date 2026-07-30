@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListLeaveRequests, useListLeaveTypes, useListEmployees,
   useGetLeaveCalendar, useListPublicHolidays, useListDepartments,
   useCreateLeaveRequest, useSubmitLeaveRequest, useDecideLeaveRequest,
-  useCancelLeaveRequest, useReturnToDuty,
+  useCancelLeaveRequest, useReturnToDuty, useRevokeLeaveRequest,
+  useAddLeaveAttachment,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +26,7 @@ import {
   Plus, ChevronDown, ChevronRight, ChevronLeft,
   Calendar, Users, Clock, CheckCircle, FileText,
   ThumbsUp, ThumbsDown, XCircle, ArrowRightCircle,
+  Paperclip, ShieldAlert,
 } from 'lucide-react';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -74,8 +76,16 @@ function NewRequestDialog({ open, onClose }: NewRequestDialogProps) {
   const [reason, setReason] = useState('');
   const [coveringEmployeeId, setCoveringEmployeeId] = useState('');
   const [saving, setSaving] = useState(false);
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const employees = empData?.data ?? [];
+
+  const selectedLeaveType = useMemo(
+    () => (leaveTypes ?? []).find(lt => String(lt.id) === leaveTypeId),
+    [leaveTypes, leaveTypeId]
+  );
+  const requiresAttachment = selectedLeaveType?.requiresAttachment ?? false;
 
   const totalDays = useMemo(() => {
     if (!startDate || !endDate) return 1;
@@ -86,14 +96,34 @@ function NewRequestDialog({ open, onClose }: NewRequestDialogProps) {
 
   const createMut = useCreateLeaveRequest();
   const submitMut = useSubmitLeaveRequest();
+  const addAttachmentMut = useAddLeaveAttachment();
+
+  function resetForm() {
+    setEmployeeId(''); setLeaveTypeId(''); setStartDate(''); setEndDate('');
+    setHalfDay(false); setReason(''); setCoveringEmployeeId('');
+    setAttachmentFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
 
   async function handleSubmit() {
     if (!employeeId || !leaveTypeId || !startDate || !endDate) {
       toast({ title: t('Missing fields', 'حقول مفقودة'), variant: 'destructive' });
       return;
     }
+    if (requiresAttachment && !attachmentFile) {
+      toast({
+        title: t('Medical certificate required', 'شهادة طبية مطلوبة'),
+        description: t(
+          'A medical certificate or supporting document must be attached for this leave type.',
+          'يجب إرفاق شهادة طبية أو مستند داعم لهذا النوع من الإجازة.'
+        ),
+        variant: 'destructive',
+      });
+      return;
+    }
     setSaving(true);
     try {
+      // 1. Create draft
       const created = await createMut.mutateAsync({
         data: {
           employeeId: Number(employeeId),
@@ -106,12 +136,32 @@ function NewRequestDialog({ open, onClose }: NewRequestDialogProps) {
           coveringEmployeeId: coveringEmployeeId ? Number(coveringEmployeeId) : null,
         },
       });
+
+      // 2. Upload attachment if provided
+      if (attachmentFile) {
+        const reader = new FileReader();
+        const fileUrl = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(attachmentFile);
+        });
+        await addAttachmentMut.mutateAsync({
+          id: created.id,
+          data: {
+            fileName: attachmentFile.name,
+            fileType: attachmentFile.type || null,
+            fileSize: attachmentFile.size,
+            fileUrl,
+          },
+        });
+      }
+
+      // 3. Submit
       await submitMut.mutateAsync({ id: created.id });
       queryClient.invalidateQueries({ queryKey: ['/api/leave-requests'] });
       toast({ title: t('Leave request submitted', 'تم تقديم طلب الإجازة') });
+      resetForm();
       onClose();
-      setEmployeeId(''); setLeaveTypeId(''); setStartDate(''); setEndDate('');
-      setHalfDay(false); setReason(''); setCoveringEmployeeId('');
     } catch (e: any) {
       toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
     } finally {
@@ -152,6 +202,11 @@ function NewRequestDialog({ open, onClose }: NewRequestDialogProps) {
                     <span className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: lt.color }} />
                       {lt.nameEn}
+                      {lt.requiresAttachment && (
+                        <span className="text-amber-600 text-[10px] font-medium">
+                          {t('(cert required)', '(يتطلب شهادة)')}
+                        </span>
+                      )}
                     </span>
                   </SelectItem>
                 ))}
@@ -185,6 +240,36 @@ function NewRequestDialog({ open, onClose }: NewRequestDialogProps) {
             <label className="text-sm font-medium mb-1 block">{t('Reason', 'السبب')}</label>
             <Textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} placeholder={t('Optional reason…', 'السبب (اختياري)…')} />
           </div>
+          {/* Medical Certificate — shown whenever requiresAttachment */}
+          {requiresAttachment && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 space-y-2">
+              <div className="flex items-center gap-2 text-amber-700">
+                <Paperclip className="w-4 h-4" />
+                <span className="text-sm font-medium">
+                  {t('Medical Certificate Required', 'الشهادة الطبية مطلوبة')}
+                </span>
+              </div>
+              <p className="text-xs text-amber-600">
+                {t(
+                  'Please attach a medical certificate or supporting document.',
+                  'يرجى إرفاق شهادة طبية أو مستند داعم.'
+                )}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                className="text-sm w-full"
+                onChange={e => setAttachmentFile(e.target.files?.[0] ?? null)}
+              />
+              {attachmentFile && (
+                <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" />
+                  {attachmentFile.name}
+                </p>
+              )}
+            </div>
+          )}
           {/* Covering Employee */}
           <div>
             <label className="text-sm font-medium mb-1 block">{t('Covering Employee (optional)', 'الموظف البديل (اختياري)')}</label>
@@ -232,6 +317,7 @@ function RequestsTab() {
   const cancelMut = useCancelLeaveRequest();
   const submitMut = useSubmitLeaveRequest();
   const returnMut = useReturnToDuty();
+  const revokeMut = useRevokeLeaveRequest();
 
   const filtered = useMemo(() => {
     const list = requests ?? [];
@@ -303,6 +389,24 @@ function RequestsTab() {
       await returnMut.mutateAsync({ id, data: { returnDate: today } });
       queryClient.invalidateQueries({ queryKey: ['/api/leave-requests'] });
       toast({ title: t('Return to duty recorded', 'تم تسجيل العودة للعمل') });
+    } catch (e: any) {
+      toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
+    } finally {
+      setActioning(null);
+    }
+  }
+
+  async function handleRevoke(id: number) {
+    if (!confirm(t(
+      'Revoke this approved leave? Leave days will be restored and roster entries reset.',
+      'إلغاء هذه الإجازة الموافق عليها؟ سيتم استعادة أيام الإجازة وإعادة تعيين سجلات الجدول.'
+    ))) return;
+    setActioning(id);
+    try {
+      await revokeMut.mutateAsync({ id, data: {} });
+      queryClient.invalidateQueries({ queryKey: ['/api/leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/leave-balances'] });
+      toast({ title: t('Leave revoked — balance restored', 'تم إلغاء الإجازة واستعادة الرصيد') });
     } catch (e: any) {
       toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
     } finally {
@@ -448,7 +552,14 @@ function RequestsTab() {
                                   {t('Return', 'عودة')}
                                 </Button>
                               )}
-                              {['approved', 'submitted', 'under_review'].includes(req.status) && (
+                              {req.status === 'approved' && (
+                                <Button size="sm" variant="ghost" className="text-orange-600 hover:text-orange-700" disabled={busy}
+                                  onClick={() => handleRevoke(req.id)}>
+                                  <ShieldAlert className="w-3 h-3 mr-1" />
+                                  {t('Revoke', 'إلغاء الموافقة')}
+                                </Button>
+                              )}
+                              {['submitted', 'under_review'].includes(req.status) && (
                                 <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" disabled={busy}
                                   onClick={() => handleCancel(req.id)}>
                                   <XCircle className="w-3 h-3 mr-1" />

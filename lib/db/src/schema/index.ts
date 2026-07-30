@@ -44,3 +44,29 @@ export * from "./branchServers";
 export * from "./syncQueue";
 export * from "./backupRecords";
 export * from "./licenseRecords";
+// Phase 5 — Recruitment, Onboarding, Performance, Training, Succession, Self-Service
+// Phase 6 — Document Management, Reporting, Notifications, Deployment Ops
+export * from "./documentManagement";
+export * from "./reporting";
+export * from "./notifications";
+export * from "./deploymentOps";
+// (Phase 5 exports follow)
+export * from "./jobRequisitions";
+export * from "./jobPostings";
+export * from "./applicants";
+export * from "./applications";
+export * from "./interviewScores";
+export * from "./backgroundChecks";
+export * from "./jobOffers";
+export * from "./employmentContracts";
+export * from "./onboardingTemplates";
+export * from "./employeeOnboarding";
+export * from "./probationRecords";
+export * from "./equipmentIssuances";
+export * from "./competencies";
+export * from "./goalCycles";
+export * from "./appraisals";
+export * from "./disciplinaryRecords";
+export * from "./training";
+export * from "./succession";
+export * from "./selfService";

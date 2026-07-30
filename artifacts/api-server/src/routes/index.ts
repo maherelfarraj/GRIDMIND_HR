@@ -42,6 +42,29 @@ import breakGlassRouter from "./breakGlass";
 import adminBackupRouter from "./adminBackup";
 import adminBranchesRouter from "./adminBranches";
 import adminLicenseRouter from "./adminLicense";
+// Phase 5 — Recruitment, Onboarding, Performance, Training, Succession, Self-Service
+import jobRequisitionsRouter from "./jobRequisitions.js";
+import jobPostingsRouter from "./jobPostings.js";
+import applicantsRouter from "./applicants.js";
+import applicationsRouter from "./applications.js";
+import { interviewScoresRouter } from "./interviewScores.js";
+import backgroundChecksRouter from "./backgroundChecks.js";
+import jobOffersRouter from "./jobOffers.js";
+import employmentContractsRouter from "./employmentContracts.js";
+import onboardingTemplatesRouter from "./onboardingTemplates.js";
+import employeeOnboardingRouter from "./employeeOnboarding.js";
+import probationRecordsRouter from "./probationRecords.js";
+import { equipmentIssuancesRouter, idCardRecordsRouter } from "./equipmentIssuances.js";
+import { competencyFrameworksRouter, competenciesRouter } from "./competencyFrameworks.js";
+import { goalCyclesRouter, employeeGoalsRouter } from "./goalCycles.js";
+import { appraisalCyclesRouter, appraisalRecordsRouter, calibrationSessionsRouter } from "./appraisals.js";
+import { disciplinaryRecordsRouter, commendationRecordsRouter, promotionRecommendationsRouter } from "./disciplinaryRecords.js";
+import {
+  trainingProgramsRouter, trainingCoursesRouter, trainingSessionsRouter,
+  courseNominationsRouter, trainingAttendanceRouter, certificationsRouter, employeeSkillsRouter,
+} from "./trainingRoutes.js";
+import { successionPoolsRouter, successionCandidatesRouter, developmentPlansRouter, developmentActivitiesRouter } from "./succession.js";
+import { employeeRequestsRouter, announcementsRouter, approvalDelegationsRouter } from "./selfService.js";
 
 const router: IRouter = Router();
 
@@ -88,5 +111,77 @@ router.use(breakGlassRouter);
 router.use(adminBackupRouter);
 router.use(adminBranchesRouter);
 router.use(adminLicenseRouter);
+
+// Phase 5
+router.use("/job-requisitions", jobRequisitionsRouter);
+router.use("/job-postings", jobPostingsRouter);
+router.use("/applicants", applicantsRouter);
+router.use("/applications", applicationsRouter);
+router.use("/interview-scores", interviewScoresRouter);
+router.use("/background-checks", backgroundChecksRouter);
+router.use("/job-offers", jobOffersRouter);
+router.use("/employment-contracts", employmentContractsRouter);
+router.use("/onboarding-templates", onboardingTemplatesRouter);
+router.use("/employee-onboarding", employeeOnboardingRouter);
+router.use("/probation-records", probationRecordsRouter);
+router.use("/equipment-issuances", equipmentIssuancesRouter);
+router.use("/id-card-records", idCardRecordsRouter);
+router.use("/competency-frameworks", competencyFrameworksRouter);
+router.use("/competencies", competenciesRouter);
+router.use("/goal-cycles", goalCyclesRouter);
+router.use("/employee-goals", employeeGoalsRouter);
+router.use("/appraisal-cycles", appraisalCyclesRouter);
+router.use("/appraisal-records", appraisalRecordsRouter);
+router.use("/calibration-sessions", calibrationSessionsRouter);
+router.use("/disciplinary-records", disciplinaryRecordsRouter);
+router.use("/commendation-records", commendationRecordsRouter);
+router.use("/promotion-recommendations", promotionRecommendationsRouter);
+router.use("/training-programs", trainingProgramsRouter);
+router.use("/training-courses", trainingCoursesRouter);
+router.use("/training-sessions", trainingSessionsRouter);
+router.use("/course-nominations", courseNominationsRouter);
+router.use("/training-attendance", trainingAttendanceRouter);
+router.use("/certifications", certificationsRouter);
+router.use("/employee-skills", employeeSkillsRouter);
+router.use("/succession-pools", successionPoolsRouter);
+router.use("/succession-candidates", successionCandidatesRouter);
+router.use("/development-plans", developmentPlansRouter);
+router.use("/development-activities", developmentActivitiesRouter);
+router.use("/employee-requests", employeeRequestsRouter);
+router.use("/announcements", announcementsRouter);
+router.use("/approval-delegations", approvalDelegationsRouter);
+
+// Phase 6 — Document Management, Reporting, Notifications, Deployment Ops
+import documentCategoriesRouter from "./documentCategories.js";
+import enterpriseDocumentsRouter from "./enterpriseDocuments.js";
+import documentTemplatesRouter from "./documentTemplates.js";
+import reportDefinitionsRouter from "./reportDefinitions.js";
+import savedReportFiltersRouter from "./savedReportFilters.js";
+import reportSchedulesRouter from "./reportSchedules.js";
+import reportOutputsRouter from "./reportOutputs.js";
+import notificationsRouter from "./notifications.js";
+import notificationPreferencesRouter from "./notificationPreferences.js";
+import escalationRulesRouter from "./escalationRules.js";
+import approvalInboxRouter from "./approvalInbox.js";
+import healthChecksRouter from "./healthChecks.js";
+import updatePackagesRouter from "./updatePackages.js";
+import deploymentEventsRouter from "./deploymentEvents.js";
+import installationReadinessRouter from "./installationReadiness.js";
+
+router.use("/document-categories", documentCategoriesRouter);
+router.use("/enterprise-documents", enterpriseDocumentsRouter);
+router.use("/document-templates", documentTemplatesRouter);
+router.use("/report-definitions", reportDefinitionsRouter);
+router.use("/saved-report-filters", savedReportFiltersRouter);
+router.use("/report-schedules", reportSchedulesRouter);
+router.use("/report-outputs", reportOutputsRouter);
+router.use("/notifications", notificationsRouter);
+router.use("/notification-preferences", notificationPreferencesRouter);
+router.use("/escalation-rules", escalationRulesRouter);
+router.use("/approval-inbox", approvalInboxRouter);
+router.use("/health-checks", healthChecksRouter);
+router.use("/update-packages", updatePackagesRouter);
+router.use("/deployment-events", deploymentEventsRouter);
+router.use("/installation-readiness", installationReadinessRouter);
 
 export default router;

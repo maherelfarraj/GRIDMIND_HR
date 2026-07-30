@@ -2255,6 +2255,19 @@ export const UpdateLeaveBalanceResponse = zod.object({
 
 
 /**
+ * @summary Reset leave balances at the start of a new year
+ */
+export const AnnualLeaveResetBody = zod.object({
+  "year": zod.number()
+})
+
+export const AnnualLeaveResetResponse = zod.object({
+  "created": zod.number(),
+  "year": zod.number()
+})
+
+
+/**
  * @summary List leave requests
  */
 export const ListLeaveRequestsQueryParams = zod.object({
@@ -2558,6 +2571,71 @@ export const CancelLeaveRequestParams = zod.object({
 })
 
 export const CancelLeaveRequestResponse = zod.object({
+  "id": zod.number(),
+  "requestNumber": zod.string(),
+  "employeeId": zod.number(),
+  "employeeNameEn": zod.string(),
+  "employeeNameAr": zod.string().optional(),
+  "departmentId": zod.number().nullish(),
+  "leaveTypeId": zod.number(),
+  "leaveTypeNameEn": zod.string(),
+  "leaveTypeNameAr": zod.string().optional(),
+  "leaveTypeColor": zod.string().optional(),
+  "leaveTypeCategory": zod.string().optional(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "totalDays": zod.string(),
+  "halfDay": zod.boolean().optional(),
+  "status": zod.string(),
+  "returnedToWork": zod.boolean(),
+  "submittedAt": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "reasonEn": zod.string().nullish(),
+  "reasonAr": zod.string().nullish(),
+  "coveringEmployeeId": zod.number().nullish(),
+  "coveringEmployeeNameEn": zod.string().nullish(),
+  "returnDate": zod.string().nullish(),
+  "returnNotes": zod.string().nullish(),
+  "currentStepNumber": zod.number().optional(),
+  "totalApprovalSteps": zod.number().optional(),
+  "steps": zod.array(zod.object({
+  "id": zod.number(),
+  "leaveRequestId": zod.number(),
+  "stepNumber": zod.number(),
+  "roleRequired": zod.string().nullish(),
+  "assignedToEmployeeId": zod.number().nullish(),
+  "status": zod.string(),
+  "decision": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "delegatedToEmployeeId": zod.number().nullish()
+})).optional(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "leaveRequestId": zod.number(),
+  "fileName": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "uploadedAt": zod.string()
+})).optional()
+}))
+
+
+/**
+ * @summary Revoke an approved leave — restores balance and roster
+ */
+export const RevokeLeaveRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RevokeLeaveRequestBody = zod.object({
+  "reason": zod.string().optional()
+})
+
+export const RevokeLeaveRequestResponse = zod.object({
   "id": zod.number(),
   "requestNumber": zod.string(),
   "employeeId": zod.number(),
@@ -5535,6 +5613,6118 @@ export const GetDrStatusResponse = zod.object({
   "backupCount": zod.number(),
   "verifiedBackupCount": zod.number(),
   "alerts": zod.array(zod.string())
+})
+
+
+/**
+ * @summary List job requisitions
+ */
+export const listJobRequisitionsQueryPageDefault = 1;
+export const listJobRequisitionsQueryLimitDefault = 20;
+
+export const ListJobRequisitionsQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "departmentId": zod.coerce.number().optional(),
+  "page": zod.coerce.number().default(listJobRequisitionsQueryPageDefault),
+  "limit": zod.coerce.number().default(listJobRequisitionsQueryLimitDefault)
+})
+
+export const ListJobRequisitionsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "positionId": zod.number().nullish(),
+  "requestedBy": zod.number(),
+  "numberOfPositions": zod.number(),
+  "justification": zod.string().nullish(),
+  "requiredBy": zod.string().nullish(),
+  "status": zod.string(),
+  "priority": zod.string().nullish(),
+  "budgetApproved": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create job requisition
+ */
+export const CreateJobRequisitionBody = zod.object({
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "positionId": zod.number().nullish(),
+  "requestedBy": zod.number(),
+  "numberOfPositions": zod.number(),
+  "justification": zod.string().nullish(),
+  "requiredBy": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "priority": zod.string().nullish(),
+  "budgetApproved": zod.boolean().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateJobRequisitionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "positionId": zod.number().nullish(),
+  "requestedBy": zod.number(),
+  "numberOfPositions": zod.number(),
+  "justification": zod.string().nullish(),
+  "requiredBy": zod.string().nullish(),
+  "status": zod.string(),
+  "priority": zod.string().nullish(),
+  "budgetApproved": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get job requisition
+ */
+export const GetJobRequisitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetJobRequisitionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "positionId": zod.number().nullish(),
+  "requestedBy": zod.number(),
+  "numberOfPositions": zod.number(),
+  "justification": zod.string().nullish(),
+  "requiredBy": zod.string().nullish(),
+  "status": zod.string(),
+  "priority": zod.string().nullish(),
+  "budgetApproved": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update job requisition
+ */
+export const UpdateJobRequisitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateJobRequisitionBody = zod.object({
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "positionId": zod.number().nullish(),
+  "requestedBy": zod.number(),
+  "numberOfPositions": zod.number(),
+  "justification": zod.string().nullish(),
+  "requiredBy": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "priority": zod.string().nullish(),
+  "budgetApproved": zod.boolean().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateJobRequisitionResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "positionId": zod.number().nullish(),
+  "requestedBy": zod.number(),
+  "numberOfPositions": zod.number(),
+  "justification": zod.string().nullish(),
+  "requiredBy": zod.string().nullish(),
+  "status": zod.string(),
+  "priority": zod.string().nullish(),
+  "budgetApproved": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List job postings
+ */
+export const listJobPostingsQueryPageDefault = 1;
+export const listJobPostingsQueryLimitDefault = 20;
+
+export const ListJobPostingsQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "departmentId": zod.coerce.number().optional(),
+  "page": zod.coerce.number().default(listJobPostingsQueryPageDefault),
+  "limit": zod.coerce.number().default(listJobPostingsQueryLimitDefault)
+})
+
+export const ListJobPostingsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "requisitionId": zod.number().nullish(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "description": zod.string().nullish(),
+  "requirements": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "employmentType": zod.string().nullish(),
+  "salaryMin": zod.number().nullish(),
+  "salaryMax": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "status": zod.string(),
+  "postedAt": zod.string().nullish(),
+  "closingDate": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create job posting
+ */
+export const CreateJobPostingBody = zod.object({
+  "requisitionId": zod.number().nullish(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "description": zod.string().nullish(),
+  "requirements": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "employmentType": zod.string().nullish(),
+  "salaryMin": zod.number().nullish(),
+  "salaryMax": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "closingDate": zod.string().nullish()
+})
+
+export const CreateJobPostingResponse = zod.object({
+  "id": zod.number(),
+  "requisitionId": zod.number().nullish(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "description": zod.string().nullish(),
+  "requirements": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "employmentType": zod.string().nullish(),
+  "salaryMin": zod.number().nullish(),
+  "salaryMax": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "status": zod.string(),
+  "postedAt": zod.string().nullish(),
+  "closingDate": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get job posting
+ */
+export const GetJobPostingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetJobPostingResponse = zod.object({
+  "id": zod.number(),
+  "requisitionId": zod.number().nullish(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "description": zod.string().nullish(),
+  "requirements": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "employmentType": zod.string().nullish(),
+  "salaryMin": zod.number().nullish(),
+  "salaryMax": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "status": zod.string(),
+  "postedAt": zod.string().nullish(),
+  "closingDate": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update job posting
+ */
+export const UpdateJobPostingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateJobPostingBody = zod.object({
+  "requisitionId": zod.number().nullish(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "description": zod.string().nullish(),
+  "requirements": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "employmentType": zod.string().nullish(),
+  "salaryMin": zod.number().nullish(),
+  "salaryMax": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "closingDate": zod.string().nullish()
+})
+
+export const UpdateJobPostingResponse = zod.object({
+  "id": zod.number(),
+  "requisitionId": zod.number().nullish(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "description": zod.string().nullish(),
+  "requirements": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "employmentType": zod.string().nullish(),
+  "salaryMin": zod.number().nullish(),
+  "salaryMax": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "status": zod.string(),
+  "postedAt": zod.string().nullish(),
+  "closingDate": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Publish job posting
+ */
+export const PublishJobPostingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PublishJobPostingResponse = zod.object({
+  "id": zod.number(),
+  "requisitionId": zod.number().nullish(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "description": zod.string().nullish(),
+  "requirements": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "employmentType": zod.string().nullish(),
+  "salaryMin": zod.number().nullish(),
+  "salaryMax": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "status": zod.string(),
+  "postedAt": zod.string().nullish(),
+  "closingDate": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Close job posting
+ */
+export const CloseJobPostingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CloseJobPostingResponse = zod.object({
+  "id": zod.number(),
+  "requisitionId": zod.number().nullish(),
+  "title": zod.string(),
+  "departmentId": zod.number(),
+  "description": zod.string().nullish(),
+  "requirements": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "employmentType": zod.string().nullish(),
+  "salaryMin": zod.number().nullish(),
+  "salaryMax": zod.number().nullish(),
+  "currency": zod.string().nullish(),
+  "status": zod.string(),
+  "postedAt": zod.string().nullish(),
+  "closingDate": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List applicants
+ */
+export const listApplicantsQueryPageDefault = 1;
+export const listApplicantsQueryLimitDefault = 20;
+
+export const ListApplicantsQueryParams = zod.object({
+  "applicantType": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listApplicantsQueryPageDefault),
+  "limit": zod.coerce.number().default(listApplicantsQueryLimitDefault)
+})
+
+export const ListApplicantsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "applicantType": zod.string(),
+  "currentEmployeeId": zod.number().nullish(),
+  "resumeUrl": zod.string().nullish(),
+  "linkedinUrl": zod.string().nullish(),
+  "source": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create applicant
+ */
+export const CreateApplicantBody = zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "applicantType": zod.string(),
+  "currentEmployeeId": zod.number().nullish(),
+  "resumeUrl": zod.string().nullish(),
+  "linkedinUrl": zod.string().nullish(),
+  "source": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateApplicantResponse = zod.object({
+  "id": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "applicantType": zod.string(),
+  "currentEmployeeId": zod.number().nullish(),
+  "resumeUrl": zod.string().nullish(),
+  "linkedinUrl": zod.string().nullish(),
+  "source": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get applicant
+ */
+export const GetApplicantParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetApplicantResponse = zod.object({
+  "id": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "applicantType": zod.string(),
+  "currentEmployeeId": zod.number().nullish(),
+  "resumeUrl": zod.string().nullish(),
+  "linkedinUrl": zod.string().nullish(),
+  "source": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update applicant
+ */
+export const UpdateApplicantParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateApplicantBody = zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "applicantType": zod.string(),
+  "currentEmployeeId": zod.number().nullish(),
+  "resumeUrl": zod.string().nullish(),
+  "linkedinUrl": zod.string().nullish(),
+  "source": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateApplicantResponse = zod.object({
+  "id": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "applicantType": zod.string(),
+  "currentEmployeeId": zod.number().nullish(),
+  "resumeUrl": zod.string().nullish(),
+  "linkedinUrl": zod.string().nullish(),
+  "source": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List applications
+ */
+export const listApplicationsQueryPageDefault = 1;
+export const listApplicationsQueryLimitDefault = 20;
+
+export const ListApplicationsQueryParams = zod.object({
+  "jobPostingId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listApplicationsQueryPageDefault),
+  "limit": zod.coerce.number().default(listApplicationsQueryLimitDefault)
+})
+
+export const ListApplicationsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "jobPostingId": zod.number(),
+  "applicantId": zod.number(),
+  "status": zod.string(),
+  "appliedAt": zod.string(),
+  "coverLetter": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create application
+ */
+export const CreateApplicationBody = zod.object({
+  "jobPostingId": zod.number(),
+  "applicantId": zod.number(),
+  "status": zod.string().optional(),
+  "appliedAt": zod.string().optional(),
+  "coverLetter": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateApplicationResponse = zod.object({
+  "id": zod.number(),
+  "jobPostingId": zod.number(),
+  "applicantId": zod.number(),
+  "status": zod.string(),
+  "appliedAt": zod.string(),
+  "coverLetter": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get application
+ */
+export const GetApplicationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetApplicationResponse = zod.object({
+  "id": zod.number(),
+  "jobPostingId": zod.number(),
+  "applicantId": zod.number(),
+  "status": zod.string(),
+  "appliedAt": zod.string(),
+  "coverLetter": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update application
+ */
+export const UpdateApplicationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateApplicationBody = zod.object({
+  "jobPostingId": zod.number(),
+  "applicantId": zod.number(),
+  "status": zod.string().optional(),
+  "appliedAt": zod.string().optional(),
+  "coverLetter": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateApplicationResponse = zod.object({
+  "id": zod.number(),
+  "jobPostingId": zod.number(),
+  "applicantId": zod.number(),
+  "status": zod.string(),
+  "appliedAt": zod.string(),
+  "coverLetter": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Shortlist application
+ */
+export const ShortlistApplicationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ShortlistApplicationResponse = zod.object({
+  "id": zod.number(),
+  "jobPostingId": zod.number(),
+  "applicantId": zod.number(),
+  "status": zod.string(),
+  "appliedAt": zod.string(),
+  "coverLetter": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Reject application
+ */
+export const RejectApplicationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectApplicationBody = zod.object({
+  "reason": zod.string()
+})
+
+export const RejectApplicationResponse = zod.object({
+  "id": zod.number(),
+  "jobPostingId": zod.number(),
+  "applicantId": zod.number(),
+  "status": zod.string(),
+  "appliedAt": zod.string(),
+  "coverLetter": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List interview scores
+ */
+export const ListInterviewScoresParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListInterviewScoresResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "interviewerId": zod.number(),
+  "interviewDate": zod.string(),
+  "overallScore": zod.number().nullish(),
+  "technicalScore": zod.number().nullish(),
+  "communicationScore": zod.number().nullish(),
+  "cultureFitScore": zod.number().nullish(),
+  "recommendation": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create interview score
+ */
+export const CreateInterviewScoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateInterviewScoreBody = zod.object({
+  "applicationId": zod.number(),
+  "interviewerId": zod.number(),
+  "interviewDate": zod.string(),
+  "overallScore": zod.number().nullish(),
+  "technicalScore": zod.number().nullish(),
+  "communicationScore": zod.number().nullish(),
+  "cultureFitScore": zod.number().nullish(),
+  "recommendation": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateInterviewScoreResponse = zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "interviewerId": zod.number(),
+  "interviewDate": zod.string(),
+  "overallScore": zod.number().nullish(),
+  "technicalScore": zod.number().nullish(),
+  "communicationScore": zod.number().nullish(),
+  "cultureFitScore": zod.number().nullish(),
+  "recommendation": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update interview score
+ */
+export const UpdateInterviewScoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateInterviewScoreBody = zod.object({
+  "applicationId": zod.number(),
+  "interviewerId": zod.number(),
+  "interviewDate": zod.string(),
+  "overallScore": zod.number().nullish(),
+  "technicalScore": zod.number().nullish(),
+  "communicationScore": zod.number().nullish(),
+  "cultureFitScore": zod.number().nullish(),
+  "recommendation": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateInterviewScoreResponse = zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "interviewerId": zod.number(),
+  "interviewDate": zod.string(),
+  "overallScore": zod.number().nullish(),
+  "technicalScore": zod.number().nullish(),
+  "communicationScore": zod.number().nullish(),
+  "cultureFitScore": zod.number().nullish(),
+  "recommendation": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List background checks
+ */
+export const ListBackgroundChecksQueryParams = zod.object({
+  "applicationId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListBackgroundChecksResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "checkType": zod.string(),
+  "status": zod.string(),
+  "initiatedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "result": zod.string().nullish(),
+  "provider": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create background check
+ */
+export const CreateBackgroundCheckBody = zod.object({
+  "applicationId": zod.number(),
+  "checkType": zod.string(),
+  "status": zod.string().optional(),
+  "initiatedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "result": zod.string().nullish(),
+  "provider": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateBackgroundCheckResponse = zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "checkType": zod.string(),
+  "status": zod.string(),
+  "initiatedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "result": zod.string().nullish(),
+  "provider": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get background check
+ */
+export const GetBackgroundCheckParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetBackgroundCheckResponse = zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "checkType": zod.string(),
+  "status": zod.string(),
+  "initiatedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "result": zod.string().nullish(),
+  "provider": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update background check
+ */
+export const UpdateBackgroundCheckParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateBackgroundCheckBody = zod.object({
+  "applicationId": zod.number(),
+  "checkType": zod.string(),
+  "status": zod.string().optional(),
+  "initiatedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "result": zod.string().nullish(),
+  "provider": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateBackgroundCheckResponse = zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "checkType": zod.string(),
+  "status": zod.string(),
+  "initiatedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "result": zod.string().nullish(),
+  "provider": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List job offers
+ */
+export const ListJobOffersQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "applicationId": zod.coerce.number().optional()
+})
+
+export const ListJobOffersResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "offerDate": zod.string(),
+  "expiryDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "startDate": zod.string().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "declineReason": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create job offer
+ */
+export const CreateJobOfferBody = zod.object({
+  "applicationId": zod.number(),
+  "offerDate": zod.string(),
+  "expiryDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "startDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateJobOfferResponse = zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "offerDate": zod.string(),
+  "expiryDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "startDate": zod.string().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "declineReason": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get job offer
+ */
+export const GetJobOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetJobOfferResponse = zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "offerDate": zod.string(),
+  "expiryDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "startDate": zod.string().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "declineReason": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update job offer
+ */
+export const UpdateJobOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateJobOfferBody = zod.object({
+  "applicationId": zod.number(),
+  "offerDate": zod.string(),
+  "expiryDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "startDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateJobOfferResponse = zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "offerDate": zod.string(),
+  "expiryDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "startDate": zod.string().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "declineReason": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Send job offer
+ */
+export const SendJobOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SendJobOfferResponse = zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "offerDate": zod.string(),
+  "expiryDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "startDate": zod.string().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "declineReason": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Accept job offer
+ */
+export const AcceptJobOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AcceptJobOfferResponse = zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "offerDate": zod.string(),
+  "expiryDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "startDate": zod.string().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "declineReason": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Decline job offer
+ */
+export const DeclineJobOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeclineJobOfferBody = zod.object({
+  "reason": zod.string()
+})
+
+export const DeclineJobOfferResponse = zod.object({
+  "id": zod.number(),
+  "applicationId": zod.number(),
+  "offerDate": zod.string(),
+  "expiryDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "startDate": zod.string().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "declineReason": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List employment contracts
+ */
+export const ListEmploymentContractsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListEmploymentContractsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "contractType": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "status": zod.string(),
+  "documentUrl": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create employment contract
+ */
+export const CreateEmploymentContractBody = zod.object({
+  "employeeId": zod.number(),
+  "contractType": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "status": zod.string().optional(),
+  "documentUrl": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateEmploymentContractResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "contractType": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "status": zod.string(),
+  "documentUrl": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get employment contract
+ */
+export const GetEmploymentContractParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmploymentContractResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "contractType": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "status": zod.string(),
+  "documentUrl": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update employment contract
+ */
+export const UpdateEmploymentContractParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEmploymentContractBody = zod.object({
+  "employeeId": zod.number(),
+  "contractType": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "status": zod.string().optional(),
+  "documentUrl": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateEmploymentContractResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "contractType": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "salary": zod.number(),
+  "currency": zod.string(),
+  "status": zod.string(),
+  "documentUrl": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List onboarding templates
+ */
+export const ListOnboardingTemplatesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "taskName": zod.string(),
+  "taskDescription": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "daysFromStart": zod.number(),
+  "isRequired": zod.boolean(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string()
+})).optional(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create onboarding template
+ */
+export const CreateOnboardingTemplateBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateOnboardingTemplateResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "taskName": zod.string(),
+  "taskDescription": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "daysFromStart": zod.number(),
+  "isRequired": zod.boolean(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string()
+})).optional(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get onboarding template
+ */
+export const GetOnboardingTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetOnboardingTemplateResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "taskName": zod.string(),
+  "taskDescription": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "daysFromStart": zod.number(),
+  "isRequired": zod.boolean(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string()
+})).optional(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update onboarding template
+ */
+export const UpdateOnboardingTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateOnboardingTemplateBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateOnboardingTemplateResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "taskName": zod.string(),
+  "taskDescription": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "daysFromStart": zod.number(),
+  "isRequired": zod.boolean(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string()
+})).optional(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List employee onboarding records
+ */
+export const listEmployeeOnboardingQueryPageDefault = 1;
+export const listEmployeeOnboardingQueryLimitDefault = 20;
+
+export const ListEmployeeOnboardingQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listEmployeeOnboardingQueryPageDefault),
+  "limit": zod.coerce.number().default(listEmployeeOnboardingQueryLimitDefault)
+})
+
+export const ListEmployeeOnboardingResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "templateId": zod.number().nullish(),
+  "startDate": zod.string(),
+  "expectedEndDate": zod.string().nullish(),
+  "actualEndDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completionPercentage": zod.number(),
+  "assignedToId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create employee onboarding
+ */
+export const CreateEmployeeOnboardingBody = zod.object({
+  "employeeId": zod.number(),
+  "templateId": zod.number().nullish(),
+  "startDate": zod.string(),
+  "expectedEndDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "assignedToId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateEmployeeOnboardingResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "templateId": zod.number().nullish(),
+  "startDate": zod.string(),
+  "expectedEndDate": zod.string().nullish(),
+  "actualEndDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completionPercentage": zod.number(),
+  "assignedToId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get employee onboarding
+ */
+export const GetEmployeeOnboardingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmployeeOnboardingResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "templateId": zod.number().nullish(),
+  "startDate": zod.string(),
+  "expectedEndDate": zod.string().nullish(),
+  "actualEndDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completionPercentage": zod.number(),
+  "assignedToId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update employee onboarding
+ */
+export const UpdateEmployeeOnboardingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEmployeeOnboardingBody = zod.object({
+  "employeeId": zod.number(),
+  "templateId": zod.number().nullish(),
+  "startDate": zod.string(),
+  "expectedEndDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "assignedToId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateEmployeeOnboardingResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "templateId": zod.number().nullish(),
+  "startDate": zod.string(),
+  "expectedEndDate": zod.string().nullish(),
+  "actualEndDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completionPercentage": zod.number(),
+  "assignedToId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List onboarding tasks
+ */
+export const ListOnboardingTasksParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListOnboardingTasksResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "onboardingId": zod.number(),
+  "taskName": zod.string(),
+  "taskDescription": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "completedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Update onboarding task
+ */
+export const UpdateOnboardingTaskParams = zod.object({
+  "id": zod.coerce.number(),
+  "taskId": zod.coerce.number()
+})
+
+export const UpdateOnboardingTaskBody = zod.object({
+  "status": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "completedAt": zod.string().optional()
+})
+
+export const UpdateOnboardingTaskResponse = zod.object({
+  "id": zod.number(),
+  "onboardingId": zod.number(),
+  "taskName": zod.string(),
+  "taskDescription": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "completedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List probation records
+ */
+export const ListProbationRecordsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListProbationRecordsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "extensionDate": zod.string().nullish(),
+  "status": zod.string(),
+  "reviewDate": zod.string().nullish(),
+  "outcome": zod.string().nullish(),
+  "reviewedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create probation record
+ */
+export const CreateProbationRecordBody = zod.object({
+  "employeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "extensionDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "reviewDate": zod.string().nullish(),
+  "outcome": zod.string().nullish(),
+  "reviewedBy": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateProbationRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "extensionDate": zod.string().nullish(),
+  "status": zod.string(),
+  "reviewDate": zod.string().nullish(),
+  "outcome": zod.string().nullish(),
+  "reviewedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get probation record
+ */
+export const GetProbationRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetProbationRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "extensionDate": zod.string().nullish(),
+  "status": zod.string(),
+  "reviewDate": zod.string().nullish(),
+  "outcome": zod.string().nullish(),
+  "reviewedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update probation record
+ */
+export const UpdateProbationRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateProbationRecordBody = zod.object({
+  "employeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "extensionDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "reviewDate": zod.string().nullish(),
+  "outcome": zod.string().nullish(),
+  "reviewedBy": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateProbationRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "extensionDate": zod.string().nullish(),
+  "status": zod.string(),
+  "reviewDate": zod.string().nullish(),
+  "outcome": zod.string().nullish(),
+  "reviewedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List equipment issuances
+ */
+export const ListEquipmentIssuancesQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "itemType": zod.coerce.string().optional()
+})
+
+export const ListEquipmentIssuancesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "itemType": zod.string(),
+  "itemName": zod.string(),
+  "serialNumber": zod.string().nullish(),
+  "issuedDate": zod.string(),
+  "returnDueDate": zod.string().nullish(),
+  "returnedDate": zod.string().nullish(),
+  "status": zod.string(),
+  "condition": zod.string().nullish(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create equipment issuance
+ */
+export const CreateEquipmentIssuanceBody = zod.object({
+  "employeeId": zod.number(),
+  "itemType": zod.string(),
+  "itemName": zod.string(),
+  "serialNumber": zod.string().nullish(),
+  "issuedDate": zod.string(),
+  "returnDueDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "condition": zod.string().nullish(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateEquipmentIssuanceResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "itemType": zod.string(),
+  "itemName": zod.string(),
+  "serialNumber": zod.string().nullish(),
+  "issuedDate": zod.string(),
+  "returnDueDate": zod.string().nullish(),
+  "returnedDate": zod.string().nullish(),
+  "status": zod.string(),
+  "condition": zod.string().nullish(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get equipment issuance
+ */
+export const GetEquipmentIssuanceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEquipmentIssuanceResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "itemType": zod.string(),
+  "itemName": zod.string(),
+  "serialNumber": zod.string().nullish(),
+  "issuedDate": zod.string(),
+  "returnDueDate": zod.string().nullish(),
+  "returnedDate": zod.string().nullish(),
+  "status": zod.string(),
+  "condition": zod.string().nullish(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update equipment issuance
+ */
+export const UpdateEquipmentIssuanceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEquipmentIssuanceBody = zod.object({
+  "employeeId": zod.number(),
+  "itemType": zod.string(),
+  "itemName": zod.string(),
+  "serialNumber": zod.string().nullish(),
+  "issuedDate": zod.string(),
+  "returnDueDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "condition": zod.string().nullish(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateEquipmentIssuanceResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "itemType": zod.string(),
+  "itemName": zod.string(),
+  "serialNumber": zod.string().nullish(),
+  "issuedDate": zod.string(),
+  "returnDueDate": zod.string().nullish(),
+  "returnedDate": zod.string().nullish(),
+  "status": zod.string(),
+  "condition": zod.string().nullish(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Return equipment
+ */
+export const ReturnEquipmentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReturnEquipmentBody = zod.object({
+  "notes": zod.string().optional()
+})
+
+export const ReturnEquipmentResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "itemType": zod.string(),
+  "itemName": zod.string(),
+  "serialNumber": zod.string().nullish(),
+  "issuedDate": zod.string(),
+  "returnDueDate": zod.string().nullish(),
+  "returnedDate": zod.string().nullish(),
+  "status": zod.string(),
+  "condition": zod.string().nullish(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List ID card records
+ */
+export const ListIdCardRecordsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListIdCardRecordsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "cardNumber": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "status": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create ID card record
+ */
+export const CreateIdCardRecordBody = zod.object({
+  "employeeId": zod.number(),
+  "cardNumber": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateIdCardRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "cardNumber": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "status": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get ID card record
+ */
+export const GetIdCardRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetIdCardRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "cardNumber": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "status": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update ID card record
+ */
+export const UpdateIdCardRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateIdCardRecordBody = zod.object({
+  "employeeId": zod.number(),
+  "cardNumber": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateIdCardRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "cardNumber": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "status": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List competency frameworks
+ */
+export const ListCompetencyFrameworksResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create competency framework
+ */
+export const CreateCompetencyFrameworkBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateCompetencyFrameworkResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get competency framework
+ */
+export const GetCompetencyFrameworkParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCompetencyFrameworkResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List competencies in framework
+ */
+export const ListCompetenciesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListCompetenciesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "frameworkId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "maxScore": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create competency
+ */
+export const CreateCompetencyBody = zod.object({
+  "frameworkId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "maxScore": zod.number()
+})
+
+export const CreateCompetencyResponse = zod.object({
+  "id": zod.number(),
+  "frameworkId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "maxScore": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update competency
+ */
+export const UpdateCompetencyParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCompetencyBody = zod.object({
+  "frameworkId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "maxScore": zod.number()
+})
+
+export const UpdateCompetencyResponse = zod.object({
+  "id": zod.number(),
+  "frameworkId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "maxScore": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List goal cycles
+ */
+export const ListGoalCyclesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "status": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create goal cycle
+ */
+export const CreateGoalCycleBody = zod.object({
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "status": zod.string().optional(),
+  "description": zod.string().nullish()
+})
+
+export const CreateGoalCycleResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "status": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get goal cycle
+ */
+export const GetGoalCycleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetGoalCycleResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "status": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update goal cycle
+ */
+export const UpdateGoalCycleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateGoalCycleBody = zod.object({
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "status": zod.string().optional(),
+  "description": zod.string().nullish()
+})
+
+export const UpdateGoalCycleResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "status": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List employee goals
+ */
+export const listEmployeeGoalsQueryPageDefault = 1;
+export const listEmployeeGoalsQueryLimitDefault = 20;
+
+export const ListEmployeeGoalsQueryParams = zod.object({
+  "cycleId": zod.coerce.number().optional(),
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listEmployeeGoalsQueryPageDefault),
+  "limit": zod.coerce.number().default(listEmployeeGoalsQueryLimitDefault)
+})
+
+export const ListEmployeeGoalsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "weight": zod.number().nullish(),
+  "targetValue": zod.number().nullish(),
+  "actualValue": zod.number().nullish(),
+  "status": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create employee goal
+ */
+export const CreateEmployeeGoalBody = zod.object({
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "weight": zod.number().nullish(),
+  "targetValue": zod.number().nullish(),
+  "actualValue": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "dueDate": zod.string().nullish()
+})
+
+export const CreateEmployeeGoalResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "weight": zod.number().nullish(),
+  "targetValue": zod.number().nullish(),
+  "actualValue": zod.number().nullish(),
+  "status": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get employee goal
+ */
+export const GetEmployeeGoalParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmployeeGoalResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "weight": zod.number().nullish(),
+  "targetValue": zod.number().nullish(),
+  "actualValue": zod.number().nullish(),
+  "status": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update employee goal
+ */
+export const UpdateEmployeeGoalParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEmployeeGoalBody = zod.object({
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "weight": zod.number().nullish(),
+  "targetValue": zod.number().nullish(),
+  "actualValue": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "dueDate": zod.string().nullish()
+})
+
+export const UpdateEmployeeGoalResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "weight": zod.number().nullish(),
+  "targetValue": zod.number().nullish(),
+  "actualValue": zod.number().nullish(),
+  "status": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List appraisal cycles
+ */
+export const ListAppraisalCyclesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "reviewPeriodStart": zod.string(),
+  "reviewPeriodEnd": zod.string(),
+  "status": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create appraisal cycle
+ */
+export const CreateAppraisalCycleBody = zod.object({
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "reviewPeriodStart": zod.string(),
+  "reviewPeriodEnd": zod.string(),
+  "status": zod.string().optional(),
+  "description": zod.string().nullish()
+})
+
+export const CreateAppraisalCycleResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "reviewPeriodStart": zod.string(),
+  "reviewPeriodEnd": zod.string(),
+  "status": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get appraisal cycle
+ */
+export const GetAppraisalCycleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetAppraisalCycleResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "reviewPeriodStart": zod.string(),
+  "reviewPeriodEnd": zod.string(),
+  "status": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update appraisal cycle
+ */
+export const UpdateAppraisalCycleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateAppraisalCycleBody = zod.object({
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "reviewPeriodStart": zod.string(),
+  "reviewPeriodEnd": zod.string(),
+  "status": zod.string().optional(),
+  "description": zod.string().nullish()
+})
+
+export const UpdateAppraisalCycleResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "reviewPeriodStart": zod.string(),
+  "reviewPeriodEnd": zod.string(),
+  "status": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List appraisal records
+ */
+export const listAppraisalRecordsQueryPageDefault = 1;
+export const listAppraisalRecordsQueryLimitDefault = 20;
+
+export const ListAppraisalRecordsQueryParams = zod.object({
+  "cycleId": zod.coerce.number().optional(),
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listAppraisalRecordsQueryPageDefault),
+  "limit": zod.coerce.number().default(listAppraisalRecordsQueryLimitDefault)
+})
+
+export const ListAppraisalRecordsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerId": zod.number().nullish(),
+  "status": zod.string(),
+  "selfRating": zod.number().nullish(),
+  "managerRating": zod.number().nullish(),
+  "finalRating": zod.number().nullish(),
+  "selfComments": zod.string().nullish(),
+  "managerComments": zod.string().nullish(),
+  "hrComments": zod.string().nullish(),
+  "submittedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create appraisal record
+ */
+export const CreateAppraisalRecordBody = zod.object({
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerId": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "selfRating": zod.number().nullish(),
+  "managerRating": zod.number().nullish(),
+  "finalRating": zod.number().nullish(),
+  "selfComments": zod.string().nullish(),
+  "managerComments": zod.string().nullish(),
+  "hrComments": zod.string().nullish()
+})
+
+export const CreateAppraisalRecordResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerId": zod.number().nullish(),
+  "status": zod.string(),
+  "selfRating": zod.number().nullish(),
+  "managerRating": zod.number().nullish(),
+  "finalRating": zod.number().nullish(),
+  "selfComments": zod.string().nullish(),
+  "managerComments": zod.string().nullish(),
+  "hrComments": zod.string().nullish(),
+  "submittedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get appraisal record
+ */
+export const GetAppraisalRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetAppraisalRecordResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerId": zod.number().nullish(),
+  "status": zod.string(),
+  "selfRating": zod.number().nullish(),
+  "managerRating": zod.number().nullish(),
+  "finalRating": zod.number().nullish(),
+  "selfComments": zod.string().nullish(),
+  "managerComments": zod.string().nullish(),
+  "hrComments": zod.string().nullish(),
+  "submittedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update appraisal record
+ */
+export const UpdateAppraisalRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateAppraisalRecordBody = zod.object({
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerId": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "selfRating": zod.number().nullish(),
+  "managerRating": zod.number().nullish(),
+  "finalRating": zod.number().nullish(),
+  "selfComments": zod.string().nullish(),
+  "managerComments": zod.string().nullish(),
+  "hrComments": zod.string().nullish()
+})
+
+export const UpdateAppraisalRecordResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerId": zod.number().nullish(),
+  "status": zod.string(),
+  "selfRating": zod.number().nullish(),
+  "managerRating": zod.number().nullish(),
+  "finalRating": zod.number().nullish(),
+  "selfComments": zod.string().nullish(),
+  "managerComments": zod.string().nullish(),
+  "hrComments": zod.string().nullish(),
+  "submittedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List appraisal competency ratings
+ */
+export const ListAppraisalCompetencyRatingsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListAppraisalCompetencyRatingsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "appraisalId": zod.number(),
+  "competencyId": zod.number(),
+  "selfScore": zod.number().nullish(),
+  "managerScore": zod.number().nullish(),
+  "finalScore": zod.number().nullish(),
+  "comments": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create appraisal competency rating
+ */
+export const CreateAppraisalCompetencyRatingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateAppraisalCompetencyRatingBody = zod.object({
+  "appraisalId": zod.number(),
+  "competencyId": zod.number(),
+  "selfScore": zod.number().nullish(),
+  "managerScore": zod.number().nullish(),
+  "finalScore": zod.number().nullish(),
+  "comments": zod.string().nullish()
+})
+
+export const CreateAppraisalCompetencyRatingResponse = zod.object({
+  "id": zod.number(),
+  "appraisalId": zod.number(),
+  "competencyId": zod.number(),
+  "selfScore": zod.number().nullish(),
+  "managerScore": zod.number().nullish(),
+  "finalScore": zod.number().nullish(),
+  "comments": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List calibration sessions
+ */
+export const ListCalibrationSessionsQueryParams = zod.object({
+  "cycleId": zod.coerce.number().optional(),
+  "departmentId": zod.coerce.number().optional()
+})
+
+export const ListCalibrationSessionsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "sessionDate": zod.string(),
+  "facilitatorId": zod.number().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create calibration session
+ */
+export const CreateCalibrationSessionBody = zod.object({
+  "cycleId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "sessionDate": zod.string(),
+  "facilitatorId": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateCalibrationSessionResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "sessionDate": zod.string(),
+  "facilitatorId": zod.number().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get calibration session
+ */
+export const GetCalibrationSessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCalibrationSessionResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "sessionDate": zod.string(),
+  "facilitatorId": zod.number().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update calibration session
+ */
+export const UpdateCalibrationSessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCalibrationSessionBody = zod.object({
+  "cycleId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "sessionDate": zod.string(),
+  "facilitatorId": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateCalibrationSessionResponse = zod.object({
+  "id": zod.number(),
+  "cycleId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "sessionDate": zod.string(),
+  "facilitatorId": zod.number().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List disciplinary records
+ */
+export const listDisciplinaryRecordsQueryPageDefault = 1;
+export const listDisciplinaryRecordsQueryLimitDefault = 20;
+
+export const ListDisciplinaryRecordsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listDisciplinaryRecordsQueryPageDefault),
+  "limit": zod.coerce.number().default(listDisciplinaryRecordsQueryLimitDefault)
+})
+
+export const ListDisciplinaryRecordsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "incidentDate": zod.string(),
+  "incidentType": zod.string(),
+  "severity": zod.string(),
+  "description": zod.string(),
+  "actionTaken": zod.string().nullish(),
+  "status": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "acknowledgedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create disciplinary record
+ */
+export const CreateDisciplinaryRecordBody = zod.object({
+  "employeeId": zod.number(),
+  "incidentDate": zod.string(),
+  "incidentType": zod.string(),
+  "severity": zod.string(),
+  "description": zod.string(),
+  "actionTaken": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateDisciplinaryRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "incidentDate": zod.string(),
+  "incidentType": zod.string(),
+  "severity": zod.string(),
+  "description": zod.string(),
+  "actionTaken": zod.string().nullish(),
+  "status": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "acknowledgedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get disciplinary record
+ */
+export const GetDisciplinaryRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetDisciplinaryRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "incidentDate": zod.string(),
+  "incidentType": zod.string(),
+  "severity": zod.string(),
+  "description": zod.string(),
+  "actionTaken": zod.string().nullish(),
+  "status": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "acknowledgedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update disciplinary record
+ */
+export const UpdateDisciplinaryRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateDisciplinaryRecordBody = zod.object({
+  "employeeId": zod.number(),
+  "incidentDate": zod.string(),
+  "incidentType": zod.string(),
+  "severity": zod.string(),
+  "description": zod.string(),
+  "actionTaken": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateDisciplinaryRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "incidentDate": zod.string(),
+  "incidentType": zod.string(),
+  "severity": zod.string(),
+  "description": zod.string(),
+  "actionTaken": zod.string().nullish(),
+  "status": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "acknowledgedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List commendation records
+ */
+export const listCommendationRecordsQueryPageDefault = 1;
+export const listCommendationRecordsQueryLimitDefault = 20;
+
+export const ListCommendationRecordsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "page": zod.coerce.number().default(listCommendationRecordsQueryPageDefault),
+  "limit": zod.coerce.number().default(listCommendationRecordsQueryLimitDefault)
+})
+
+export const ListCommendationRecordsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "commendationDate": zod.string(),
+  "commendationType": zod.string(),
+  "description": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create commendation record
+ */
+export const CreateCommendationRecordBody = zod.object({
+  "employeeId": zod.number(),
+  "commendationDate": zod.string(),
+  "commendationType": zod.string(),
+  "description": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateCommendationRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "commendationDate": zod.string(),
+  "commendationType": zod.string(),
+  "description": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get commendation record
+ */
+export const GetCommendationRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCommendationRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "commendationDate": zod.string(),
+  "commendationType": zod.string(),
+  "description": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update commendation record
+ */
+export const UpdateCommendationRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCommendationRecordBody = zod.object({
+  "employeeId": zod.number(),
+  "commendationDate": zod.string(),
+  "commendationType": zod.string(),
+  "description": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateCommendationRecordResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "commendationDate": zod.string(),
+  "commendationType": zod.string(),
+  "description": zod.string(),
+  "issuedBy": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List promotion recommendations
+ */
+export const ListPromotionRecommendationsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListPromotionRecommendationsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "recommendedBy": zod.number(),
+  "currentPositionId": zod.number().nullish(),
+  "recommendedPositionId": zod.number().nullish(),
+  "effectiveDate": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "status": zod.string(),
+  "reviewedBy": zod.number().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create promotion recommendation
+ */
+export const CreatePromotionRecommendationBody = zod.object({
+  "employeeId": zod.number(),
+  "recommendedBy": zod.number(),
+  "currentPositionId": zod.number().nullish(),
+  "recommendedPositionId": zod.number().nullish(),
+  "effectiveDate": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreatePromotionRecommendationResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "recommendedBy": zod.number(),
+  "currentPositionId": zod.number().nullish(),
+  "recommendedPositionId": zod.number().nullish(),
+  "effectiveDate": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "status": zod.string(),
+  "reviewedBy": zod.number().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get promotion recommendation
+ */
+export const GetPromotionRecommendationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPromotionRecommendationResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "recommendedBy": zod.number(),
+  "currentPositionId": zod.number().nullish(),
+  "recommendedPositionId": zod.number().nullish(),
+  "effectiveDate": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "status": zod.string(),
+  "reviewedBy": zod.number().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update promotion recommendation
+ */
+export const UpdatePromotionRecommendationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdatePromotionRecommendationBody = zod.object({
+  "employeeId": zod.number(),
+  "recommendedBy": zod.number(),
+  "currentPositionId": zod.number().nullish(),
+  "recommendedPositionId": zod.number().nullish(),
+  "effectiveDate": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdatePromotionRecommendationResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "recommendedBy": zod.number(),
+  "currentPositionId": zod.number().nullish(),
+  "recommendedPositionId": zod.number().nullish(),
+  "effectiveDate": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "status": zod.string(),
+  "reviewedBy": zod.number().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List training programs
+ */
+export const ListTrainingProgramsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create training program
+ */
+export const CreateTrainingProgramBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateTrainingProgramResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get training program
+ */
+export const GetTrainingProgramParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetTrainingProgramResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update training program
+ */
+export const UpdateTrainingProgramParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateTrainingProgramBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateTrainingProgramResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List training courses
+ */
+export const listTrainingCoursesQueryPageDefault = 1;
+export const listTrainingCoursesQueryLimitDefault = 20;
+
+export const ListTrainingCoursesQueryParams = zod.object({
+  "programId": zod.coerce.number().optional(),
+  "category": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listTrainingCoursesQueryPageDefault),
+  "limit": zod.coerce.number().default(listTrainingCoursesQueryLimitDefault)
+})
+
+export const ListTrainingCoursesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "programId": zod.number().nullish(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "durationHours": zod.number().nullish(),
+  "maxParticipants": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create training course
+ */
+export const CreateTrainingCourseBody = zod.object({
+  "programId": zod.number().nullish(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "durationHours": zod.number().nullish(),
+  "maxParticipants": zod.number().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateTrainingCourseResponse = zod.object({
+  "id": zod.number(),
+  "programId": zod.number().nullish(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "durationHours": zod.number().nullish(),
+  "maxParticipants": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get training course
+ */
+export const GetTrainingCourseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetTrainingCourseResponse = zod.object({
+  "id": zod.number(),
+  "programId": zod.number().nullish(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "durationHours": zod.number().nullish(),
+  "maxParticipants": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update training course
+ */
+export const UpdateTrainingCourseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateTrainingCourseBody = zod.object({
+  "programId": zod.number().nullish(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "durationHours": zod.number().nullish(),
+  "maxParticipants": zod.number().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateTrainingCourseResponse = zod.object({
+  "id": zod.number(),
+  "programId": zod.number().nullish(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "durationHours": zod.number().nullish(),
+  "maxParticipants": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List training sessions
+ */
+export const listTrainingSessionsQueryPageDefault = 1;
+export const listTrainingSessionsQueryLimitDefault = 20;
+
+export const ListTrainingSessionsQueryParams = zod.object({
+  "courseId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "startDate": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listTrainingSessionsQueryPageDefault),
+  "limit": zod.coerce.number().default(listTrainingSessionsQueryLimitDefault)
+})
+
+export const ListTrainingSessionsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "courseId": zod.number(),
+  "sessionName": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "location": zod.string().nullish(),
+  "trainer": zod.string().nullish(),
+  "status": zod.string(),
+  "enrolledCount": zod.number(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create training session
+ */
+export const CreateTrainingSessionBody = zod.object({
+  "courseId": zod.number(),
+  "sessionName": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "location": zod.string().nullish(),
+  "trainer": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateTrainingSessionResponse = zod.object({
+  "id": zod.number(),
+  "courseId": zod.number(),
+  "sessionName": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "location": zod.string().nullish(),
+  "trainer": zod.string().nullish(),
+  "status": zod.string(),
+  "enrolledCount": zod.number(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get training session
+ */
+export const GetTrainingSessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetTrainingSessionResponse = zod.object({
+  "id": zod.number(),
+  "courseId": zod.number(),
+  "sessionName": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "location": zod.string().nullish(),
+  "trainer": zod.string().nullish(),
+  "status": zod.string(),
+  "enrolledCount": zod.number(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update training session
+ */
+export const UpdateTrainingSessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateTrainingSessionBody = zod.object({
+  "courseId": zod.number(),
+  "sessionName": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "location": zod.string().nullish(),
+  "trainer": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateTrainingSessionResponse = zod.object({
+  "id": zod.number(),
+  "courseId": zod.number(),
+  "sessionName": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "location": zod.string().nullish(),
+  "trainer": zod.string().nullish(),
+  "status": zod.string(),
+  "enrolledCount": zod.number(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List course nominations
+ */
+export const listCourseNominationsQueryPageDefault = 1;
+export const listCourseNominationsQueryLimitDefault = 20;
+
+export const ListCourseNominationsQueryParams = zod.object({
+  "sessionId": zod.coerce.number().optional(),
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listCourseNominationsQueryPageDefault),
+  "limit": zod.coerce.number().default(listCourseNominationsQueryLimitDefault)
+})
+
+export const ListCourseNominationsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "nominatedBy": zod.number().nullish(),
+  "status": zod.string(),
+  "nominatedAt": zod.string(),
+  "approvedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create course nomination
+ */
+export const CreateCourseNominationBody = zod.object({
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "nominatedBy": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "nominatedAt": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateCourseNominationResponse = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "nominatedBy": zod.number().nullish(),
+  "status": zod.string(),
+  "nominatedAt": zod.string(),
+  "approvedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get course nomination
+ */
+export const GetCourseNominationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCourseNominationResponse = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "nominatedBy": zod.number().nullish(),
+  "status": zod.string(),
+  "nominatedAt": zod.string(),
+  "approvedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update course nomination
+ */
+export const UpdateCourseNominationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCourseNominationBody = zod.object({
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "nominatedBy": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "nominatedAt": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateCourseNominationResponse = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "nominatedBy": zod.number().nullish(),
+  "status": zod.string(),
+  "nominatedAt": zod.string(),
+  "approvedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List training attendance records
+ */
+export const listTrainingAttendanceQueryPageDefault = 1;
+export const listTrainingAttendanceQueryLimitDefault = 20;
+
+export const ListTrainingAttendanceQueryParams = zod.object({
+  "sessionId": zod.coerce.number().optional(),
+  "employeeId": zod.coerce.number().optional(),
+  "page": zod.coerce.number().default(listTrainingAttendanceQueryPageDefault),
+  "limit": zod.coerce.number().default(listTrainingAttendanceQueryLimitDefault)
+})
+
+export const ListTrainingAttendanceResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "attendanceDate": zod.string(),
+  "status": zod.string(),
+  "hoursAttended": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create training attendance record
+ */
+export const CreateTrainingAttendanceBody = zod.object({
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "attendanceDate": zod.string(),
+  "status": zod.string().optional(),
+  "hoursAttended": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateTrainingAttendanceResponse = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "attendanceDate": zod.string(),
+  "status": zod.string(),
+  "hoursAttended": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get training attendance record
+ */
+export const GetTrainingAttendanceRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetTrainingAttendanceRecordResponse = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "attendanceDate": zod.string(),
+  "status": zod.string(),
+  "hoursAttended": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update training attendance record
+ */
+export const UpdateTrainingAttendanceRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateTrainingAttendanceRecordBody = zod.object({
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "attendanceDate": zod.string(),
+  "status": zod.string().optional(),
+  "hoursAttended": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateTrainingAttendanceRecordResponse = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "employeeId": zod.number(),
+  "attendanceDate": zod.string(),
+  "status": zod.string(),
+  "hoursAttended": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List certifications
+ */
+export const listCertificationsQueryPageDefault = 1;
+export const listCertificationsQueryLimitDefault = 20;
+
+export const ListCertificationsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "certType": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listCertificationsQueryPageDefault),
+  "limit": zod.coerce.number().default(listCertificationsQueryLimitDefault)
+})
+
+export const ListCertificationsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "certName": zod.string(),
+  "certType": zod.string().nullish(),
+  "issuingBody": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "certNumber": zod.string().nullish(),
+  "status": zod.string(),
+  "documentUrl": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create certification
+ */
+export const CreateCertificationBody = zod.object({
+  "employeeId": zod.number(),
+  "certName": zod.string(),
+  "certType": zod.string().nullish(),
+  "issuingBody": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "certNumber": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "documentUrl": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateCertificationResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "certName": zod.string(),
+  "certType": zod.string().nullish(),
+  "issuingBody": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "certNumber": zod.string().nullish(),
+  "status": zod.string(),
+  "documentUrl": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get certification
+ */
+export const GetCertificationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCertificationResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "certName": zod.string(),
+  "certType": zod.string().nullish(),
+  "issuingBody": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "certNumber": zod.string().nullish(),
+  "status": zod.string(),
+  "documentUrl": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update certification
+ */
+export const UpdateCertificationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCertificationBody = zod.object({
+  "employeeId": zod.number(),
+  "certName": zod.string(),
+  "certType": zod.string().nullish(),
+  "issuingBody": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "certNumber": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "documentUrl": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateCertificationResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "certName": zod.string(),
+  "certType": zod.string().nullish(),
+  "issuingBody": zod.string().nullish(),
+  "issuedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "certNumber": zod.string().nullish(),
+  "status": zod.string(),
+  "documentUrl": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List employee skills
+ */
+export const listEmployeeSkillsQueryPageDefault = 1;
+export const listEmployeeSkillsQueryLimitDefault = 20;
+
+export const ListEmployeeSkillsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "skillCategory": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listEmployeeSkillsQueryPageDefault),
+  "limit": zod.coerce.number().default(listEmployeeSkillsQueryLimitDefault)
+})
+
+export const ListEmployeeSkillsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "skillName": zod.string(),
+  "skillCategory": zod.string().nullish(),
+  "proficiencyLevel": zod.string().nullish(),
+  "yearsExperience": zod.number().nullish(),
+  "lastUsedDate": zod.string().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create employee skill
+ */
+export const CreateEmployeeSkillBody = zod.object({
+  "employeeId": zod.number(),
+  "skillName": zod.string(),
+  "skillCategory": zod.string().nullish(),
+  "proficiencyLevel": zod.string().nullish(),
+  "yearsExperience": zod.number().nullish(),
+  "lastUsedDate": zod.string().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateEmployeeSkillResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "skillName": zod.string(),
+  "skillCategory": zod.string().nullish(),
+  "proficiencyLevel": zod.string().nullish(),
+  "yearsExperience": zod.number().nullish(),
+  "lastUsedDate": zod.string().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get employee skill
+ */
+export const GetEmployeeSkillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmployeeSkillResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "skillName": zod.string(),
+  "skillCategory": zod.string().nullish(),
+  "proficiencyLevel": zod.string().nullish(),
+  "yearsExperience": zod.number().nullish(),
+  "lastUsedDate": zod.string().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update employee skill
+ */
+export const UpdateEmployeeSkillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEmployeeSkillBody = zod.object({
+  "employeeId": zod.number(),
+  "skillName": zod.string(),
+  "skillCategory": zod.string().nullish(),
+  "proficiencyLevel": zod.string().nullish(),
+  "yearsExperience": zod.number().nullish(),
+  "lastUsedDate": zod.string().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateEmployeeSkillResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "skillName": zod.string(),
+  "skillCategory": zod.string().nullish(),
+  "proficiencyLevel": zod.string().nullish(),
+  "yearsExperience": zod.number().nullish(),
+  "lastUsedDate": zod.string().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List succession pools
+ */
+export const ListSuccessionPoolsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "targetPositionId": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create succession pool
+ */
+export const CreateSuccessionPoolBody = zod.object({
+  "name": zod.string(),
+  "targetPositionId": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateSuccessionPoolResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "targetPositionId": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get succession pool
+ */
+export const GetSuccessionPoolParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSuccessionPoolResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "targetPositionId": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update succession pool
+ */
+export const UpdateSuccessionPoolParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateSuccessionPoolBody = zod.object({
+  "name": zod.string(),
+  "targetPositionId": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateSuccessionPoolResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "targetPositionId": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List succession candidates
+ */
+export const listSuccessionCandidatesQueryPageDefault = 1;
+export const listSuccessionCandidatesQueryLimitDefault = 20;
+
+export const ListSuccessionCandidatesQueryParams = zod.object({
+  "poolId": zod.coerce.number().optional(),
+  "employeeId": zod.coerce.number().optional(),
+  "readinessLevel": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listSuccessionCandidatesQueryPageDefault),
+  "limit": zod.coerce.number().default(listSuccessionCandidatesQueryLimitDefault)
+})
+
+export const ListSuccessionCandidatesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "poolId": zod.number(),
+  "employeeId": zod.number(),
+  "readinessLevel": zod.string(),
+  "assessmentScore": zod.number().nullish(),
+  "targetDate": zod.string().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create succession candidate
+ */
+export const CreateSuccessionCandidateBody = zod.object({
+  "poolId": zod.number(),
+  "employeeId": zod.number(),
+  "readinessLevel": zod.string(),
+  "assessmentScore": zod.number().nullish(),
+  "targetDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateSuccessionCandidateResponse = zod.object({
+  "id": zod.number(),
+  "poolId": zod.number(),
+  "employeeId": zod.number(),
+  "readinessLevel": zod.string(),
+  "assessmentScore": zod.number().nullish(),
+  "targetDate": zod.string().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get succession candidate
+ */
+export const GetSuccessionCandidateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSuccessionCandidateResponse = zod.object({
+  "id": zod.number(),
+  "poolId": zod.number(),
+  "employeeId": zod.number(),
+  "readinessLevel": zod.string(),
+  "assessmentScore": zod.number().nullish(),
+  "targetDate": zod.string().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update succession candidate
+ */
+export const UpdateSuccessionCandidateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateSuccessionCandidateBody = zod.object({
+  "poolId": zod.number(),
+  "employeeId": zod.number(),
+  "readinessLevel": zod.string(),
+  "assessmentScore": zod.number().nullish(),
+  "targetDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateSuccessionCandidateResponse = zod.object({
+  "id": zod.number(),
+  "poolId": zod.number(),
+  "employeeId": zod.number(),
+  "readinessLevel": zod.string(),
+  "assessmentScore": zod.number().nullish(),
+  "targetDate": zod.string().nullish(),
+  "status": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List development plans
+ */
+export const listDevelopmentPlansQueryPageDefault = 1;
+export const listDevelopmentPlansQueryLimitDefault = 20;
+
+export const ListDevelopmentPlansQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listDevelopmentPlansQueryPageDefault),
+  "limit": zod.coerce.number().default(listDevelopmentPlansQueryLimitDefault)
+})
+
+export const ListDevelopmentPlansResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completionPercentage": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create development plan
+ */
+export const CreateDevelopmentPlanBody = zod.object({
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string().optional()
+})
+
+export const CreateDevelopmentPlanResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completionPercentage": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get development plan
+ */
+export const GetDevelopmentPlanParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetDevelopmentPlanResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completionPercentage": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update development plan
+ */
+export const UpdateDevelopmentPlanParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateDevelopmentPlanBody = zod.object({
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string().optional()
+})
+
+export const UpdateDevelopmentPlanResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completionPercentage": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List development activities
+ */
+export const ListDevelopmentActivitiesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListDevelopmentActivitiesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "planId": zod.number(),
+  "activityName": zod.string(),
+  "activityType": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create development activity
+ */
+export const CreateDevelopmentActivityParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateDevelopmentActivityBody = zod.object({
+  "planId": zod.number(),
+  "activityName": zod.string(),
+  "activityType": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "completedAt": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateDevelopmentActivityResponse = zod.object({
+  "id": zod.number(),
+  "planId": zod.number(),
+  "activityName": zod.string(),
+  "activityType": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update development activity
+ */
+export const UpdateDevelopmentActivityParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateDevelopmentActivityBody = zod.object({
+  "planId": zod.number(),
+  "activityName": zod.string(),
+  "activityType": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "completedAt": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateDevelopmentActivityResponse = zod.object({
+  "id": zod.number(),
+  "planId": zod.number(),
+  "activityName": zod.string(),
+  "activityType": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List employee requests
+ */
+export const listEmployeeRequestsQueryPageDefault = 1;
+export const listEmployeeRequestsQueryLimitDefault = 20;
+
+export const ListEmployeeRequestsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "requestType": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listEmployeeRequestsQueryPageDefault),
+  "limit": zod.coerce.number().default(listEmployeeRequestsQueryLimitDefault)
+})
+
+export const ListEmployeeRequestsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "requestType": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.string(),
+  "priority": zod.string().nullish(),
+  "assignedToId": zod.number().nullish(),
+  "resolvedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create employee request
+ */
+export const CreateEmployeeRequestBody = zod.object({
+  "employeeId": zod.number(),
+  "requestType": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "priority": zod.string().nullish(),
+  "assignedToId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateEmployeeRequestResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "requestType": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.string(),
+  "priority": zod.string().nullish(),
+  "assignedToId": zod.number().nullish(),
+  "resolvedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get employee request
+ */
+export const GetEmployeeRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmployeeRequestResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "requestType": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.string(),
+  "priority": zod.string().nullish(),
+  "assignedToId": zod.number().nullish(),
+  "resolvedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update employee request
+ */
+export const UpdateEmployeeRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEmployeeRequestBody = zod.object({
+  "employeeId": zod.number(),
+  "requestType": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "priority": zod.string().nullish(),
+  "assignedToId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateEmployeeRequestResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "requestType": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.string(),
+  "priority": zod.string().nullish(),
+  "assignedToId": zod.number().nullish(),
+  "resolvedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Fulfill employee request
+ */
+export const FulfillEmployeeRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const FulfillEmployeeRequestResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "requestType": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.string(),
+  "priority": zod.string().nullish(),
+  "assignedToId": zod.number().nullish(),
+  "resolvedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List announcements
+ */
+export const listAnnouncementsQueryPageDefault = 1;
+export const listAnnouncementsQueryLimitDefault = 20;
+
+export const ListAnnouncementsQueryParams = zod.object({
+  "category": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listAnnouncementsQueryPageDefault),
+  "limit": zod.coerce.number().default(listAnnouncementsQueryLimitDefault)
+})
+
+export const ListAnnouncementsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "category": zod.string().nullish(),
+  "status": zod.string(),
+  "publishedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create announcement
+ */
+export const CreateAnnouncementBody = zod.object({
+  "title": zod.string(),
+  "content": zod.string(),
+  "category": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "publishedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number()
+})
+
+export const CreateAnnouncementResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "category": zod.string().nullish(),
+  "status": zod.string(),
+  "publishedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get announcement
+ */
+export const GetAnnouncementParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetAnnouncementResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "category": zod.string().nullish(),
+  "status": zod.string(),
+  "publishedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update announcement
+ */
+export const UpdateAnnouncementParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateAnnouncementBody = zod.object({
+  "title": zod.string(),
+  "content": zod.string(),
+  "category": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "publishedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number()
+})
+
+export const UpdateAnnouncementResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "category": zod.string().nullish(),
+  "status": zod.string(),
+  "publishedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List approval delegations
+ */
+export const ListApprovalDelegationsQueryParams = zod.object({
+  "delegatorEmployeeId": zod.coerce.number().optional(),
+  "delegateEmployeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListApprovalDelegationsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "delegatorEmployeeId": zod.number(),
+  "delegateEmployeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "approvalTypes": zod.array(zod.string()).optional(),
+  "status": zod.string(),
+  "reason": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create approval delegation
+ */
+export const CreateApprovalDelegationBody = zod.object({
+  "delegatorEmployeeId": zod.number(),
+  "delegateEmployeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "approvalTypes": zod.array(zod.string()).optional(),
+  "status": zod.string().optional(),
+  "reason": zod.string().nullish()
+})
+
+export const CreateApprovalDelegationResponse = zod.object({
+  "id": zod.number(),
+  "delegatorEmployeeId": zod.number(),
+  "delegateEmployeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "approvalTypes": zod.array(zod.string()).optional(),
+  "status": zod.string(),
+  "reason": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get approval delegation
+ */
+export const GetApprovalDelegationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetApprovalDelegationResponse = zod.object({
+  "id": zod.number(),
+  "delegatorEmployeeId": zod.number(),
+  "delegateEmployeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "approvalTypes": zod.array(zod.string()).optional(),
+  "status": zod.string(),
+  "reason": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update approval delegation
+ */
+export const UpdateApprovalDelegationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateApprovalDelegationBody = zod.object({
+  "delegatorEmployeeId": zod.number(),
+  "delegateEmployeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "approvalTypes": zod.array(zod.string()).optional(),
+  "status": zod.string().optional(),
+  "reason": zod.string().nullish()
+})
+
+export const UpdateApprovalDelegationResponse = zod.object({
+  "id": zod.number(),
+  "delegatorEmployeeId": zod.number(),
+  "delegateEmployeeId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "approvalTypes": zod.array(zod.string()).optional(),
+  "status": zod.string(),
+  "reason": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List document categories
+ */
+export const ListDocumentCategoriesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "parentCategoryId": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListDocumentCategoriesResponse = zod.array(ListDocumentCategoriesResponseItem)
+
+
+/**
+ * @summary Create document category
+ */
+export const CreateDocumentCategoryBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "parentCategoryId": zod.number().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateDocumentCategoryResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "parentCategoryId": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get document category
+ */
+export const GetDocumentCategoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetDocumentCategoryResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "parentCategoryId": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update document category
+ */
+export const UpdateDocumentCategoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateDocumentCategoryBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "parentCategoryId": zod.number().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateDocumentCategoryResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "parentCategoryId": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List enterprise documents
+ */
+export const ListEnterpriseDocumentsQueryParams = zod.object({
+  "categoryId": zod.coerce.number().optional(),
+  "employeeId": zod.coerce.number().optional(),
+  "classificationLevel": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "scope": zod.coerce.string().optional(),
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListEnterpriseDocumentsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "employeeId": zod.number().nullish(),
+  "classificationLevel": zod.string(),
+  "status": zod.string(),
+  "scope": zod.string(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "isOnLegalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListEnterpriseDocumentsResponse = zod.array(ListEnterpriseDocumentsResponseItem)
+
+
+/**
+ * @summary Create enterprise document
+ */
+export const CreateEnterpriseDocumentBody = zod.object({
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "employeeId": zod.number().nullish(),
+  "classificationLevel": zod.string(),
+  "status": zod.string(),
+  "scope": zod.string(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "isOnLegalHold": zod.boolean().optional(),
+  "legalHoldReason": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number()
+})
+
+export const CreateEnterpriseDocumentResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "employeeId": zod.number().nullish(),
+  "classificationLevel": zod.string(),
+  "status": zod.string(),
+  "scope": zod.string(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "isOnLegalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get enterprise document
+ */
+export const GetEnterpriseDocumentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEnterpriseDocumentResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "employeeId": zod.number().nullish(),
+  "classificationLevel": zod.string(),
+  "status": zod.string(),
+  "scope": zod.string(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "isOnLegalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update enterprise document
+ */
+export const UpdateEnterpriseDocumentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEnterpriseDocumentBody = zod.object({
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "employeeId": zod.number().nullish(),
+  "classificationLevel": zod.string(),
+  "status": zod.string(),
+  "scope": zod.string(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "isOnLegalHold": zod.boolean().optional(),
+  "legalHoldReason": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number()
+})
+
+export const UpdateEnterpriseDocumentResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "employeeId": zod.number().nullish(),
+  "classificationLevel": zod.string(),
+  "status": zod.string(),
+  "scope": zod.string(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "isOnLegalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List document versions
+ */
+export const ListDocumentVersionsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListDocumentVersionsResponseItem = zod.object({
+  "id": zod.number(),
+  "documentId": zod.number(),
+  "versionNumber": zod.number(),
+  "storagePath": zod.string(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "changeNotes": zod.string().nullish(),
+  "uploadedBy": zod.number(),
+  "createdAt": zod.string()
+})
+export const ListDocumentVersionsResponse = zod.array(ListDocumentVersionsResponseItem)
+
+
+/**
+ * @summary Upload new document version
+ */
+export const UploadDocumentVersionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UploadDocumentVersionBody = zod.object({
+  "documentId": zod.number(),
+  "storagePath": zod.string(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "changeNotes": zod.string().nullish(),
+  "uploadedBy": zod.number()
+})
+
+export const UploadDocumentVersionResponse = zod.object({
+  "id": zod.number(),
+  "documentId": zod.number(),
+  "versionNumber": zod.number(),
+  "storagePath": zod.string(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "changeNotes": zod.string().nullish(),
+  "uploadedBy": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get document version
+ */
+export const GetDocumentVersionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetDocumentVersionResponse = zod.object({
+  "id": zod.number(),
+  "documentId": zod.number(),
+  "versionNumber": zod.number(),
+  "storagePath": zod.string(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "changeNotes": zod.string().nullish(),
+  "uploadedBy": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary List document access events
+ */
+export const ListDocumentAccessLogsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListDocumentAccessLogsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListDocumentAccessLogsResponseItem = zod.object({
+  "id": zod.number(),
+  "documentId": zod.number(),
+  "accessedBy": zod.number(),
+  "accessType": zod.string(),
+  "ipAddress": zod.string().nullish(),
+  "userAgent": zod.string().nullish(),
+  "accessedAt": zod.string()
+})
+export const ListDocumentAccessLogsResponse = zod.array(ListDocumentAccessLogsResponseItem)
+
+
+/**
+ * @summary Employee acknowledges document
+ */
+export const AcknowledgeDocumentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AcknowledgeDocumentResponse = zod.object({
+  "id": zod.number(),
+  "documentId": zod.number(),
+  "employeeId": zod.number(),
+  "acknowledgedAt": zod.string(),
+  "ipAddress": zod.string().nullish()
+})
+
+
+/**
+ * @summary Place document on legal hold
+ */
+export const PlaceLegalHoldParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PlaceLegalHoldBody = zod.object({
+  "reason": zod.string()
+})
+
+export const PlaceLegalHoldResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "employeeId": zod.number().nullish(),
+  "classificationLevel": zod.string(),
+  "status": zod.string(),
+  "scope": zod.string(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "isOnLegalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Remove legal hold from document
+ */
+export const RemoveLegalHoldParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RemoveLegalHoldResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "employeeId": zod.number().nullish(),
+  "classificationLevel": zod.string(),
+  "status": zod.string(),
+  "scope": zod.string(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "isOnLegalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Download document (records access log)
+ */
+export const DownloadEnterpriseDocumentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DownloadEnterpriseDocumentResponse = zod.object({
+  "storagePath": zod.string()
+})
+
+
+/**
+ * @summary List document templates
+ */
+export const ListDocumentTemplatesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "templateType": zod.string(),
+  "contentBody": zod.string(),
+  "variables": zod.array(zod.string()).optional(),
+  "language": zod.string(),
+  "isActive": zod.boolean(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListDocumentTemplatesResponse = zod.array(ListDocumentTemplatesResponseItem)
+
+
+/**
+ * @summary Create document template
+ */
+export const CreateDocumentTemplateBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "templateType": zod.string(),
+  "contentBody": zod.string(),
+  "variables": zod.array(zod.string()).optional(),
+  "language": zod.string(),
+  "isActive": zod.boolean().optional(),
+  "createdBy": zod.number()
+})
+
+export const CreateDocumentTemplateResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "templateType": zod.string(),
+  "contentBody": zod.string(),
+  "variables": zod.array(zod.string()).optional(),
+  "language": zod.string(),
+  "isActive": zod.boolean(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get document template
+ */
+export const GetDocumentTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetDocumentTemplateResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "templateType": zod.string(),
+  "contentBody": zod.string(),
+  "variables": zod.array(zod.string()).optional(),
+  "language": zod.string(),
+  "isActive": zod.boolean(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update document template
+ */
+export const UpdateDocumentTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateDocumentTemplateBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "templateType": zod.string(),
+  "contentBody": zod.string(),
+  "variables": zod.array(zod.string()).optional(),
+  "language": zod.string(),
+  "isActive": zod.boolean().optional(),
+  "createdBy": zod.number()
+})
+
+export const UpdateDocumentTemplateResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "templateType": zod.string(),
+  "contentBody": zod.string(),
+  "variables": zod.array(zod.string()).optional(),
+  "language": zod.string(),
+  "isActive": zod.boolean(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Generate document from template
+ */
+export const GenerateDocumentFromTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GenerateDocumentFromTemplateBody = zod.object({
+  "employeeId": zod.number(),
+  "language": zod.string().optional(),
+  "extraFields": zod.record(zod.string(), zod.string()).optional()
+})
+
+export const GenerateDocumentFromTemplateResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "employeeId": zod.number().nullish(),
+  "classificationLevel": zod.string(),
+  "status": zod.string(),
+  "scope": zod.string(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "mimeType": zod.string().nullish(),
+  "isOnLegalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List report definitions
+ */
+export const ListReportDefinitionsQueryParams = zod.object({
+  "reportType": zod.coerce.string().optional(),
+  "isSystemReport": zod.coerce.string().optional()
+})
+
+export const ListReportDefinitionsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "reportType": zod.string(),
+  "queryTemplate": zod.string().nullish(),
+  "defaultFiltersJson": zod.string().nullish(),
+  "availableColumns": zod.array(zod.string()).optional(),
+  "isSystemReport": zod.boolean(),
+  "isActive": zod.boolean(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListReportDefinitionsResponse = zod.array(ListReportDefinitionsResponseItem)
+
+
+/**
+ * @summary Create report definition
+ */
+export const CreateReportDefinitionBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "reportType": zod.string(),
+  "queryTemplate": zod.string().nullish(),
+  "defaultFiltersJson": zod.string().nullish(),
+  "availableColumns": zod.array(zod.string()).optional(),
+  "isSystemReport": zod.boolean().optional(),
+  "isActive": zod.boolean().optional(),
+  "createdBy": zod.number()
+})
+
+export const CreateReportDefinitionResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "reportType": zod.string(),
+  "queryTemplate": zod.string().nullish(),
+  "defaultFiltersJson": zod.string().nullish(),
+  "availableColumns": zod.array(zod.string()).optional(),
+  "isSystemReport": zod.boolean(),
+  "isActive": zod.boolean(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get report definition
+ */
+export const GetReportDefinitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetReportDefinitionResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "reportType": zod.string(),
+  "queryTemplate": zod.string().nullish(),
+  "defaultFiltersJson": zod.string().nullish(),
+  "availableColumns": zod.array(zod.string()).optional(),
+  "isSystemReport": zod.boolean(),
+  "isActive": zod.boolean(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update report definition
+ */
+export const UpdateReportDefinitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateReportDefinitionBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "reportType": zod.string(),
+  "queryTemplate": zod.string().nullish(),
+  "defaultFiltersJson": zod.string().nullish(),
+  "availableColumns": zod.array(zod.string()).optional(),
+  "isSystemReport": zod.boolean().optional(),
+  "isActive": zod.boolean().optional(),
+  "createdBy": zod.number()
+})
+
+export const UpdateReportDefinitionResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "reportType": zod.string(),
+  "queryTemplate": zod.string().nullish(),
+  "defaultFiltersJson": zod.string().nullish(),
+  "availableColumns": zod.array(zod.string()).optional(),
+  "isSystemReport": zod.boolean(),
+  "isActive": zod.boolean(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Run report (creates ReportOutput, triggers async generation)
+ */
+export const RunReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RunReportBody = zod.object({
+  "filtersJson": zod.string().optional(),
+  "exportFormat": zod.string().optional(),
+  "language": zod.string().optional()
+})
+
+export const RunReportResponse = zod.object({
+  "id": zod.number(),
+  "reportDefinitionId": zod.number(),
+  "generatedByUserId": zod.number(),
+  "status": zod.string(),
+  "exportFormat": zod.string(),
+  "filtersJson": zod.string().nullish(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "rowCount": zod.number().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "generatedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List saved report filters
+ */
+export const ListSavedReportFiltersQueryParams = zod.object({
+  "reportDefinitionId": zod.coerce.number().optional(),
+  "userId": zod.coerce.number().optional()
+})
+
+export const ListSavedReportFiltersResponseItem = zod.object({
+  "id": zod.number(),
+  "reportDefinitionId": zod.number(),
+  "userId": zod.number(),
+  "filterName": zod.string(),
+  "filtersJson": zod.string(),
+  "isDefault": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListSavedReportFiltersResponse = zod.array(ListSavedReportFiltersResponseItem)
+
+
+/**
+ * @summary Create saved report filter
+ */
+export const CreateSavedReportFilterBody = zod.object({
+  "reportDefinitionId": zod.number(),
+  "userId": zod.number(),
+  "filterName": zod.string(),
+  "filtersJson": zod.string(),
+  "isDefault": zod.boolean().optional()
+})
+
+export const CreateSavedReportFilterResponse = zod.object({
+  "id": zod.number(),
+  "reportDefinitionId": zod.number(),
+  "userId": zod.number(),
+  "filterName": zod.string(),
+  "filtersJson": zod.string(),
+  "isDefault": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get saved report filter
+ */
+export const GetSavedReportFilterParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSavedReportFilterResponse = zod.object({
+  "id": zod.number(),
+  "reportDefinitionId": zod.number(),
+  "userId": zod.number(),
+  "filterName": zod.string(),
+  "filtersJson": zod.string(),
+  "isDefault": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update saved report filter
+ */
+export const UpdateSavedReportFilterParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateSavedReportFilterBody = zod.object({
+  "reportDefinitionId": zod.number(),
+  "userId": zod.number(),
+  "filterName": zod.string(),
+  "filtersJson": zod.string(),
+  "isDefault": zod.boolean().optional()
+})
+
+export const UpdateSavedReportFilterResponse = zod.object({
+  "id": zod.number(),
+  "reportDefinitionId": zod.number(),
+  "userId": zod.number(),
+  "filterName": zod.string(),
+  "filtersJson": zod.string(),
+  "isDefault": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete saved report filter
+ */
+export const DeleteSavedReportFilterParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteSavedReportFilterResponse = zod.void()
+
+
+/**
+ * @summary List report schedules
+ */
+export const ListReportSchedulesQueryParams = zod.object({
+  "reportDefinitionId": zod.coerce.number().optional(),
+  "isActive": zod.coerce.string().optional()
+})
+
+export const ListReportSchedulesResponseItem = zod.object({
+  "id": zod.number(),
+  "reportDefinitionId": zod.number(),
+  "scheduleName": zod.string(),
+  "cronExpression": zod.string(),
+  "exportFormat": zod.string(),
+  "recipients": zod.array(zod.string()).optional(),
+  "filtersJson": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "lastRunAt": zod.string().nullish(),
+  "nextRunAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListReportSchedulesResponse = zod.array(ListReportSchedulesResponseItem)
+
+
+/**
+ * @summary Create report schedule
+ */
+export const CreateReportScheduleBody = zod.object({
+  "reportDefinitionId": zod.number(),
+  "scheduleName": zod.string(),
+  "cronExpression": zod.string(),
+  "exportFormat": zod.string(),
+  "recipients": zod.array(zod.string()).optional(),
+  "filtersJson": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "createdBy": zod.number()
+})
+
+export const CreateReportScheduleResponse = zod.object({
+  "id": zod.number(),
+  "reportDefinitionId": zod.number(),
+  "scheduleName": zod.string(),
+  "cronExpression": zod.string(),
+  "exportFormat": zod.string(),
+  "recipients": zod.array(zod.string()).optional(),
+  "filtersJson": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "lastRunAt": zod.string().nullish(),
+  "nextRunAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get report schedule
+ */
+export const GetReportScheduleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetReportScheduleResponse = zod.object({
+  "id": zod.number(),
+  "reportDefinitionId": zod.number(),
+  "scheduleName": zod.string(),
+  "cronExpression": zod.string(),
+  "exportFormat": zod.string(),
+  "recipients": zod.array(zod.string()).optional(),
+  "filtersJson": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "lastRunAt": zod.string().nullish(),
+  "nextRunAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update report schedule
+ */
+export const UpdateReportScheduleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateReportScheduleBody = zod.object({
+  "reportDefinitionId": zod.number(),
+  "scheduleName": zod.string(),
+  "cronExpression": zod.string(),
+  "exportFormat": zod.string(),
+  "recipients": zod.array(zod.string()).optional(),
+  "filtersJson": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "createdBy": zod.number()
+})
+
+export const UpdateReportScheduleResponse = zod.object({
+  "id": zod.number(),
+  "reportDefinitionId": zod.number(),
+  "scheduleName": zod.string(),
+  "cronExpression": zod.string(),
+  "exportFormat": zod.string(),
+  "recipients": zod.array(zod.string()).optional(),
+  "filtersJson": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "lastRunAt": zod.string().nullish(),
+  "nextRunAt": zod.string().nullish(),
+  "createdBy": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List report outputs
+ */
+export const ListReportOutputsQueryParams = zod.object({
+  "reportDefinitionId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "generatedByUserId": zod.coerce.number().optional(),
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListReportOutputsResponseItem = zod.object({
+  "id": zod.number(),
+  "reportDefinitionId": zod.number(),
+  "generatedByUserId": zod.number(),
+  "status": zod.string(),
+  "exportFormat": zod.string(),
+  "filtersJson": zod.string().nullish(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "rowCount": zod.number().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "generatedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListReportOutputsResponse = zod.array(ListReportOutputsResponseItem)
+
+
+/**
+ * @summary Get report output
+ */
+export const GetReportOutputParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetReportOutputResponse = zod.object({
+  "id": zod.number(),
+  "reportDefinitionId": zod.number(),
+  "generatedByUserId": zod.number(),
+  "status": zod.string(),
+  "exportFormat": zod.string(),
+  "filtersJson": zod.string().nullish(),
+  "storagePath": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "rowCount": zod.number().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "generatedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Download report output (records download, returns storagePath)
+ */
+export const DownloadReportOutputParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DownloadReportOutputResponse = zod.object({
+  "storagePath": zod.string()
+})
+
+
+/**
+ * @summary List notifications
+ */
+export const ListNotificationsQueryParams = zod.object({
+  "recipientUserId": zod.coerce.number().optional(),
+  "notificationType": zod.coerce.string().optional(),
+  "isRead": zod.coerce.string().optional(),
+  "requiresAction": zod.coerce.string().optional(),
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListNotificationsResponseItem = zod.object({
+  "id": zod.number(),
+  "recipientUserId": zod.number(),
+  "notificationType": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "referenceType": zod.string().nullish(),
+  "referenceId": zod.number().nullish(),
+  "isRead": zod.boolean(),
+  "isDismissed": zod.boolean(),
+  "requiresAction": zod.boolean(),
+  "readAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListNotificationsResponse = zod.array(ListNotificationsResponseItem)
+
+
+/**
+ * @summary Create notification (system/server use)
+ */
+export const CreateNotificationBody = zod.object({
+  "recipientUserId": zod.number(),
+  "notificationType": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "referenceType": zod.string().nullish(),
+  "referenceId": zod.number().nullish(),
+  "isRead": zod.boolean().optional(),
+  "isDismissed": zod.boolean().optional(),
+  "requiresAction": zod.boolean().optional()
+})
+
+export const CreateNotificationResponse = zod.object({
+  "id": zod.number(),
+  "recipientUserId": zod.number(),
+  "notificationType": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "referenceType": zod.string().nullish(),
+  "referenceId": zod.number().nullish(),
+  "isRead": zod.boolean(),
+  "isDismissed": zod.boolean(),
+  "requiresAction": zod.boolean(),
+  "readAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get notification
+ */
+export const GetNotificationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetNotificationResponse = zod.object({
+  "id": zod.number(),
+  "recipientUserId": zod.number(),
+  "notificationType": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "referenceType": zod.string().nullish(),
+  "referenceId": zod.number().nullish(),
+  "isRead": zod.boolean(),
+  "isDismissed": zod.boolean(),
+  "requiresAction": zod.boolean(),
+  "readAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Mark notification read/dismissed
+ */
+export const UpdateNotificationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateNotificationBody = zod.object({
+  "recipientUserId": zod.number(),
+  "notificationType": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "referenceType": zod.string().nullish(),
+  "referenceId": zod.number().nullish(),
+  "isRead": zod.boolean().optional(),
+  "isDismissed": zod.boolean().optional(),
+  "requiresAction": zod.boolean().optional()
+})
+
+export const UpdateNotificationResponse = zod.object({
+  "id": zod.number(),
+  "recipientUserId": zod.number(),
+  "notificationType": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "referenceType": zod.string().nullish(),
+  "referenceId": zod.number().nullish(),
+  "isRead": zod.boolean(),
+  "isDismissed": zod.boolean(),
+  "requiresAction": zod.boolean(),
+  "readAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Mark all notifications as read for current user
+ */
+export const MarkAllNotificationsReadResponse = zod.object({
+  "count": zod.number()
+})
+
+
+/**
+ * @summary Get notification preferences by userId
+ */
+export const ListNotificationPreferencesQueryParams = zod.object({
+  "userId": zod.coerce.number().optional()
+})
+
+export const ListNotificationPreferencesResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "notificationType": zod.string(),
+  "inAppEnabled": zod.boolean(),
+  "emailEnabled": zod.boolean(),
+  "smsEnabled": zod.boolean(),
+  "pushEnabled": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListNotificationPreferencesResponse = zod.array(ListNotificationPreferencesResponseItem)
+
+
+/**
+ * @summary Upsert notification preferences for user
+ */
+export const UpsertNotificationPreferencesParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const UpsertNotificationPreferencesBody = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "notificationType": zod.string(),
+  "inAppEnabled": zod.boolean(),
+  "emailEnabled": zod.boolean(),
+  "smsEnabled": zod.boolean(),
+  "pushEnabled": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+export const UpsertNotificationPreferencesResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "notificationType": zod.string(),
+  "inAppEnabled": zod.boolean(),
+  "emailEnabled": zod.boolean(),
+  "smsEnabled": zod.boolean(),
+  "pushEnabled": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List escalation rules
+ */
+export const ListEscalationRulesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "triggerType": zod.string(),
+  "conditionJson": zod.string().nullish(),
+  "escalateAfterMinutes": zod.number(),
+  "escalateToUserId": zod.number().nullish(),
+  "escalateToRole": zod.string().nullish(),
+  "notificationTemplate": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListEscalationRulesResponse = zod.array(ListEscalationRulesResponseItem)
+
+
+/**
+ * @summary Create escalation rule
+ */
+export const CreateEscalationRuleBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "triggerType": zod.string(),
+  "conditionJson": zod.string().nullish(),
+  "escalateAfterMinutes": zod.number(),
+  "escalateToUserId": zod.number().nullish(),
+  "escalateToRole": zod.string().nullish(),
+  "notificationTemplate": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateEscalationRuleResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "triggerType": zod.string(),
+  "conditionJson": zod.string().nullish(),
+  "escalateAfterMinutes": zod.number(),
+  "escalateToUserId": zod.number().nullish(),
+  "escalateToRole": zod.string().nullish(),
+  "notificationTemplate": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get escalation rule
+ */
+export const GetEscalationRuleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEscalationRuleResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "triggerType": zod.string(),
+  "conditionJson": zod.string().nullish(),
+  "escalateAfterMinutes": zod.number(),
+  "escalateToUserId": zod.number().nullish(),
+  "escalateToRole": zod.string().nullish(),
+  "notificationTemplate": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update escalation rule
+ */
+export const UpdateEscalationRuleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEscalationRuleBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "triggerType": zod.string(),
+  "conditionJson": zod.string().nullish(),
+  "escalateAfterMinutes": zod.number(),
+  "escalateToUserId": zod.number().nullish(),
+  "escalateToRole": zod.string().nullish(),
+  "notificationTemplate": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateEscalationRuleResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "triggerType": zod.string(),
+  "conditionJson": zod.string().nullish(),
+  "escalateAfterMinutes": zod.number(),
+  "escalateToUserId": zod.number().nullish(),
+  "escalateToRole": zod.string().nullish(),
+  "notificationTemplate": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List approval inbox items
+ */
+export const ListApprovalInboxQueryParams = zod.object({
+  "assignedToUserId": zod.coerce.number().optional(),
+  "approvalType": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "priority": zod.coerce.string().optional(),
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListApprovalInboxResponseItem = zod.object({
+  "id": zod.number(),
+  "assignedToUserId": zod.number(),
+  "approvalType": zod.string(),
+  "referenceId": zod.number(),
+  "referenceType": zod.string(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "dueAt": zod.string().nullish(),
+  "decision": zod.string().nullish(),
+  "decisionNote": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListApprovalInboxResponse = zod.array(ListApprovalInboxResponseItem)
+
+
+/**
+ * @summary Create approval inbox item
+ */
+export const CreateApprovalInboxItemBody = zod.object({
+  "assignedToUserId": zod.number(),
+  "approvalType": zod.string(),
+  "referenceId": zod.number(),
+  "referenceType": zod.string(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "dueAt": zod.string().nullish(),
+  "decision": zod.string().nullish(),
+  "decisionNote": zod.string().nullish(),
+  "decidedAt": zod.string().nullish()
+})
+
+export const CreateApprovalInboxItemResponse = zod.object({
+  "id": zod.number(),
+  "assignedToUserId": zod.number(),
+  "approvalType": zod.string(),
+  "referenceId": zod.number(),
+  "referenceType": zod.string(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "dueAt": zod.string().nullish(),
+  "decision": zod.string().nullish(),
+  "decisionNote": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get approval inbox item
+ */
+export const GetApprovalInboxItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetApprovalInboxItemResponse = zod.object({
+  "id": zod.number(),
+  "assignedToUserId": zod.number(),
+  "approvalType": zod.string(),
+  "referenceId": zod.number(),
+  "referenceType": zod.string(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "dueAt": zod.string().nullish(),
+  "decision": zod.string().nullish(),
+  "decisionNote": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update approval inbox item status/decision
+ */
+export const UpdateApprovalInboxItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateApprovalInboxItemBody = zod.object({
+  "assignedToUserId": zod.number(),
+  "approvalType": zod.string(),
+  "referenceId": zod.number(),
+  "referenceType": zod.string(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "dueAt": zod.string().nullish(),
+  "decision": zod.string().nullish(),
+  "decisionNote": zod.string().nullish(),
+  "decidedAt": zod.string().nullish()
+})
+
+export const UpdateApprovalInboxItemResponse = zod.object({
+  "id": zod.number(),
+  "assignedToUserId": zod.number(),
+  "approvalType": zod.string(),
+  "referenceId": zod.number(),
+  "referenceType": zod.string(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "dueAt": zod.string().nullish(),
+  "decision": zod.string().nullish(),
+  "decisionNote": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Run health checks
+ */
+export const RunHealthChecksBody = zod.object({
+  "checkTypes": zod.array(zod.string()).optional()
+})
+
+export const RunHealthChecksResponse = zod.object({
+  "results": zod.array(zod.object({
+  "id": zod.number(),
+  "checkType": zod.string(),
+  "status": zod.string(),
+  "message": zod.string().nullish(),
+  "details": zod.string().nullish(),
+  "durationMs": zod.number().nullish(),
+  "checkedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary List recent health check results
+ */
+export const ListHealthCheckResultsQueryParams = zod.object({
+  "checkType": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListHealthCheckResultsResponseItem = zod.object({
+  "id": zod.number(),
+  "checkType": zod.string(),
+  "status": zod.string(),
+  "message": zod.string().nullish(),
+  "details": zod.string().nullish(),
+  "durationMs": zod.number().nullish(),
+  "checkedAt": zod.string()
+})
+export const ListHealthCheckResultsResponse = zod.array(ListHealthCheckResultsResponseItem)
+
+
+/**
+ * @summary List update packages
+ */
+export const ListUpdatePackagesResponseItem = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "version": zod.string(),
+  "description": zod.string().nullish(),
+  "storagePath": zod.string(),
+  "checksum": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "status": zod.string(),
+  "isVerified": zod.boolean(),
+  "verifiedAt": zod.string().nullish(),
+  "installedAt": zod.string().nullish(),
+  "installedBy": zod.number().nullish(),
+  "releaseNotes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListUpdatePackagesResponse = zod.array(ListUpdatePackagesResponseItem)
+
+
+/**
+ * @summary Register new update package
+ */
+export const CreateUpdatePackageBody = zod.object({
+  "packageName": zod.string(),
+  "version": zod.string(),
+  "description": zod.string().nullish(),
+  "storagePath": zod.string(),
+  "checksum": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "isVerified": zod.boolean().optional(),
+  "releaseNotes": zod.string().nullish()
+})
+
+export const CreateUpdatePackageResponse = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "version": zod.string(),
+  "description": zod.string().nullish(),
+  "storagePath": zod.string(),
+  "checksum": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "status": zod.string(),
+  "isVerified": zod.boolean(),
+  "verifiedAt": zod.string().nullish(),
+  "installedAt": zod.string().nullish(),
+  "installedBy": zod.number().nullish(),
+  "releaseNotes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get update package
+ */
+export const GetUpdatePackageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetUpdatePackageResponse = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "version": zod.string(),
+  "description": zod.string().nullish(),
+  "storagePath": zod.string(),
+  "checksum": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "status": zod.string(),
+  "isVerified": zod.boolean(),
+  "verifiedAt": zod.string().nullish(),
+  "installedAt": zod.string().nullish(),
+  "installedBy": zod.number().nullish(),
+  "releaseNotes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update package status
+ */
+export const UpdateUpdatePackageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateUpdatePackageBody = zod.object({
+  "packageName": zod.string(),
+  "version": zod.string(),
+  "description": zod.string().nullish(),
+  "storagePath": zod.string(),
+  "checksum": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "isVerified": zod.boolean().optional(),
+  "releaseNotes": zod.string().nullish()
+})
+
+export const UpdateUpdatePackageResponse = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "version": zod.string(),
+  "description": zod.string().nullish(),
+  "storagePath": zod.string(),
+  "checksum": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "status": zod.string(),
+  "isVerified": zod.boolean(),
+  "verifiedAt": zod.string().nullish(),
+  "installedAt": zod.string().nullish(),
+  "installedBy": zod.number().nullish(),
+  "releaseNotes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Verify update package checksum/signature
+ */
+export const VerifyUpdatePackageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const VerifyUpdatePackageResponse = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "version": zod.string(),
+  "description": zod.string().nullish(),
+  "storagePath": zod.string(),
+  "checksum": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "status": zod.string(),
+  "isVerified": zod.boolean(),
+  "verifiedAt": zod.string().nullish(),
+  "installedAt": zod.string().nullish(),
+  "installedBy": zod.number().nullish(),
+  "releaseNotes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Trigger package installation
+ */
+export const InstallUpdatePackageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const InstallUpdatePackageBody = zod.object({
+  "confirmedByUserId": zod.number()
+})
+
+export const InstallUpdatePackageResponse = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "version": zod.string(),
+  "description": zod.string().nullish(),
+  "storagePath": zod.string(),
+  "checksum": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "status": zod.string(),
+  "isVerified": zod.boolean(),
+  "verifiedAt": zod.string().nullish(),
+  "installedAt": zod.string().nullish(),
+  "installedBy": zod.number().nullish(),
+  "releaseNotes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List deployment events
+ */
+export const ListDeploymentEventsQueryParams = zod.object({
+  "eventType": zod.coerce.string().optional(),
+  "outcome": zod.coerce.string().optional(),
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListDeploymentEventsResponseItem = zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "outcome": zod.string(),
+  "packageId": zod.number().nullish(),
+  "triggeredByUserId": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "detailsJson": zod.string().nullish(),
+  "occurredAt": zod.string(),
+  "createdAt": zod.string()
+})
+export const ListDeploymentEventsResponse = zod.array(ListDeploymentEventsResponseItem)
+
+
+/**
+ * @summary List all installation readiness checks
+ */
+export const ListInstallationReadinessResponseItem = zod.object({
+  "id": zod.number(),
+  "checkName": zod.string(),
+  "checkType": zod.string(),
+  "status": zod.string(),
+  "message": zod.string().nullish(),
+  "severity": zod.string(),
+  "isRequired": zod.boolean(),
+  "lastCheckedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListInstallationReadinessResponse = zod.array(ListInstallationReadinessResponseItem)
+
+
+/**
+ * @summary Run all installation readiness checks
+ */
+export const RunInstallationReadinessResponse = zod.object({
+  "results": zod.array(zod.object({
+  "id": zod.number(),
+  "checkName": zod.string(),
+  "checkType": zod.string(),
+  "status": zod.string(),
+  "message": zod.string().nullish(),
+  "severity": zod.string(),
+  "isRequired": zod.boolean(),
+  "lastCheckedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "passed": zod.number(),
+  "failed": zod.number(),
+  "warnings": zod.number()
+})
+
+
+/**
+ * @summary Update individual readiness check result
+ */
+export const UpdateInstallationReadinessParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateInstallationReadinessBody = zod.object({
+  "status": zod.string().optional(),
+  "message": zod.string().nullish()
+})
+
+export const UpdateInstallationReadinessResponse = zod.object({
+  "id": zod.number(),
+  "checkName": zod.string(),
+  "checkType": zod.string(),
+  "status": zod.string(),
+  "message": zod.string().nullish(),
+  "severity": zod.string(),
+  "isRequired": zod.boolean(),
+  "lastCheckedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
 })
 
 
