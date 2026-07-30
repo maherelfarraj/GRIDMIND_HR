@@ -4,7 +4,9 @@ import {
   employeesTable, salaryGradesTable, payComponentsTable, auditLogsTable,
   overtimeRulesTable, punchEventsTable, leaveRequestsTable, leaveTypesTable,
   attendanceRecordsTable, publicHolidaysTable, employmentContractsTable,
+  payrollExcusedAbsencesTable,
 } from "@workspace/db";
+import type { PayrollPeriod, Employee } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getWeekendDays, WEEKEND_CONFIG_KEY } from "../lib/weekend";
 
@@ -93,6 +95,93 @@ function buildHolidaySet(
   return set;
 }
 
+type ApprovedLeave = { employeeId: number; startDate: string; endDate: string; halfDay: boolean | null; category: string };
+type PunchEventLite = { employeeId: number; eventTime: Date };
+type AttendanceLite = { employeeId: number; date: string; status: string };
+type HolidayRow = { date: string; isRecurring: boolean | null; applicableTo: string | null };
+
+/** Load the punch/attendance/leave data needed for no-show detection in a period. */
+async function loadNoShowInputs(period: PayrollPeriod) {
+  const punchEvents = await db.select().from(punchEventsTable)
+    .where(and(
+      gte(punchEventsTable.eventTime, new Date(period.startDate)),
+      lte(punchEventsTable.eventTime, new Date(period.endDate + "T23:59:59Z")),
+    ));
+  const attendanceRecords = await db.select().from(attendanceRecordsTable)
+    .where(and(
+      gte(attendanceRecordsTable.date, period.startDate),
+      lte(attendanceRecordsTable.date, period.endDate),
+    ));
+  const approvedLeaves: ApprovedLeave[] = await db.select({
+    employeeId: leaveRequestsTable.employeeId,
+    startDate: leaveRequestsTable.startDate,
+    endDate: leaveRequestsTable.endDate,
+    halfDay: leaveRequestsTable.halfDay,
+    category: leaveTypesTable.category,
+  })
+    .from(leaveRequestsTable)
+    .innerJoin(leaveTypesTable, eq(leaveRequestsTable.leaveTypeId, leaveTypesTable.id))
+    .where(and(
+      eq(leaveRequestsTable.status, "approved"),
+      lte(leaveRequestsTable.startDate, period.endDate),
+      gte(leaveRequestsTable.endDate, period.startDate),
+    ));
+  return { punchEvents, attendanceRecords, approvedLeaves };
+}
+
+/**
+ * Workdays in [period.startDate, min(period.endDate, today)] eligible for
+ * no-show checks — weekends and holidays excluded, never future days.
+ */
+function eligibleNoShowWorkdays(period: PayrollPeriod, weekendDays: number[], holidays: Set<string>): string[] {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const noShowEnd = period.endDate < todayStr ? period.endDate : todayStr;
+  return period.startDate <= noShowEnd
+    ? datesInRange(period.startDate, noShowEnd).filter(d => isWorkday(d, weekendDays) && !holidays.has(d))
+    : [];
+}
+
+/**
+ * Detected no-show dates for one employee: eligible workdays on/after hire date
+ * with no punch activity, no attendance record showing presence, and no
+ * approved leave (any category) covering the day.
+ */
+function computeNoShowDates(
+  emp: Pick<Employee, "id" | "hireDate">,
+  eligibleWorkdays: string[],
+  punchEvents: PunchEventLite[],
+  attendanceRecords: AttendanceLite[],
+  approvedLeaves: ApprovedLeave[],
+  period: PayrollPeriod,
+): string[] {
+  const attendedDates = new Set<string>();
+  for (const e of punchEvents) {
+    if (e.employeeId === emp.id) attendedDates.add(e.eventTime.toISOString().slice(0, 10));
+  }
+  for (const a of attendanceRecords) {
+    if (a.employeeId === emp.id && a.status !== "absent") attendedDates.add(a.date);
+  }
+  const leaveCoveredDates = new Set<string>();
+  for (const l of approvedLeaves) {
+    if (l.employeeId !== emp.id) continue;
+    const s = l.startDate > period.startDate ? l.startDate : period.startDate;
+    const e = l.endDate < period.endDate ? l.endDate : period.endDate;
+    if (s <= e) for (const d of datesInRange(s, e)) leaveCoveredDates.add(d);
+  }
+  return eligibleWorkdays.filter(d =>
+    d >= emp.hireDate && !attendedDates.has(d) && !leaveCoveredDates.has(d)
+  );
+}
+
+/** Fetch all holiday rows once for use with buildHolidaySet. */
+async function loadHolidayRows(): Promise<HolidayRow[]> {
+  return db.select({
+    date: publicHolidaysTable.date,
+    isRecurring: publicHolidaysTable.isRecurring,
+    applicableTo: publicHolidaysTable.applicableTo,
+  }).from(publicHolidaysTable);
+}
+
 const router = Router();
 
 // GET /payroll-periods?status=&year=
@@ -112,13 +201,27 @@ router.post("/payroll-periods", async (req, res): Promise<void> => {
     res.status(400).json({ error: "periodCode, nameEn, nameAr, startDate, endDate, payDate required" });
     return;
   }
-  const [p] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
-  if (!p) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(p);
+  const [p] = await db.insert(payrollPeriodsTable).values({
+    periodCode, nameEn, nameAr,
+    periodType: periodType ?? "monthly",
+    startDate, endDate, payDate,
+    currency: currency ?? "SAR",
+    notes: notes ?? null,
+    status: "draft",
+  }).returning();
+  await db.insert(auditLogsTable).values({
+    action: "payroll_period.created",
+    entityType: "payroll_period",
+    entityId: p.id,
+    entityLabel: p.nameEn,
+    actorUserId,
+    changesJson: JSON.stringify({ periodCode, startDate, endDate }),
+  });
+  res.status(201).json(p);
 });
 
-// PATCH /payroll-periods/:id — edit draft period metadata
-router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
+// GET /payroll-periods/:id
+router.get("/payroll-periods/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const [p] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
   if (!p) { res.status(404).json({ error: "Not found" }); return; }
@@ -128,29 +231,19 @@ router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
 // PATCH /payroll-periods/:id — edit draft period metadata
 router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
-  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
   if (!period) { res.status(404).json({ error: "Not found" }); return; }
   if (period.isClosed) { res.status(400).json({ error: "Cannot edit a closed payroll period" }); return; }
   const { nameEn, nameAr, payDate, notes } = req.body;
   const [updated] = await db.update(payrollPeriodsTable)
-    .set(updateData)
-    .where(eq(payrollPeriodsTable.id, periodId))
+    .set({ nameEn, nameAr, payDate, notes, updatedAt: new Date() })
+    .where(eq(payrollPeriodsTable.id, id))
     .returning();
-
-  await db.insert(auditLogsTable).values({
-    action: `payroll.${updateData.status}`,
-    entityType: "payroll_period",
-    entityId: periodId,
-    entityLabel: period.nameEn,
-    actorUserId,
-    changesJson: JSON.stringify({ approverId, note }),
-  });
-
   res.json(updated);
 });
 
-// POST /payroll-periods/:id/close — immutable close (requires second_approved)
-router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
+// POST /payroll-periods/:id/calculate — generate/recalculate all payroll runs for the period
+router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> => {
   const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
   const periodId = parseInt(req.params.id, 10);
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
@@ -223,6 +316,36 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
   })
     .from(employmentContractsTable)
     .where(sql`${employmentContractsTable.employeeId} IS NOT NULL`);
+  // HR-excused absence days for this period — skipped by the ABSENCE deduction.
+  const excusedRows = await db.select().from(payrollExcusedAbsencesTable)
+    .where(eq(payrollExcusedAbsencesTable.payrollPeriodId, periodId));
+  const excusedByEmp = new Map<number, Set<string>>();
+  for (const ex of excusedRows) {
+    if (!excusedByEmp.has(ex.employeeId)) excusedByEmp.set(ex.employeeId, new Set());
+    excusedByEmp.get(ex.employeeId)!.add(ex.date);
+  }
+
+  // Employment windows (task: prorate mid-period hires/leavers).
+  // An employee counts as terminated only if their latest contract state says so:
+  // any open active contract (no terminationDate) means they are currently employed,
+  // so older terminated contracts (rehires) are ignored.
+  const latestTerminationByEmp: Record<number, string> = {};
+  const openContractEmps = new Set<number>();
+  for (const c of allContracts) {
+    if (c.employeeId == null) continue;
+    if (!c.terminationDate) {
+      if (c.status === "active") openContractEmps.add(c.employeeId);
+      continue;
+    }
+    const existing = latestTerminationByEmp[c.employeeId];
+    if (!existing || c.terminationDate > existing) latestTerminationByEmp[c.employeeId] = c.terminationDate;
+  }
+  const terminationByEmp: Record<number, string> = {};
+  for (const [empIdStr, term] of Object.entries(latestTerminationByEmp)) {
+    const empIdNum = Number(empIdStr);
+    if (!openContractEmps.has(empIdNum)) terminationByEmp[empIdNum] = term;
+  }
+
   const gradeMap = Object.fromEntries(grades.map(g => [g.gradeCode, g]));
   let totalGross = 0, totalDeductions = 0, totalNet = 0, exceptionCount = 0;
   const runs = [];
@@ -240,7 +363,12 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
       ? datesInRange(period.startDate, noShowEnd).filter(d => isWorkday(d, weekendDays) && !empHolidaySet.has(d))
       : [];
 
+    // Employment window inside the period: from hire date to the relevant
+    // termination (if any). Days outside this window are neither paid nor
+    // counted as absences.
     const employStart = emp.hireDate > period.startDate ? emp.hireDate : period.startDate;
+    const empTermination = terminationByEmp[emp.id] ?? null;
+    const employEnd = empTermination && empTermination < period.endDate ? empTermination : period.endDate;
     const grade = emp.grade ? gradeMap[emp.grade] : null;
     const baseSalary = grade ? parseFloat(grade.baseSalary) : 5000; // fallback base
 
@@ -264,7 +392,6 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
     const otRule = overtimeRules.find(r => r.nameEn.includes("Standard")) ?? overtimeRules[0];
 
     const weekdayRate = otRule ? parseFloat(otRule.multiplierWeekday) : 1.5;
-    const weekdayRate = otRule ? parseFloat(otRule.multiplierWeekday) : 1.5;
     const weekendRate = otRule ? parseFloat(otRule.multiplierWeekend) : 2.0;
     const holidayRate = otRule ? parseFloat(otRule.multiplierHoliday) : 2.5;
     const hourlyRate = baseSalary / 176; // standard monthly hours convention
@@ -284,7 +411,23 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
     const transportPct = grade ? parseFloat(grade.transportAllowancePct) : 10;
     const transportAmount = baseSalary * (transportPct / 100);
 
+    const employedWorkingDays = employStart <= employEnd ? countWorkingDays(employStart, employEnd, weekendDays, empHolidaySet) : 0;
+    const prorationFactor = periodWorkingDays > 0 ? employedWorkingDays / periodWorkingDays : 0;
+    const isProrated = prorationFactor < 1;
+    const prorationLabelEn = isProrated ? ` (Prorated ${employedWorkingDays}/${periodWorkingDays} days)` : "";
+    const prorationLabelAr = isProrated ? ` (نسبي ${employedWorkingDays}/${periodWorkingDays} يوم)` : "";
+
     const proratedBase = Math.round(baseSalary * prorationFactor * 100) / 100;
+    const proratedHousing = Math.round(housingAmount * prorationFactor * 100) / 100;
+    const proratedTransport = Math.round(transportAmount * prorationFactor * 100) / 100;
+
+    lines.push({ codeEn: "BASE", nameEn: `Basic Salary${prorationLabelEn}`, nameAr: `الراتب الأساسي${prorationLabelAr}`, type: "earning", amount: proratedBase, sortOrder: 0 });
+    lines.push({ codeEn: "HOUSING", nameEn: `Housing Allowance${prorationLabelEn}`, nameAr: `بدل السكن${prorationLabelAr}`, type: "earning", amount: proratedHousing, sortOrder: 1 });
+    lines.push({ codeEn: "TRANSPORT", nameEn: `Transport Allowance${prorationLabelEn}`, nameAr: `بدل المواصلات${prorationLabelAr}`, type: "earning", amount: proratedTransport, sortOrder: 2 });
+    if (overtimePay > 0) {
+      lines.push({ codeEn: "OT_PAY", nameEn: "Overtime Pay", nameAr: "أجر الوقت الإضافي", type: "earning", amount: Math.round(overtimePay * 100) / 100, sortOrder: 3 });
+    }
+
     const unpaidDays = approvedLeaves
       .filter(l => l.employeeId === emp.id && l.category === "unpaid")
       .reduce((sum, l) => sum + overlapDays(l.startDate, l.endDate, period.startDate, period.endDate, l.halfDay ?? false, weekendDays, empHolidaySet), 0);
@@ -315,9 +458,14 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
       const e2 = l.endDate < period.endDate ? l.endDate : period.endDate;
       if (s <= e2) for (const d of datesInRange(s, e2)) leaveCoveredDates.add(d);
     }
-    const noShowDays = eligibleWorkdays.filter(d =>
+    const noShowDates = eligibleWorkdays.filter(d =>
       d >= emp.hireDate && d <= employEnd && !attendedDates.has(d) && !leaveCoveredDates.has(d)
-    ).length;
+    );
+    // Days HR marked as excused for this period are not deducted.
+    const excusedSet = excusedByEmp.get(emp.id);
+    const noShowDays = excusedSet
+      ? noShowDates.filter(d => !excusedSet.has(d)).length
+      : noShowDates.length;
 
     const deductedNoShowDays = Math.max(0, Math.min(noShowDays, employedWorkingDays - deductedLeaveDays));
     const absenceDeductionAmount = Math.round(deductedNoShowDays * dailyRate * 100) / 100;
@@ -356,8 +504,11 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
     const netSalary = grossSalary - totalDeductionsEmp;
 
     const hasException = !grade;
+    if (hasException) exceptionCount++;
 
     const notes: string[] = [];
+    if (!grade) notes.push("No salary grade assigned — using default base salary");
+    if (isProrated) notes.push(`Prorated for partial employment: ${employedWorkingDays}/${periodWorkingDays} working days`);
     const [run] = await db.insert(payrollRunsTable).values({
       payrollPeriodId: periodId,
       employeeId: emp.id,
@@ -430,6 +581,139 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
     totalNet: Math.round(totalNet * 100) / 100,
     runs: runs.map(r => ({ runId: r.id, employeeId: r.employeeId, grossSalary: r.grossSalary, netSalary: r.netSalary, hasException: r.hasException })),
   });
+});
+
+// GET /payroll-periods/:id/no-shows — detected no-show days per employee (with excused status)
+router.get("/payroll-periods/:id/no-shows", async (req, res): Promise<void> => {
+  const periodId = parseInt(req.params.id, 10);
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
+  if (!period) { res.status(404).json({ error: "Period not found" }); return; }
+
+  const employees = await db.select().from(employeesTable).where(eq(employeesTable.status, "active"));
+  const { punchEvents, attendanceRecords, approvedLeaves } = await loadNoShowInputs(period);
+  const weekendDays = await getWeekendDays();
+  const holidayRows = await loadHolidayRows();
+  const startYear = parseInt(period.startDate.slice(0, 4), 10);
+  const endYear = parseInt(period.endDate.slice(0, 4), 10);
+  const excusedRows = await db.select().from(payrollExcusedAbsencesTable)
+    .where(eq(payrollExcusedAbsencesTable.payrollPeriodId, periodId));
+
+  const entries = [];
+  for (const emp of employees) {
+    const empHolidaySet = buildHolidaySet(holidayRows, startYear, endYear, emp.organizationType ?? "commercial");
+    const eligibleWorkdays = eligibleNoShowWorkdays(period, weekendDays, empHolidaySet);
+    const dates = computeNoShowDates(emp, eligibleWorkdays, punchEvents, attendanceRecords, approvedLeaves, period);
+    if (dates.length === 0) continue;
+    entries.push({
+      employeeId: emp.id,
+      employeeNumber: emp.employeeNumber,
+      employeeNameEn: `${emp.firstNameEn} ${emp.lastNameEn}`,
+      employeeNameAr: `${emp.firstNameAr} ${emp.lastNameAr}`,
+      days: dates.map(date => {
+        const ex = excusedRows.find(r => r.employeeId === emp.id && r.date === date);
+        return {
+          date,
+          excused: !!ex,
+          excusedId: ex?.id ?? null,
+          reason: ex?.reason ?? null,
+          excusedByUserId: ex?.excusedByUserId ?? null,
+          excusedAt: ex?.createdAt ?? null,
+        };
+      }),
+    });
+  }
+  res.json({ periodId, startDate: period.startDate, endDate: period.endDate, isClosed: period.isClosed, employees: entries });
+});
+
+// POST /payroll-periods/:id/excused-absences — HR excuses a detected no-show day
+router.post("/payroll-periods/:id/excused-absences", async (req, res): Promise<void> => {
+  const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
+  const periodId = parseInt(req.params.id, 10);
+  const { employeeId, date, reason } = req.body ?? {};
+  if (!employeeId || !date || !reason || !String(reason).trim()) {
+    res.status(400).json({ error: "employeeId, date and reason are required" });
+    return;
+  }
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
+  if (!period) { res.status(404).json({ error: "Period not found" }); return; }
+  if (period.isClosed) { res.status(400).json({ error: "Period is closed; excusals can no longer be changed" }); return; }
+  if (date < period.startDate || date > period.endDate) {
+    res.status(422).json({ error: "Date is outside this payroll period" });
+    return;
+  }
+
+  const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, Number(employeeId)));
+  if (!emp) { res.status(404).json({ error: "Employee not found" }); return; }
+
+  // Only genuinely detected no-show days can be excused.
+  const { punchEvents, attendanceRecords, approvedLeaves } = await loadNoShowInputs(period);
+  const weekendDays = await getWeekendDays();
+  const holidayRows = await loadHolidayRows();
+  const empHolidaySet = buildHolidaySet(
+    holidayRows,
+    parseInt(period.startDate.slice(0, 4), 10),
+    parseInt(period.endDate.slice(0, 4), 10),
+    emp.organizationType ?? "commercial",
+  );
+  const eligibleWorkdays = eligibleNoShowWorkdays(period, weekendDays, empHolidaySet);
+  const noShowDates = computeNoShowDates(emp, eligibleWorkdays, punchEvents, attendanceRecords, approvedLeaves, period);
+  if (!noShowDates.includes(date)) {
+    res.status(422).json({ error: "Date is not a detected no-show day for this employee" });
+    return;
+  }
+
+  const [existing] = await db.select().from(payrollExcusedAbsencesTable).where(and(
+    eq(payrollExcusedAbsencesTable.payrollPeriodId, periodId),
+    eq(payrollExcusedAbsencesTable.employeeId, emp.id),
+    eq(payrollExcusedAbsencesTable.date, date),
+  ));
+  if (existing) { res.status(409).json({ error: "Day is already excused", excused: existing }); return; }
+
+  const [created] = await db.insert(payrollExcusedAbsencesTable).values({
+    payrollPeriodId: periodId,
+    employeeId: emp.id,
+    date,
+    reason: String(reason).trim(),
+    excusedByUserId: actorUserId,
+  }).returning();
+
+  await db.insert(auditLogsTable).values({
+    action: "payroll.absence_excused",
+    entityType: "payroll_period",
+    entityId: periodId,
+    entityLabel: period.nameEn,
+    actorUserId,
+    changesJson: JSON.stringify({ employeeId: emp.id, date, reason: created.reason }),
+  });
+
+  res.status(201).json(created);
+});
+
+// DELETE /payroll-periods/:id/excused-absences/:excusedId — undo an excusal
+router.delete("/payroll-periods/:id/excused-absences/:excusedId", async (req, res): Promise<void> => {
+  const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
+  const periodId = parseInt(req.params.id, 10);
+  const excusedId = parseInt(req.params.excusedId, 10);
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
+  if (!period) { res.status(404).json({ error: "Period not found" }); return; }
+  if (period.isClosed) { res.status(400).json({ error: "Period is closed; excusals can no longer be changed" }); return; }
+
+  const [row] = await db.select().from(payrollExcusedAbsencesTable).where(and(
+    eq(payrollExcusedAbsencesTable.id, excusedId),
+    eq(payrollExcusedAbsencesTable.payrollPeriodId, periodId),
+  ));
+  if (!row) { res.status(404).json({ error: "Excused absence not found" }); return; }
+
+  await db.delete(payrollExcusedAbsencesTable).where(eq(payrollExcusedAbsencesTable.id, excusedId));
+  await db.insert(auditLogsTable).values({
+    action: "payroll.absence_unexcused",
+    entityType: "payroll_period",
+    entityId: periodId,
+    entityLabel: period.nameEn,
+    actorUserId,
+    changesJson: JSON.stringify({ employeeId: row.employeeId, date: row.date }),
+  });
+  res.json({ deleted: true, id: excusedId });
 });
 
 // POST /payroll-periods/:id/approve — first/second approval step
@@ -511,29 +795,3 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
 });
 
 export default router;
-
-    const proratedTransport = Math.round(transportAmount * prorationFactor * 100) / 100;
-
-  const openContractEmps = new Set<number>();
-
-    const existing = latestTerminationByEmp[c.employeeId];
-
-    const employEnd = empTermination && empTermination < period.endDate ? empTermination : period.endDate;
-
-  const latestTerminationByEmp: Record<number, string> = {};
-
-    const prorationLabelAr = isProrated ? ` (نسبي ${employedWorkingDays}/${periodWorkingDays} يوم)` : "";
-
-    const employedWorkingDays = employStart <= employEnd ? countWorkingDays(employStart, employEnd, weekendDays, empHolidaySet) : 0;
-
-    const proratedHousing = Math.round(housingAmount * prorationFactor * 100) / 100;
-
-    const prorationLabelEn = isProrated ? ` (Prorated ${employedWorkingDays}/${periodWorkingDays} days)` : "";
-
-  const terminationByEmp: Record<number, string> = {};
-
-    const prorationFactor = periodWorkingDays > 0 ? employedWorkingDays / periodWorkingDays : 0;
-
-    const isProrated = prorationFactor < 1;
-
-    const empTermination = terminationByEmp[emp.id] ?? emp.contractEndDate ?? null;

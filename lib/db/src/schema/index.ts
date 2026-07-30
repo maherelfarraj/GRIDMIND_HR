@@ -26,6 +26,7 @@ export * from "./payComponents";
 export * from "./payrollPeriods";
 export * from "./payrollRuns";
 export * from "./payrollRunLines";
+export * from "./payrollExcusedAbsences";
 // Phase 4 — Government / Military Readiness
 export * from "./systemConfig";
 export * from "./militaryRanks";

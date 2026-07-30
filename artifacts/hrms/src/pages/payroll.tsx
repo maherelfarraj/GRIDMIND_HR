@@ -9,6 +9,9 @@ import {
   useApprovePayrollPeriod,
   useClosePayrollPeriod,
   useListPayrollRuns,
+  useListPayrollPeriodNoShows,
+  useExcusePayrollAbsence,
+  useUnexcusePayrollAbsence,
 } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -52,6 +55,9 @@ import {
   ArrowLeft,
   CalendarDays,
   Receipt,
+  UserX,
+  ShieldCheck,
+  Undo2,
 } from 'lucide-react';
 import {
   BarChart,
@@ -310,6 +316,189 @@ function CloseConfirmDialog({
   );
 }
 
+// ─── No-Show Review Card ──────────────────────────────────────────────────────
+
+function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boolean }) {
+  const { t, lang } = useLanguage();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: report, isLoading } = useListPayrollPeriodNoShows(periodId);
+
+  const [excuseTarget, setExcuseTarget] = useState<null | { employeeId: number; employeeName: string; date: string }>(null);
+  const [reason, setReason] = useState('');
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: [`/api/payroll-periods/${periodId}/no-shows`] });
+  };
+
+  const excuseMutation = useExcusePayrollAbsence({
+    mutation: {
+      onSuccess: () => {
+        toast({
+          title: t('Day excused', 'تم إعفاء اليوم'),
+          description: t('Recalculate the period to update deductions.', 'أعد حساب الفترة لتحديث الاستقطاعات.'),
+        });
+        invalidate();
+        setExcuseTarget(null);
+        setReason('');
+      },
+      onError: (err: any) => {
+        toast({ title: t('Error', 'خطأ'), description: err?.response?.data?.error ?? err?.message, variant: 'destructive' });
+      },
+    },
+  });
+
+  const unexcuseMutation = useUnexcusePayrollAbsence({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: t('Excusal removed', 'تمت إزالة الإعفاء') });
+        invalidate();
+      },
+      onError: (err: any) => {
+        toast({ title: t('Error', 'خطأ'), description: err?.response?.data?.error ?? err?.message, variant: 'destructive' });
+      },
+    },
+  });
+
+  const employees = report?.employees ?? [];
+
+  if (!isLoading && employees.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <UserX className="h-4 w-4 text-amber-500" />
+          {t('No-Show Days (Unexcused Absences)', 'أيام الغياب بدون إذن')}
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          {t(
+            'Workdays with no punch activity, no attendance record and no approved leave. Excused days are skipped from the absence deduction on recalculation.',
+            'أيام عمل بدون بصمة أو سجل حضور أو إجازة معتمدة. الأيام المعفاة تُستثنى من خصم الغياب عند إعادة الحساب.'
+          )}
+        </p>
+      </CardHeader>
+      <CardContent className="p-0">
+        {isLoading ? (
+          <div className="p-4 space-y-2">
+            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10" />)}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('Employee', 'الموظف')}</TableHead>
+                  <TableHead>{t('No-Show Days', 'أيام الغياب')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {employees.map(emp => (
+                  <TableRow key={emp.employeeId}>
+                    <TableCell className="align-top">
+                      <div className="font-medium text-sm">
+                        {lang === 'ar' ? emp.employeeNameAr : emp.employeeNameEn}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{emp.employeeNumber}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1.5">
+                        {emp.days.map(day => (
+                          <span
+                            key={day.date}
+                            className={cn(
+                              'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-mono',
+                              day.excused
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+                                : 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400'
+                            )}
+                            title={day.excused && day.reason ? `${t('Excused', 'معفى')}: ${day.reason}` : undefined}
+                          >
+                            {day.excused && <ShieldCheck className="h-3 w-3" />}
+                            {day.date}
+                            {!isClosed && !day.excused && (
+                              <button
+                                className="ml-1 underline decoration-dotted hover:text-foreground font-sans"
+                                onClick={() =>
+                                  setExcuseTarget({
+                                    employeeId: emp.employeeId,
+                                    employeeName: lang === 'ar' ? emp.employeeNameAr : emp.employeeNameEn,
+                                    date: day.date,
+                                  })
+                                }
+                              >
+                                {t('Excuse', 'إعفاء')}
+                              </button>
+                            )}
+                            {!isClosed && day.excused && day.excusedId != null && (
+                              <button
+                                className="ml-1 hover:text-foreground"
+                                title={t('Undo excusal', 'تراجع عن الإعفاء')}
+                                onClick={() => unexcuseMutation.mutate({ id: periodId, excusedId: day.excusedId! })}
+                                disabled={unexcuseMutation.isPending}
+                              >
+                                <Undo2 className="h-3 w-3" />
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+
+      {/* Excuse dialog */}
+      <Dialog open={excuseTarget !== null} onOpenChange={v => { if (!v) { setExcuseTarget(null); setReason(''); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('Excuse No-Show Day', 'إعفاء يوم غياب')}</DialogTitle>
+            <DialogDescription>
+              {excuseTarget && (
+                <>
+                  {excuseTarget.employeeName} · <span className="font-mono">{excuseTarget.date}</span>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-1 py-2">
+            <label className="text-sm font-medium text-muted-foreground">{t('Reason', 'السبب')}</label>
+            <Textarea
+              rows={3}
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder={t('e.g. biometric device outage, off-site assignment…', 'مثال: عطل جهاز البصمة، مهمة خارجية…')}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setExcuseTarget(null); setReason(''); }}>
+              {t('Cancel', 'إلغاء')}
+            </Button>
+            <Button
+              disabled={excuseMutation.isPending || !reason.trim() || !excuseTarget}
+              onClick={() =>
+                excuseTarget &&
+                excuseMutation.mutate({
+                  id: periodId,
+                  data: { employeeId: excuseTarget.employeeId, date: excuseTarget.date, reason: reason.trim() },
+                })
+              }
+            >
+              {excuseMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {t('Excuse Day', 'إعفاء اليوم')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
 // ─── Period Detail Panel ──────────────────────────────────────────────────────
 
 function PeriodDetail({
@@ -551,6 +740,9 @@ function PeriodDetail({
             </CardContent>
           </Card>
         </div>
+
+        {/* No-show review */}
+        <NoShowsCard periodId={period.id} isClosed={isClosed} />
 
         {/* Employee runs table */}
         <Card>

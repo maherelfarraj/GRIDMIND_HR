@@ -2261,6 +2261,63 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PayrollCalculationResult" }
 
+  /payroll-periods/{id}/no-shows:
+    get:
+      tags: [payroll]
+      summary: List detected no-show days per employee for a payroll period
+      operationId: listPayrollPeriodNoShows
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Detected no-show days with excused status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollNoShowReport" }
+
+  /payroll-periods/{id}/excused-absences:
+    post:
+      tags: [payroll]
+      summary: Excuse a detected no-show day so it is not deducted on recalculation
+      operationId: excusePayrollAbsence
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayrollExcusedAbsenceInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollExcusedAbsence" }
+
+  /payroll-periods/{id}/excused-absences/{excusedId}:
+    delete:
+      tags: [payroll]
+      summary: Undo an excused no-show day
+      operationId: unexcusePayrollAbsence
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: excusedId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Deleted
+
   /payroll-periods/{id}/approve:
     post:
       tags: [payroll]
@@ -9895,6 +9952,61 @@ components:
       properties:
         approverId: { type: ["number", "null"] }
         note: { type: ["string", "null"] }
+
+    PayrollExcusedAbsenceInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        date: { type: string }
+        reason: { type: string }
+      required: [employeeId, date, reason]
+
+    PayrollExcusedAbsence:
+      type: object
+      properties:
+        id: { type: number }
+        payrollPeriodId: { type: number }
+        employeeId: { type: number }
+        date: { type: string }
+        reason: { type: string }
+        excusedByUserId: { type: number }
+        createdAt: { type: string }
+      required: [id, payrollPeriodId, employeeId, date, reason, excusedByUserId, createdAt]
+
+    PayrollNoShowDay:
+      type: object
+      properties:
+        date: { type: string }
+        excused: { type: boolean }
+        excusedId: { type: ["number", "null"] }
+        reason: { type: ["string", "null"] }
+        excusedByUserId: { type: ["number", "null"] }
+        excusedAt: { type: ["string", "null"] }
+      required: [date, excused]
+
+    PayrollNoShowEmployee:
+      type: object
+      properties:
+        employeeId: { type: number }
+        employeeNumber: { type: string }
+        employeeNameEn: { type: string }
+        employeeNameAr: { type: string }
+        days:
+          type: array
+          items: { $ref: "#/components/schemas/PayrollNoShowDay" }
+      required: [employeeId, employeeNumber, employeeNameEn, employeeNameAr, days]
+
+    PayrollNoShowReport:
+      type: object
+      properties:
+        periodId: { type: number }
+        startDate: { type: string }
+        endDate: { type: string }
+        isClosed: { type: boolean }
+        employees:
+          type: array
+          items: { $ref: "#/components/schemas/PayrollNoShowEmployee" }
+      required: [periodId, startDate, endDate, isClosed, employees]
 
     PayrollCalculationResult:
       type: object

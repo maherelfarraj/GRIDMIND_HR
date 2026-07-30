@@ -1329,6 +1329,11 @@ export interface PayrollApprovalInput {
   note?: string | null;
 }
 
+export interface PayrollExcusedAbsenceInput {
+  employeeId: number;
+  date: string;
+  reason: string;
+}
 export interface PayrollCalculationResult {
   period: PayrollPeriod;
   runsCreated: number;
@@ -5430,3 +5435,42 @@ export type UpdateAiPermissionBody = {
   featureType?: string;
 };
 
+
+export interface PayrollNoShowDay {
+  date: string;
+  excused: boolean;
+  /** @nullable */
+  excusedId?: number | null;
+  /** @nullable */
+  reason?: string | null;
+  /** @nullable */
+  excusedByUserId?: number | null;
+  /** @nullable */
+  excusedAt?: string | null;
+}
+
+export interface PayrollNoShowEmployee {
+  employeeId: number;
+  employeeNumber: string;
+  employeeNameEn: string;
+  employeeNameAr: string;
+  days: PayrollNoShowDay[];
+}
+
+export interface PayrollNoShowReport {
+  periodId: number;
+  startDate: string;
+  endDate: string;
+  isClosed: boolean;
+  employees: PayrollNoShowEmployee[];
+}
+
+export interface PayrollExcusedAbsence {
+  id: number;
+  payrollPeriodId: number;
+  employeeId: number;
+  date: string;
+  reason: string;
+  excusedByUserId: number;
+  createdAt: string;
+}
