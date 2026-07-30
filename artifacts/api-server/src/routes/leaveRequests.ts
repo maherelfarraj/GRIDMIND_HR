@@ -4,6 +4,7 @@ import {
   leaveApprovalStepsTable, leaveAttachmentsTable, employeesTable, rostersTable, auditLogsTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, or, between } from "drizzle-orm";
+import { ensureLeaveBalance } from "../lib/leaveBalance";
 
 const router = Router();
 
@@ -53,16 +54,13 @@ async function enrichRequest(r: typeof leaveRequestsTable.$inferSelect) {
 router.get("/leave-requests", async (req, res): Promise<void> => {
   const { employeeId, status, leaveTypeId, startDate, endDate } = req.query as Record<string, string>;
 
-  const conditions = [];
-  if (employeeId) conditions.push(eq(leaveRequestsTable.employeeId, parseInt(employeeId, 10)));
-  if (status) conditions.push(eq(leaveRequestsTable.status, status));
-  if (leaveTypeId) conditions.push(eq(leaveRequestsTable.leaveTypeId, parseInt(leaveTypeId, 10)));
+  const conditions = [
+    or(eq(leaveRequestsTable.status, "approved"), eq(leaveRequestsTable.status, "under_review")),
+  ];
   if (startDate) conditions.push(gte(leaveRequestsTable.startDate, startDate));
   if (endDate) conditions.push(lte(leaveRequestsTable.endDate, endDate));
 
-  const requests = conditions.length > 0
-    ? await db.select().from(leaveRequestsTable).where(and(...conditions)).orderBy(leaveRequestsTable.createdAt)
-    : await db.select().from(leaveRequestsTable).orderBy(leaveRequestsTable.createdAt);
+  const requests = await db.select().from(leaveRequestsTable).where(and(...conditions));
 
   const emps = await db.select().from(employeesTable);
   const types = await db.select().from(leaveTypesTable);
@@ -165,6 +163,8 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
 
   // Check balance availability
   const year = new Date(r.startDate).getFullYear();
+
+  const balance = await ensureLeaveBalance(r.employeeId, r.leaveTypeId, year);
   const [balance] = await db.select().from(leaveBalancesTable).where(
     and(
       eq(leaveBalancesTable.employeeId, r.employeeId),
@@ -172,7 +172,6 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
       eq(leaveBalancesTable.year, year),
     )
   );
-  if (balance) {
     const available = parseFloat(balance.openingBalance) + parseFloat(balance.accrued) +
       parseFloat(balance.carriedOver) + parseFloat(balance.adjustment) -
       parseFloat(balance.used) - parseFloat(balance.pending);
@@ -191,23 +190,23 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
   }
 
   const [updated] = await db.update(leaveRequestsTable)
-    .set({ status: "submitted", submittedAt: new Date(), updatedAt: new Date() })
+    .set({ returnedToWork: true, returnDate: returnDate ?? null, returnNotes: returnNotes ?? null, updatedAt: new Date() })
     .where(eq(leaveRequestsTable.id, id))
     .returning();
 
   await db.insert(auditLogsTable).values({
-    action: "leave.submitted",
+    action: "leave.returned",
     entityType: "leave_request",
     entityId: id,
     entityLabel: r.requestNumber,
-    changesJson: JSON.stringify({ status: "submitted" }),
+    changesJson: JSON.stringify({ returnDate }),
   });
 
   res.json(await enrichRequest(updated));
 });
 
-// POST /leave-requests/:id/decide — approve or reject a step
-router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
+// POST /leave-requests/:id/attachments
+router.post("/leave-requests/:id/attachments", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const { stepId, stepNumber, decision, notes, decidedByEmployeeId } = req.body;
 
@@ -223,8 +222,8 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
   if (stepId) {
     const rows = await db.select().from(leaveApprovalStepsTable).where(
       and(
-        eq(leaveApprovalStepsTable.id, stepId),
         eq(leaveApprovalStepsTable.leaveRequestId, id),
+        eq(leaveApprovalStepsTable.stepNumber, stepNumber),
       )
     );
     step = rows[0];
@@ -261,7 +260,9 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
 
       let newStatus = locked.status;
       let newStep = locked.currentStepNumber;
-      const year = new Date(locked.startDate).getFullYear();
+  const year = new Date(r.startDate).getFullYear();
+
+  const balance = await ensureLeaveBalance(r.employeeId, r.leaveTypeId, year);
       const balanceWhere = and(
         eq(leaveBalancesTable.employeeId, locked.employeeId),
         eq(leaveBalancesTable.leaveTypeId, locked.leaveTypeId),
@@ -271,9 +272,15 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
       if (isReject) {
         newStatus = "rejected";
         // Release pending balance (locked)
-        const [balance] = await tx.select().from(leaveBalancesTable).where(balanceWhere).for("update");
-        if (balance) {
-          const newPending = Math.max(0, parseFloat(balance.pending) - parseFloat(locked.totalDays));
+  const [balance] = await db.select().from(leaveBalancesTable).where(
+    and(
+      eq(leaveBalancesTable.employeeId, r.employeeId),
+      eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
+      eq(leaveBalancesTable.year, year),
+    )
+  );
+    if (balance) {
+      const newPending = Math.max(0, parseFloat(balance.pending) - parseFloat(r.totalDays));
           await tx.update(leaveBalancesTable)
             .set({ pending: String(newPending), updatedAt: new Date() })
             .where(eq(leaveBalancesTable.id, balance.id));
@@ -283,19 +290,25 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
           // Final approval — lock the balance row before deducting
           newStatus = "approved";
           newStep = step.stepNumber;
-          const [balance] = await tx.select().from(leaveBalancesTable).where(balanceWhere).for("update");
-          if (balance) {
-            const days = parseFloat(locked.totalDays);
+  const [balance] = await db.select().from(leaveBalancesTable).where(
+    and(
+      eq(leaveBalancesTable.employeeId, r.employeeId),
+      eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
+      eq(leaveBalancesTable.year, year),
+    )
+  );
+  if (balance) {
+    const days = parseFloat(r.totalDays);
             const entitlement = parseFloat(balance.openingBalance) + parseFloat(balance.accrued) +
               parseFloat(balance.carriedOver) + parseFloat(balance.adjustment);
-            const newUsed = parseFloat(balance.used) + days;
+    const newUsed = Math.max(0, parseFloat(balance.used) - days);
             if (newUsed > entitlement + 1e-9) {
               throw Object.assign(
                 new Error("Insufficient leave balance: approving this request would overdraw the employee's balance"),
                 { httpStatus: 409, code: "BALANCE_CONFLICT" },
               );
             }
-            const newPending = Math.max(0, parseFloat(balance.pending) - days);
+      const newPending = Math.max(0, parseFloat(balance.pending) - parseFloat(r.totalDays));
             await tx.update(leaveBalancesTable)
               .set({ pending: String(newPending), used: String(newUsed), updatedAt: new Date() })
               .where(eq(leaveBalancesTable.id, balance.id));
@@ -340,21 +353,22 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
   if (!r) { res.status(404).json({ error: "Not found" }); return; }
-  if (["approved", "rejected", "cancelled"].includes(r.status)) {
-    res.status(400).json({ error: `Cannot cancel a request in status: ${r.status}` });
+  if (r.status !== "approved") {
+    res.status(400).json({ error: "Only approved leave requests can be revoked" });
     return;
   }
 
-  // Release pending balance
-  if (["submitted", "under_review"].includes(r.status)) {
-    const year = new Date(r.startDate).getFullYear();
-    const [balance] = await db.select().from(leaveBalancesTable).where(
-      and(
-        eq(leaveBalancesTable.employeeId, r.employeeId),
-        eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
-        eq(leaveBalancesTable.year, year),
-      )
-    );
+  // Restore used balance → deduct from used, release pending (there shouldn't be any, but guard)
+  const year = new Date(r.startDate).getFullYear();
+
+  const balance = await ensureLeaveBalance(r.employeeId, r.leaveTypeId, year);
+  const [balance] = await db.select().from(leaveBalancesTable).where(
+    and(
+      eq(leaveBalancesTable.employeeId, r.employeeId),
+      eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
+      eq(leaveBalancesTable.year, year),
+    )
+  );
     if (balance) {
       const newPending = Math.max(0, parseFloat(balance.pending) - parseFloat(r.totalDays));
       await db.update(leaveBalancesTable).set({ pending: String(newPending) }).where(eq(leaveBalancesTable.id, balance.id));
@@ -362,15 +376,23 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
   }
 
   const [updated] = await db.update(leaveRequestsTable)
-    .set({ status: "cancelled", updatedAt: new Date() })
+    .set({ returnedToWork: true, returnDate: returnDate ?? null, returnNotes: returnNotes ?? null, updatedAt: new Date() })
     .where(eq(leaveRequestsTable.id, id))
     .returning();
+
+  await db.insert(auditLogsTable).values({
+    action: "leave.returned",
+    entityType: "leave_request",
+    entityId: id,
+    entityLabel: r.requestNumber,
+    changesJson: JSON.stringify({ returnDate }),
+  });
 
   res.json(await enrichRequest(updated));
 });
 
-// POST /leave-requests/:id/revoke — Task #9: revoke approved leave, restore balance + roster
-router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
+// POST /leave-requests/:id/attachments
+router.post("/leave-requests/:id/attachments", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const { reason } = req.body;
   const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
@@ -382,6 +404,8 @@ router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
 
   // Restore used balance → deduct from used, release pending (there shouldn't be any, but guard)
   const year = new Date(r.startDate).getFullYear();
+
+  const balance = await ensureLeaveBalance(r.employeeId, r.leaveTypeId, year);
   const [balance] = await db.select().from(leaveBalancesTable).where(
     and(
       eq(leaveBalancesTable.employeeId, r.employeeId),
@@ -413,23 +437,23 @@ router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
   }
 
   const [updated] = await db.update(leaveRequestsTable)
-    .set({ status: "cancelled", updatedAt: new Date() })
+    .set({ returnedToWork: true, returnDate: returnDate ?? null, returnNotes: returnNotes ?? null, updatedAt: new Date() })
     .where(eq(leaveRequestsTable.id, id))
     .returning();
 
   await db.insert(auditLogsTable).values({
-    action: "leave.revoked",
+    action: "leave.returned",
     entityType: "leave_request",
     entityId: id,
     entityLabel: r.requestNumber,
-    changesJson: JSON.stringify({ reason: reason ?? null, rosterRowsRestored: rosterRows.length }),
+    changesJson: JSON.stringify({ returnDate }),
   });
 
   res.json(await enrichRequest(updated));
 });
 
-// POST /leave-requests/:id/return-to-duty
-router.post("/leave-requests/:id/return-to-duty", async (req, res): Promise<void> => {
+// POST /leave-requests/:id/attachments
+router.post("/leave-requests/:id/attachments", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const { returnDate, returnNotes } = req.body;
   const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));

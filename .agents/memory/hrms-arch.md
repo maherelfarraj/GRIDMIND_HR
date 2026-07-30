@@ -116,6 +116,10 @@ The `gte`/`lte` comparison for `punchEventsTable.eventTime` (a Drizzle `timestam
 
 **Why:** Drizzle's `PgTimestamp.mapToDriverValue` calls `.toISOString()` on the value, failing if it's a string.
 
+
+## Leave balance year rollover
+Balance rows are auto-provisioned lazily on leave submit via `ensureLeaveBalance` (accrued = leave type's defaultDaysPerYear; carriedOver = prior-year leftover capped at maxCarryoverDays). No cron; a missing year row is never an error on submit.
+
 ## Leave request steps key
 `enrichRequest()` returns steps under the key `steps` (not `approvalSteps`). Frontend uses `req?.steps ?? []`.
 
