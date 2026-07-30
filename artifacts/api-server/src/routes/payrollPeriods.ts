@@ -395,11 +395,11 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     const weekendRate = otRule ? parseFloat(otRule.multiplierWeekend) : 2.0;
     const holidayRate = otRule ? parseFloat(otRule.multiplierHoliday) : 2.5;
     const hourlyRate = baseSalary / 176; // standard monthly hours convention
-    const overtimePay = hourlyRate * (
-      weekdayOtHours * weekdayRate +
-      weekendOtHours * weekendRate +
-      holidayOtHours * holidayRate
-    );
+    // Round each bucket independently so payslip lines sum exactly to the stored overtimePay.
+    const weekdayOtPay = Math.round(hourlyRate * weekdayOtHours * weekdayRate * 100) / 100;
+    const weekendOtPay = Math.round(hourlyRate * weekendOtHours * weekendRate * 100) / 100;
+    const holidayOtPay = Math.round(hourlyRate * holidayOtHours * holidayRate * 100) / 100;
+    const overtimePay = Math.round((weekdayOtPay + weekendOtPay + holidayOtPay) * 100) / 100;
 
     // Build payslip lines
     const lines: { codeEn: string; nameEn: string; nameAr: string; type: string; amount: number; sortOrder: number; payComponentId?: number }[] = [];
@@ -424,8 +424,16 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     lines.push({ codeEn: "BASE", nameEn: `Basic Salary${prorationLabelEn}`, nameAr: `الراتب الأساسي${prorationLabelAr}`, type: "earning", amount: proratedBase, sortOrder: 0 });
     lines.push({ codeEn: "HOUSING", nameEn: `Housing Allowance${prorationLabelEn}`, nameAr: `بدل السكن${prorationLabelAr}`, type: "earning", amount: proratedHousing, sortOrder: 1 });
     lines.push({ codeEn: "TRANSPORT", nameEn: `Transport Allowance${prorationLabelEn}`, nameAr: `بدل المواصلات${prorationLabelAr}`, type: "earning", amount: proratedTransport, sortOrder: 2 });
-    if (overtimePay > 0) {
-      lines.push({ codeEn: "OT_PAY", nameEn: "Overtime Pay", nameAr: "أجر الوقت الإضافي", type: "earning", amount: Math.round(overtimePay * 100) / 100, sortOrder: 3 });
+    // One payslip line per non-zero OT bucket so the different multipliers are auditable.
+    const fmtHrs = (h: number) => (Number.isInteger(h) ? String(h) : h.toFixed(2));
+    if (weekdayOtPay > 0) {
+      lines.push({ codeEn: "OT_WEEKDAY", nameEn: `Overtime — Weekday (${fmtHrs(weekdayOtHours)}h × ${weekdayRate})`, nameAr: `وقت إضافي — أيام الأسبوع (${fmtHrs(weekdayOtHours)} س × ${weekdayRate})`, type: "earning", amount: weekdayOtPay, sortOrder: 3 });
+    }
+    if (weekendOtPay > 0) {
+      lines.push({ codeEn: "OT_WEEKEND", nameEn: `Overtime — Weekend (${fmtHrs(weekendOtHours)}h × ${weekendRate})`, nameAr: `وقت إضافي — عطلة نهاية الأسبوع (${fmtHrs(weekendOtHours)} س × ${weekendRate})`, type: "earning", amount: weekendOtPay, sortOrder: 3 });
+    }
+    if (holidayOtPay > 0) {
+      lines.push({ codeEn: "OT_HOLIDAY", nameEn: `Overtime — Holiday (${fmtHrs(holidayOtHours)}h × ${holidayRate})`, nameAr: `وقت إضافي — عطلة رسمية (${fmtHrs(holidayOtHours)} س × ${holidayRate})`, type: "earning", amount: holidayOtPay, sortOrder: 3 });
     }
 
     const unpaidDays = approvedLeaves

@@ -193,7 +193,13 @@ describe("payroll calculation engine", () => {
     expect(lineAmount("BASE")).toBeCloseTo(BASE_SALARY, 2);
     expect(lineAmount("HOUSING")).toBeCloseTo(housing, 2);
     expect(lineAmount("TRANSPORT")).toBeCloseTo(transport, 2);
-    expect(lineAmount("OT_PAY")).toBeCloseTo(otPay, 2);
+    // OT is split per day-type bucket; these events are all weekday.
+    expect(lineAmount("OT_WEEKDAY")).toBeCloseTo(otPay, 2);
+    expect(lines.find(l => l.codeEn === "OT_WEEKEND")).toBeUndefined();
+    expect(lines.find(l => l.codeEn === "OT_HOLIDAY")).toBeUndefined();
+    // Bucket lines sum to the stored overtimePay.
+    const otLineSum = lines.filter(l => l.codeEn.startsWith("OT_")).reduce((s, l) => s + parseFloat(l.amount), 0);
+    expect(otLineSum).toBeCloseTo(parseFloat(run.overtimePay), 2);
     // Sum of earning lines equals gross; earnings − deductions equals net.
     const sumEarnings = lines.filter(l => l.type === "earning").reduce((s, l) => s + parseFloat(l.amount), 0);
     const sumDeductions = lines.filter(l => l.type === "deduction").reduce((s, l) => s + parseFloat(l.amount), 0);
@@ -502,10 +508,29 @@ describe("payroll calculation engine", () => {
       const hourly = BASE_SALARY / 176;
       // Original OT_EVENTS weekday events (2h each) + 2h weekend + 2h holiday.
       const expectedHours = OT_EVENTS * 2 + 2 + 2;
-      const expectedPay = round2(hourly * (OT_EVENTS * 2 * weekdayRate + 2 * weekendRate + 2 * holidayRate));
+      // Each bucket is rounded independently, then summed (matches the payslip lines exactly).
+      const expectedPay = round2(
+        round2(hourly * OT_EVENTS * 2 * weekdayRate) +
+        round2(hourly * 2 * weekendRate) +
+        round2(hourly * 2 * holidayRate)
+      );
 
       expect(parseFloat(run.overtimeHours)).toBeCloseTo(expectedHours, 2);
       expect(parseFloat(run.overtimePay)).toBeCloseTo(expectedPay, 2);
+
+      // Payslip shows one line per non-zero bucket, each at its own rate,
+      // and the bucket amounts sum to the stored overtimePay.
+      const detail = await request(app).get(`/api/payroll-runs/${run.id}`);
+      expect(detail.status).toBe(200);
+      const lines: { codeEn: string; nameEn: string; amount: string }[] = detail.body.lines;
+      const lineAmount = (code: string) => parseFloat(lines.find(l => l.codeEn === code)?.amount ?? "NaN");
+      expect(lineAmount("OT_WEEKDAY")).toBeCloseTo(round2(hourly * OT_EVENTS * 2 * weekdayRate), 2);
+      expect(lineAmount("OT_WEEKEND")).toBeCloseTo(round2(hourly * 2 * weekendRate), 2);
+      expect(lineAmount("OT_HOLIDAY")).toBeCloseTo(round2(hourly * 2 * holidayRate), 2);
+      const otLineSum = lines.filter(l => l.codeEn.startsWith("OT_")).reduce((s, l) => s + parseFloat(l.amount), 0);
+      expect(otLineSum).toBeCloseTo(parseFloat(run.overtimePay), 2);
+      // Hours are visible in the line names for auditability.
+      expect(lines.find(l => l.codeEn === "OT_WEEKEND")?.nameEn).toMatch(/2h/);
     });
   });
 
