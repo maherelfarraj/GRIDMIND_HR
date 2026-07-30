@@ -79,7 +79,7 @@ const MODULE_NOTES: ModuleNote[] = [
   { key: 'performance',       nameEn: 'Performance',         nameAr: 'الأداء',                     status: 'PARTIAL',     score: 45, note: 'Goals and appraisals schema; calibration logic placeholder' },
   { key: 'training',          nameEn: 'Training',            nameAr: 'التدريب',                    status: 'PARTIAL',     score: 40, note: 'Schema implemented; LMS integration not wired' },
   { key: 'reporting',         nameEn: 'Reporting',           nameAr: 'التقارير',                   status: 'MOCKED',      score: 25, note: 'Report builder UI exists; execution returns simulated rows' },
-  { key: 'backup_restore',    nameEn: 'Backup & Restore',    nameAr: 'النسخ الاحتياطي والاستعادة', status: 'MOCKED',      score: 20, note: 'Backup records created in DB; no pg_dump executed' },
+  { key: 'backup_restore',    nameEn: 'Backup & Restore',    nameAr: 'النسخ الاحتياطي والاستعادة', status: 'VERIFIED',    score: 90, note: 'Real pg_dump (custom format) with checksum; restore tested into scratch DB with row-count verification' },
   { key: 'security',          nameEn: 'Security',            nameAr: 'الأمان',                     status: 'BLOCKED',     score: 18, note: '6 of 10 security test checks require real auth guards' },
   { key: 'integration',       nameEn: 'Integration',         nameAr: 'التكامل',                    status: 'PARTIAL',     score: 55, note: 'LDAP/SMTP/device adapters real; OIDC/SAML connection tests simulated' },
   { key: 'bilingual_ui',      nameEn: 'Bilingual UI',        nameAr: 'واجهة ثنائية اللغة',          status: 'VERIFIED',    score: 95, note: 'All pages have t(en, ar) wrappers; Arabic RTL tested' },
@@ -111,8 +111,6 @@ interface StaticBlocker {
 
 const STATIC_BLOCKERS: StaticBlocker[] = [
   { severity: 'CRITICAL', text: 'No authentication middleware — all endpoints unauthenticated' },
-  { severity: 'CRITICAL', text: 'Backup system simulated — no pg_dump execution' },
-  { severity: 'CRITICAL', text: 'Restore test not performed — DATA_RESTORE_TESTED gate fails' },
   { severity: 'CRITICAL', text: 'Keycloak SSO not configured — SSO integration gate fails' },
   { severity: 'CRITICAL', text: 'Biometric device vendor protocol not implemented' },
   { severity: 'HIGH',     text: 'Input validation missing on ~15 route files (payroll, leave, attendance use raw destructuring)' },
@@ -143,12 +141,6 @@ const KNOWN_BLOCKERS: KnownBlocker[] = [
     code: 'AUTH',
     description: 'No session authentication middleware. PILOT_AUTH=false on all routes.',
     resolution: 'Wire express-session + set PILOT_AUTH=true before production.',
-    taskExists: false,
-  },
-  {
-    code: 'BACKUP',
-    description: 'Backup execution simulated. Backup records created in DB, but no pg_dump is run.',
-    resolution: 'Implement pg_dump cron + offsite transfer before production.',
     taskExists: false,
   },
   {
@@ -240,8 +232,8 @@ export default function ReadinessPage() {
           {!summary.isReadyForGoLive && (
             <p className="text-slate-400 text-sm mt-2">
               {t(
-                'Authentication middleware, backup execution, and biometric device integration must be implemented before any production deployment.',
-                'يجب تطبيق وسيط المصادقة وتنفيذ النسخ الاحتياطي وتكامل أجهزة القياس الحيوي قبل أي نشر إنتاجي.'
+                'Authentication middleware and biometric device integration must be implemented before any production deployment.',
+                'يجب تطبيق وسيط المصادقة وتكامل أجهزة القياس الحيوي قبل أي نشر إنتاجي.'
               )}
             </p>
           )}

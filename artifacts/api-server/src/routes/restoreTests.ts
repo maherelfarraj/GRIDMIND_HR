@@ -1,13 +1,7 @@
 import { Router } from "express";
-import { eq, desc, sql } from "drizzle-orm";
-import {
-  db,
-  restoreTestResultsTable,
-  auditLogsTable,
-  employeesTable,
-  leaveRequestsTable,
-  payrollRunsTable,
-} from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
+import { db, restoreTestResultsTable, auditLogsTable } from "@workspace/db";
+import { runRestoreTest } from "../lib/backupService.js";
 
 const router = Router();
 
@@ -46,67 +40,39 @@ router.get("/restore-tests", async (req, res): Promise<void> => {
   }
 });
 
-// ─── POST /restore-tests — record new restore test ────────────────────────────
+// ─── POST /restore-tests — run a REAL restore test ────────────────────────────
+// Restores the latest (or specified) pg_dump backup into a scratch database,
+// verifies row counts against the live source, then drops the scratch database.
 router.post("/restore-tests", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
-    const { restoreType, backupRecordId, result, failureReason, notes, restoreDurationSeconds } = req.body;
+    const { backupRecordId, notes } = req.body ?? {};
 
-    if (!result) return void res.status(400).json({ error: "result is required (pass/fail/partial)" });
-
-    // Generate plausible row counts from actual DB state
-    const employeeCount = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(employeesTable);
-    const leaveCount = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(leaveRequestsTable);
-    const payrollCount = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(payrollRunsTable);
-
-    const rowCountsJson = JSON.stringify({
-      employees: employeeCount[0]?.count ?? 0,
-      leaveRequests: leaveCount[0]?.count ?? 0,
-      payrollRuns: payrollCount[0]?.count ?? 0,
-      note: "Simulated restore test — counts reflect current DB state at test time",
+    const outcome = await runRestoreTest({
+      backupRecordId: backupRecordId ?? null,
+      testedByUserId: actorUserId,
+      notes: notes ?? null,
     });
-
-    const verificationChecksJson = JSON.stringify([
-      { check: "employee_table_row_count", status: result === "pass" ? "pass" : "fail" },
-      { check: "leave_balances_integrity", status: result === "pass" ? "pass" : "fail" },
-      { check: "payroll_data_consistency", status: result === "pass" ? "pass" : "fail" },
-      { check: "foreign_key_constraints", status: result === "pass" ? "pass" : "warn" },
-      { check: "audit_log_continuity", status: result === "pass" ? "pass" : "fail" },
-    ]);
-
-    const [row] = await db
-      .insert(restoreTestResultsTable)
-      .values({
-        orgId: req.body.orgId ?? null,
-        backupRecordId: backupRecordId ?? null,
-        restoreType: restoreType ?? "full",
-        result,
-        restoreDurationSeconds: restoreDurationSeconds ?? Math.floor(Math.random() * 300 + 120),
-        verificationChecksJson,
-        rowCountsJson,
-        failureReason: result !== "pass" ? (failureReason ?? "Restore test not yet performed in this environment") : null,
-        testedByUserId: actorUserId,
-        testedAt: new Date(),
-        notes: notes ?? null,
-      })
-      .returning();
 
     await db.insert(auditLogsTable).values({
       action: "create",
       entityType: "restore_test_result",
-      entityId: row.id,
-      entityLabel: `Restore Test: ${restoreType ?? "full"} — ${result}`,
+      entityId: outcome.restoreTest.id,
+      entityLabel: `Restore Test: full — ${outcome.result}`,
       actorUserId,
-      changesJson: JSON.stringify({ restoreType: restoreType ?? "full", result }),
+      changesJson: JSON.stringify({
+        restoreType: "full",
+        result: outcome.result,
+        backupRecordId: outcome.backupRecord.id,
+        durationSeconds: outcome.restoreTest.restoreDurationSeconds,
+      }),
     });
 
-    res.status(201).json(row);
+    res.status(201).json({
+      ...outcome.restoreTest,
+      result: outcome.result,
+      backupRecord: outcome.backupRecord,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -1,8 +1,19 @@
 import { Router } from "express";
-import { db, backupRecordsTable } from "@workspace/db";
+import { db, backupRecordsTable, auditLogsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
+import { runBackup } from "../lib/backupService.js";
 
 const router = Router();
+
+// GET /admin/backup — latest backup summary (used by pilot control center)
+router.get("/admin/backup", async (req, res): Promise<void> => {
+  const [backup] = await db
+    .select()
+    .from(backupRecordsTable)
+    .orderBy(desc(backupRecordsTable.startedAt))
+    .limit(1);
+  res.json({ backup: backup ?? null });
+});
 
 // GET /admin/backup-records
 router.get("/admin/backup-records", async (req, res): Promise<void> => {
@@ -19,26 +30,69 @@ router.get("/admin/backup-records", async (req, res): Promise<void> => {
   res.json(rows);
 });
 
-// POST /admin/backup-records
-router.post("/admin/backup-records", async (req, res): Promise<void> => {
-  const { backupType, startedAt, ...rest } = req.body;
+// POST /admin/backup-records/run — execute a REAL pg_dump backup
+router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
+  try {
+    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const { backupType, notes } = req.body ?? {};
 
-  if (!backupType) {
-    res.status(400).json({ error: "backupType is required" });
-    return;
+    const record = await runBackup({
+      backupType: backupType ?? "full",
+      initiatedByUserId: actorUserId,
+      notes: notes ?? null,
+    });
+
+    await db.insert(auditLogsTable).values({
+      action: "create",
+      entityType: "backup_record",
+      entityId: record.id,
+      entityLabel: `Backup: ${record.backupType} — ${record.status}`,
+      actorUserId,
+      changesJson: JSON.stringify({
+        backupType: record.backupType,
+        status: record.status,
+        fileSizeBytes: record.fileSizeBytes,
+        checksum: record.checksum,
+        storageLocation: record.storageLocation,
+      }),
+    });
+
+    if (record.status !== "completed") {
+      res.status(500).json({ error: record.errorMessage ?? "Backup failed", record });
+      return;
+    }
+    res.status(201).json(record);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
+});
 
-  const [row] = await db
-    .insert(backupRecordsTable)
-    .values({
+// POST /admin/backup-records — execute a real backup (legacy record-creation
+// endpoint upgraded: this now runs pg_dump instead of just inserting a row).
+router.post("/admin/backup-records", async (req, res): Promise<void> => {
+  try {
+    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const { backupType, notes } = req.body ?? {};
+
+    if (!backupType) {
+      res.status(400).json({ error: "backupType is required" });
+      return;
+    }
+
+    const record = await runBackup({
       backupType,
-      status: rest.status ?? "in_progress",
-      startedAt: startedAt ? new Date(startedAt) : new Date(),
-      ...rest,
-    })
-    .returning();
+      initiatedByUserId: actorUserId,
+      notes: notes ?? null,
+    });
 
-  res.status(201).json(row);
+    if (record.status !== "completed") {
+      res.status(500).json({ error: record.errorMessage ?? "Backup failed", record });
+      return;
+    }
+    res.status(201).json(record);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /admin/backup-records/:id/verify
