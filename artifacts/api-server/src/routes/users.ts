@@ -2,7 +2,14 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, systemUsersTable, rolesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { CreateUserBody, UpdateUserBody, SetUserPasswordBody } from "@workspace/api-zod";
+import {
+  CreateUserBody,
+  UpdateUserBody,
+  SetUserPasswordBody,
+  getPasswordIssues,
+  PASSWORD_REQUIREMENTS_EN,
+  PASSWORD_REQUIREMENTS_AR,
+} from "@workspace/api-zod";
 
 const router = Router();
 
@@ -84,6 +91,19 @@ router.post("/users/:id/password", async (req, res): Promise<void> => {
   const id = parseId(req.params.id);
   const parsed = SetUserPasswordBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  // Shared strong-password policy (same rule as POST /auth/change-password).
+  const passwordIssues = getPasswordIssues(parsed.data.password);
+  if (passwordIssues.length > 0) {
+    res.status(400).json({
+      error: passwordIssues.map((i) => i.messageEn).join("; "),
+      errorAr: passwordIssues.map((i) => i.messageAr).join("؛ "),
+      issues: passwordIssues,
+      requirementsEn: PASSWORD_REQUIREMENTS_EN,
+      requirementsAr: PASSWORD_REQUIREMENTS_AR,
+    });
+    return;
+  }
 
   const [user] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, id));
   if (!user) { res.status(404).json({ error: "Not found" }); return; }

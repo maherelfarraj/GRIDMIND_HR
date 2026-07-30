@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { KeyRound, AlertCircle } from 'lucide-react';
+import { getPasswordIssues, PASSWORD_REQUIREMENTS_EN, PASSWORD_REQUIREMENTS_AR } from '@workspace/api-zod';
 
 /**
  * Mandatory password-change screen. Rendered instead of the app shell when
@@ -24,8 +25,9 @@ export default function ForcePasswordChange() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (newPassword.length < 8) {
-      setError(t('New password must be at least 8 characters.', 'يجب أن تتكون كلمة المرور الجديدة من 8 أحرف على الأقل.'));
+    const issues = getPasswordIssues(newPassword);
+    if (issues.length > 0) {
+      setError(t(issues.map((i) => i.messageEn).join('. '), issues.map((i) => i.messageAr).join('. ')));
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -101,6 +103,9 @@ export default function ForcePasswordChange() {
               autoComplete="new-password"
               className="h-11"
             />
+            <p className="text-xs text-muted-foreground">
+              {t(PASSWORD_REQUIREMENTS_EN, PASSWORD_REQUIREMENTS_AR)}
+            </p>
           </div>
 
           <div className="space-y-2">

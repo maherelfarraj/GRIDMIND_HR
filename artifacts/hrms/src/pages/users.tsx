@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Server, Search, Shield, UserCog, MoreHorizontal, KeyRound } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { getPasswordIssues, PASSWORD_REQUIREMENTS_EN, PASSWORD_REQUIREMENTS_AR } from '@workspace/api-zod';
 
 export default function Users() {
   const { t, lang } = useLanguage();
@@ -34,8 +35,13 @@ export default function Users() {
 
   const handleSetPassword = () => {
     if (!passwordTarget) return;
-    if (newPassword.length < 8) {
-      toast({ title: t('Password too short', 'كلمة المرور قصيرة جداً'), description: t('Password must be at least 8 characters.', 'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.'), variant: 'destructive' });
+    const issues = getPasswordIssues(newPassword);
+    if (issues.length > 0) {
+      toast({
+        title: t('Password too weak', 'كلمة المرور ضعيفة جداً'),
+        description: t(issues.map((i) => i.messageEn).join('. '), issues.map((i) => i.messageAr).join('. ')),
+        variant: 'destructive',
+      });
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -196,6 +202,9 @@ export default function Users() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder={t('At least 8 characters', '8 أحرف على الأقل')}
               />
+              <p className="text-xs text-muted-foreground">
+                {t(PASSWORD_REQUIREMENTS_EN, PASSWORD_REQUIREMENTS_AR)}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">{t('Confirm Password', 'تأكيد كلمة المرور')}</Label>

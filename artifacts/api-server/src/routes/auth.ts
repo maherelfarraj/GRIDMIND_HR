@@ -2,7 +2,12 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, systemUsersTable, rolesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { ChangeMyPasswordBody } from "@workspace/api-zod";
+import {
+  ChangeMyPasswordBody,
+  getPasswordIssues,
+  PASSWORD_REQUIREMENTS_EN,
+  PASSWORD_REQUIREMENTS_AR,
+} from "@workspace/api-zod";
 
 const router = Router();
 
@@ -76,34 +81,47 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   res.json(userResponse(user));
 });
 
-// POST /auth/change-password — signed-in user changes their own password.
-// Single canonical handler serving both the self-service flow and the
-// mandatory first-login change flow: validates the body (400 on missing/weak
-// input), verifies the current password against the stored bcrypt hash
-// (fail-closed: accounts without a hash cannot self-change until an admin
-// provisions one), stores the new hash, and clears must_change_password.
-// Response: { success: true, ...user fields } — never includes the hash.
+// POST /auth/change-password — authenticated user changes their own password.
+// Used by both the mandatory first-login change flow and voluntary
+// self-service changes: verifies the current password against the stored
+// bcrypt hash (fail-closed: accounts without a stored hash cannot
+// self-change until an admin provisions one), enforces the shared strong-
+// password policy, stores the new hash, and clears must_change_password.
 router.post("/auth/change-password", async (req, res): Promise<void> => {
   if (!req.session?.userId) {
-    res.status(401).json({ error: "Authentication required" });
+    res.status(401).json({ error: "Not authenticated" });
     return;
   }
-
-  const parsed = ChangeMyPasswordBody.safeParse(req.body);
-  if (!parsed.success) {
+  const parsedBody = ChangeMyPasswordBody.safeParse(req.body);
+  if (!parsedBody.success) {
     res.status(400).json({ error: "newPassword must be at least 8 characters and currentPassword is required" });
     return;
   }
-  const { currentPassword, newPassword } = parsed.data;
+  const { currentPassword, newPassword } = parsedBody.data;
+  const passwordIssues = getPasswordIssues(newPassword);
+  if (passwordIssues.length > 0) {
+    res.status(400).json({
+      error: passwordIssues.map((i) => i.messageEn).join("; "),
+      errorAr: passwordIssues.map((i) => i.messageAr).join("؛ "),
+      issues: passwordIssues,
+      requirementsEn: PASSWORD_REQUIREMENTS_EN,
+      requirementsAr: PASSWORD_REQUIREMENTS_AR,
+    });
+    return;
+  }
 
   const [user] = await db.select().from(systemUsersTable)
     .where(eq(systemUsersTable.id, req.session.userId));
   if (!user || !user.isActive) {
-    res.status(401).json({ error: "Authentication required" });
+    res.status(401).json({ error: "Not authenticated" });
     return;
   }
 
-  if (!user.passwordHash || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+  // Verify the current password (fail-closed: without a stored hash the
+  // account cannot self-change; the stored hash must match regardless of
+  // PILOT_AUTH mode).
+  if (!user.passwordHash ||
+      !(await bcrypt.compare(currentPassword, user.passwordHash))) {
     res.status(401).json({ error: "Current password is incorrect" });
     return;
   }
@@ -119,7 +137,7 @@ router.post("/auth/change-password", async (req, res): Promise<void> => {
 
   const [updated] = await db.select().from(systemUsersTable)
     .where(eq(systemUsersTable.id, user.id));
-  res.json({ success: true, ...userResponse(updated) });
+  res.json({ ...userResponse(updated), success: true });
 });
 
 // POST /auth/logout — destroys session, clears cookie
