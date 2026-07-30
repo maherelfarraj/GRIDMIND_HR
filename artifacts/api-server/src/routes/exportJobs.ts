@@ -5,7 +5,7 @@ import { eq, and } from "drizzle-orm";
 const router = Router();
 
 // GET /export-jobs — list with optional filters: status, jobType
-router.get("/export-jobs", async (req, res) => {
+router.get("/export-jobs", async (req, res): Promise<void> => {
   try {
     const { status, jobType } = req.query;
 
@@ -21,11 +21,11 @@ router.get("/export-jobs", async (req, res) => {
 });
 
 // GET /export-jobs/:id
-router.get("/export-jobs/:id", async (req, res) => {
+router.get("/export-jobs/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const [row] = await db.select().from(exportJobsTable).where(eq(exportJobsTable.id, id));
-    if (!row) return res.status(404).json({ error: "Export job not found" });
+    if (!row) return void res.status(404).json({ error: "Export job not found" });
     res.json(row);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -33,13 +33,13 @@ router.get("/export-jobs/:id", async (req, res) => {
 });
 
 // POST /export-jobs/:id/retry — re-queue a failed job
-router.post("/export-jobs/:id/retry", async (req, res) => {
+router.post("/export-jobs/:id/retry", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const [existing] = await db.select().from(exportJobsTable).where(eq(exportJobsTable.id, id));
-    if (!existing) return res.status(404).json({ error: "Export job not found" });
+    if (!existing) return void res.status(404).json({ error: "Export job not found" });
     if (existing.status !== "failed") {
-      return res.status(400).json({ error: `Cannot retry job with status '${existing.status}'. Only 'failed' jobs can be retried.` });
+      return void res.status(400).json({ error: `Cannot retry job with status '${existing.status}'. Only 'failed' jobs can be retried.` });
     }
 
     const [updated] = await db
@@ -55,13 +55,13 @@ router.post("/export-jobs/:id/retry", async (req, res) => {
 });
 
 // DELETE /export-jobs/:id — cancel queued job
-router.delete("/export-jobs/:id", async (req, res) => {
+router.delete("/export-jobs/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const [existing] = await db.select().from(exportJobsTable).where(eq(exportJobsTable.id, id));
-    if (!existing) return res.status(404).json({ error: "Export job not found" });
+    if (!existing) return void res.status(404).json({ error: "Export job not found" });
     if (existing.status !== "queued") {
-      return res.status(400).json({ error: `Can only cancel 'queued' jobs. Current status: '${existing.status}'` });
+      return void res.status(400).json({ error: `Can only cancel 'queued' jobs. Current status: '${existing.status}'` });
     }
 
     await db.delete(exportJobsTable).where(eq(exportJobsTable.id, id));

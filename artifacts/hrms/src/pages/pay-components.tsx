@@ -161,6 +161,7 @@ export default function PayComponents() {
         {/* Table */}
         <Card>
           <CardContent className="p-0">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -229,6 +230,7 @@ export default function PayComponents() {
                 })}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
 

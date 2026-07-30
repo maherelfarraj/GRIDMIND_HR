@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { useAuth } from '@/hooks/use-auth';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListLeaveRequests, useListLeaveTypes, useListEmployees,
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
@@ -42,10 +44,20 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const label = status.replace('_', ' ');
+  const { t } = useLanguage();
+  const STATUS_LABELS: Record<string, [string, string]> = {
+    draft:        ['Draft',        'مسودة'],
+    submitted:    ['Submitted',    'مُقدَّم'],
+    under_review: ['Under Review', 'قيد المراجعة'],
+    approved:     ['Approved',     'موافق عليه'],
+    rejected:     ['Rejected',     'مرفوض'],
+    cancelled:    ['Cancelled',    'ملغى'],
+    revoked:      ['Revoked',      'مسحوب'],
+  };
+  const [en, ar] = STATUS_LABELS[status] ?? [status.replace('_', ' '), status.replace('_', ' ')];
   return (
     <Badge variant="outline" className={cn('capitalize text-xs font-medium', STATUS_COLORS[status] ?? '')}>
-      {label}
+      {t(en, ar)}
     </Badge>
   );
 }
@@ -304,6 +316,10 @@ function RequestsTab() {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  // TODO: replace with proper role-name lookup once role names are exposed by useAuth
+  // Role IDs: 1=super_admin, 2=hr_manager, 4=supervisor can revoke
+  const canRevoke = user ? (user.roleId <= 2 || user.roleId === 4) : false;
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -313,6 +329,7 @@ function RequestsTab() {
   const [revokeTarget, setRevokeTarget] = useState<{ id: number; startDate: string; endDate: string } | null>(null);
   const [revokeReason, setRevokeReason] = useState('');
   const [revokeNewEnd, setRevokeNewEnd] = useState('');
+  const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
 
   const params = statusFilter !== 'all' ? { status: statusFilter } : undefined;
   const { data: requests, isLoading } = useListLeaveRequests(params);
@@ -461,8 +478,16 @@ function RequestsTab() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t('All Statuses', 'كل الحالات')}</SelectItem>
-              {['draft', 'submitted', 'under_review', 'approved', 'rejected', 'cancelled', 'revoked'].map(s => (
-                <SelectItem key={s} value={s}>{s.replace('_', ' ')}</SelectItem>
+              {[
+                ['draft',        t('Draft',        'مسودة')],
+                ['submitted',    t('Submitted',    'مُقدَّم')],
+                ['under_review', t('Under Review', 'قيد المراجعة')],
+                ['approved',     t('Approved',     'موافق عليه')],
+                ['rejected',     t('Rejected',     'مرفوض')],
+                ['cancelled',    t('Cancelled',    'ملغى')],
+                ['revoked',      t('Revoked',      'مسحوب')],
+              ].map(([val, label]) => (
+                <SelectItem key={val} value={val}>{label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -482,6 +507,7 @@ function RequestsTab() {
       {/* Table */}
       <Card>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -562,7 +588,7 @@ function RequestsTab() {
                                   </Button>
                                 </>
                               )}
-                              {req.status === 'approved' && (
+                              {req.status === 'approved' && canRevoke && (
                                 <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50" disabled={busy}
                                   onClick={() => setRevokeTarget({ id: req.id, startDate: req.startDate, endDate: req.endDate })}>
                                   <Undo2 className="w-3 h-3 mr-1" />
@@ -577,7 +603,7 @@ function RequestsTab() {
                               )}
                               {['submitted', 'under_review'].includes(req.status) && (
                                 <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" disabled={busy}
-                                  onClick={() => handleCancel(req.id)}>
+                                  onClick={() => setCancelConfirmId(req.id)}>
                                   <XCircle className="w-3 h-3 me-1" />
                                   {t('Cancel', 'إلغاء')}
                                 </Button>
@@ -605,10 +631,32 @@ function RequestsTab() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
       <NewRequestDialog open={newDialog} onClose={() => setNewDialog(false)} />
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={cancelConfirmId !== null} onOpenChange={open => { if (!open) setCancelConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Cancel Leave Request', 'إلغاء طلب الإجازة')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('Are you sure you want to cancel this leave request? This action cannot be undone.', 'هل أنت متأكد من إلغاء طلب الإجازة هذا؟ لا يمكن التراجع عن هذا الإجراء.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('No, keep it', 'لا، احتفظ به')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (cancelConfirmId !== null) { handleCancel(cancelConfirmId); setCancelConfirmId(null); } }}
+            >
+              {t('Yes, cancel request', 'نعم، إلغاء الطلب')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Revoke Dialog */}
       <Dialog open={!!revokeTarget} onOpenChange={(open) => { if (!open) { setRevokeTarget(null); setRevokeReason(''); setRevokeNewEnd(''); } }}>
@@ -643,19 +691,22 @@ function RequestsTab() {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setRevokeTarget(null); setRevokeReason(''); setRevokeNewEnd(''); }}>
-              {t('Cancel', 'إلغاء')}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={actioning === revokeTarget?.id || !revokeReason.trim()}
-              onClick={handleRevoke}
-            >
-              {actioning === revokeTarget?.id
-                ? t('Revoking…', 'جارٍ السحب…')
-                : revokeNewEnd ? t('Shorten Leave', 'تقصير الإجازة') : t('Revoke Fully', 'سحب بالكامل')}
-            </Button>
+          <DialogFooter className="flex-col items-start gap-2 sm:flex-row sm:items-center">
+            <p className="text-xs text-slate-500 flex-1">{t("This action is audit-logged.", "هذا الإجراء مُسجَّل في سجل التدقيق.")}</p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setRevokeTarget(null); setRevokeReason(''); setRevokeNewEnd(''); }}>
+                {t('Cancel', 'إلغاء')}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={actioning === revokeTarget?.id || !revokeReason.trim()}
+                onClick={handleRevoke}
+              >
+                {actioning === revokeTarget?.id
+                  ? t('Revoking…', 'جارٍ السحب…')
+                  : revokeNewEnd ? t('Shorten Leave', 'تقصير الإجازة') : t('Revoke Fully', 'سحب بالكامل')}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -751,6 +802,7 @@ function TeamQueueTab() {
 
       <Card>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -824,6 +876,7 @@ function TeamQueueTab() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

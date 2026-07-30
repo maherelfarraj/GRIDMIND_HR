@@ -5,7 +5,7 @@ import { eq, and } from "drizzle-orm";
 const router = Router();
 
 // GET /report-builder-configs
-router.get("/report-builder-configs", async (req, res) => {
+router.get("/report-builder-configs", async (req, res): Promise<void> => {
   try {
     const rows = await db.select().from(reportBuilderConfigsTable).orderBy(reportBuilderConfigsTable.createdAt);
     res.json(rows);
@@ -15,7 +15,7 @@ router.get("/report-builder-configs", async (req, res) => {
 });
 
 // POST /report-builder-configs
-router.post("/report-builder-configs", async (req, res) => {
+router.post("/report-builder-configs", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
     const {
@@ -24,7 +24,7 @@ router.post("/report-builder-configs", async (req, res) => {
     } = req.body;
 
     if (!nameEn || !nameAr || !dataSource) {
-      return res.status(400).json({ error: "nameEn, nameAr, dataSource required" });
+      return void res.status(400).json({ error: "nameEn, nameAr, dataSource required" });
     }
 
     const [row] = await db
@@ -51,7 +51,7 @@ router.post("/report-builder-configs", async (req, res) => {
 });
 
 // GET /report-builder-configs/:id
-router.get("/report-builder-configs/:id", async (req, res) => {
+router.get("/report-builder-configs/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const [row] = await db
@@ -59,7 +59,7 @@ router.get("/report-builder-configs/:id", async (req, res) => {
       .from(reportBuilderConfigsTable)
       .where(eq(reportBuilderConfigsTable.id, id));
 
-    if (!row) return res.status(404).json({ error: "Report builder config not found" });
+    if (!row) return void res.status(404).json({ error: "Report builder config not found" });
     res.json(row);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -67,7 +67,7 @@ router.get("/report-builder-configs/:id", async (req, res) => {
 });
 
 // PATCH /report-builder-configs/:id
-router.patch("/report-builder-configs/:id", async (req, res) => {
+router.patch("/report-builder-configs/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const {
@@ -93,7 +93,7 @@ router.patch("/report-builder-configs/:id", async (req, res) => {
       .where(eq(reportBuilderConfigsTable.id, id))
       .returning();
 
-    if (!row) return res.status(404).json({ error: "Report builder config not found" });
+    if (!row) return void res.status(404).json({ error: "Report builder config not found" });
     res.json(row);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -101,7 +101,7 @@ router.patch("/report-builder-configs/:id", async (req, res) => {
 });
 
 // DELETE /report-builder-configs/:id
-router.delete("/report-builder-configs/:id", async (req, res) => {
+router.delete("/report-builder-configs/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const [deleted] = await db
@@ -109,7 +109,7 @@ router.delete("/report-builder-configs/:id", async (req, res) => {
       .where(eq(reportBuilderConfigsTable.id, id))
       .returning();
 
-    if (!deleted) return res.status(404).json({ error: "Report builder config not found" });
+    if (!deleted) return void res.status(404).json({ error: "Report builder config not found" });
     res.json({ deleted: true, id });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -117,7 +117,7 @@ router.delete("/report-builder-configs/:id", async (req, res) => {
 });
 
 // POST /report-builder-configs/:id/run — execute report, return rows (max 1000)
-router.post("/report-builder-configs/:id/run", async (req, res) => {
+router.post("/report-builder-configs/:id/run", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const [config] = await db
@@ -125,7 +125,7 @@ router.post("/report-builder-configs/:id/run", async (req, res) => {
       .from(reportBuilderConfigsTable)
       .where(eq(reportBuilderConfigsTable.id, id));
 
-    if (!config) return res.status(404).json({ error: "Report builder config not found" });
+    if (!config) return void res.status(404).json({ error: "Report builder config not found" });
 
     // Return simulated result based on dataSource
     const limit = Math.min(parseInt(req.body.limit) || 100, 1000);
@@ -148,7 +148,7 @@ router.post("/report-builder-configs/:id/run", async (req, res) => {
 });
 
 // POST /report-builder-configs/:id/export — queue export job
-router.post("/report-builder-configs/:id/export", async (req, res) => {
+router.post("/report-builder-configs/:id/export", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
     const id = parseInt(req.params.id);
@@ -158,7 +158,7 @@ router.post("/report-builder-configs/:id/export", async (req, res) => {
       .from(reportBuilderConfigsTable)
       .where(eq(reportBuilderConfigsTable.id, id));
 
-    if (!config) return res.status(404).json({ error: "Report builder config not found" });
+    if (!config) return void res.status(404).json({ error: "Report builder config not found" });
 
     const format = req.body.format || "xlsx";
     const [job] = await db

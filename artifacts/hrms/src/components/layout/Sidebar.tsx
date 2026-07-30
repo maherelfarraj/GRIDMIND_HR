@@ -48,6 +48,16 @@ import {
   ClipboardCheck,
   FileBarChart,
   Brain,
+  Rocket,
+  Upload,
+  PlayCircle,
+  Building2,
+  Palette,
+  Globe,
+  GitBranch,
+  Package,
+  Gauge,
+  ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -137,6 +147,21 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
     { href: '/deployment', icon: Activity, labelEn: 'Deployment & Health', labelAr: 'النشر والصحة' },
     { href: '/production-readiness', icon: ClipboardCheck, labelEn: 'Readiness', labelAr: 'الجاهزية' },
     { href: '/local-ai', icon: Brain, labelEn: 'Local AI Assistant', labelAr: 'مساعد الذكاء الاصطناعي المحلي' },
+    { href: '/setup-wizard', icon: Rocket, labelEn: 'Setup Wizard', labelAr: 'معالج الإعداد' },
+    { href: '/diagnostics', icon: Activity, labelEn: 'System Diagnostics', labelAr: 'تشخيص النظام' },
+    { href: '/go-live-checklist', icon: CheckSquare, labelEn: 'Go-Live Checklist', labelAr: 'قائمة الإطلاق' },
+    { href: '/licensing', icon: Shield, labelEn: 'Licensing', labelAr: 'الترخيص' },
+  ];
+
+  const pilotImportItems = [
+    { href: '/data-import', icon: Upload, labelEn: 'Data Import', labelAr: 'استيراد البيانات' },
+    { href: '/pilot', icon: PlayCircle, labelEn: 'Pilot Scenarios', labelAr: 'سيناريوهات تجريبية' },
+  ];
+
+  const pilotQAItems = [
+    { href: '/pilot-control-center', icon: Gauge, labelEn: 'Pilot Control Center', labelAr: 'مركز التحكم التجريبي', highlight: true },
+    { href: '/uat-scripts', icon: ClipboardCheck, labelEn: 'UAT Scripts', labelAr: 'نصوص قبول المستخدم', highlight: false },
+    { href: '/security-tests', icon: ShieldAlert, labelEn: 'Security Tests', labelAr: 'اختبارات الأمان', highlight: false },
   ];
 
   const analyticsItems = [
@@ -146,6 +171,18 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
 
   const integrationsItems = [
     { href: '/integration-center', icon: Network, labelEn: 'Integration Center', labelAr: 'مركز التكامل' },
+    { href: '/integration-governance', icon: ShieldCheck, labelEn: 'Integration Governance', labelAr: 'حوكمة التكامل' },
+  ];
+
+  const multiOrgPolicyItems = [
+    { href: '/organizations', icon: Building2, labelEn: 'Organizations', labelAr: 'المؤسسات' },
+    { href: '/org-branding', icon: Palette, labelEn: 'White-Label', labelAr: 'الهوية البصرية' },
+    { href: '/policy-localization', icon: Globe, labelEn: 'Policy Localization', labelAr: 'السياسات المحلية' },
+    { href: '/policy-governance', icon: GitBranch, labelEn: 'Policy Governance', labelAr: 'حوكمة السياسات' },
+  ];
+
+  const configPackagesItems = [
+    { href: '/config-packages', icon: Package, labelEn: 'Config Packages', labelAr: 'حزم الإعدادات' },
   ];
 
   const comingSoonItems: { icon: React.ComponentType<{ className?: string }>; labelEn: string; labelAr: string }[] = [];
@@ -439,6 +476,52 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
 
         <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
           <span className="flex items-center gap-1.5">
+            <Building2 className="w-3 h-3" />
+            {t('Multi-Org & Policy', 'المؤسسات والسياسات')}
+          </span>
+        </div>
+        {multiOrgPolicyItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          <span className="flex items-center gap-1.5">
+            <Package className="w-3 h-3" />
+            {t('Config Packages', 'حزم الإعدادات')}
+          </span>
+        </div>
+        {configPackagesItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          <span className="flex items-center gap-1.5">
             <Server className="w-3 h-3" />
             {t('System', 'النظام')}
           </span>
@@ -454,6 +537,54 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               )}>
                 <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          <span className="flex items-center gap-1.5">
+            <PlayCircle className="w-3 h-3" />
+            {t('Pilot & Import', 'تجريبي واستيراد')}
+          </span>
+        </div>
+        {pilotImportItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          <span className="flex items-center gap-1.5">
+            <Gauge className="w-3 h-3 text-amber-400" />
+            <span className="text-amber-400">{t('Pilot & QA', 'تجريبي وضمان الجودة')}</span>
+          </span>
+        </div>
+        {pilotQAItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
+                  : item.highlight
+                    ? "text-amber-400 hover:bg-sidebar-accent/50 hover:text-amber-300"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className={cn("w-4 h-4", item.highlight && !isActive && "text-amber-400")} />
                 <span>{t(item.labelEn, item.labelAr)}</span>
               </div>
             </Link>

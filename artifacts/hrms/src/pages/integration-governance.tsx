@@ -1,0 +1,370 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useLanguage } from '@/hooks/use-language';
+import { useToast } from '@/hooks/use-toast';
+import { AnimatedPage } from '@/components/layout/AnimatedPage';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, Loader2 } from 'lucide-react';
+
+function intTypeIcon(type: string): React.ComponentType<{ className?: string }> {
+  const map: Record<string, React.ComponentType<{ className?: string }>> = {
+    ldap: Network, active_directory: Network, sso: Shield, oauth: Shield,
+    smtp: Mail, sms: MessageSquare, attendance_device: HardDrive,
+    finance_api: Database, document_signing: FileSignature, internal_api: Code2,
+  };
+  return map[type] ?? Network;
+}
+
+function envBadge(env: string) {
+  if (env === 'production') return 'bg-red-900/40 text-red-300 border-red-700';
+  if (env === 'staging') return 'bg-amber-900/40 text-amber-300 border-amber-700';
+  if (env === 'development') return 'bg-blue-900/40 text-blue-300 border-blue-700';
+  return 'bg-slate-700 text-slate-300 border-slate-600';
+}
+
+function statusBadge(status: string) {
+  if (status === 'active') return 'bg-emerald-900/40 text-emerald-300 border-emerald-700';
+  if (status === 'error') return 'bg-red-900/40 text-red-300 border-red-700';
+  if (status === 'pending_approval') return 'bg-amber-900/40 text-amber-300 border-amber-700';
+  return 'bg-slate-700 text-slate-400 border-slate-600';
+}
+
+function permBadge(level: string) {
+  if (level === 'required') return 'bg-blue-900/40 text-blue-300 border-blue-700';
+  if (level === 'allowed') return 'bg-emerald-900/40 text-emerald-300 border-emerald-700';
+  if (level === 'prohibited') return 'bg-red-900/40 text-red-300 border-red-700';
+  return 'bg-slate-700 text-slate-300 border-slate-600';
+}
+
+function outcomeBadge(outcome: string) {
+  if (outcome === 'success') return 'bg-emerald-900/40 text-emerald-300 border-emerald-700';
+  if (outcome === 'failure' || outcome === 'error') return 'bg-red-900/40 text-red-300 border-red-700';
+  return 'bg-slate-700 text-slate-300 border-slate-600';
+}
+
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function AddProfileDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ profileName: '', integrationType: '', environment: 'development', baseUrl: '', description: '' });
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/integration-governance/connection-profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      if (!res.ok) throw new Error();
+      toast({ title: t('Profile created', 'تم إنشاء الملف الشخصي') });
+      onSaved(); onClose();
+    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+    finally { setSaving(false); }
+  }
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-lg">
+        <DialogHeader><DialogTitle>{t('Add Connection Profile', 'إضافة ملف اتصال')}</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-2">
+          <div><Label>{t('Profile Name', 'اسم الملف')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={form.profileName} onChange={e => set('profileName', e.target.value)} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>{t('Integration Type', 'نوع التكامل')}</Label>
+              <Select value={form.integrationType} onValueChange={v => set('integrationType', v)}>
+                <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue placeholder={t('Select', 'اختر')} /></SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700">
+                  {['ldap','active_directory','sso','smtp','sms','attendance_device','finance_api','document_signing','internal_api'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>{t('Environment', 'البيئة')}</Label>
+              <Select value={form.environment} onValueChange={v => set('environment', v)}>
+                <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700">
+                  {['development','staging','production'].map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div><Label>{t('Base URL', 'الرابط الأساسي')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={form.baseUrl} onChange={e => set('baseUrl', e.target.value)} placeholder="https://..." /></div>
+          <div><Label>{t('Description', 'الوصف')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={form.description} onChange={e => set('description', e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">{saving ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function IntegrationGovernance() {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [vault, setVault] = useState<any[]>([]);
+  const [rules, setRules] = useState<any[]>([]);
+  const [auditLog, setAuditLog] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [testingIds, setTestingIds] = useState<Set<number>>(new Set());
+  const [suspendTarget, setSuspendTarget] = useState<any>(null);
+  const [addProfileOpen, setAddProfileOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [p, v, r, a] = await Promise.allSettled([
+        fetch('/api/integration-governance/connection-profiles').then(r => r.json()),
+        fetch('/api/integration-governance/credential-vault').then(r => r.json()),
+        fetch('/api/integration-governance/rules').then(r => r.json()),
+        fetch('/api/integration-governance/audit-log').then(r => r.json()),
+      ]);
+      setProfiles(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : []);
+      setVault(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : []);
+      setRules(r.status === 'fulfilled' && Array.isArray(r.value) ? r.value : []);
+      setAuditLog(a.status === 'fulfilled' && Array.isArray(a.value) ? a.value : []);
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function testConnection(id: number) {
+    setTestingIds(prev => new Set(prev).add(id));
+    try {
+      const res = await fetch(`/api/integration-governance/connection-profiles/${id}/test`, { method: 'POST' });
+      const data = await res.json();
+      toast({ title: t('Test result', 'نتيجة الاختبار'), description: `${data?.success ? '✅' : '❌'} ${data?.latencyMs ?? '?'}ms` });
+    } catch { toast({ title: t('Test failed', 'فشل الاختبار'), variant: 'destructive' }); }
+    finally { setTestingIds(prev => { const s = new Set(prev); s.delete(id); return s; }); }
+  }
+
+  async function approveProfile(id: number) {
+    try {
+      await fetch(`/api/integration-governance/connection-profiles/${id}/approve`, { method: 'POST' });
+      toast({ title: t('Approved', 'تمت الموافقة') });
+      load();
+    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+  }
+
+  async function suspendProfile() {
+    if (!suspendTarget) return;
+    try {
+      await fetch(`/api/integration-governance/connection-profiles/${suspendTarget.id}/suspend`, { method: 'POST' });
+      toast({ title: t('Suspended', 'تم التعليق') });
+      setSuspendTarget(null);
+      load();
+    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+  }
+
+  async function toggleRule(id: number, active: boolean) {
+    try {
+      await fetch(`/api/integration-governance/rules/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: active }) });
+      load();
+    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+  }
+
+  return (
+    <AnimatedPage>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center gap-3">
+          <ShieldCheck className="w-7 h-7 text-emerald-400" />
+          <div>
+            <h1 className="text-2xl font-bold text-white">{t('Integration Governance', 'حوكمة التكامل')}</h1>
+            <p className="text-slate-400 text-sm">{t('Connection profiles, credential vault, rules, and audit log', 'ملفات الاتصال وخزنة بيانات الاعتماد والقواعد وسجل التدقيق')}</p>
+          </div>
+        </div>
+
+        <Tabs defaultValue="profiles">
+          <TabsList className="bg-slate-800 border border-slate-700">
+            <TabsTrigger value="profiles" className="data-[state=active]:bg-slate-700">{t('Connection Profiles', 'ملفات الاتصال')}</TabsTrigger>
+            <TabsTrigger value="vault" className="data-[state=active]:bg-slate-700">{t('Credential Vault', 'خزنة الاعتماد')}</TabsTrigger>
+            <TabsTrigger value="rules" className="data-[state=active]:bg-slate-700">{t('Governance Rules', 'قواعد الحوكمة')}</TabsTrigger>
+            <TabsTrigger value="audit" className="data-[state=active]:bg-slate-700">{t('Audit Log', 'سجل التدقيق')}</TabsTrigger>
+          </TabsList>
+
+          {/* Connection Profiles */}
+          <TabsContent value="profiles" className="mt-4 space-y-4">
+            <div className="flex justify-between items-center">
+              <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={load}><RefreshCw className="w-4 h-4 me-1" />{t('Refresh', 'تحديث')}</Button>
+              <Button onClick={() => setAddProfileOpen(true)} className="bg-blue-600 hover:bg-blue-700 gap-2"><span>+</span>{t('Add Profile', 'إضافة ملف')}</Button>
+            </div>
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-36 bg-slate-700 rounded-lg" />)}</div>
+            ) : profiles.length === 0 ? (
+              <Card className="bg-slate-800 border-slate-700"><CardContent className="p-8 text-center text-slate-400">{t('No connection profiles', 'لا توجد ملفات اتصال')}</CardContent></Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {profiles.map(p => {
+                  const Icon = intTypeIcon(p.integrationType);
+                  const testing = testingIds.has(p.id);
+                  return (
+                    <Card key={p.id} className="bg-slate-800 border-slate-700">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded bg-slate-700 flex items-center justify-center"><Icon className="w-4 h-4 text-slate-300" /></div>
+                            <div>
+                              <p className="text-white font-medium text-sm">{p.profileName}</p>
+                              <p className="text-slate-400 text-xs">{p.integrationType}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge variant="outline" className={`text-xs ${envBadge(p.environment)}`}>{p.environment}</Badge>
+                            <Badge variant="outline" className={`text-xs ${statusBadge(p.status)}`}>{p.status}</Badge>
+                          </div>
+                        </div>
+                        {p.lastTestResult && <p className="text-xs text-slate-400">{t('Last test', 'آخر اختبار')}: {p.lastTestResult}</p>}
+                        <div className="flex gap-1 flex-wrap">
+                          <Button size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300 h-7 px-2 text-xs" onClick={() => testConnection(p.id)} disabled={testing}>
+                            {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5 me-1" />}{t('Test', 'اختبار')}
+                          </Button>
+                          {p.status === 'pending_approval' && (
+                            <Button size="sm" variant="ghost" className="text-emerald-400 hover:text-emerald-300 h-7 px-2 text-xs" onClick={() => approveProfile(p.id)}>{t('Approve', 'موافقة')}</Button>
+                          )}
+                          {p.status !== 'inactive' && (
+                            <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 h-7 px-2 text-xs" onClick={() => setSuspendTarget(p)}>{t('Suspend', 'تعليق')}</Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Credential Vault */}
+          <TabsContent value="vault" className="mt-4 space-y-4">
+            <div className="rounded-md border border-amber-700/50 bg-amber-900/30 p-3 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-amber-400 text-sm">{t('Vault stores key REFERENCES only — never actual credentials. Rotate credentials in your vault system, then update the rotation timestamp here.', 'تخزن الخزنة مراجع المفاتيح فقط — وليس بيانات الاعتماد الفعلية. قم بتدوير بيانات الاعتماد في نظام الخزنة الخاص بك، ثم قم بتحديث طابع التدوير الزمني هنا.')}</p>
+            </div>
+            <Card className="bg-slate-800 border-slate-700">
+              <CardContent className="p-0">
+                {loading ? <div className="p-4 space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 bg-slate-700" />)}</div> : (
+                  <Table>
+                    <TableHeader><TableRow className="border-slate-700 bg-slate-700/50">
+                      <TableHead className="text-slate-300">{t('Label', 'التسمية')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Type', 'النوع')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Vault Key Ref', 'مرجع مفتاح الخزنة')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Status', 'الحالة')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Last Rotated', 'آخر تدوير')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Rotation Due', 'موعد التدوير')}</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {vault.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-slate-400 py-8">{t('No vault entries', 'لا توجد إدخالات في الخزنة')}</TableCell></TableRow>
+                      : vault.map(v => (
+                        <TableRow key={v.id} className="border-slate-700 hover:bg-slate-700/30">
+                          <TableCell className="text-white">{v.labelEn}</TableCell>
+                          <TableCell><Badge variant="outline" className="text-xs border-slate-600 text-slate-300">{v.credentialType}</Badge></TableCell>
+                          <TableCell className="font-mono text-slate-400 text-sm">vault:****</TableCell>
+                          <TableCell><Badge variant="outline" className={`text-xs ${statusBadge(v.status)}`}>{v.status}</Badge></TableCell>
+                          <TableCell className="text-slate-300 text-sm">{v.lastRotatedAt ? new Date(v.lastRotatedAt).toLocaleDateString() : '—'}</TableCell>
+                          <TableCell className="text-slate-300 text-sm">{v.rotationDueAt ? new Date(v.rotationDueAt).toLocaleDateString() : '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Governance Rules */}
+          <TabsContent value="rules" className="mt-4">
+            <Card className="bg-slate-800 border-slate-700">
+              <CardContent className="p-0">
+                {loading ? <div className="p-4 space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 bg-slate-700" />)}</div> : (
+                  <Table>
+                    <TableHeader><TableRow className="border-slate-700 bg-slate-700/50">
+                      <TableHead className="text-slate-300">{t('Integration Type', 'نوع التكامل')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Rule Code', 'رمز القاعدة')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Title', 'العنوان')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Permission Level', 'مستوى الإذن')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Active', 'نشط')}</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {rules.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-slate-400 py-8">{t('No rules', 'لا توجد قواعد')}</TableCell></TableRow>
+                      : rules.map(r => (
+                        <TableRow key={r.id} className="border-slate-700 hover:bg-slate-700/30">
+                          <TableCell className="text-slate-300 text-sm">{r.integrationType}</TableCell>
+                          <TableCell className="font-mono text-slate-300 text-sm">{r.ruleCode}</TableCell>
+                          <TableCell className="text-white">{r.titleEn}</TableCell>
+                          <TableCell><Badge variant="outline" className={`text-xs ${permBadge(r.permissionLevel)}`}>{r.permissionLevel}</Badge></TableCell>
+                          <TableCell><Switch checked={!!r.isActive} onCheckedChange={v => toggleRule(r.id, v)} /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Audit Log */}
+          <TabsContent value="audit" className="mt-4">
+            <Card className="bg-slate-800 border-slate-700">
+              <CardContent className="p-0">
+                {loading ? <div className="p-4 space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 bg-slate-700" />)}</div> : (
+                  <Table>
+                    <TableHeader><TableRow className="border-slate-700 bg-slate-700/50">
+                      <TableHead className="text-slate-300">{t('Event', 'الحدث')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Outcome', 'النتيجة')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Profile', 'الملف')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Message', 'الرسالة')}</TableHead>
+                      <TableHead className="text-slate-300">{t('When', 'متى')}</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {auditLog.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-slate-400 py-8">{t('No audit events', 'لا توجد أحداث تدقيق')}</TableCell></TableRow>
+                      : auditLog.map(a => (
+                        <TableRow key={a.id} className="border-slate-700 hover:bg-slate-700/30">
+                          <TableCell className="text-slate-300 font-mono text-xs">{a.eventType}</TableCell>
+                          <TableCell><Badge variant="outline" className={`text-xs ${outcomeBadge(a.outcome)}`}>{a.outcome}</Badge></TableCell>
+                          <TableCell className="text-slate-300 text-sm">{a.profileId ?? '—'}</TableCell>
+                          <TableCell className="text-slate-400 text-sm max-w-48 truncate">{a.message ?? '—'}</TableCell>
+                          <TableCell className="text-slate-400 text-sm whitespace-nowrap">{a.occurredAt ? timeAgo(a.occurredAt) : '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <AddProfileDialog open={addProfileOpen} onClose={() => setAddProfileOpen(false)} onSaved={load} />
+
+        <AlertDialog open={!!suspendTarget} onOpenChange={v => !v && setSuspendTarget(null)}>
+          <AlertDialogContent className="bg-slate-800 border-slate-700 text-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('Suspend Profile?', 'تعليق الملف؟')}</AlertDialogTitle>
+              <AlertDialogDescription className="text-slate-400">
+                {t('Suspend', 'تعليق')} <strong className="text-white">{suspendTarget?.profileName}</strong>? {t('This action is audit-logged.', 'هذا الإجراء مسجل تدقيقياً.')}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-slate-600">{t('Cancel', 'إلغاء')}</AlertDialogCancel>
+              <AlertDialogAction onClick={suspendProfile} className="bg-red-600 hover:bg-red-700">{t('Suspend', 'تعليق')}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </AnimatedPage>
+  );
+}

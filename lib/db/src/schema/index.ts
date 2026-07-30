@@ -78,3 +78,18 @@ export * from "./localAi";
 // Phase 7A — Workforce Analytics + Report Builder + Exports
 export * from "./workforceAnalytics";
 export * from "./reportBuilder";
+// Phase 8 — Deployment & Pilot Readiness
+export * from "./setupWizard";
+export * from "./dataImport";
+export * from "./systemDiagnostics";
+export * from "./pilotScenarios";
+// Phase 9 — Multi-Org, Policy Localization, Integration Governance
+export * from "./multiOrg";
+export * from "./policyLocalization";
+export * from "./policyGovernance";
+export * from "./integrationGovernance";
+export * from "./configPackages";
+// Phase 10 — Pre-Production Hardening & Pilot Readiness
+export * from "./pilotControl";
+export * from "./uatScripts";
+export * from "./securityTests";

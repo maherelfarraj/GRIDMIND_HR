@@ -1,6 +1,6 @@
 ---
 name: HRMS Architecture Decisions
-description: Key build constraints and conventions for the HRMS enterprise HR system (Phases 1–4)
+description: Key build constraints and conventions for the HRMS enterprise HR system (Phases 1–10)
 ---
 
 ## OpenAPI / Zod v3 compatibility

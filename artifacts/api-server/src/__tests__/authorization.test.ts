@@ -56,3 +56,75 @@ describe("authorization — unauthenticated requests to mutating endpoints", () 
     // expect(res.status).toBe(401);
   });
 });
+
+describe("authorization — additional production guards (all skipped in demo mode)", () => {
+  // PRODUCTION: Organization management endpoints (GET/POST/PATCH /api/organizations,
+  // GET /api/admin/backup-records, GET /api/admin/license, etc.) must be accessible
+  // only by users with the system_admin or org_admin role. In demo mode there is no
+  // role guard, so any request returns 200/201 regardless of the caller's role.
+  it.skip(
+    "PRODUCTION: Only system admin can access organization management endpoints " +
+      "(demo mode — no role guard; any session returns 200)",
+    async () => {
+      // Steps in production:
+      // 1. Obtain a session cookie for a regular employee user (role = employee).
+      // 2. GET /api/organizations — must return 403, not 200.
+      // 3. POST /api/organizations — must return 403, not 201.
+      // 4. GET /api/admin/backup-records — must return 403.
+      // 5. GET /api/admin/license — must return 403.
+      //
+      // const employeeCookie = await loginAs("employee");
+      // const res = await request(app).get("/api/organizations").set("Cookie", employeeCookie);
+      // expect(res.status).toBe(403);
+    },
+  );
+
+  // PRODUCTION: Policy change requests implement a maker-checker (four-eyes)
+  // control. The user who submits (makes) a change request must NOT be the same
+  // user who approves (checks) it. In demo mode there is no session guard and
+  // the system does not enforce maker != checker.
+  it.skip(
+    "PRODUCTION: Policy change requests require maker != checker (same user cannot approve own request) " +
+      "(demo mode — no session guard; self-approval is not blocked)",
+    async () => {
+      // Steps in production:
+      // 1. Create a policy change request as user A.
+      // 2. Attempt to approve the same request as user A.
+      // 3. Expect 403 or 422 (self-approval rejected).
+      //
+      // const resCreate = await request(app)
+      //   .post("/api/policy-change-requests")
+      //   .set("Cookie", userACookie)
+      //   .send({ ... });
+      // const resApprove = await request(app)
+      //   .post(`/api/policy-change-requests/${resCreate.body.id}/approve`)
+      //   .set("Cookie", userACookie);  // same user
+      // expect(resApprove.status).toBe(403);
+    },
+  );
+
+  // PRODUCTION: When a config package is exported from environment A and signed
+  // with environment A's SESSION_SECRET, importing it into environment B (which
+  // has a different SESSION_SECRET) must fail with a signature verification error.
+  // In demo mode, both environments share the same default-secret fallback, so
+  // cross-environment import may incorrectly succeed.
+  it.skip(
+    "PRODUCTION: Config package import must fail if SERVER_SIGNING_KEY changes between environments " +
+      "(demo mode — shared default-secret means cross-env packages may be accepted)",
+    async () => {
+      // Steps in production:
+      // 1. Sign a payloadJson with environment A's signing key.
+      // 2. POST /api/config-packages/import with that signature while
+      //    process.env.SESSION_SECRET is set to environment B's key.
+      // 3. Expect 400 Signature verification failed.
+      //
+      // process.env.SESSION_SECRET = "env-b-secret";
+      // const sigFromEnvA = computeHmac("env-a-secret", payloadJson);
+      // const res = await request(app)
+      //   .post("/api/config-packages/import")
+      //   .send({ packageJson: { ..., signature: sigFromEnvA, payloadJson } });
+      // expect(res.status).toBe(400);
+      // expect(res.body.error).toMatch(/signature/i);
+    },
+  );
+});

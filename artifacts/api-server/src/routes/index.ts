@@ -207,4 +207,47 @@ router.use(integrationRetryQueueRouter);
 router.use(integrationEventsRouter);
 router.use(localAiRouter);
 
+// Phase 8 — Setup Wizard, Data Import, System Diagnostics, Pilot Scenarios
+import setupWizardRouter from "./setupWizard.js";
+import dataImportRouter from "./dataImport.js";
+import systemDiagnosticsRouter from "./systemDiagnostics.js";
+import pilotScenariosRouter from "./pilotScenarios.js";
+
+router.use(setupWizardRouter);
+router.use(dataImportRouter);
+router.use(systemDiagnosticsRouter);
+router.use(pilotScenariosRouter);
+
+// Phase 9 — Multi-Org, Policy Localization, Integration Governance, Config Packages
+import organizationsRouter from "./organizations.js";
+import organizationBrandingRouter from "./organizationBranding.js";
+import policyLocalizationRouter from "./policyLocalization.js";
+import policyGovernanceRouter from "./policyGovernance.js";
+import integrationGovernanceRouter from "./integrationGovernance.js";
+import configPackagesRouter from "./configPackages.js";
+
+router.use(organizationsRouter);
+router.use(organizationBrandingRouter);
+router.use(policyLocalizationRouter);
+router.use(policyGovernanceRouter);
+router.use(integrationGovernanceRouter);
+router.use(configPackagesRouter);
+
+// Phase 10 — Pre-Production Hardening & Pilot Readiness
+import goLiveGatesRouter from "./goLiveGates.js";
+import readinessScorecardRouter from "./readinessScorecard.js";
+import pilotDefectsRouter from "./pilotDefects.js";
+import migrationStatusRouter from "./migrationStatus.js";
+import restoreTestsRouter from "./restoreTests.js";
+import uatScriptsRouter from "./uatScripts.js";
+import securityTestsRouter from "./securityTests.js";
+
+router.use(goLiveGatesRouter);
+router.use(readinessScorecardRouter);
+router.use(pilotDefectsRouter);
+router.use(migrationStatusRouter);
+router.use(restoreTestsRouter);
+router.use(uatScriptsRouter);
+router.use(securityTestsRouter);
+
 export default router;

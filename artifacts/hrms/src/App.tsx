@@ -60,7 +60,22 @@ import ProductionReadiness from '@/pages/production-readiness';
 import WorkforceAnalytics from '@/pages/workforce-analytics';
 import ReportBuilder from '@/pages/report-builder';
 import IntegrationCenter from '@/pages/integration-center';
+import Organizations from '@/pages/organizations';
+import OrgBranding from '@/pages/org-branding';
+import PolicyLocalization from '@/pages/policy-localization';
+import PolicyGovernance from '@/pages/policy-governance';
+import IntegrationGovernance from '@/pages/integration-governance';
+import ConfigPackages from '@/pages/config-packages';
 import LocalAi from '@/pages/local-ai';
+import SetupWizard from '@/pages/setup-wizard';
+import DataImport from '@/pages/data-import';
+import Diagnostics from '@/pages/diagnostics';
+import GoLiveChecklist from '@/pages/go-live-checklist';
+import Licensing from '@/pages/licensing';
+import Pilot from '@/pages/pilot';
+import PilotControlCenter from '@/pages/pilot-control-center';
+import UATScripts from '@/pages/uat-scripts';
+import SecurityTests from '@/pages/security-tests';
 
 const queryClient = new QueryClient();
 
@@ -141,7 +156,22 @@ function ProtectedRouter() {
         <Route path="/workforce-analytics" component={WorkforceAnalytics} />
         <Route path="/report-builder" component={ReportBuilder} />
         <Route path="/integration-center" component={IntegrationCenter} />
+        <Route path="/organizations" component={Organizations} />
+        <Route path="/org-branding" component={OrgBranding} />
+        <Route path="/policy-localization" component={PolicyLocalization} />
+        <Route path="/policy-governance" component={PolicyGovernance} />
+        <Route path="/integration-governance" component={IntegrationGovernance} />
+        <Route path="/config-packages" component={ConfigPackages} />
         <Route path="/local-ai" component={LocalAi} />
+        <Route path="/setup-wizard" component={SetupWizard} />
+        <Route path="/data-import" component={DataImport} />
+        <Route path="/diagnostics" component={Diagnostics} />
+        <Route path="/go-live-checklist" component={GoLiveChecklist} />
+        <Route path="/licensing" component={Licensing} />
+        <Route path="/pilot" component={Pilot} />
+        <Route path="/pilot-control-center" component={PilotControlCenter} />
+        <Route path="/uat-scripts" component={UATScripts} />
+        <Route path="/security-tests" component={SecurityTests} />
         <Route component={NotFound} />
       </Switch>
     </Shell>

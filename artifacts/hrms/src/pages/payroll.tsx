@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { useAuth } from '@/hooks/use-auth';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListPayrollPeriods,
@@ -266,12 +267,15 @@ function ApprovalDialog({
             <Textarea rows={3} value={note} onChange={e => setNote(e.target.value)} placeholder={t('Optional approval note', 'ملاحظة اعتماد اختيارية')} />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => { reset(); onClose(); }}>{t('Cancel', 'إلغاء')}</Button>
-          <Button disabled={loading || !approverName} onClick={() => onConfirm(approverName, note)}>
-            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {t('Confirm', 'تأكيد')}
-          </Button>
+        <DialogFooter className="flex-col items-start gap-2 sm:flex-row sm:items-center">
+          <p className="text-xs text-slate-500 flex-1">{t("This action is audit-logged.", "هذا الإجراء مُسجَّل في سجل التدقيق.")}</p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => { reset(); onClose(); }}>{t('Cancel', 'إلغاء')}</Button>
+            <Button disabled={loading || !approverName} onClick={() => onConfirm(approverName, note)}>
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {t('Confirm', 'تأكيد')}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -304,12 +308,15 @@ function CloseConfirmDialog({
             )}
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
-          <Button variant="destructive" disabled={loading} onClick={onConfirm}>
-            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {t('Close Period Permanently', 'إغلاق الفترة نهائياً')}
-          </Button>
+        <DialogFooter className="flex-col items-start gap-2 sm:flex-row sm:items-center">
+          <p className="text-xs text-slate-500 flex-1">{t("This action is audit-logged.", "هذا الإجراء مُسجَّل في سجل التدقيق.")}</p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
+            <Button variant="destructive" disabled={loading} onClick={onConfirm}>
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {t('Close Period Permanently', 'إغلاق الفترة نهائياً')}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -511,6 +518,10 @@ function PeriodDetail({
   const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  // TODO: replace with proper role-name lookup once role names are exposed by useAuth
+  // Role IDs: 1=super_admin, 2=hr_manager, 3=payroll_admin
+  const isPayrollAdmin = user ? user.roleId <= 3 : false;
 
   const { data: period, isLoading: loadingPeriod } = useGetPayrollPeriod(periodId);
   const { data: runs, isLoading: loadingRuns } = useListPayrollRuns({ periodId });
@@ -636,8 +647,8 @@ function PeriodDetail({
           <p className="text-xs text-muted-foreground font-mono">{period.periodCode}</p>
         </div>
 
-        {/* Action bar */}
-        {!isClosed && (
+        {/* Action bar — payroll_admin only */}
+        {!isClosed && isPayrollAdmin && (
           <div className="flex items-center gap-2 flex-wrap">
             {period.status === 'draft' && (
               <Button

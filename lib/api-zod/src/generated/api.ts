@@ -3461,12 +3461,71 @@ export const CalculatePayrollPeriodResponse = zod.object({
   "exceptionCount": zod.number()
 })
 
+
 /**
  * @summary List detected no-show days per employee for a payroll period
  */
 export const ListPayrollPeriodNoShowsParams = zod.object({
   "id": zod.coerce.number()
 })
+
+export const ListPayrollPeriodNoShowsResponse = zod.object({
+  "periodId": zod.number(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "isClosed": zod.boolean(),
+  "employees": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "employeeNameEn": zod.string(),
+  "employeeNameAr": zod.string(),
+  "days": zod.array(zod.object({
+  "date": zod.string(),
+  "excused": zod.boolean(),
+  "excusedId": zod.number().nullish(),
+  "reason": zod.string().nullish(),
+  "excusedByUserId": zod.number().nullish(),
+  "excusedAt": zod.string().nullish()
+}))
+}))
+})
+
+
+/**
+ * @summary Excuse a detected no-show day so it is not deducted on recalculation
+ */
+export const ExcusePayrollAbsenceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ExcusePayrollAbsenceBody = zod.object({
+  "employeeId": zod.number(),
+  "date": zod.string(),
+  "reason": zod.string()
+})
+
+export const ExcusePayrollAbsenceResponse = zod.object({
+  "id": zod.number(),
+  "payrollPeriodId": zod.number(),
+  "employeeId": zod.number(),
+  "date": zod.string(),
+  "reason": zod.string(),
+  "excusedByUserId": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Undo an excused no-show day
+ */
+export const UnexcusePayrollAbsenceParams = zod.object({
+  "id": zod.coerce.number(),
+  "excusedId": zod.coerce.number()
+})
+
+export const UnexcusePayrollAbsenceResponse = zod.unknown()
+
+
 /**
  * @summary First or second approval of payroll period
  */
@@ -11968,7 +12027,9 @@ export const GetAnalyticsDocumentExpiryQueryParams = zod.object({
 export const GetAnalyticsDocumentExpiryResponse = zod.object({
   "days": zod.number().optional(),
   "count": zod.number().optional(),
-  "documents": zod.array(zod.object({}).passthrough()).optional()
+  "documents": zod.array(zod.object({
+
+})).optional()
 })
 
 
@@ -12121,7 +12182,9 @@ export const PostReportBuilderConfigsIdRunResponse = zod.object({
   "dataSource": zod.string().optional(),
   "simulated": zod.boolean().optional(),
   "rowCount": zod.number().optional(),
-  "rows": zod.array(zod.object({}).passthrough()).optional(),
+  "rows": zod.array(zod.object({
+
+})).optional(),
   "columns": zod.array(zod.string()).optional(),
   "executedAt": zod.string().optional(),
   "note": zod.string().optional()
@@ -12777,7 +12840,9 @@ export const AiReportQueryBody = zod.object({
 export const AiReportQueryResponse = zod.object({
   "interpretation": zod.string().optional(),
   "suggestedReport": zod.string().optional(),
-  "previewRows": zod.array(zod.object({}).passthrough()).optional(),
+  "previewRows": zod.array(zod.object({
+
+})).optional(),
   "simulated": zod.boolean().optional(),
   "auditId": zod.number().optional()
 })
@@ -12807,7 +12872,9 @@ export const AiClassifyDocumentResponse = zod.object({
 export const AiExplainAnomalyBody = zod.object({
   "anomalyType": zod.enum(['attendance_high', 'overtime_spike', 'payroll_variance', 'leave_exposure']),
   "entityId": zod.number().optional(),
-  "metrics": zod.object({}).passthrough()
+  "metrics": zod.object({
+
+})
 })
 
 export const AiExplainAnomalyResponse = zod.object({
@@ -12891,56 +12958,3 @@ export const UpdateAiPermissionResponse = zod.object({
 })
 
 
-export const ExcusePayrollAbsenceBody = zod.object({
-  "employeeId": zod.number(),
-  "date": zod.string(),
-  "reason": zod.string()
-})
-
-/**
- * @summary Excuse a detected no-show day so it is not deducted on recalculation
- */
-export const ExcusePayrollAbsenceParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const ExcusePayrollAbsenceResponse = zod.object({
-  "id": zod.number(),
-  "payrollPeriodId": zod.number(),
-  "employeeId": zod.number(),
-  "date": zod.string(),
-  "reason": zod.string(),
-  "excusedByUserId": zod.number(),
-  "createdAt": zod.string()
-})
-
-/**
- * @summary Undo an excused no-show day
- */
-export const UnexcusePayrollAbsenceParams = zod.object({
-  "id": zod.coerce.number(),
-  "excusedId": zod.coerce.number()
-})
-
-export const UnexcusePayrollAbsenceResponse = zod.unknown()
-
-export const ListPayrollPeriodNoShowsResponse = zod.object({
-  "periodId": zod.number(),
-  "startDate": zod.string(),
-  "endDate": zod.string(),
-  "isClosed": zod.boolean(),
-  "employees": zod.array(zod.object({
-  "employeeId": zod.number(),
-  "employeeNumber": zod.string(),
-  "employeeNameEn": zod.string(),
-  "employeeNameAr": zod.string(),
-  "days": zod.array(zod.object({
-  "date": zod.string(),
-  "excused": zod.boolean(),
-  "excusedId": zod.number().nullish(),
-  "reason": zod.string().nullish(),
-  "excusedByUserId": zod.number().nullish(),
-  "excusedAt": zod.string().nullish()
-}))
-}))
-})

@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 const router = Router();
 
 // GET /scheduled-exports
-router.get("/scheduled-exports", async (req, res) => {
+router.get("/scheduled-exports", async (req, res): Promise<void> => {
   try {
     const rows = await db.select().from(scheduledExportsTable).orderBy(scheduledExportsTable.createdAt);
     res.json(rows);
@@ -15,7 +15,7 @@ router.get("/scheduled-exports", async (req, res) => {
 });
 
 // POST /scheduled-exports
-router.post("/scheduled-exports", async (req, res) => {
+router.post("/scheduled-exports", async (req, res): Promise<void> => {
   try {
     const {
       reportBuilderConfigId, nameEn, cronExpression, timezone, format,
@@ -23,7 +23,7 @@ router.post("/scheduled-exports", async (req, res) => {
     } = req.body;
 
     if (!nameEn || !cronExpression) {
-      return res.status(400).json({ error: "nameEn and cronExpression are required" });
+      return void res.status(400).json({ error: "nameEn and cronExpression are required" });
     }
 
     const [row] = await db
@@ -47,11 +47,11 @@ router.post("/scheduled-exports", async (req, res) => {
 });
 
 // GET /scheduled-exports/:id
-router.get("/scheduled-exports/:id", async (req, res) => {
+router.get("/scheduled-exports/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const [row] = await db.select().from(scheduledExportsTable).where(eq(scheduledExportsTable.id, id));
-    if (!row) return res.status(404).json({ error: "Scheduled export not found" });
+    if (!row) return void res.status(404).json({ error: "Scheduled export not found" });
     res.json(row);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -59,7 +59,7 @@ router.get("/scheduled-exports/:id", async (req, res) => {
 });
 
 // PATCH /scheduled-exports/:id
-router.patch("/scheduled-exports/:id", async (req, res) => {
+router.patch("/scheduled-exports/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const {
@@ -83,7 +83,7 @@ router.patch("/scheduled-exports/:id", async (req, res) => {
       .where(eq(scheduledExportsTable.id, id))
       .returning();
 
-    if (!row) return res.status(404).json({ error: "Scheduled export not found" });
+    if (!row) return void res.status(404).json({ error: "Scheduled export not found" });
     res.json(row);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -91,7 +91,7 @@ router.patch("/scheduled-exports/:id", async (req, res) => {
 });
 
 // DELETE /scheduled-exports/:id
-router.delete("/scheduled-exports/:id", async (req, res) => {
+router.delete("/scheduled-exports/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const [deleted] = await db
@@ -99,7 +99,7 @@ router.delete("/scheduled-exports/:id", async (req, res) => {
       .where(eq(scheduledExportsTable.id, id))
       .returning();
 
-    if (!deleted) return res.status(404).json({ error: "Scheduled export not found" });
+    if (!deleted) return void res.status(404).json({ error: "Scheduled export not found" });
     res.json({ deleted: true, id });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -107,13 +107,13 @@ router.delete("/scheduled-exports/:id", async (req, res) => {
 });
 
 // POST /scheduled-exports/:id/run-now — manually trigger (creates export_job)
-router.post("/scheduled-exports/:id/run-now", async (req, res) => {
+router.post("/scheduled-exports/:id/run-now", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
     const id = parseInt(req.params.id);
 
     const [schedule] = await db.select().from(scheduledExportsTable).where(eq(scheduledExportsTable.id, id));
-    if (!schedule) return res.status(404).json({ error: "Scheduled export not found" });
+    if (!schedule) return void res.status(404).json({ error: "Scheduled export not found" });
 
     const [job] = await db
       .insert(exportJobsTable)

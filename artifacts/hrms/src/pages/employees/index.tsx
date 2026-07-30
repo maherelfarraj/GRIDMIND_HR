@@ -1,4 +1,5 @@
 import { useLanguage } from '@/hooks/use-language';
+import { useAuth } from '@/hooks/use-auth';
 import { useListEmployees, useCreateEmployee } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,10 @@ import { AnimatedPage } from '@/components/layout/AnimatedPage';
 
 export default function Employees() {
   const { t, lang } = useLanguage();
+  const { user } = useAuth();
+  // TODO: replace with proper role-name lookup once role names are exposed by useAuth
+  // Role IDs: 1=super_admin, 2=hr_manager, 3=payroll_admin, 4=supervisor, 5=employee
+  const isAdmin = user ? user.roleId <= 2 : false; // admin/hr_manager only
   const [search, setSearch] = useState('');
   
   const { data: employeesData, isLoading } = useListEmployees({
@@ -76,6 +81,7 @@ export default function Employees() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
@@ -141,9 +147,11 @@ export default function Employees() {
                       {getStatusBadge(employee.status)}
                     </TableCell>
                     <TableCell className="text-end">
-                      <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
+                      {isAdmin && (
+                        <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -151,6 +159,7 @@ export default function Employees() {
             </TableBody>
           </Table>
           
+          </div>
           {!isLoading && employeesData && (
             <div className="p-4 border-t text-sm text-muted-foreground flex justify-between items-center">
               <span>
