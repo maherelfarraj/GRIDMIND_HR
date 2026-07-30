@@ -8,16 +8,31 @@
 
 export interface Announcement {
   id: number;
-  title: string;
-  content: string;
+  titleEn: string;
+  /** @nullable */
+  titleAr?: string | null;
+  bodyEn: string;
+  /** @nullable */
+  bodyAr?: string | null;
   /** @nullable */
   category?: string | null;
+  /** @nullable */
+  targetAudience?: string | null;
+  /** @nullable */
+  targetEntityId?: number | null;
+  isPinned?: boolean;
   status: string;
   /** @nullable */
   publishedAt?: string | null;
   /** @nullable */
   expiresAt?: string | null;
-  createdBy: number;
+  /** @nullable */
+  authorUserId?: number | null;
+  viewCount?: number;
+  requiresAcknowledgement?: boolean;
+  acknowledgedCount?: number;
+  /** @nullable */
+  attachmentDocumentId?: number | null;
   createdAt: string;
   updatedAt: string;
 }

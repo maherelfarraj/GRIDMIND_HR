@@ -148,6 +148,11 @@ GET /org-units/tree MUST be registered before GET /org-units/:id in Express, oth
 ## Phase 4 new frontend pages (8 total)
 system-config, military-hierarchy, duty-stations, postings, security-clearances, mobilization, security-settings, admin-airgap — all in artifacts/hrms/src/pages/, lazy-imported in App.tsx, linked in Sidebar.tsx under "Military & Government" and "System Admin" sections.
 
+
+## Spec vs server drift (self-service)
+- `/announcements` rows use bilingual columns `titleEn/titleAr/bodyEn/bodyAr` (not `title/content`); the OpenAPI schema was corrected to match. If a generated type looks "flat English", curl the endpoint before trusting the spec.
+- Mobile (Expo) reaches the API via absolute `https://${EXPO_PUBLIC_DOMAIN}` (set with `setBaseUrl` in app/_layout.tsx); the dev script injects it from $REPLIT_DEV_DOMAIN.
+- `POST /api/auth/login` exists (demo: any password, 6 seeded users); returns AuthUser incl. `employeeId` (nullable — admin has none) used to scope employee queries.
 ## Phase 5 tables (19 schema files, all pushed + seeded via seed-phase5.ts)
 jobRequisitions, jobPostings, applicants, applications, interviewScores, backgroundChecks, jobOffers, employmentContracts, onboardingTemplates, employeeOnboarding (+ onboardingTemplateItems + onboardingTasks), probationRecords, equipmentIssuances (+ idCardRecords), competencies (+ competencyFrameworks), goalCycles (+ employeeGoals), appraisals (+ appraisalRecords + appraisalCompetencyRatings + calibrationSessions), disciplinaryRecords (+ commendations + promotionRecommendations), training (7 tables), succession (4 tables), selfService (3 tables).
 
@@ -199,3 +204,8 @@ artifacts/hrms/src/pages/production-readiness.tsx — 8 checklist categories, 15
 
 ## OpenAPI spec size history
 Phase 3: ~3,200 lines → Phase 4: ~5,300 → Phase 5: ~9,485 → Phase 6: ~11,068 lines, 401 operationIds, 4 new tags (Documents, Reports, Notifications, DeploymentOps).
+
+
+## Merge/rebase caution
+- Auto-merged rebases have produced silently corrupted files that were NOT listed as conflicted (duplicate `const` declarations, route handlers cross-contaminated / mislabeled paths in api-server routes). After resolving any rebase, always run `tsc --noEmit` per package AND the api-server vitest suite before continuing the rebase — conflict markers being gone is not enough.
+- Leave revoke sets request status to "cancelled" (not "revoked") — the integration tests and frontend expect this.

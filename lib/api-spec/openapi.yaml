@@ -1020,6 +1020,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/SystemUser"
 
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [users]
+      summary: Log in with username and password (demo auth)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Invalid credentials
+
 
   # ─── Shifts ──────────────────────────────────────────────
   /shifts:
@@ -10563,20 +10584,52 @@ components:
         notes: { type: ["string", "null"] }
       required: [employeeId, requestType, subject]
 
+    LoginInput:
+      type: object
+      properties:
+        username: { type: string }
+        password: { type: string }
+      required: [username, password]
+
+    AuthUser:
+      type: object
+      properties:
+        id: { type: number }
+        username: { type: string }
+        email: { type: string }
+        fullNameEn: { type: string }
+        fullNameAr: { type: ["string", "null"] }
+        roleId: { type: number }
+        employeeId: { type: ["number", "null"] }
+        isActive: { type: boolean }
+        mfaEnabled: { type: boolean }
+        preferredLanguage: { type: string }
+        lastLoginAt: { type: ["string", "null"] }
+      required: [id, username, email, fullNameEn, roleId, isActive, mfaEnabled, preferredLanguage]
+
     Announcement:
       type: object
       properties:
         id: { type: number }
-        title: { type: string }
-        content: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: ["string", "null"] }
+        bodyEn: { type: string }
+        bodyAr: { type: ["string", "null"] }
         category: { type: ["string", "null"] }
+        targetAudience: { type: ["string", "null"] }
+        targetEntityId: { type: ["number", "null"] }
+        isPinned: { type: boolean }
         status: { type: string }
         publishedAt: { type: ["string", "null"] }
         expiresAt: { type: ["string", "null"] }
-        createdBy: { type: number }
+        authorUserId: { type: ["number", "null"] }
+        viewCount: { type: number }
+        requiresAcknowledgement: { type: boolean }
+        acknowledgedCount: { type: number }
+        attachmentDocumentId: { type: ["number", "null"] }
         createdAt: { type: string }
         updatedAt: { type: string }
-      required: [id, title, content, status, createdBy, createdAt, updatedAt]
+      required: [id, titleEn, bodyEn, status, createdAt, updatedAt]
 
     AnnouncementInput:
       type: object

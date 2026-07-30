@@ -1354,6 +1354,29 @@ export const GetAuthMeResponse = zod.object({
 
 
 /**
+ * @summary Log in with username and password (demo auth)
+ */
+export const LoginUserBody = zod.object({
+  "username": zod.string(),
+  "password": zod.string()
+})
+
+export const LoginUserResponse = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "email": zod.string(),
+  "fullNameEn": zod.string(),
+  "fullNameAr": zod.string().nullish(),
+  "roleId": zod.number(),
+  "employeeId": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "mfaEnabled": zod.boolean(),
+  "preferredLanguage": zod.string(),
+  "lastLoginAt": zod.string().nullish()
+})
+
+
+/**
  * @summary List all shift definitions
  */
 export const ListShiftsResponseItem = zod.object({
@@ -9832,13 +9855,22 @@ export const ListAnnouncementsQueryParams = zod.object({
 export const ListAnnouncementsResponse = zod.object({
   "data": zod.array(zod.object({
   "id": zod.number(),
-  "title": zod.string(),
-  "content": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "bodyEn": zod.string(),
+  "bodyAr": zod.string().nullish(),
   "category": zod.string().nullish(),
+  "targetAudience": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "isPinned": zod.boolean().optional(),
   "status": zod.string(),
   "publishedAt": zod.string().nullish(),
   "expiresAt": zod.string().nullish(),
-  "createdBy": zod.number(),
+  "authorUserId": zod.number().nullish(),
+  "viewCount": zod.number().optional(),
+  "requiresAcknowledgement": zod.boolean().optional(),
+  "acknowledgedCount": zod.number().optional(),
+  "attachmentDocumentId": zod.number().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })),
@@ -9863,13 +9895,22 @@ export const CreateAnnouncementBody = zod.object({
 
 export const CreateAnnouncementResponse = zod.object({
   "id": zod.number(),
-  "title": zod.string(),
-  "content": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "bodyEn": zod.string(),
+  "bodyAr": zod.string().nullish(),
   "category": zod.string().nullish(),
+  "targetAudience": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "isPinned": zod.boolean().optional(),
   "status": zod.string(),
   "publishedAt": zod.string().nullish(),
   "expiresAt": zod.string().nullish(),
-  "createdBy": zod.number(),
+  "authorUserId": zod.number().nullish(),
+  "viewCount": zod.number().optional(),
+  "requiresAcknowledgement": zod.boolean().optional(),
+  "acknowledgedCount": zod.number().optional(),
+  "attachmentDocumentId": zod.number().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -9884,13 +9925,22 @@ export const GetAnnouncementParams = zod.object({
 
 export const GetAnnouncementResponse = zod.object({
   "id": zod.number(),
-  "title": zod.string(),
-  "content": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "bodyEn": zod.string(),
+  "bodyAr": zod.string().nullish(),
   "category": zod.string().nullish(),
+  "targetAudience": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "isPinned": zod.boolean().optional(),
   "status": zod.string(),
   "publishedAt": zod.string().nullish(),
   "expiresAt": zod.string().nullish(),
-  "createdBy": zod.number(),
+  "authorUserId": zod.number().nullish(),
+  "viewCount": zod.number().optional(),
+  "requiresAcknowledgement": zod.boolean().optional(),
+  "acknowledgedCount": zod.number().optional(),
+  "attachmentDocumentId": zod.number().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -9915,13 +9965,22 @@ export const UpdateAnnouncementBody = zod.object({
 
 export const UpdateAnnouncementResponse = zod.object({
   "id": zod.number(),
-  "title": zod.string(),
-  "content": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "bodyEn": zod.string(),
+  "bodyAr": zod.string().nullish(),
   "category": zod.string().nullish(),
+  "targetAudience": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "isPinned": zod.boolean().optional(),
   "status": zod.string(),
   "publishedAt": zod.string().nullish(),
   "expiresAt": zod.string().nullish(),
-  "createdBy": zod.number(),
+  "authorUserId": zod.number().nullish(),
+  "viewCount": zod.number().optional(),
+  "requiresAcknowledgement": zod.boolean().optional(),
+  "acknowledgedCount": zod.number().optional(),
+  "attachmentDocumentId": zod.number().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })

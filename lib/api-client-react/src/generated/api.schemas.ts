@@ -3278,18 +3278,55 @@ export interface EmployeeRequestInput {
   notes?: string | null;
 }
 
+export interface LoginInput {
+  username: string;
+  password: string;
+}
+
+export interface AuthUser {
+  id: number;
+  username: string;
+  email: string;
+  fullNameEn: string;
+  /** @nullable */
+  fullNameAr?: string | null;
+  roleId: number;
+  /** @nullable */
+  employeeId?: number | null;
+  isActive: boolean;
+  mfaEnabled: boolean;
+  preferredLanguage: string;
+  /** @nullable */
+  lastLoginAt?: string | null;
+}
+
 export interface Announcement {
   id: number;
-  title: string;
-  content: string;
+  titleEn: string;
+  /** @nullable */
+  titleAr?: string | null;
+  bodyEn: string;
+  /** @nullable */
+  bodyAr?: string | null;
   /** @nullable */
   category?: string | null;
+  /** @nullable */
+  targetAudience?: string | null;
+  /** @nullable */
+  targetEntityId?: number | null;
+  isPinned?: boolean;
   status: string;
   /** @nullable */
   publishedAt?: string | null;
   /** @nullable */
   expiresAt?: string | null;
-  createdBy: number;
+  /** @nullable */
+  authorUserId?: number | null;
+  viewCount?: number;
+  requiresAcknowledgement?: boolean;
+  acknowledgedCount?: number;
+  /** @nullable */
+  attachmentDocumentId?: number | null;
   createdAt: string;
   updatedAt: string;
 }

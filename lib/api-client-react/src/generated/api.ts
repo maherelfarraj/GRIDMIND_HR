@@ -50,6 +50,7 @@ import type {
   AttendanceOverview,
   AttendanceRecord,
   AuditLogList,
+  AuthUser,
   BackgroundCheck,
   BackgroundCheckInput,
   BackupRecord,
@@ -276,6 +277,7 @@ import type {
   ListTrainingPrograms200,
   ListTrainingSessions200,
   ListTrainingSessionsParams,
+  LoginInput,
   MarkAllNotificationsRead200,
   MilitaryRank,
   MilitaryRankInput,
@@ -4111,6 +4113,77 @@ export function useGetAuthMe<TData = Awaited<ReturnType<typeof getAuthMe>>, TErr
 
 
 
+
+export const getLoginUserUrl = () => {
+
+
+
+
+  return `/api/auth/login`
+}
+
+/**
+ * @summary Log in with username and password (demo auth)
+ */
+export const loginUser = async (loginInput: LoginInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthUser> => {
+
+  return customFetch<AuthUser>(getLoginUserUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(loginInput)
+  }
+);}
+
+
+
+
+
+export const getLoginUserMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loginUser>>, TError,{data: BodyType<LoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof loginUser>>, TError,{data: BodyType<LoginInput>}, TContext> => {
+
+const mutationKey = ['loginUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof loginUser>>, {data: BodyType<LoginInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  loginUser(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LoginUserMutationResult = NonNullable<Awaited<ReturnType<typeof loginUser>>>
+    export type LoginUserMutationBody = BodyType<LoginInput>
+    export type LoginUserMutationError = ErrorType<void>
+
+    /**
+ * @summary Log in with username and password (demo auth)
+ */
+export const useLoginUser = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loginUser>>, TError,{data: BodyType<LoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof loginUser>>,
+        TError,
+        {data: BodyType<LoginInput>},
+        TContext
+      > => {
+      return useMutation(getLoginUserMutationOptions(options));
+    }
 
 export const getListShiftsUrl = () => {
 

@@ -316,10 +316,10 @@ export default function MyPortal() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <Bell className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                        <h3 className="font-semibold">{a.title}</h3>
+                        <h3 className="font-semibold">{a.titleEn}</h3>
                         {a.category && <Badge variant="outline" className="text-xs">{a.category}</Badge>}
                       </div>
-                      <p className="text-sm text-muted-foreground">{a.content}</p>
+                      <p className="text-sm text-muted-foreground">{a.bodyEn}</p>
                       <p className="text-xs text-muted-foreground mt-2">{fmtDate(a.publishedAt)}</p>
                     </div>
                   </div>
