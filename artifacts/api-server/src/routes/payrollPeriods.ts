@@ -67,14 +67,7 @@ router.post("/payroll-periods", async (req, res): Promise<void> => {
     res.status(400).json({ error: "periodCode, nameEn, nameAr, startDate, endDate, payDate required" });
     return;
   }
-  const [p] = await db.insert(payrollPeriodsTable).values({
-    periodCode, nameEn, nameAr,
-    periodType: periodType ?? "monthly",
-    startDate, endDate, payDate,
-    status: "draft",
-    currency: currency ?? "SAR",
-    notes: notes ?? null,
-  }).returning();
+  const [p] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
   res.status(201).json(p);
 });
 
@@ -91,7 +84,7 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
   // In production, enforce real session middleware before this guard.
   const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
   const periodId = parseInt(req.params.id, 10);
-  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }
   if (period.isClosed) { res.status(400).json({ error: "Period is closed and cannot be recalculated" }); return; }
 
@@ -127,13 +120,14 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
   const weekendDays = await getWeekendDays();
 
   // Public holidays inside this period — excluded from working days.
-  const holidayRows = await db.select({ date: publicHolidaysTable.date })
-    .from(publicHolidaysTable)
-    .where(and(
-      gte(publicHolidaysTable.date, period.startDate),
-      lte(publicHolidaysTable.date, period.endDate),
-    ));
-  const holidaySet = new Set(holidayRows.map(h => h.date));
+  const holidayRows = await db.select({
+    date: publicHolidaysTable.date,
+    isRecurring: publicHolidaysTable.isRecurring,
+    applicableTo: publicHolidaysTable.applicableTo,
+  }).from(publicHolidaysTable);
+
+  const startYear = parseInt(period.startDate.slice(0, 4), 10);
+    const holidaySet = holidaySetForSector(emp.organizationType);
 
   // Workdays in the period eligible for no-show checks: non-weekend days, and
   // never beyond today (future days can't be counted as absences yet).
@@ -161,13 +155,10 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
 
   // Real working days in this period's calendar (weekends and public holidays excluded).
   const periodWorkingDays = countWorkingDays(period.startDate, period.endDate, weekendDays, holidaySet);
-
   const gradeMap = Object.fromEntries(grades.map(g => [g.gradeCode, g]));
   let totalGross = 0, totalDeductions = 0, totalNet = 0, exceptionCount = 0;
 
   const runs = [];
-
-  for (const emp of employees) {
     const grade = emp.grade ? gradeMap[emp.grade] : null;
     const baseSalary = grade ? parseFloat(grade.baseSalary) : 5000; // fallback base
 
@@ -323,46 +314,30 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
 
   // Update period totals
   const [updated] = await db.update(payrollPeriodsTable)
-    .set({
-      status: "under_review",
-      totalEmployees: employees.length,
-      totalGrossSalary: String(Math.round(totalGross * 100) / 100),
-      totalDeductions: String(Math.round(totalDeductions * 100) / 100),
-      totalNetSalary: String(Math.round(totalNet * 100) / 100),
-      exceptionCount,
-      updatedAt: new Date(),
-    })
-    .where(eq(payrollPeriodsTable.id, periodId))
+    .set({ nameEn, nameAr, payDate, notes, updatedAt: new Date() })
+    .where(eq(payrollPeriodsTable.id, id))
     .returning();
 
   await db.insert(auditLogsTable).values({
-    action: "payroll.calculated",
+    action: `payroll.${updateData.status}`,
     entityType: "payroll_period",
     entityId: periodId,
     entityLabel: period.nameEn,
     actorUserId,
-    changesJson: JSON.stringify({ employeesProcessed: employees.length, exceptionCount }),
+    changesJson: JSON.stringify({ approverId, note }),
   });
 
-  res.json({
-    period: updated,
-    runsCreated: runs.length,
-    exceptionCount,
-    totalGross: Math.round(totalGross * 100) / 100,
-    totalNet: Math.round(totalNet * 100) / 100,
-    totalDeductions: Math.round(totalDeductions * 100) / 100,
-    runs: runs.map(r => ({ runId: r.id, employeeId: r.employeeId, grossSalary: r.grossSalary, netSalary: r.netSalary, hasException: r.hasException })),
-  });
+  res.json(updated);
 });
 
-// POST /payroll-periods/:id/approve — first or second approval
-router.post("/payroll-periods/:id/approve", async (req, res): Promise<void> => {
+// POST /payroll-periods/:id/close — immutable close (no rollback)
+router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
   // Demo mode: default to admin (userId=1) when no session is present.
   // In production, enforce real session middleware before this guard.
   const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
   const periodId = parseInt(req.params.id, 10);
   const { approverId, note } = req.body;
-  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }
   if (period.isClosed) { res.status(400).json({ error: "Period already closed" }); return; }
 
@@ -389,8 +364,10 @@ router.post("/payroll-periods/:id/approve", async (req, res): Promise<void> => {
     return;
   }
 
-  const [updated] = await db.update(payrollPeriodsTable).set(updateData)
-    .where(eq(payrollPeriodsTable.id, periodId)).returning();
+  const [updated] = await db.update(payrollPeriodsTable)
+    .set({ nameEn, nameAr, payDate, notes, updatedAt: new Date() })
+    .where(eq(payrollPeriodsTable.id, id))
+    .returning();
 
   await db.insert(auditLogsTable).values({
     action: `payroll.${updateData.status}`,
@@ -410,7 +387,7 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
   // In production, enforce real session middleware before this guard.
   const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
   const periodId = parseInt(req.params.id, 10);
-  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }
   if (period.isClosed) { res.status(400).json({ error: "Period already closed" }); return; }
   if (period.status !== "second_approved") {
@@ -451,3 +428,21 @@ router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
 });
 
 export default router;
+
+  const addHolidayDate = (sector: string, iso: string) => {
+    if (!holidaySetsBySector.has(sector)) holidaySetsBySector.set(sector, new Set());
+    holidaySetsBySector.get(sector)!.add(iso);
+  };
+
+      for (let y = startYear; y <= endYear; y++) dates.push(`${y}${monthDay}`);
+
+  const endYear = parseInt(period.endDate.slice(0, 4), 10);
+
+  const holidaySetForSector = (sector: string): Set<string> =>
+    holidaySetsBySector.get(sector) ?? new Set();
+
+  const holidaySetsBySector = new Map<string, Set<string>>();
+
+    const dates: string[] = [];
+
+      const monthDay = h.date.slice(4); // "-MM-DD"

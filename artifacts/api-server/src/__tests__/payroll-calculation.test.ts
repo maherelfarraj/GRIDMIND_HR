@@ -379,6 +379,74 @@ describe("payroll calculation engine", () => {
     });
   });
 
+  describe("sector-specific and recurring holidays", () => {
+    const extraHolidayIds: number[] = [];
+    // 2098-02-17 is a Monday; 2098-02-18 is a Tuesday — both working days.
+    const MILITARY_DATE = "2098-02-17";
+    const RECURRING_MONTH_DAY = "-02-18"; // stored as 2050-02-18, recurring
+
+    beforeAll(async () => {
+      const rows = await db.insert(publicHolidaysTable).values([
+        {
+          nameEn: `TEST Military Holiday ${SUFFIX}`,
+          nameAr: `عطلة عسكرية اختبار ${SUFFIX}`,
+          date: MILITARY_DATE,
+          year: 2098,
+          applicableTo: "military",
+        },
+        {
+          nameEn: `TEST Recurring Holiday ${SUFFIX}`,
+          nameAr: `عطلة متكررة اختبار ${SUFFIX}`,
+          date: `2050${RECURRING_MONTH_DAY}`,
+          year: 2050,
+          isRecurring: true,
+          applicableTo: "all",
+        },
+      ]).returning();
+      extraHolidayIds.push(...rows.map(r => r.id));
+    });
+
+    afterAll(async () => {
+      if (extraHolidayIds.length) {
+        await db.delete(publicHolidaysTable).where(inArray(publicHolidaysTable.id, extraHolidayIds));
+      }
+    });
+
+    it("ignores a military-only holiday for commercial employees but honors an all-sector recurring holiday from another year", async () => {
+      const res = await request(app).post(`/api/payroll-periods/${periodId}/calculate`);
+      expect(res.status).toBe(200);
+
+      const runsRes = await request(app).get(`/api/payroll-runs?periodId=${periodId}`);
+      const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === empWithGradeId);
+      expect(run).toBeDefined();
+      // Test employees are commercial (default organizationType). Only the
+      // recurring all-sector holiday (2098-02-18) reduces working days; the
+      // military-only holiday on 2098-02-17 must not.
+      expect(run.workingDays).toBe(PERIOD_WORKING_DAYS - 1);
+    });
+
+    it("counts the military holiday for a military-sector employee", async () => {
+      await db.update(employeesTable)
+        .set({ organizationType: "military" })
+        .where(eq(employeesTable.id, empWithGradeId));
+      try {
+        const res = await request(app).post(`/api/payroll-periods/${periodId}/calculate`);
+        expect(res.status).toBe(200);
+
+        const runsRes = await request(app).get(`/api/payroll-runs?periodId=${periodId}`);
+        const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === empWithGradeId);
+        expect(run).toBeDefined();
+        // Military employee gets both the recurring all-sector holiday and the
+        // military-only one excluded: 2 fewer working days.
+        expect(run.workingDays).toBe(PERIOD_WORKING_DAYS - 2);
+      } finally {
+        await db.update(employeesTable)
+          .set({ organizationType: "commercial" })
+          .where(eq(employeesTable.id, empWithGradeId));
+      }
+    });
+  });
+
   it("refuses to recalculate a closed period", async () => {
     const [closed] = await db.insert(payrollPeriodsTable).values({
       periodCode: `T-PPC-${SUFFIX}`,
