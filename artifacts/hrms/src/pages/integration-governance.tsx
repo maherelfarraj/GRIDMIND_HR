@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User } from 'lucide-react';
 
 function intTypeIcon(type: string): React.ComponentType<{ className?: string }> {
   const map: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -62,7 +62,7 @@ function timeAgo(dateStr: string) {
 }
 
 function AddProfileDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ profileName: '', integrationType: '', environment: 'development', baseUrl: '', description: '' });
@@ -129,7 +129,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function isValidEmail(v: string) { return EMAIL_RE.test(v.trim()); }
 
 export default function IntegrationGovernance() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const [profiles, setProfiles] = useState<any[]>([]);
   const [vault, setVault] = useState<any[]>([]);
@@ -291,6 +291,12 @@ export default function IntegrationGovernance() {
                               <p className="text-[11px] text-slate-400 flex items-center gap-1">
                                 <Clock className="w-3 h-3 shrink-0" />
                                 {new Date(p.lastTestedAt).toLocaleString()}
+                              </p>
+                            )}
+                            {(p.lastTestedByNameEn || p.lastTestedByNameAr) && (
+                              <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                                <User className="w-3 h-3 shrink-0" />
+                                {t('Tested by', 'اختبرها')} {lang === 'ar' ? (p.lastTestedByNameAr || p.lastTestedByNameEn) : (p.lastTestedByNameEn || p.lastTestedByNameAr)}
                               </p>
                             )}
                             {p.lastTestMessage && <p className="text-[11px] text-slate-400 break-words">{p.lastTestMessage}</p>}

@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   db, auditLogsTable,
   integrationCredentialVaultRefsTable, integrationConnectionProfilesTable,
-  integrationGovernanceRulesTable, integrationAuditLogTable,
+  integrationGovernanceRulesTable, integrationAuditLogTable, systemUsersTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { testLdapConnection, type AdapterResult } from "../lib/ldap-adapter.js";
@@ -72,10 +72,18 @@ router.get("/integration-governance/connection-profiles", async (req, res): Prom
     if (orgId) conditions.push(eq(integrationConnectionProfilesTable.orgId, parseInt(orgId)));
     if (governanceStatus) conditions.push(eq(integrationConnectionProfilesTable.governanceStatus, governanceStatus));
     if (integrationType) conditions.push(eq(integrationConnectionProfilesTable.integrationType, integrationType));
+    const baseQuery = db
+      .select({
+        profile: integrationConnectionProfilesTable,
+        lastTestedByNameEn: systemUsersTable.fullNameEn,
+        lastTestedByNameAr: systemUsersTable.fullNameAr,
+      })
+      .from(integrationConnectionProfilesTable)
+      .leftJoin(systemUsersTable, eq(integrationConnectionProfilesTable.lastTestedByUserId, systemUsersTable.id));
     const rows = conditions.length
-      ? await db.select().from(integrationConnectionProfilesTable).where(and(...conditions)).orderBy(desc(integrationConnectionProfilesTable.createdAt))
-      : await db.select().from(integrationConnectionProfilesTable).orderBy(desc(integrationConnectionProfilesTable.createdAt));
-    res.json(rows);
+      ? await baseQuery.where(and(...conditions)).orderBy(desc(integrationConnectionProfilesTable.createdAt))
+      : await baseQuery.orderBy(desc(integrationConnectionProfilesTable.createdAt));
+    res.json(rows.map(r => ({ ...r.profile, lastTestedByNameEn: r.lastTestedByNameEn, lastTestedByNameAr: r.lastTestedByNameAr })));
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

@@ -1,3 +1,4 @@
 - [HRMS architecture decisions](hrms-arch.md) — key constraints and conventions for the HRMS monorepo build.
 - [API integration testing conventions](api-testing.md) — vitest suite runs against the live seeded DB; fixtures must be self-cleaning, files run sequentially.
+- [DB package staleness & schema drift](db-dist-staleness.md) — after schema edits, rebuild lib/db dist and drizzle-push, or typechecks/queries fail confusingly.
 - [Auto-merge corruption in hot files](merge-corruption.md) — rebases silently corrupt contended files (main may be broken too); typecheck after every merge, rewrite wholesale from intent + tests to recover.
