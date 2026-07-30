@@ -183,6 +183,143 @@ describe("Device adapter against local stub server", () => {
   });
 });
 
+// ─── LDAP/SMTP live-connection failure paths ─────────────────────────────────
+// Local stubs simulate outage conditions: a port with nothing listening
+// (unreachable host) and a TCP server that accepts but never speaks
+// (hung server — the adapter must honor its timeout and not hang).
+
+import net from "node:net";
+
+/** Returns a 127.0.0.1 port that is guaranteed to have no listener. */
+async function closedPort(): Promise<number> {
+  const srv = net.createServer();
+  await new Promise<void>(resolve => srv.listen(0, "127.0.0.1", resolve));
+  const port = (srv.address() as import("node:net").AddressInfo).port;
+  await new Promise<void>(resolve => srv.close(() => resolve()));
+  return port;
+}
+
+let hungServer: net.Server;
+let hungPort: number;
+
+beforeAll(async () => {
+  // Accepts connections but never sends any bytes back.
+  hungServer = net.createServer(() => { /* keep socket open, say nothing */ });
+  await new Promise<void>(resolve => hungServer.listen(0, "127.0.0.1", resolve));
+  hungPort = (hungServer.address() as import("node:net").AddressInfo).port;
+});
+
+afterAll(async () => {
+  await new Promise<void>(resolve => {
+    hungServer.close(() => resolve());
+    // Destroy any lingering sockets so close() completes.
+    hungServer.getConnections?.(() => { /* noop */ });
+    hungServer.unref();
+    resolve();
+  });
+});
+
+describe("LDAP adapter live-connection failures", () => {
+  beforeEach(() => clearAdapterEnv());
+
+  function setLdapEnv(port: number) {
+    process.env.LDAP_HOST = "127.0.0.1";
+    process.env.LDAP_PORT = String(port);
+    process.env.LDAP_BIND_DN = "cn=admin,dc=example,dc=test";
+    process.env.LDAP_BIND_PASSWORD = "wrong-password";
+  }
+
+  it("fails fast with success:false when nothing is listening (unreachable host)", async () => {
+    setLdapEnv(await closedPort());
+    const start = Date.now();
+    const r = await testLdapConnection(2000);
+    const elapsed = Date.now() - start;
+    expect(r.success).toBe(false);
+    expect(r.simulated).toBe(false);
+    expect(r.message).toContain("LDAP bind failed");
+    expect(elapsed).toBeLessThan(1500); // connection refused, not a hang
+    expect(typeof r.latencyMs).toBe("number");
+  });
+
+  it("honors its timeout against a hung server instead of hanging", async () => {
+    setLdapEnv(hungPort);
+    const start = Date.now();
+    const r = await testLdapConnection(400);
+    const elapsed = Date.now() - start;
+    expect(r.success).toBe(false);
+    expect(r.simulated).toBe(false);
+    expect(r.message).toContain("LDAP bind failed");
+    expect(elapsed).toBeGreaterThanOrEqual(300); // actually waited for the timeout window
+    expect(elapsed).toBeLessThan(3000); // but aborted promptly, no indefinite hang
+  });
+});
+
+describe("SMTP adapter live-connection failures", () => {
+  beforeEach(() => clearAdapterEnv());
+
+  function setSmtpEnv(port: number) {
+    process.env.SMTP_HOST = "127.0.0.1";
+    process.env.SMTP_PORT = String(port);
+    process.env.SMTP_USER = "tester@example.test";
+    process.env.SMTP_PASS = "wrong-password";
+  }
+
+  it("fails fast with success:false when nothing is listening (unreachable host)", async () => {
+    setSmtpEnv(await closedPort());
+    const start = Date.now();
+    const r = await testSmtpConnection(undefined, 2000);
+    const elapsed = Date.now() - start;
+    expect(r.success).toBe(false);
+    expect(r.simulated).toBe(false);
+    expect(r.message).toContain("SMTP test failed");
+    expect(elapsed).toBeLessThan(1500);
+  });
+
+  it("honors its greeting timeout against a hung server instead of hanging", async () => {
+    setSmtpEnv(hungPort);
+    const start = Date.now();
+    const r = await testSmtpConnection(undefined, 400);
+    const elapsed = Date.now() - start;
+    expect(r.success).toBe(false);
+    expect(r.simulated).toBe(false);
+    expect(r.message).toContain("SMTP test failed");
+    expect(elapsed).toBeGreaterThanOrEqual(300);
+    expect(elapsed).toBeLessThan(3000);
+  });
+
+  it("reports rejected credentials with success:false, simulated:false", async () => {
+    // Minimal SMTP stub: greets, advertises AUTH, rejects the login.
+    const smtpStub = net.createServer(socket => {
+      socket.write("220 stub.example.test ESMTP ready\r\n");
+      socket.on("data", (buf) => {
+        const line = buf.toString();
+        if (/^(EHLO|HELO)/i.test(line)) {
+          socket.write("250-stub.example.test\r\n250 AUTH PLAIN LOGIN\r\n");
+        } else if (/^AUTH/i.test(line) || /^[A-Za-z0-9+/=]+\r\n$/.test(line)) {
+          socket.write("535 5.7.8 Authentication credentials invalid\r\n");
+        } else if (/^QUIT/i.test(line)) {
+          socket.write("221 bye\r\n");
+          socket.end();
+        } else {
+          socket.write("500 unrecognized\r\n");
+        }
+      });
+    });
+    await new Promise<void>(resolve => smtpStub.listen(0, "127.0.0.1", resolve));
+    const port = (smtpStub.address() as import("node:net").AddressInfo).port;
+    try {
+      setSmtpEnv(port);
+      const r = await testSmtpConnection(undefined, 3000);
+      expect(r.success).toBe(false);
+      expect(r.simulated).toBe(false);
+      expect(r.message).toContain("SMTP test failed");
+      expect(r.message).toMatch(/535|credentials|auth/i);
+    } finally {
+      await new Promise<void>(resolve => smtpStub.close(() => resolve()));
+    }
+  });
+});
+
 // ─── /test route audit logging ───────────────────────────────────────────────
 
 describe("Connection profile /test route audit logging", () => {
