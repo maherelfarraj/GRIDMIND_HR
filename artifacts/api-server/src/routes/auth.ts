@@ -8,6 +8,7 @@ import {
   PASSWORD_REQUIREMENTS_EN,
   PASSWORD_REQUIREMENTS_AR,
 } from "@workspace/api-zod";
+import { isLockedOut, recordFailure, recordSuccess } from "../lib/loginThrottle";
 
 const router = Router();
 
@@ -36,11 +37,34 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const { username } = req.body;
   if (!username) { res.status(400).json({ error: "username required" }); return; }
 
+  const ip = req.ip ?? "unknown";
+
+  // Brute-force protection: temporary lockout after repeated failures for
+  // the same account or source IP. Checked before any credential work so a
+  // locked-out attacker learns nothing about the account.
+  const lock = isLockedOut(username, ip);
+  if (lock.locked) {
+    const retryAfterSeconds = Math.ceil(lock.retryAfterMs / 1000);
+    res.status(429)
+      .set("Retry-After", String(retryAfterSeconds))
+      .json({
+        error: "Too many failed login attempts. Please try again later.",
+        errorAr: "عدد كبير جدًا من محاولات تسجيل الدخول الفاشلة. يرجى المحاولة مرة أخرى لاحقًا.",
+        retryAfterSeconds,
+      });
+    return;
+  }
+
+  const failLogin = (): void => {
+    recordFailure(username, ip);
+    res.status(401).json({ error: "Invalid credentials" });
+  };
+
   const [user] = await db.select().from(systemUsersTable)
     .where(eq(systemUsersTable.username, username));
 
   if (!user) {
-    res.status(401).json({ error: "Invalid credentials" });
+    failLogin();
     return;
   }
   if (!user.isActive) {
@@ -55,16 +79,19 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     const userWithHash = user as typeof user & { passwordHash?: string | null };
     if (!password || !userWithHash.passwordHash) {
       // No password supplied, or account has no hash provisioned → reject.
-      res.status(401).json({ error: "Invalid credentials" });
+      failLogin();
       return;
     }
     const valid = await bcrypt.compare(password, userWithHash.passwordHash);
     if (!valid) {
-      res.status(401).json({ error: "Invalid credentials" });
+      failLogin();
       return;
     }
   }
   // Demo mode (PILOT_AUTH=false): accept any password, no check
+
+  // Successful login clears the failure counters.
+  recordSuccess(username, ip);
 
   // Look up role name for session
   const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, user.roleId));

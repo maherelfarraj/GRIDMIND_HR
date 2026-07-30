@@ -69,7 +69,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!res.ok) {
       const error = await res.json().catch(() => ({ error: 'Login failed' }));
-      throw new Error(error.error || 'Invalid credentials');
+      const err = new Error(error.error || 'Invalid credentials') as Error & {
+        errorAr?: string;
+        retryAfterSeconds?: number;
+      };
+      if (typeof error.errorAr === 'string') err.errorAr = error.errorAr;
+      if (typeof error.retryAfterSeconds === 'number') err.retryAfterSeconds = error.retryAfterSeconds;
+      throw err;
     }
 
     const userData: User = await res.json();

@@ -26,7 +26,11 @@ export default function Login() {
       await login(username, password);
       setLocation('/');
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      if (lang === 'ar' && err.errorAr) {
+        setError(err.errorAr);
+      } else {
+        setError(err.message || 'Login failed. Please check your credentials.');
+      }
     } finally {
       setIsLoading(false);
     }
