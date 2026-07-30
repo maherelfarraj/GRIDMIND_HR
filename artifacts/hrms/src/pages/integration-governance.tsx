@@ -167,10 +167,29 @@ export default function IntegrationGovernance() {
         method: 'POST',
         ...(testRecipient ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testRecipient }) } : {}),
       });
-      const data = await res.json();
-      toast({ title: t('Test result', 'نتيجة الاختبار'), description: `${data?.success ? '✅' : '❌'} ${data?.latencyMs ?? '?'}ms — ${data?.message ?? ''}` });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || typeof data.success !== 'boolean') {
+        toast({
+          title: t('Test failed', 'فشل الاختبار'),
+          description: data?.error || data?.message || t(`Server returned an unexpected response (HTTP ${res.status})`, `أعاد الخادم استجابة غير متوقعة (HTTP ${res.status})`),
+          variant: 'destructive',
+        });
+        return;
+      }
+      const simulatedNote = data.simulated ? ` · ${t('⚠ Simulated', '⚠ محاكاة')}` : '';
+      toast({
+        title: data.success ? t('Test succeeded', 'نجح الاختبار') : t('Test failed', 'فشل الاختبار'),
+        description: `${data.success ? '✅' : '❌'} ${data.latencyMs ?? '?'}ms — ${data.message ?? ''}${simulatedNote}`,
+        ...(data.success ? {} : { variant: 'destructive' as const }),
+      });
       load();
-    } catch { toast({ title: t('Test failed', 'فشل الاختبار'), variant: 'destructive' }); }
+    } catch {
+      toast({
+        title: t('Test failed', 'فشل الاختبار'),
+        description: t('Could not reach the server to run the test. Check your connection and try again.', 'تعذر الوصول إلى الخادم لإجراء الاختبار. تحقق من اتصالك وحاول مرة أخرى.'),
+        variant: 'destructive',
+      });
+    }
     finally { setTestingIds(prev => { const s = new Set(prev); s.delete(id); return s; }); }
   }
 
