@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   db, leaveRequestsTable, leaveTypesTable, leaveBalancesTable,
   leaveApprovalStepsTable, leaveAttachmentsTable, employeesTable, rostersTable, auditLogsTable,
+  approvalsTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, or, between } from "drizzle-orm";
 import { ensureLeaveBalance } from "../lib/leaveBalance.js";
@@ -209,6 +210,29 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
     .set({ status: "submitted", submittedAt: new Date(), updatedAt: new Date() })
     .where(eq(leaveRequestsTable.id, id))
     .returning();
+
+  // Surface in the supervisor approvals queue (/approvals)
+  const [empRow] = await db.select().from(employeesTable).where(eq(employeesTable.id, r.employeeId));
+  const attachmentRows = await db.select().from(leaveAttachmentsTable)
+    .where(eq(leaveAttachmentsTable.leaveRequestId, r.id));
+  await db.insert(approvalsTable).values({
+    type: "leave",
+    titleEn: `Leave Request ${r.requestNumber} — ${lt?.nameEn ?? "Leave"}`,
+    titleAr: `طلب إجازة ${r.requestNumber} — ${lt?.nameAr ?? "إجازة"}`,
+    status: "pending",
+    priority: "normal",
+    requestedByEmployeeId: r.employeeId,
+    dueDate: r.startDate,
+    metadata: JSON.stringify({
+      leave_request_id: r.id,
+      request_number: r.requestNumber,
+      leave_type: lt?.nameEn ?? "Unknown",
+      employee: empRow ? `${empRow.firstNameEn} ${empRow.lastNameEn}` : "Unknown",
+      dates: `${r.startDate} → ${r.endDate}`,
+      total_days: r.totalDays,
+      attachments: attachmentRows.length,
+    }),
+  });
 
   await db.insert(auditLogsTable).values({
     action: "leave.submitted",
@@ -484,6 +508,15 @@ router.post("/leave-requests/:id/attachments", async (req, res): Promise<void> =
   const id = parseInt(req.params.id, 10);
   const { fileName, fileType, fileSize, fileUrl } = req.body;
   if (!fileName) { res.status(400).json({ error: "fileName required" }); return; }
+  // Only allow safe URL schemes: https, or data: URLs with whitelisted document/image MIME types.
+  if (fileUrl != null) {
+    const safeDataUrl = /^data:(application\/pdf|image\/(png|jpe?g|webp|gif));base64,[A-Za-z0-9+/=]+$/i;
+    const isHttps = /^https:\/\//i.test(fileUrl);
+    if (typeof fileUrl !== "string" || (!isHttps && !safeDataUrl.test(fileUrl))) {
+      res.status(400).json({ error: "fileUrl must be an https URL or a base64 data URL of type pdf/png/jpeg/webp/gif" });
+      return;
+    }
+  }
   const [att] = await db.insert(leaveAttachmentsTable).values({
     leaveRequestId: id, fileName, fileType: fileType ?? null,
     fileSize: fileSize ?? null, fileUrl: fileUrl ?? null,

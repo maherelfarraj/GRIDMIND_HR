@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { useListApprovals, useDecideApproval } from '@workspace/api-client-react';
+import { useListApprovals, useDecideApproval, useGetLeaveRequest } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -19,13 +19,86 @@ import {
   TrendingUp, 
   FileText, 
   Wrench,
-  ChevronDown
+  ChevronDown,
+  Paperclip,
+  Download
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+
+function parseMetadata(metadata: unknown): Record<string, unknown> | null {
+  if (!metadata) return null;
+  if (typeof metadata === 'object') return metadata as Record<string, unknown>;
+  if (typeof metadata === 'string') {
+    try {
+      const parsed = JSON.parse(metadata);
+      return typeof parsed === 'object' && parsed !== null ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Only allow https and safe base64 data URLs (pdf/images) as clickable hrefs. */
+function safeAttachmentUrl(url: unknown): string | null {
+  if (typeof url !== 'string') return null;
+  if (/^https:\/\//i.test(url)) return url;
+  if (/^data:(application\/pdf|image\/(png|jpe?g|webp|gif));base64,[A-Za-z0-9+/=]+$/i.test(url)) return url;
+  return null;
+}
+
+function LeaveAttachmentsPanel({ leaveRequestId }: { leaveRequestId: number }) {
+  const { t } = useLanguage();
+  const { data: detail, isLoading } = useGetLeaveRequest(leaveRequestId);
+  const attachments = (detail as any)?.attachments ?? [];
+
+  if (isLoading) return <Skeleton className="h-10 w-full" />;
+  if (!attachments.length) {
+    return (
+      <p className="text-xs text-muted-foreground flex items-center gap-1">
+        <Paperclip className="w-3 h-3" />
+        {t('No attachments provided', 'لا توجد مرفقات')}
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
+        <Paperclip className="w-3 h-3" />
+        {t('Attachments', 'المرفقات')} ({attachments.length})
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {attachments.map((att: any) => (
+          <div key={att.id} className="flex items-center gap-2 p-2 rounded border bg-background text-sm">
+            <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <span className="truncate max-w-[240px]" title={att.fileName}>{att.fileName}</span>
+            {att.fileSize != null && (
+              <span className="text-xs text-muted-foreground">({(att.fileSize / 1024).toFixed(0)} KB)</span>
+            )}
+            {safeAttachmentUrl(att.fileUrl) && (
+              <a
+                href={safeAttachmentUrl(att.fileUrl)!}
+                download={att.fileName}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary hover:underline flex items-center gap-1 text-xs"
+                onClick={e => e.stopPropagation()}
+              >
+                <Download className="w-3 h-3" />
+                {t('View', 'عرض')}
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Approvals() {
   const { t, lang } = useLanguage();
@@ -268,16 +341,31 @@ export default function Approvals() {
                           >
                             <div className="p-4 space-y-3">
                               <h4 className="font-semibold text-sm">{t('Request Details', 'تفاصيل الطلب')}</h4>
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                                {item.metadata && Object.entries(item.metadata).map(([key, value]) => (
-                                  <div key={key} className="p-2 rounded bg-background border">
-                                    <p className="text-xs text-muted-foreground capitalize mb-1">
-                                      {key.replace(/_/g, ' ')}
-                                    </p>
-                                    <p className="font-medium truncate">{String(value)}</p>
-                                  </div>
-                                ))}
-                              </div>
+                              {(() => {
+                                const meta = parseMetadata(item.metadata);
+                                const leaveRequestId = item.type === 'leave' && meta
+                                  ? Number(meta.leave_request_id ?? meta.leaveRequestId) || null
+                                  : null;
+                                return (
+                                  <>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                                      {meta && Object.entries(meta).map(([key, value]) => (
+                                        <div key={key} className="p-2 rounded bg-background border">
+                                          <p className="text-xs text-muted-foreground capitalize mb-1">
+                                            {key.replace(/_/g, ' ')}
+                                          </p>
+                                          <p className="font-medium truncate">{String(value)}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    {leaveRequestId && (
+                                      <div className="p-3 rounded bg-background border">
+                                        <LeaveAttachmentsPanel leaveRequestId={leaveRequestId} />
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
                               {item.decisionNote && (
                                 <div className="p-3 rounded bg-background border">
                                   <p className="text-xs text-muted-foreground mb-1">{t('Decision Note', 'ملاحظة القرار')}</p>

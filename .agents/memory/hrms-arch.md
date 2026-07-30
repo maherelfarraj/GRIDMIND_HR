@@ -149,6 +149,8 @@ GET /org-units/tree MUST be registered before GET /org-units/:id in Express, oth
 system-config, military-hierarchy, duty-stations, postings, security-clearances, mobilization, security-settings, admin-airgap — all in artifacts/hrms/src/pages/, lazy-imported in App.tsx, linked in Sidebar.tsx under "Military & Government" and "System Admin" sections.
 
 
+## Leave attachments — URL scheme whitelist
+Attachment `fileUrl` values are user-supplied and rendered as clickable hrefs. Both the API (POST /leave-requests/:id/attachments) and the approvals UI whitelist only `https:` and base64 `data:` URLs of pdf/png/jpeg/webp/gif — reject anything else to prevent `javascript:` stored-XSS. Express JSON body limit raised to 10mb for base64 certificates. Submitting a leave request whose type has `requiresAttachment` without an attachment returns 422; submit also inserts a pending `approvals` row (type "leave", metadata.leave_request_id) so it appears in /approvals.
 ## Spec vs server drift (self-service)
 - `/announcements` rows use bilingual columns `titleEn/titleAr/bodyEn/bodyAr` (not `title/content`); the OpenAPI schema was corrected to match. If a generated type looks "flat English", curl the endpoint before trusting the spec.
 - Mobile (Expo) reaches the API via absolute `https://${EXPO_PUBLIC_DOMAIN}` (set with `setBaseUrl` in app/_layout.tsx); the dev script injects it from $REPLIT_DEV_DOMAIN.
