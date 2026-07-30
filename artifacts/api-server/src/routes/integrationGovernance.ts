@@ -5,6 +5,9 @@ import {
   integrationGovernanceRulesTable, integrationAuditLogTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
+import { testLdapConnection, type AdapterResult } from "../lib/ldap-adapter.js";
+import { testSmtpConnection } from "../lib/smtp-adapter.js";
+import { testDeviceConnection } from "../lib/device-adapter.js";
 
 const router = Router();
 
@@ -94,12 +97,45 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
     const [profile] = await db.select().from(integrationConnectionProfilesTable).where(eq(integrationConnectionProfilesTable.id, id));
     if (!profile) return void res.status(404).json({ error: "Not found" });
 
-    const startTime = Date.now();
-    // Simulate test (air-gap safe — no real connection attempt)
-    const success = profile.governanceStatus !== "suspended";
-    const latencyMs = Math.floor(Math.random() * 200) + 50;
     const testedAt = new Date();
-    const message = success ? "Connection test simulated successfully" : "Profile is suspended";
+    let success: boolean;
+    let message: string;
+    let latencyMs: number;
+    let simulated: boolean;
+
+    if (profile.governanceStatus === "suspended") {
+      success = false;
+      message = "Profile is suspended";
+      latencyMs = 0;
+      simulated = false;
+    } else {
+      // Real adapters for LDAP / AD, SMTP, and attendance devices.
+      let result: AdapterResult | null = null;
+      switch (profile.integrationType) {
+        case "ldap":
+        case "active_directory":
+          result = await testLdapConnection();
+          break;
+        case "smtp":
+          result = await testSmtpConnection(req.body?.testRecipient);
+          break;
+        case "attendance_device":
+          result = await testDeviceConnection();
+          break;
+      }
+      if (result) {
+        success = result.success;
+        message = result.message;
+        latencyMs = result.latencyMs;
+        simulated = false;
+      } else {
+        // No real adapter for this integration type yet — simulated (air-gap safe).
+        success = true;
+        message = "Connection test simulated successfully (no real adapter for this integration type)";
+        latencyMs = Math.floor(Math.random() * 200) + 50;
+        simulated = true;
+      }
+    }
 
     await db.update(integrationConnectionProfilesTable).set({
       lastTestResult: success ? "success" : "failure",
@@ -116,11 +152,11 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
       eventType: success ? "test_passed" : "test_failed",
       outcome: success ? "success" : "failure",
       message,
-      metadataJson: JSON.stringify({ latencyMs }),
+      metadataJson: JSON.stringify({ latencyMs, simulated }),
       actorUserId,
     });
 
-    res.json({ success, message, latencyMs, testedAt: testedAt.toISOString() });
+    res.json({ success, message, latencyMs, simulated, testedAt: testedAt.toISOString() });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

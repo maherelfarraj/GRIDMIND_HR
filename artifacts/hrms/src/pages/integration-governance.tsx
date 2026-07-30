@@ -70,7 +70,14 @@ function AddProfileDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch('/api/integration-governance/connection-profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const payload = {
+        profileName: form.profileName,
+        profileNameAr: form.profileName,
+        integrationType: form.integrationType,
+        environment: form.environment,
+        connectionParamsJson: JSON.stringify({ baseUrl: form.baseUrl, description: form.description }),
+      };
+      const res = await fetch('/api/integration-governance/connection-profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error();
       toast({ title: t('Profile created', 'تم إنشاء الملف الشخصي') });
       onSaved(); onClose();
@@ -113,6 +120,11 @@ function AddProfileDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
   );
 }
 
+// Integration types backed by real connection adapters on the server
+// (LDAP bind, SMTP test message, device health endpoint). All other types
+// still return simulated test results.
+const REAL_ADAPTER_TYPES = new Set(['ldap', 'active_directory', 'smtp', 'attendance_device']);
+
 export default function IntegrationGovernance() {
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -130,14 +142,14 @@ export default function IntegrationGovernance() {
     try {
       const [p, v, r, a] = await Promise.allSettled([
         fetch('/api/integration-governance/connection-profiles').then(r => r.json()),
-        fetch('/api/integration-governance/credential-vault').then(r => r.json()),
-        fetch('/api/integration-governance/rules').then(r => r.json()),
+        fetch('/api/integration-governance/credential-vault-refs').then(r => r.json()),
+        fetch('/api/integration-governance/governance-rules').then(r => r.json()),
         fetch('/api/integration-governance/audit-log').then(r => r.json()),
       ]);
       setProfiles(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : []);
       setVault(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : []);
       setRules(r.status === 'fulfilled' && Array.isArray(r.value) ? r.value : []);
-      setAuditLog(a.status === 'fulfilled' && Array.isArray(a.value) ? a.value : []);
+      setAuditLog(a.status === 'fulfilled' && Array.isArray(a.value?.data) ? a.value.data : []);
     } finally { setLoading(false); }
   }, []);
 
@@ -148,7 +160,8 @@ export default function IntegrationGovernance() {
     try {
       const res = await fetch(`/api/integration-governance/connection-profiles/${id}/test`, { method: 'POST' });
       const data = await res.json();
-      toast({ title: t('Test result', 'نتيجة الاختبار'), description: `${data?.success ? '✅' : '❌'} ${data?.latencyMs ?? '?'}ms` });
+      toast({ title: t('Test result', 'نتيجة الاختبار'), description: `${data?.success ? '✅' : '❌'} ${data?.latencyMs ?? '?'}ms — ${data?.message ?? ''}` });
+      load();
     } catch { toast({ title: t('Test failed', 'فشل الاختبار'), variant: 'destructive' }); }
     finally { setTestingIds(prev => { const s = new Set(prev); s.delete(id); return s; }); }
   }
@@ -173,7 +186,7 @@ export default function IntegrationGovernance() {
 
   async function toggleRule(id: number, active: boolean) {
     try {
-      await fetch(`/api/integration-governance/rules/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: active }) });
+      await fetch(`/api/integration-governance/governance-rules/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: active }) });
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
@@ -226,6 +239,9 @@ export default function IntegrationGovernance() {
                           <div className="flex flex-col items-end gap-1">
                             <Badge variant="outline" className={`text-xs ${envBadge(p.environment)}`}>{p.environment}</Badge>
                             <Badge variant="outline" className={`text-xs ${statusBadge(p.status)}`}>{p.status}</Badge>
+                            {!REAL_ADAPTER_TYPES.has(p.integrationType) && (
+                              <Badge variant="outline" className="text-xs text-amber-400 border-amber-500/40">{t('⚠ Simulated', '⚠ محاكاة')}</Badge>
+                            )}
                           </div>
                         </div>
                         {p.lastTestResult && <p className="text-xs text-slate-400">{t('Last test', 'آخر اختبار')}: {p.lastTestResult}</p>}
@@ -233,7 +249,7 @@ export default function IntegrationGovernance() {
                           <Button size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300 h-7 px-2 text-xs" onClick={() => testConnection(p.id)} disabled={testing}>
                             {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5 me-1" />}{t('Test', 'اختبار')}
                           </Button>
-                          {p.status === 'pending_approval' && (
+                          {p.governanceStatus === 'pending_approval' && (
                             <Button size="sm" variant="ghost" className="text-emerald-400 hover:text-emerald-300 h-7 px-2 text-xs" onClick={() => approveProfile(p.id)}>{t('Approve', 'موافقة')}</Button>
                           )}
                           {p.status !== 'inactive' && (

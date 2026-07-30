@@ -213,6 +213,7 @@ All db.insert(auditLogsTable) calls must include `actorUserId: (req as any).sess
 
 ## Simulated integration labels
 Three endpoints return `simulated: true` in their response: POST /health-checks/run, POST /report-definitions/:id/run, POST /update-packages/:id/install. Frontend deployment.tsx and reports.tsx show amber "⚠ Simulated" badges next to these actions.
+Connection-profile tests are now REAL for ldap/active_directory (ldapts bind), smtp (nodemailer verify+send), attendance_device (fetch {DEVICE_API_URL}/health); env vars LDAP_*/SMTP_*/DEVICE_API_* hold credentials (vault-ref pattern). Other integration types still return `simulated: true`; the profiles UI badges only those types.
 
 ## Production readiness page
 artifacts/hrms/src/pages/production-readiness.tsx — 8 checklist categories, 15-module verification table, status badges: PASS/WARN/FAIL/UNVERIFIED/SIMULATED/PLANNED. Route: /production-readiness. Sidebar: "Readiness" under System section.
