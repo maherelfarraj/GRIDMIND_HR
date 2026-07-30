@@ -76,69 +76,15 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   res.json(userResponse(user));
 });
 
-// POST /auth/change-password — authenticated user changes their own password.
-// Used by the mandatory first-login change flow: verifies the current
-// password, stores the new hash, and clears must_change_password.
+// POST /auth/change-password — signed-in user changes their own password.
+// Single canonical handler serving both the self-service flow and the
+// mandatory first-login change flow: validates the body (400 on missing/weak
+// input), verifies the current password against the stored bcrypt hash
+// (fail-closed: accounts without a hash cannot self-change until an admin
+// provisions one), stores the new hash, and clears must_change_password.
+// Response: { success: true, ...user fields } — never includes the hash.
 router.post("/auth/change-password", async (req, res): Promise<void> => {
   if (!req.session?.userId) {
-    res.status(401).json({ error: "Not authenticated" });
-    return;
-  }
-  const { currentPassword, newPassword } = req.body ?? {};
-  if (typeof newPassword !== "string" || newPassword.length < 8) {
-    res.status(400).json({ error: "New password must be at least 8 characters" });
-    return;
-  }
-
-  const [user] = await db.select().from(systemUsersTable)
-    .where(eq(systemUsersTable.id, req.session.userId));
-  if (!user || !user.isActive) {
-    res.status(401).json({ error: "Not authenticated" });
-    return;
-  }
-
-  // Verify the current password when a hash exists (fail-closed: if a hash
-  // is stored, it must match, regardless of PILOT_AUTH mode).
-  if (user.passwordHash) {
-    if (typeof currentPassword !== "string" ||
-        !(await bcrypt.compare(currentPassword, user.passwordHash))) {
-      res.status(401).json({ error: "Current password is incorrect" });
-      return;
-    }
-    if (newPassword === currentPassword) {
-      res.status(400).json({ error: "New password must be different from the current password" });
-      return;
-    }
-  }
-
-  const passwordHash = await bcrypt.hash(newPassword, 10);
-  await db.update(systemUsersTable)
-    .set({ passwordHash, mustChangePassword: false })
-    .where(eq(systemUsersTable.id, user.id));
-
-  const [updated] = await db.select().from(systemUsersTable)
-    .where(eq(systemUsersTable.id, user.id));
-  res.json(userResponse(updated));
-});
-
-// POST /auth/logout — destroys session, clears cookie
-router.post("/auth/logout", (req, res): void => {
-  req.session.destroy((err) => {
-    if (err) {
-      res.status(500).json({ error: "Logout failed" });
-      return;
-    }
-    res.clearCookie("connect.sid");
-    res.json({ success: true });
-  });
-});
-
-// POST /auth/change-password — signed-in user changes their own password.
-// Requires the current password to match the stored bcrypt hash (fail-closed:
-// accounts without a stored hash cannot self-change until an admin provisions one).
-router.post("/auth/change-password", async (req, res): Promise<void> => {
-  const userId = req.session?.userId;
-  if (!userId) {
     res.status(401).json({ error: "Authentication required" });
     return;
   }
@@ -151,26 +97,41 @@ router.post("/auth/change-password", async (req, res): Promise<void> => {
   const { currentPassword, newPassword } = parsed.data;
 
   const [user] = await db.select().from(systemUsersTable)
-    .where(eq(systemUsersTable.id, userId));
+    .where(eq(systemUsersTable.id, req.session.userId));
   if (!user || !user.isActive) {
     res.status(401).json({ error: "Authentication required" });
     return;
   }
 
-  const userWithHash = user as typeof user & { passwordHash?: string | null };
-  if (!userWithHash.passwordHash) {
+  if (!user.passwordHash || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
     res.status(401).json({ error: "Current password is incorrect" });
     return;
   }
-  const valid = await bcrypt.compare(currentPassword, userWithHash.passwordHash);
-  if (!valid) {
-    res.status(401).json({ error: "Current password is incorrect" });
+  if (newPassword === currentPassword) {
+    res.status(400).json({ error: "New password must be different from the current password" });
     return;
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
-  await db.update(systemUsersTable).set({ passwordHash }).where(eq(systemUsersTable.id, user.id));
-  res.json({ success: true });
+  await db.update(systemUsersTable)
+    .set({ passwordHash, mustChangePassword: false })
+    .where(eq(systemUsersTable.id, user.id));
+
+  const [updated] = await db.select().from(systemUsersTable)
+    .where(eq(systemUsersTable.id, user.id));
+  res.json({ success: true, ...userResponse(updated) });
+});
+
+// POST /auth/logout — destroys session, clears cookie
+router.post("/auth/logout", (req, res): void => {
+  req.session.destroy((err) => {
+    if (err) {
+      res.status(500).json({ error: "Logout failed" });
+      return;
+    }
+    res.clearCookie("connect.sid");
+    res.json({ success: true });
+  });
 });
 
 // GET /auth/me — return current session user; demo fallback to first active user

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import authRouter from "./auth";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { enforcePasswordChange } from "../middleware/enforcePasswordChange.js";
 import healthRouter from "./health";
 import dashboardRouter from "./dashboard";
 import employeesRouter from "./employees";
@@ -82,6 +83,11 @@ router.use((req, res, next) => {
     next();
   }
 });
+
+// Block everything below (all business endpoints) while the session user
+// still has must_change_password=true. Auth endpoints above stay reachable.
+router.use(enforcePasswordChange);
+
 router.use(dashboardRouter);
 router.use(employeesRouter);
 router.use(departmentsRouter);

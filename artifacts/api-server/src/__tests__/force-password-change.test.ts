@@ -121,6 +121,44 @@ describe("forced password change on first login", () => {
     expect(res.status).toBe(400);
   });
 
+  it("blocks business endpoints for a flagged session with 403 PASSWORD_CHANGE_REQUIRED", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/auth/login").send({ username: USERNAME, password: PROVISIONED_PASSWORD });
+
+    for (const path of ["/api/employees", "/api/dashboard/stats", "/api/departments"]) {
+      const res = await agent.get(path);
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe("PASSWORD_CHANGE_REQUIRED");
+    }
+    const post = await agent.post("/api/departments").send({ nameEn: "x" });
+    expect(post.status).toBe(403);
+    expect(post.body.code).toBe("PASSWORD_CHANGE_REQUIRED");
+  });
+
+  it("still allows /auth/me, /auth/change-password and /auth/logout while flagged", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/auth/login").send({ username: USERNAME, password: PROVISIONED_PASSWORD });
+
+    const me = await agent.get("/api/auth/me");
+    expect(me.status).toBe(200);
+
+    // change-password reachable (wrong current password → 401, not 403)
+    const cp = await agent
+      .post("/api/auth/change-password")
+      .send({ currentPassword: "wrong-password", newPassword: NEW_PASSWORD });
+    expect(cp.status).toBe(401);
+
+    const out = await agent.post("/api/auth/logout");
+    expect(out.status).toBe(200);
+  });
+
+  it("does not block an unflagged session's business endpoints", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/auth/login").send({ username: ADMIN_USERNAME, password: PROVISIONED_PASSWORD });
+    const res = await agent.get("/api/employees");
+    expect(res.status).toBe(200);
+  });
+
   it("clears the flag with the correct current password and enables the new one", async () => {
     const agent = request.agent(app);
     await agent.post("/api/auth/login").send({ username: USERNAME, password: PROVISIONED_PASSWORD });
