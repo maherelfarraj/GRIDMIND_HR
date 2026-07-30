@@ -34,6 +34,8 @@ async function seed() {
     { key: "org.name", value: "Royal Armed Forces Command — HR Directorate", valueType: "string", category: "organization", labelEn: "Organization Name", labelAr: "اسم المنظمة", isPublic: true, isReadonly: false },
     { key: "org.name_ar", value: "قيادة القوات المسلحة الملكية — مديرية الموارد البشرية", valueType: "string", category: "organization", labelEn: "Organization Name (Arabic)", labelAr: "اسم المنظمة (عربي)", isPublic: true, isReadonly: false },
     { key: "org.country", value: "Saudi Arabia", valueType: "string", category: "organization", labelEn: "Country", labelAr: "الدولة", isPublic: true, isReadonly: false },
+    // Payroll settings
+    { key: "payroll.weekendDays", value: "[5,6]", valueType: "json", category: "payroll", labelEn: "Weekend Days (0=Sun … 6=Sat)", labelAr: "أيام عطلة نهاية الأسبوع (0=الأحد … 6=السبت)", descriptionEn: "JSON array of weekly off-day indexes used by payroll working-day calculations. Default [5,6] = Friday/Saturday.", isPublic: true, isReadonly: false },
     // Security settings
     { key: "security.level", value: "secret", valueType: "string", category: "security", labelEn: "Default Classification Level", labelAr: "مستوى التصنيف الافتراضي", descriptionEn: "unclassified | restricted | confidential | secret | top_secret", isPublic: false, isReadonly: false },
     { key: "security.dual_auth_enabled", value: "true", valueType: "boolean", category: "security", labelEn: "Dual Authorization Enabled", labelAr: "تفعيل التفويض المزدوج", isPublic: false, isReadonly: false },

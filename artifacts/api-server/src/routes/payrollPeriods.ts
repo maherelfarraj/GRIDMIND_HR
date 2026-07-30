@@ -3,40 +3,66 @@ import {
   db, payrollPeriodsTable, payrollRunsTable, payrollRunLinesTable,
   employeesTable, salaryGradesTable, payComponentsTable, auditLogsTable,
   overtimeRulesTable, punchEventsTable, leaveRequestsTable, leaveTypesTable,
-  attendanceRecordsTable, publicHolidaysTable,
+  attendanceRecordsTable, publicHolidaysTable, systemConfigTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 
-/** Weekend day indexes (JS getUTCDay): Friday=5, Saturday=6 — the Saudi weekend. */
-const WEEKEND_DAYS = [5, 6];
+/** Default weekend day indexes (JS getUTCDay): Friday=5, Saturday=6 — the Saudi weekend. */
+const DEFAULT_WEEKEND_DAYS = [5, 6];
+
+/** System config key holding a JSON array of weekend day indexes (0=Sun … 6=Sat). */
+export const WEEKEND_CONFIG_KEY = "payroll.weekendDays";
+
+/**
+ * Read configured weekend days from system_config ("payroll.weekendDays",
+ * JSON array of day indexes 0–6). Falls back to Fri/Sat when unset or invalid.
+ */
+async function getWeekendDays(): Promise<number[]> {
+  const [row] = await db.select().from(systemConfigTable)
+    .where(eq(systemConfigTable.key, WEEKEND_CONFIG_KEY));
+  if (!row?.value) return DEFAULT_WEEKEND_DAYS;
+  try {
+    const parsed = JSON.parse(row.value);
+    if (
+      Array.isArray(parsed) &&
+      parsed.length > 0 &&
+      parsed.length < 7 &&
+      parsed.every(d => Number.isInteger(d) && d >= 0 && d <= 6)
+    ) {
+      return [...new Set(parsed as number[])];
+    }
+  } catch { /* fall through to default */ }
+  console.warn(`Invalid ${WEEKEND_CONFIG_KEY} config value "${row.value}" — falling back to Fri/Sat`);
+  return DEFAULT_WEEKEND_DAYS;
+}
 
 /** Count working days (excluding weekends and public holidays) in [start, end] inclusive (YYYY-MM-DD strings). */
-function countWorkingDays(start: string, end: string, holidays: Set<string> = new Set()): number {
+function countWorkingDays(start: string, end: string, weekendDays: number[], holidays: Set<string> = new Set()): number {
   if (start > end) return 0;
   let count = 0;
   const d = new Date(start + "T00:00:00Z");
   const last = new Date(end + "T00:00:00Z");
   while (d <= last) {
     const iso = d.toISOString().slice(0, 10);
-    if (!WEEKEND_DAYS.includes(d.getUTCDay()) && !holidays.has(iso)) count++;
+    if (!weekendDays.includes(d.getUTCDay()) && !holidays.has(iso)) count++;
     d.setUTCDate(d.getUTCDate() + 1);
   }
   return count;
 }
 
 /** Count working days of a leave request that fall inside [periodStart, periodEnd] (inclusive, date strings). */
-function overlapDays(leaveStart: string, leaveEnd: string, periodStart: string, periodEnd: string, halfDay: boolean, holidays: Set<string> = new Set()): number {
+function overlapDays(leaveStart: string, leaveEnd: string, periodStart: string, periodEnd: string, halfDay: boolean, weekendDays: number[], holidays: Set<string> = new Set()): number {
   const start = leaveStart > periodStart ? leaveStart : periodStart;
   const end = leaveEnd < periodEnd ? leaveEnd : periodEnd;
   if (start > end) return 0;
-  const days = countWorkingDays(start, end, holidays);
+  const days = countWorkingDays(start, end, weekendDays, holidays);
   if (halfDay && days === 1) return 0.5;
   return days;
 }
 
-/** Sun–Thu are workdays; Fri/Sat are the weekend. */
-function isWorkday(dateStr: string): boolean {
-  return !WEEKEND_DAYS.includes(new Date(dateStr + "T00:00:00Z").getUTCDay());
+/** True when the date is not one of the configured weekend days. */
+function isWorkday(dateStr: string, weekendDays: number[]): boolean {
+  return !weekendDays.includes(new Date(dateStr + "T00:00:00Z").getUTCDay());
 }
 
 /** All ISO date strings from start to end inclusive. */
@@ -123,12 +149,24 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       lte(attendanceRecordsTable.date, period.endDate),
     ));
 
-  // Workdays in the period eligible for no-show checks: Sun–Thu, and never
-  // beyond today (future days can't be counted as absences yet).
+  // Weekend days are admin-configurable via system_config "payroll.weekendDays".
+  const weekendDays = await getWeekendDays();
+
+  // Public holidays inside this period — excluded from working days.
+  const holidayRows = await db.select({ date: publicHolidaysTable.date })
+    .from(publicHolidaysTable)
+    .where(and(
+      gte(publicHolidaysTable.date, period.startDate),
+      lte(publicHolidaysTable.date, period.endDate),
+    ));
+  const holidaySet = new Set(holidayRows.map(h => h.date));
+
+  // Workdays in the period eligible for no-show checks: non-weekend days, and
+  // never beyond today (future days can't be counted as absences yet).
   const todayStr = new Date().toISOString().slice(0, 10);
   const noShowEnd = period.endDate < todayStr ? period.endDate : todayStr;
   const eligibleWorkdays = period.startDate <= noShowEnd
-    ? datesInRange(period.startDate, noShowEnd).filter(isWorkday)
+    ? datesInRange(period.startDate, noShowEnd).filter(d => isWorkday(d, weekendDays))
     : [];
 
   // Approved leave requests overlapping this period, with their leave type category.
@@ -147,17 +185,8 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       gte(leaveRequestsTable.endDate, period.startDate),
     ));
 
-  // Public holidays inside this period — excluded from working days.
-  const holidayRows = await db.select({ date: publicHolidaysTable.date })
-    .from(publicHolidaysTable)
-    .where(and(
-      gte(publicHolidaysTable.date, period.startDate),
-      lte(publicHolidaysTable.date, period.endDate),
-    ));
-  const holidaySet = new Set(holidayRows.map(h => h.date));
-
   // Real working days in this period's calendar (weekends and public holidays excluded).
-  const periodWorkingDays = countWorkingDays(period.startDate, period.endDate, holidaySet);
+  const periodWorkingDays = countWorkingDays(period.startDate, period.endDate, weekendDays, holidaySet);
 
   const gradeMap = Object.fromEntries(grades.map(g => [g.gradeCode, g]));
   let totalGross = 0, totalDeductions = 0, totalNet = 0, exceptionCount = 0;
@@ -205,7 +234,7 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     // unpaid-category leave that fall inside this period.
     const unpaidDays = approvedLeaves
       .filter(l => l.employeeId === emp.id && l.category === "unpaid")
-      .reduce((sum, l) => sum + overlapDays(l.startDate, l.endDate, period.startDate, period.endDate, l.halfDay, holidaySet), 0);
+      .reduce((sum, l) => sum + overlapDays(l.startDate, l.endDate, period.startDate, period.endDate, l.halfDay, weekendDays, holidaySet), 0);
     const deductedLeaveDays = Math.min(unpaidDays, periodWorkingDays);
     const dailyRate = (baseSalary + housingAmount + transportAmount) / periodWorkingDays;
     const leaveDeductionAmount = Math.round(deductedLeaveDays * dailyRate * 100) / 100;

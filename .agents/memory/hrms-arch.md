@@ -213,6 +213,9 @@ artifacts/hrms/src/pages/production-readiness.tsx — 8 checklist categories, 15
 Phase 3: ~3,200 lines → Phase 4: ~5,300 → Phase 5: ~9,485 → Phase 6: ~11,068 lines, 401 operationIds, 4 new tags (Documents, Reports, Notifications, DeploymentOps).
 
 
+## Configurable weekend days
+Payroll working-day math reads system_config key `payroll.weekendDays` (JSON array of getUTCDay indexes, e.g. "[5,6]") at calculate time, falling back to Fri/Sat when unset/invalid (incl. all-7-days, which would divide by zero). Other features (dashboard history seed, roster seeds) still assume Fri/Sat — read the config key if extending them.
+
 ## Merge/rebase caution
 - Auto-merged rebases have produced silently corrupted files that were NOT listed as conflicted (duplicate `const` declarations, route handlers cross-contaminated / mislabeled paths in api-server routes). After resolving any rebase, always run `tsc --noEmit` per package AND the api-server vitest suite before continuing the rebase — conflict markers being gone is not enough.
 - Leave revoke sets request status to "cancelled" (not "revoked") — the integration tests and frontend expect this.
