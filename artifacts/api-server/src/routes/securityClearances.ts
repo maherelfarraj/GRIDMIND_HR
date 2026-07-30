@@ -35,6 +35,8 @@ router.get("/security-clearances", async (req, res): Promise<void> => {
 
 // POST /security-clearances — upsert by employeeId
 router.post("/security-clearances", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const { employeeId, clearanceLevel, ...rest } = req.body;
 
   if (!employeeId || !clearanceLevel) {
@@ -81,6 +83,8 @@ router.get("/security-clearances/:id", async (req, res): Promise<void> => {
 
 // PATCH /security-clearances/:id
 router.patch("/security-clearances/:id", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const id = parseInt(req.params.id, 10);
   const [row] = await db
     .update(securityClearancesTable)

@@ -16,7 +16,7 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(updatePackagesTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ action: "create", entityType: "update_package", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "update_package", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -40,7 +40,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
       .where(eq(updatePackagesTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ action: "update", entityType: "update_package", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "update_package", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -54,7 +54,7 @@ router.post("/:id/verify", async (req, res): Promise<void> => {
       .where(eq(updatePackagesTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ action: "verify", entityType: "update_package", entityId: id, changesJson: JSON.stringify({ signatureVerified: true }) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "verify", entityType: "update_package", entityId: id, changesJson: JSON.stringify({ signatureVerified: true }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -83,8 +83,8 @@ router.post("/:id/install", async (req, res): Promise<void> => {
       detailsJson: JSON.stringify({ packageId: id, packageVersion: pkg.packageVersion }),
     });
 
-    await db.insert(auditLogsTable).values({ action: "install", entityType: "update_package", entityId: id, changesJson: JSON.stringify({ status: "installed", userId }) });
-    res.json(row);
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "install", entityType: "update_package", entityId: id, changesJson: JSON.stringify({ status: "installed", userId }) });
+    res.json({ ...row, simulated: true });
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 

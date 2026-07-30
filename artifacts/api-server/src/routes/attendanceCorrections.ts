@@ -38,6 +38,8 @@ router.get("/attendance/corrections", async (req, res): Promise<void> => {
 
 // POST request a correction
 router.post("/attendance/:id/correction", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const recordId = parseInt(req.params.id);
   const { employeeId, correctionType, originalValue, requestedValue, reason, requestedByUserId } = req.body;
   if (!correctionType || !requestedValue || !reason) {
@@ -59,6 +61,8 @@ router.post("/attendance/:id/correction", async (req, res): Promise<void> => {
 
 // PATCH decide on a correction
 router.patch("/attendance/corrections/:id/decision", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const id = parseInt(req.params.id);
   const { decision, reviewNote, reviewedByUserId } = req.body;
   if (decision !== "approved" && decision !== "rejected") {

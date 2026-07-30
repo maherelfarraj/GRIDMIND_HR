@@ -51,7 +51,7 @@ router.get("/:id/download", async (req, res): Promise<void> => {
       .where(eq(reportOutputsTable.id, id))
       .returning();
 
-    await db.insert(auditLogsTable).values({ action: "download", entityType: "report_output", entityId: id, changesJson: JSON.stringify({ storagePath: row.storagePath }) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "download", entityType: "report_output", entityId: id, changesJson: JSON.stringify({ storagePath: row.storagePath }) });
 
     res.json({ storagePath: updated.storagePath, fileName: updated.fileName });
   } catch (e) { res.status(500).json({ error: String(e) }); }

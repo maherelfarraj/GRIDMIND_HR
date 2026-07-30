@@ -19,7 +19,7 @@ successionPoolsRouter.get("/", async (req, res): Promise<void> => {
 successionPoolsRouter.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(successionPoolsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ action: "create", entityType: "succession_pool", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "succession_pool", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -36,7 +36,7 @@ successionPoolsRouter.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(successionPoolsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(successionPoolsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ action: "update", entityType: "succession_pool", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "succession_pool", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -73,7 +73,7 @@ successionCandidatesRouter.get("/", async (req, res): Promise<void> => {
 successionCandidatesRouter.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(successionCandidatesTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ action: "create", entityType: "succession_candidate", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "succession_candidate", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -90,7 +90,7 @@ successionCandidatesRouter.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(successionCandidatesTable).set({ ...req.body, updatedAt: new Date() }).where(eq(successionCandidatesTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ action: "update", entityType: "succession_candidate", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "succession_candidate", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -112,7 +112,7 @@ developmentPlansRouter.get("/", async (req, res): Promise<void> => {
 developmentPlansRouter.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(developmentPlansTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ action: "create", entityType: "development_plan", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "development_plan", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -129,7 +129,7 @@ developmentPlansRouter.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(developmentPlansTable).set({ ...req.body, updatedAt: new Date() }).where(eq(developmentPlansTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ action: "update", entityType: "development_plan", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "development_plan", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -148,7 +148,7 @@ developmentPlansRouter.post("/:id/activities", async (req, res): Promise<void> =
   try {
     const planId = parseInt(req.params.id);
     const [row] = await db.insert(developmentActivitiesTable).values({ ...req.body, planId }).returning();
-    await db.insert(auditLogsTable).values({ action: "create", entityType: "development_activity", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "development_activity", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -160,7 +160,7 @@ developmentActivitiesRouter.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(developmentActivitiesTable).set({ ...req.body, updatedAt: new Date() }).where(eq(developmentActivitiesTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ action: "update", entityType: "development_activity", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "development_activity", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

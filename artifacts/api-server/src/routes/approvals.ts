@@ -81,6 +81,7 @@ router.patch("/approvals/:id/decision", async (req, res): Promise<void> => {
     .returning();
   if (!approval) { res.status(404).json({ error: "Not found" }); return; }
   await db.insert(auditLogsTable).values({
+    actorUserId: (req as any).session?.userId ?? null,
     action: `approval.${parsed.data.status}`,
     entityType: "approval",
     entityId: id,

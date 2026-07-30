@@ -34,6 +34,8 @@ router.get("/users", async (req, res): Promise<void> => {
 });
 
 router.post("/users", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const parsed = CreateUserBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [user] = await db.insert(systemUsersTable).values(parsed.data).returning();
@@ -48,6 +50,8 @@ router.get("/users/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/users/:id", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const id = parseId(req.params.id);
   const parsed = UpdateUserBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }

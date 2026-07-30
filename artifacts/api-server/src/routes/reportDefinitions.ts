@@ -28,7 +28,7 @@ router.post("/", async (req, res): Promise<void> => {
       isSystemReport: false,
       createdByUserId: userId,
     }).returning();
-    await db.insert(auditLogsTable).values({ action: "create", entityType: "report_definition", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ action: "create", entityType: "report_definition", entityId: row.id, actorUserId: userId, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -59,7 +59,8 @@ router.patch("/:id", async (req, res): Promise<void> => {
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(reportDefinitionsTable.id, id))
       .returning();
-    await db.insert(auditLogsTable).values({ action: "update", entityType: "report_definition", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    const patchUserId = (req as any).session?.userId ?? null;
+    await db.insert(auditLogsTable).values({ action: "update", entityType: "report_definition", entityId: row.id, actorUserId: patchUserId, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -103,8 +104,8 @@ router.post("/:id/run", async (req, res): Promise<void> => {
       .where(eq(reportOutputsTable.id, output.id))
       .returning();
 
-    await db.insert(auditLogsTable).values({ action: "run", entityType: "report_definition", entityId: id, changesJson: JSON.stringify({ exportFormat: fmt, language, rowCount }) });
-    res.status(201).json(completed);
+    await db.insert(auditLogsTable).values({ action: "run", entityType: "report_definition", entityId: id, actorUserId: userId, changesJson: JSON.stringify({ exportFormat: fmt, language, rowCount }) });
+    res.status(201).json({ ...completed, simulated: true });
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 

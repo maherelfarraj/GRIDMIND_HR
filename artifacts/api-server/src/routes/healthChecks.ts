@@ -41,7 +41,7 @@ router.post("/run", async (req, res): Promise<void> => {
       results.push(row);
     }
 
-    res.status(201).json({ results });
+    res.status(201).json({ results, simulated: true });
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 

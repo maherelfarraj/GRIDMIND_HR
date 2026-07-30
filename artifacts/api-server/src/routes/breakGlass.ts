@@ -55,6 +55,7 @@ router.post("/break-glass", async (req, res): Promise<void> => {
 
   // Log to audit
   await db.insert(auditLogsTable).values({
+    actorUserId: (req as any).session?.userId ?? null,
     action: "break_glass.granted",
     entityType: "break_glass_access",
     entityId: newRecord.id,
@@ -93,6 +94,7 @@ router.post("/break-glass/:id/revoke", async (req, res): Promise<void> => {
 
   // Log to audit
   await db.insert(auditLogsTable).values({
+    actorUserId: (req as any).session?.userId ?? null,
     action: "break_glass.revoked",
     entityType: "break_glass_access",
     entityId: id,

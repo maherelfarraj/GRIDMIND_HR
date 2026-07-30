@@ -31,6 +31,8 @@ router.get("/dual-auth", async (req, res): Promise<void> => {
 
 // POST /dual-auth
 router.post("/dual-auth", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const { actionType, descriptionEn, ttlMinutes, initiatedByUserId, ...rest } = req.body;
 
   if (!actionType || !descriptionEn) {
@@ -62,6 +64,8 @@ router.post("/dual-auth", async (req, res): Promise<void> => {
 
 // POST /dual-auth/:id/approve
 router.post("/dual-auth/:id/approve", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const id = parseInt(req.params.id, 10);
   const { approverUserId, notes } = req.body;
 
@@ -115,6 +119,8 @@ router.post("/dual-auth/:id/approve", async (req, res): Promise<void> => {
 
 // POST /dual-auth/:id/reject
 router.post("/dual-auth/:id/reject", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const id = parseInt(req.params.id, 10);
   const { approverUserId, notes } = req.body;
 

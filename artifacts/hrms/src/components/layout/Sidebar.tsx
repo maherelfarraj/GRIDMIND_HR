@@ -45,6 +45,7 @@ import {
   BarChart2,
   Bell,
   FileText,
+  ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -132,6 +133,7 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
   const systemPhase6Items = [
     { href: '/notifications', icon: Bell, labelEn: 'Notifications', labelAr: 'الإشعارات' },
     { href: '/deployment', icon: Activity, labelEn: 'Deployment & Health', labelAr: 'النشر والصحة' },
+    { href: '/production-readiness', icon: ClipboardCheck, labelEn: 'Readiness', labelAr: 'الجاهزية' },
   ];
 
   const comingSoonItems: { icon: React.ComponentType<{ className?: string }>; labelEn: string; labelAr: string }[] = [];

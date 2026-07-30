@@ -129,13 +129,14 @@ function HealthChecksTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex justify-end items-center gap-2">
+        <span className="text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30">⚠ Simulated</span>
         <Button
           onClick={handleRunAll}
           disabled={running}
           className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
         >
-          <RefreshCw className={cn('w-4 h-4 mr-1', running && 'animate-spin')} />
+          <RefreshCw className={cn('w-4 h-4 me-1', running && 'animate-spin')} />
           {running ? t('Running…', 'جاري التشغيل…') : t('Run All Checks', 'تشغيل جميع الفحوصات')}
         </Button>
       </div>
@@ -275,7 +276,7 @@ function UpdatePackagesTab() {
           className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
           onClick={() => setNewOpen(true)}
         >
-          <Plus className="w-4 h-4 mr-1" />
+          <Plus className="w-4 h-4 me-1" />
           {t('Register Package', 'تسجيل حزمة')}
         </Button>
       </div>
@@ -342,8 +343,9 @@ function UpdatePackagesTab() {
                                 className="h-7 text-xs bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
                                 onClick={() => handleInstall(p.id)}
                               >
-                                <Zap className="w-3 h-3 mr-1" />
+                                <Zap className="w-3 h-3 me-1" />
                                 {t('Install', 'تثبيت')}
+                                <span className="text-[9px] bg-amber-500/20 text-amber-900 px-1 rounded border border-amber-700/30 ms-1">⚠ Sim</span>
                               </Button>
                             )}
                           </div>
@@ -624,7 +626,7 @@ function ReadinessTab() {
           disabled={running}
           className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
         >
-          <RefreshCw className={cn('w-4 h-4 mr-1', running && 'animate-spin')} />
+          <RefreshCw className={cn('w-4 h-4 me-1', running && 'animate-spin')} />
           {running ? t('Checking…', 'جاري الفحص…') : t('Run Readiness Check', 'تشغيل فحص الجاهزية')}
         </Button>
       </div>
@@ -704,19 +706,19 @@ export default function Deployment() {
         <Tabs defaultValue="health">
           <TabsList className="bg-slate-800 border border-slate-700">
             <TabsTrigger value="health" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
-              <Activity className="w-4 h-4 mr-1" />
+              <Activity className="w-4 h-4 me-1" />
               {t('Health Checks', 'فحوصات الصحة')}
             </TabsTrigger>
             <TabsTrigger value="packages" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
-              <Package className="w-4 h-4 mr-1" />
+              <Package className="w-4 h-4 me-1" />
               {t('Update Packages', 'حزم التحديث')}
             </TabsTrigger>
             <TabsTrigger value="events" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
-              <Clock className="w-4 h-4 mr-1" />
+              <Clock className="w-4 h-4 me-1" />
               {t('Deployment Events', 'أحداث النشر')}
             </TabsTrigger>
             <TabsTrigger value="readiness" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
-              <CheckCircle className="w-4 h-4 mr-1" />
+              <CheckCircle className="w-4 h-4 me-1" />
               {t('Readiness', 'الجاهزية')}
             </TabsTrigger>
           </TabsList>

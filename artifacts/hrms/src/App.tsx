@@ -56,6 +56,7 @@ import DocumentManagement from '@/pages/document-management';
 import Reports from '@/pages/reports';
 import Notifications from '@/pages/notifications';
 import Deployment from '@/pages/deployment';
+import ProductionReadiness from '@/pages/production-readiness';
 
 const queryClient = new QueryClient();
 
@@ -132,6 +133,7 @@ function ProtectedRouter() {
         <Route path="/reports" component={Reports} />
         <Route path="/notifications" component={Notifications} />
         <Route path="/deployment" component={Deployment} />
+        <Route path="/production-readiness" component={ProductionReadiness} />
         <Route component={NotFound} />
       </Switch>
     </Shell>

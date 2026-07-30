@@ -176,7 +176,7 @@ function NewRequestDialog({ open, onClose }: NewRequestDialogProps) {
           <DialogTitle>{t('New Leave Request', 'طلب إجازة جديد')}</DialogTitle>
           <DialogDescription>{t('Fill in the details below', 'أدخل التفاصيل أدناه')}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3 py-2 max-h-[65vh] overflow-y-auto pr-1">
+        <div className="space-y-3 py-2 max-h-[65vh] overflow-y-auto pe-1">
           {/* Employee */}
           <div>
             <label className="text-sm font-medium mb-1 block">{t('Employee', 'الموظف')}</label>
@@ -458,7 +458,7 @@ function RequestsTab() {
           />
         </div>
         <Button onClick={() => setNewDialog(true)}>
-          <Plus className="w-4 h-4 mr-1" />
+          <Plus className="w-4 h-4 me-1" />
           {t('New Request', 'طلب جديد')}
         </Button>
       </div>
@@ -514,7 +514,7 @@ function RequestsTab() {
                               style={{ borderColor: req.leaveTypeColor, color: req.leaveTypeColor }}
                             >
                               <span
-                                className="w-2 h-2 rounded-full mr-1 inline-block"
+                                className="w-2 h-2 rounded-full me-1 inline-block"
                                 style={{ backgroundColor: req.leaveTypeColor }}
                               />
                               {lang === 'ar' ? req.leaveTypeNameAr : req.leaveTypeNameEn}
@@ -536,33 +536,33 @@ function RequestsTab() {
                                 <>
                                   <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy}
                                     onClick={() => handleDecide(req.id, currentStep, 'approve')}>
-                                    <ThumbsUp className="w-3 h-3 mr-1" />
+                                    <ThumbsUp className="w-3 h-3 me-1" />
                                     {t('Approve', 'موافقة')}
                                   </Button>
                                   <Button size="sm" variant="destructive" disabled={busy}
                                     onClick={() => handleDecide(req.id, currentStep, 'reject')}>
-                                    <ThumbsDown className="w-3 h-3 mr-1" />
+                                    <ThumbsDown className="w-3 h-3 me-1" />
                                     {t('Reject', 'رفض')}
                                   </Button>
                                 </>
                               )}
                               {req.status === 'approved' && !req.returnedToWork && (
                                 <Button size="sm" variant="outline" disabled={busy} onClick={() => handleReturn(req.id)}>
-                                  <ArrowRightCircle className="w-3 h-3 mr-1" />
+                                  <ArrowRightCircle className="w-3 h-3 me-1" />
                                   {t('Return', 'عودة')}
                                 </Button>
                               )}
                               {req.status === 'approved' && (
                                 <Button size="sm" variant="ghost" className="text-orange-600 hover:text-orange-700" disabled={busy}
                                   onClick={() => handleRevoke(req.id)}>
-                                  <ShieldAlert className="w-3 h-3 mr-1" />
+                                  <ShieldAlert className="w-3 h-3 me-1" />
                                   {t('Revoke', 'إلغاء الموافقة')}
                                 </Button>
                               )}
                               {['submitted', 'under_review'].includes(req.status) && (
                                 <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" disabled={busy}
                                   onClick={() => handleCancel(req.id)}>
-                                  <XCircle className="w-3 h-3 mr-1" />
+                                  <XCircle className="w-3 h-3 me-1" />
                                   {t('Cancel', 'إلغاء')}
                                 </Button>
                               )}
@@ -680,7 +680,7 @@ function TeamQueueTab() {
             ))}
           </SelectContent>
         </Select>
-        <Badge variant="outline" className="ml-2">{queue.length} {t('pending', 'معلق')}</Badge>
+        <Badge variant="outline" className="ms-2">{queue.length} {t('pending', 'معلق')}</Badge>
       </div>
 
       <Card>
@@ -735,12 +735,12 @@ function TeamQueueTab() {
                           <div className="flex gap-1">
                             <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy}
                               onClick={() => handleDecide(req.id, currentStep, 'approve')}>
-                              <ThumbsUp className="w-3 h-3 mr-1" />
+                              <ThumbsUp className="w-3 h-3 me-1" />
                               {t('Approve', 'موافقة')}
                             </Button>
                             <Button size="sm" variant="destructive" disabled={busy}
                               onClick={() => handleDecide(req.id, currentStep, 'reject')}>
-                              <ThumbsDown className="w-3 h-3 mr-1" />
+                              <ThumbsDown className="w-3 h-3 me-1" />
                               {t('Reject', 'رفض')}
                             </Button>
                           </div>
@@ -928,15 +928,15 @@ export default function LeavePage() {
         <Tabs defaultValue="requests">
           <TabsList>
             <TabsTrigger value="requests">
-              <FileText className="w-4 h-4 mr-1.5" />
+              <FileText className="w-4 h-4 me-1.5" />
               {t('Requests', 'الطلبات')}
             </TabsTrigger>
             <TabsTrigger value="team">
-              <Users className="w-4 h-4 mr-1.5" />
+              <Users className="w-4 h-4 me-1.5" />
               {t('Team Queue', 'قائمة الفريق')}
             </TabsTrigger>
             <TabsTrigger value="calendar">
-              <Calendar className="w-4 h-4 mr-1.5" />
+              <Calendar className="w-4 h-4 me-1.5" />
               {t('Calendar', 'التقويم')}
             </TabsTrigger>
           </TabsList>

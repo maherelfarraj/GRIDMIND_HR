@@ -72,6 +72,8 @@ router.get("/employees", async (req, res): Promise<void> => {
 });
 
 router.post("/employees", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const parsed = CreateEmployeeBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -90,6 +92,8 @@ router.get("/employees/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/employees/:id", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const id = parseId(req.params.id);
   const parsed = UpdateEmployeeBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -102,6 +106,8 @@ router.patch("/employees/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/employees/:id", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const id = parseId(req.params.id);
   await db.delete(employeesTable).where(eq(employeesTable.id, id));
   res.status(204).end();

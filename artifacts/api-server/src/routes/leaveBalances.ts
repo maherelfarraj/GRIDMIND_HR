@@ -44,6 +44,8 @@ router.get("/leave-balances", async (req, res): Promise<void> => {
 
 // POST /leave-balances — create or upsert balance
 router.post("/leave-balances", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const { employeeId, leaveTypeId, year, openingBalance, accrued, adjustment, carriedOver } = req.body;
   if (!employeeId || !leaveTypeId || !year) {
     res.status(400).json({ error: "employeeId, leaveTypeId, year required" });
@@ -77,6 +79,8 @@ router.post("/leave-balances", async (req, res): Promise<void> => {
 
 // PATCH /leave-balances/:id
 router.patch("/leave-balances/:id", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const id = parseInt(req.params.id, 10);
   const { openingBalance, accrued, used, pending, adjustment, carriedOver } = req.body;
   const [b] = await db.update(leaveBalancesTable)
@@ -91,7 +95,10 @@ router.patch("/leave-balances/:id", async (req, res): Promise<void> => {
 // Creates new year balance rows for every active employee × leave type,
 // carrying over min(balance_available, maxCarryoverDays) from the previous year.
 router.post("/leave-balances/annual-reset", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   try {
+    const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
     const { year } = req.body;
     if (!year) { res.status(400).json({ error: "year required" }); return; }
     const newYear = parseInt(year, 10);
@@ -149,6 +156,7 @@ router.post("/leave-balances/annual-reset", async (req, res): Promise<void> => {
     await db.insert(auditLogsTable).values({
       action: "leave_balance.annual_reset",
       entityType: "leave_balance",
+      actorUserId,
       changesJson: JSON.stringify({ year: newYear, created }),
     });
 

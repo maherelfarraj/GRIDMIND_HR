@@ -34,7 +34,7 @@ employeeRequestsRouter.get("/", async (req, res): Promise<void> => {
 employeeRequestsRouter.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(employeeRequestsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ action: "create", entityType: "employee_request", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "employee_request", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -51,7 +51,7 @@ employeeRequestsRouter.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(employeeRequestsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(employeeRequestsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ action: "update", entityType: "employee_request", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "employee_request", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -63,7 +63,7 @@ employeeRequestsRouter.post("/:id/fulfill", async (req, res): Promise<void> => {
       .where(eq(employeeRequestsTable.id, parseInt(req.params.id)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ action: "fulfill", entityType: "employee_request", entityId: row.id, changesJson: JSON.stringify({ status: "fulfilled" }) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "fulfill", entityType: "employee_request", entityId: row.id, changesJson: JSON.stringify({ status: "fulfilled" }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -99,7 +99,7 @@ announcementsRouter.get("/", async (req, res): Promise<void> => {
 announcementsRouter.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(announcementsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ action: "create", entityType: "announcement", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "announcement", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -116,7 +116,7 @@ announcementsRouter.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(announcementsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(announcementsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ action: "update", entityType: "announcement", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "announcement", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -128,7 +128,7 @@ announcementsRouter.post("/:id/publish", async (req, res): Promise<void> => {
       .where(eq(announcementsTable.id, parseInt(req.params.id)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ action: "publish", entityType: "announcement", entityId: row.id, changesJson: JSON.stringify({ status: "published" }) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "publish", entityType: "announcement", entityId: row.id, changesJson: JSON.stringify({ status: "published" }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -165,7 +165,7 @@ approvalDelegationsRouter.get("/", async (req, res): Promise<void> => {
 approvalDelegationsRouter.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(approvalDelegationsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ action: "create", entityType: "approval_delegation", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "approval_delegation", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -182,7 +182,7 @@ approvalDelegationsRouter.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(approvalDelegationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(approvalDelegationsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ action: "update", entityType: "approval_delegation", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "approval_delegation", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

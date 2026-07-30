@@ -18,6 +18,8 @@ router.get("/payroll-periods", async (req, res): Promise<void> => {
 });
 
 router.post("/payroll-periods", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const { periodCode, nameEn, nameAr, periodType, startDate, endDate, payDate, currency, notes } = req.body;
   if (!periodCode || !nameEn || !nameAr || !startDate || !endDate || !payDate) {
     res.status(400).json({ error: "periodCode, nameEn, nameAr, startDate, endDate, payDate required" });
@@ -43,6 +45,9 @@ router.get("/payroll-periods/:id", async (req, res): Promise<void> => {
 
 // POST /payroll-periods/:id/calculate — generate/recalculate all payroll runs
 router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
+  const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
   const periodId = parseInt(req.params.id, 10);
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }
@@ -200,14 +205,26 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     entityType: "payroll_period",
     entityId: periodId,
     entityLabel: period.nameEn,
+    actorUserId,
     changesJson: JSON.stringify({ employeesProcessed: employees.length, exceptionCount }),
   });
 
-  res.json({ period: updated, runsCreated: runs.length, exceptionCount });
+  res.json({
+    period: updated,
+    runsCreated: runs.length,
+    exceptionCount,
+    totalGross: Math.round(totalGross * 100) / 100,
+    totalNet: Math.round(totalNet * 100) / 100,
+    totalDeductions: Math.round(totalDeductions * 100) / 100,
+    runs: runs.map(r => ({ runId: r.id, employeeId: r.employeeId, grossSalary: r.grossSalary, netSalary: r.netSalary, hasException: r.hasException })),
+  });
 });
 
 // POST /payroll-periods/:id/approve — first or second approval
 router.post("/payroll-periods/:id/approve", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
+  const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
   const periodId = parseInt(req.params.id, 10);
   const { approverId, note } = req.body;
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
@@ -245,6 +262,7 @@ router.post("/payroll-periods/:id/approve", async (req, res): Promise<void> => {
     entityType: "payroll_period",
     entityId: periodId,
     entityLabel: period.nameEn,
+    actorUserId,
     changesJson: JSON.stringify({ approverId, note }),
   });
 
@@ -253,6 +271,9 @@ router.post("/payroll-periods/:id/approve", async (req, res): Promise<void> => {
 
 // POST /payroll-periods/:id/close — immutable close (no rollback)
 router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
+  const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
   const periodId = parseInt(req.params.id, 10);
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }
@@ -272,6 +293,7 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
     entityType: "payroll_period",
     entityId: periodId,
     entityLabel: period.nameEn,
+    actorUserId,
     changesJson: JSON.stringify({ closedAt: new Date().toISOString() }),
   });
 
@@ -279,6 +301,8 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
 });
 
 router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
   const id = parseInt(req.params.id, 10);
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
   if (!period) { res.status(404).json({ error: "Not found" }); return; }

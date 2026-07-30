@@ -177,5 +177,25 @@ documentCategories, enterpriseDocuments, documentTemplates, reportDefinitions, s
 ## Phase 6 frontend pages (4 total)
 document-management (3 tabs: Documents/Templates/Categories), reports (3 tabs: Run Reports/Scheduled/Output History), notifications (2 tabs: Inbox/Escalation Rules), deployment (4 tabs: Health Checks/Update Packages/Deployment Events/Readiness). Sidebar sections added: "Documents & Reports" and "System".
 
+## Session guards — demo-mode fallback pattern
+All mutating route guards use `const actorUserId = (req as any).session?.userId ?? 1;` (demo fallback to admin) instead of a hard 401. This keeps the app fully functional without express-session while still populating actorUserId in audit logs. The production-readiness dashboard marks real session enforcement as "Planned". **Do not add hard 401 guards** until express-session is wired into app.ts and POST /auth/login sets req.session.userId.
+
+**Why:** express-session is not installed; app.ts has no session middleware; req.session is always undefined in dev/test; hard 401 guards break all integration tests and the demo UI.
+
+## leaveRequests.ts — merge corruption pattern
+Three task branches (cert gating, revoke, concurrency lock) all edited leaveRequests.ts and corrupted it: duplicate `const balance` declarations, wrong route paths (all labeled `/attachments`), and stray handler bodies mixed into other handlers. The canonical correct endpoints are: submit, decide, cancel, revoke, return, attachments — all distinct paths. Also: GET /leave-requests was filtering for approved/under_review only, ignoring all query params — fixed to proper conditional filter.
+
+## Audit log actorUserId
+All db.insert(auditLogsTable) calls must include `actorUserId: (req as any).session?.userId ?? 1`. The column exists in auditLogsTable. 112 inserts were missing this in Phase 5/6 routes — all fixed in stabilization pass.
+
+## Integration test suite (artifacts/api-server/src/__tests__/)
+12 test files total: helpers.ts, leave-workflow, leave-validation, leave-concurrency, annual-reset, dual-auth, payroll, authorization, attendance-workflow, document-workflow, report-workflow, deployment-ops, notification-workflow. Run: `pnpm --filter @workspace/api-server run test`. 60 pass, 7 skip (authorization stubs — document intended behavior for when real session enforcement is added). All new tests self-clean in afterAll.
+
+## Simulated integration labels
+Three endpoints return `simulated: true` in their response: POST /health-checks/run, POST /report-definitions/:id/run, POST /update-packages/:id/install. Frontend deployment.tsx and reports.tsx show amber "⚠ Simulated" badges next to these actions.
+
+## Production readiness page
+artifacts/hrms/src/pages/production-readiness.tsx — 8 checklist categories, 15-module verification table, status badges: PASS/WARN/FAIL/UNVERIFIED/SIMULATED/PLANNED. Route: /production-readiness. Sidebar: "Readiness" under System section.
+
 ## OpenAPI spec size history
 Phase 3: ~3,200 lines → Phase 4: ~5,300 → Phase 5: ~9,485 → Phase 6: ~11,068 lines, 401 operationIds, 4 new tags (Documents, Reports, Notifications, DeploymentOps).

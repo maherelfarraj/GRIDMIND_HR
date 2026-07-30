@@ -174,7 +174,7 @@ function RunReportDialog({ open, reportId, reportName, onClose, onSuccess }: Run
             className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
           >
             {running ? t('Running…', 'جاري التشغيل…') : (
-              <><Play className="w-4 h-4 mr-1" />{t('Run', 'تشغيل')}</>
+              <><Play className="w-4 h-4 me-1" />{t('Run', 'تشغيل')}</>
             )}
           </Button>
         </DialogFooter>
@@ -243,14 +243,15 @@ function RunReportsTab({ onRunSuccess }: { onRunSuccess: () => void }) {
                 <CardContent className="flex-1 pb-2">
                   <p className="text-xs text-slate-400">{d.descriptionEn ?? d.description ?? t('No description', 'لا يوجد وصف')}</p>
                 </CardContent>
-                <div className="px-6 pb-4">
+                <div className="px-6 pb-4 space-y-2">
                   <Button
                     size="sm"
                     className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
                     onClick={() => setRunDialog({ open: true, id: d.id, name: d.nameEn ?? d.name })}
                   >
-                    <Play className="w-3 h-3 mr-1" />
+                    <Play className="w-3 h-3 me-1" />
                     {t('Run Report', 'تشغيل التقرير')}
+                    <span className="text-xs bg-amber-500/20 text-amber-900 px-1.5 py-0.5 rounded border border-amber-700/30 ms-2">⚠ Simulated</span>
                   </Button>
                 </div>
               </Card>
@@ -306,7 +307,7 @@ function ScheduledTab() {
           className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
           onClick={() => setNewOpen(true)}
         >
-          <Plus className="w-4 h-4 mr-1" />
+          <Plus className="w-4 h-4 me-1" />
           {t('New Schedule', 'جدولة جديدة')}
         </Button>
       </div>
@@ -680,15 +681,15 @@ export default function Reports() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-slate-800 border border-slate-700">
             <TabsTrigger value="run" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
-              <Play className="w-4 h-4 mr-1" />
+              <Play className="w-4 h-4 me-1" />
               {t('Run Reports', 'تشغيل التقارير')}
             </TabsTrigger>
             <TabsTrigger value="scheduled" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
-              <Calendar className="w-4 h-4 mr-1" />
+              <Calendar className="w-4 h-4 me-1" />
               {t('Scheduled', 'مجدول')}
             </TabsTrigger>
             <TabsTrigger value="history" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
-              <FileText className="w-4 h-4 mr-1" />
+              <FileText className="w-4 h-4 me-1" />
               {t('Output History', 'سجل المخرجات')}
             </TabsTrigger>
           </TabsList>
