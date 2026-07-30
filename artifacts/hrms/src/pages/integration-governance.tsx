@@ -136,6 +136,8 @@ export default function IntegrationGovernance() {
   const [testingIds, setTestingIds] = useState<Set<number>>(new Set());
   const [suspendTarget, setSuspendTarget] = useState<any>(null);
   const [addProfileOpen, setAddProfileOpen] = useState(false);
+  const [smtpTestTarget, setSmtpTestTarget] = useState<any>(null);
+  const [smtpRecipient, setSmtpRecipient] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -155,10 +157,13 @@ export default function IntegrationGovernance() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function testConnection(id: number) {
+  async function testConnection(id: number, testRecipient?: string) {
     setTestingIds(prev => new Set(prev).add(id));
     try {
-      const res = await fetch(`/api/integration-governance/connection-profiles/${id}/test`, { method: 'POST' });
+      const res = await fetch(`/api/integration-governance/connection-profiles/${id}/test`, {
+        method: 'POST',
+        ...(testRecipient ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testRecipient }) } : {}),
+      });
       const data = await res.json();
       toast({ title: t('Test result', 'نتيجة الاختبار'), description: `${data?.success ? '✅' : '❌'} ${data?.latencyMs ?? '?'}ms — ${data?.message ?? ''}` });
       load();
@@ -246,7 +251,7 @@ export default function IntegrationGovernance() {
                         </div>
                         {p.lastTestResult && <p className="text-xs text-slate-400">{t('Last test', 'آخر اختبار')}: {p.lastTestResult}</p>}
                         <div className="flex gap-1 flex-wrap">
-                          <Button size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300 h-7 px-2 text-xs" onClick={() => testConnection(p.id)} disabled={testing}>
+                          <Button size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300 h-7 px-2 text-xs" onClick={() => { if (p.integrationType === 'smtp') { setSmtpRecipient(''); setSmtpTestTarget(p); } else { testConnection(p.id); } }} disabled={testing}>
                             {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5 me-1" />}{t('Test', 'اختبار')}
                           </Button>
                           {p.governanceStatus === 'pending_approval' && (
@@ -365,6 +370,45 @@ export default function IntegrationGovernance() {
         </Tabs>
 
         <AddProfileDialog open={addProfileOpen} onClose={() => setAddProfileOpen(false)} onSaved={load} />
+
+        <Dialog open={!!smtpTestTarget} onOpenChange={v => !v && setSmtpTestTarget(null)}>
+          <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t('Send Test Email', 'إرسال بريد اختباري')}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <p className="text-sm text-slate-400">
+                {t('A test message will be sent from', 'سيتم إرسال رسالة اختبارية من')} <strong className="text-white">{smtpTestTarget?.profileName}</strong>.
+              </p>
+              <Label htmlFor="smtp-test-recipient">{t('Recipient email', 'البريد الإلكتروني للمستلم')}</Label>
+              <Input
+                id="smtp-test-recipient"
+                type="email"
+                autoFocus
+                className="bg-slate-700 border-slate-600"
+                placeholder="admin@example.com"
+                value={smtpRecipient}
+                onChange={e => setSmtpRecipient(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && smtpRecipient.trim()) {
+                    testConnection(smtpTestTarget.id, smtpRecipient.trim());
+                    setSmtpTestTarget(null);
+                  }
+                }}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" className="border-slate-600" onClick={() => setSmtpTestTarget(null)}>{t('Cancel', 'إلغاء')}</Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={!smtpRecipient.trim()}
+                onClick={() => { testConnection(smtpTestTarget.id, smtpRecipient.trim()); setSmtpTestTarget(null); }}
+              >
+                {t('Send Test', 'إرسال الاختبار')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <AlertDialog open={!!suspendTarget} onOpenChange={v => !v && setSuspendTarget(null)}>
           <AlertDialogContent className="bg-slate-800 border-slate-700 text-white">
