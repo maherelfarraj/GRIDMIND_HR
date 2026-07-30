@@ -20,6 +20,7 @@ function userResponse(user: typeof systemUsersTable.$inferSelect) {
     mfaEnabled: user.mfaEnabled,
     preferredLanguage: user.preferredLanguage,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+    mustChangePassword: user.mustChangePassword,
   };
 }
 
@@ -72,6 +73,51 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   req.session.username = user.username;
 
   res.json(userResponse(user));
+});
+
+// POST /auth/change-password — authenticated user changes their own password.
+// Used by the mandatory first-login change flow: verifies the current
+// password, stores the new hash, and clears must_change_password.
+router.post("/auth/change-password", async (req, res): Promise<void> => {
+  if (!req.session?.userId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  const { currentPassword, newPassword } = req.body ?? {};
+  if (typeof newPassword !== "string" || newPassword.length < 8) {
+    res.status(400).json({ error: "New password must be at least 8 characters" });
+    return;
+  }
+
+  const [user] = await db.select().from(systemUsersTable)
+    .where(eq(systemUsersTable.id, req.session.userId));
+  if (!user || !user.isActive) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  // Verify the current password when a hash exists (fail-closed: if a hash
+  // is stored, it must match, regardless of PILOT_AUTH mode).
+  if (user.passwordHash) {
+    if (typeof currentPassword !== "string" ||
+        !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      res.status(401).json({ error: "Current password is incorrect" });
+      return;
+    }
+    if (newPassword === currentPassword) {
+      res.status(400).json({ error: "New password must be different from the current password" });
+      return;
+    }
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await db.update(systemUsersTable)
+    .set({ passwordHash, mustChangePassword: false })
+    .where(eq(systemUsersTable.id, user.id));
+
+  const [updated] = await db.select().from(systemUsersTable)
+    .where(eq(systemUsersTable.id, user.id));
+  res.json(userResponse(updated));
 });
 
 // POST /auth/logout — destroys session, clears cookie

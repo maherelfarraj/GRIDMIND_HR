@@ -44,7 +44,7 @@ export async function seedDemoPasswords(): Promise<number> {
   for (const user of missing) {
     await db
       .update(systemUsersTable)
-      .set({ passwordHash: hash })
+      .set({ passwordHash: hash, mustChangePassword: true })
       .where(eq(systemUsersTable.id, user.id));
     logger.info({ username: user.username }, "Provisioned demo password hash");
   }

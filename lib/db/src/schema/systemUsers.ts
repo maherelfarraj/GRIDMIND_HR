@@ -13,6 +13,7 @@ export const systemUsersTable = pgTable("system_users", {
   isActive: boolean("is_active").notNull().default(true),
   mfaEnabled: boolean("mfa_enabled").notNull().default(false),
   passwordHash: text("password_hash"),
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   avatarUrl: text("avatar_url"),
   preferredLanguage: text("preferred_language").notNull().default("en"),
   lastLoginAt: timestamp("last_login_at"),

@@ -21,6 +21,7 @@ import Devices from '@/pages/devices';
 import Alerts from '@/pages/alerts';
 import Users from '@/pages/users';
 import Login from '@/pages/login';
+import ForcePasswordChange from '@/pages/force-password-change';
 import NotFound from '@/pages/not-found';
 import Shifts from '@/pages/shifts';
 import Rosters from '@/pages/rosters';
@@ -102,6 +103,12 @@ function ProtectedRouter() {
 
   if (location === '/login') {
     return <Login />;
+  }
+
+  // Mandatory first-login password change: block the entire app until the
+  // user replaces their provisioned/reset password.
+  if (user && user.mustChangePassword) {
+    return <ForcePasswordChange />;
   }
 
   return (

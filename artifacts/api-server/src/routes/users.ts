@@ -89,7 +89,9 @@ router.post("/users/:id/password", async (req, res): Promise<void> => {
   if (!user) { res.status(404).json({ error: "Not found" }); return; }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
-  await db.update(systemUsersTable).set({ passwordHash }).where(eq(systemUsersTable.id, id));
+  // Admin-set passwords are provisional: force the user to pick their own
+  // password on next login.
+  await db.update(systemUsersTable).set({ passwordHash, mustChangePassword: true }).where(eq(systemUsersTable.id, id));
   res.json({ success: true });
 });
 
