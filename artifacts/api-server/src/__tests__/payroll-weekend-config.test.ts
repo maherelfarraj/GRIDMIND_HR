@@ -35,7 +35,11 @@ const TRANSPORT_PCT = 10;
 const PERIOD_START = "2098-02-01";
 const PERIOD_END = "2098-02-28";
 const DEFAULT_WORKING_DAYS = 20;      // Fri/Sat weekend
-const FRIDAY_ONLY_WORKING_DAYS = 24;  // [5] — single-day weekend
+// Feb 2098 has a seeded recurring holiday on Feb 22 (Founding Day, applicableTo: "all").
+// Feb 22 is a Saturday. With Fri/Sat [5,6] it's already a non-working day (20 unchanged).
+// With Friday-only [5] weekend, Saturday becomes a working day, so Founding Day removes
+// one working day: 28 − 4 Fridays − 1 Founding Day = 23.
+const FRIDAY_ONLY_WORKING_DAYS = 23;  // [5] — single-day weekend (minus Founding Day Feb 22)
 
 let gradeId: number;
 let empId: number;

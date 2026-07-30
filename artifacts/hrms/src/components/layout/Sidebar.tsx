@@ -46,6 +46,8 @@ import {
   Bell,
   FileText,
   ClipboardCheck,
+  FileBarChart,
+  Brain,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -134,6 +136,16 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
     { href: '/notifications', icon: Bell, labelEn: 'Notifications', labelAr: 'الإشعارات' },
     { href: '/deployment', icon: Activity, labelEn: 'Deployment & Health', labelAr: 'النشر والصحة' },
     { href: '/production-readiness', icon: ClipboardCheck, labelEn: 'Readiness', labelAr: 'الجاهزية' },
+    { href: '/local-ai', icon: Brain, labelEn: 'Local AI Assistant', labelAr: 'مساعد الذكاء الاصطناعي المحلي' },
+  ];
+
+  const analyticsItems = [
+    { href: '/workforce-analytics', icon: BarChart3, labelEn: 'Workforce Analytics', labelAr: 'تحليلات القوى العاملة' },
+    { href: '/report-builder', icon: FileBarChart, labelEn: 'Report Builder', labelAr: 'منشئ التقارير' },
+  ];
+
+  const integrationsItems = [
+    { href: '/integration-center', icon: Network, labelEn: 'Integration Center', labelAr: 'مركز التكامل' },
   ];
 
   const comingSoonItems: { icon: React.ComponentType<{ className?: string }>; labelEn: string; labelAr: string }[] = [];
@@ -363,6 +375,52 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
           </span>
         </div>
         {docsReportsItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          <span className="flex items-center gap-1.5">
+            <BarChart3 className="w-3 h-3" />
+            {t('Analytics', 'التحليلات')}
+          </span>
+        </div>
+        {analyticsItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          <span className="flex items-center gap-1.5">
+            <Network className="w-3 h-3" />
+            {t('Integrations', 'التكاملات')}
+          </span>
+        </div>
+        {integrationsItems.map((item) => {
           const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
           return (
             <Link key={item.href} href={item.href} onClick={onMobileClose}>

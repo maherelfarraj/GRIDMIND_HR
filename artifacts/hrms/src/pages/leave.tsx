@@ -26,7 +26,7 @@ import {
   Plus, ChevronDown, ChevronRight, ChevronLeft,
   Calendar, Users, Clock, CheckCircle, FileText,
   ThumbsUp, ThumbsDown, XCircle, ArrowRightCircle,
-  Paperclip, ShieldAlert,
+  Paperclip, ShieldAlert, Undo2,
 } from 'lucide-react';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -429,23 +429,6 @@ function RequestsTab() {
     }
   }
 
-  async function handleRevoke(id: number) {
-    if (!confirm(t(
-      'Revoke this approved leave? Leave days will be restored and roster entries reset.',
-      'إلغاء هذه الإجازة الموافق عليها؟ سيتم استعادة أيام الإجازة وإعادة تعيين سجلات الجدول.'
-    ))) return;
-    setActioning(id);
-    try {
-      await revokeMut.mutateAsync({ id, data: {} });
-      queryClient.invalidateQueries({ queryKey: ['/api/leave-requests'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/leave-balances'] });
-      toast({ title: t('Leave revoked — balance restored', 'تم إلغاء الإجازة واستعادة الرصيد') });
-    } catch (e: any) {
-      toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
-    } finally {
-      setActioning(null);
-    }
-  }
 
   return (
     <div className="space-y-4">
@@ -590,13 +573,6 @@ function RequestsTab() {
                                 <Button size="sm" variant="outline" disabled={busy} onClick={() => handleReturn(req.id)}>
                                   <ArrowRightCircle className="w-3 h-3 me-1" />
                                   {t('Return', 'عودة')}
-                                </Button>
-                              )}
-                              {req.status === 'approved' && (
-                                <Button size="sm" variant="ghost" className="text-orange-600 hover:text-orange-700" disabled={busy}
-                                  onClick={() => handleRevoke(req.id)}>
-                                  <ShieldAlert className="w-3 h-3 me-1" />
-                                  {t('Revoke', 'إلغاء الموافقة')}
                                 </Button>
                               )}
                               {['submitted', 'under_review'].includes(req.status) && (

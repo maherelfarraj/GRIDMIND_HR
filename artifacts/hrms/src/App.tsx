@@ -57,6 +57,10 @@ import Reports from '@/pages/reports';
 import Notifications from '@/pages/notifications';
 import Deployment from '@/pages/deployment';
 import ProductionReadiness from '@/pages/production-readiness';
+import WorkforceAnalytics from '@/pages/workforce-analytics';
+import ReportBuilder from '@/pages/report-builder';
+import IntegrationCenter from '@/pages/integration-center';
+import LocalAi from '@/pages/local-ai';
 
 const queryClient = new QueryClient();
 
@@ -134,6 +138,10 @@ function ProtectedRouter() {
         <Route path="/notifications" component={Notifications} />
         <Route path="/deployment" component={Deployment} />
         <Route path="/production-readiness" component={ProductionReadiness} />
+        <Route path="/workforce-analytics" component={WorkforceAnalytics} />
+        <Route path="/report-builder" component={ReportBuilder} />
+        <Route path="/integration-center" component={IntegrationCenter} />
+        <Route path="/local-ai" component={LocalAi} />
         <Route component={NotFound} />
       </Switch>
     </Shell>

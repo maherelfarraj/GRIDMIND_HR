@@ -184,4 +184,27 @@ router.use("/update-packages", updatePackagesRouter);
 router.use("/deployment-events", deploymentEventsRouter);
 router.use("/installation-readiness", installationReadinessRouter);
 
+// Phase 7A — Workforce Analytics + Report Builder + Exports
+import analyticsRouter from "./analytics.js";
+import reportBuilderConfigsRouter from "./reportBuilderConfigs.js";
+import exportJobsRouter from "./exportJobs.js";
+import scheduledExportsRouter from "./scheduledExports.js";
+
+router.use(analyticsRouter);
+router.use(reportBuilderConfigsRouter);
+router.use(exportJobsRouter);
+router.use(scheduledExportsRouter);
+
+// Phase 7B — Integration Administration Center
+import integrationConnectorsRouter from "./integrationConnectors.js";
+import integrationRetryQueueRouter from "./integrationRetryQueue.js";
+import integrationEventsRouter from "./integrationEvents.js";
+// Phase 7C — Local AI Layer
+import localAiRouter from "./localAi.js";
+
+router.use(integrationConnectorsRouter);
+router.use(integrationRetryQueueRouter);
+router.use(integrationEventsRouter);
+router.use(localAiRouter);
+
 export default router;

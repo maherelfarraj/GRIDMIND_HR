@@ -7419,8 +7419,1127 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/InstallationReadiness' }
 
+  /analytics/executive-summary:
+    get:
+      summary: Get executive summary KPIs
+      tags: [Analytics]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  headcount: { type: number }
+                  newHiresThisMonth: { type: number }
+                  departuresThisMonth: { type: number }
+                  openVacancies: { type: number }
+                  avgSalary: { type: string }
+                  absenceRateToday: { type: string }
+                  overtimeHoursThisMonth: { type: string }
+                  trainingComplianceRate: { type: number }
+                  documentsExpiringIn30Days: { type: number }
+                  pendingApprovals: { type: number }
+                  snapshotDate: { type: ["string", "null"] }
+
+  /analytics/headcount:
+    get:
+      summary: Headcount trend
+      tags: [Analytics]
+      parameters:
+        - in: query
+          name: months
+          schema: { type: number }
+          description: Number of months to return (default 12, max 24)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/WorkforceSnapshot' }
+
+  /analytics/vacancies:
+    get:
+      summary: Vacancy trend
+      tags: [Analytics]
+      parameters:
+        - in: query
+          name: months
+          schema: { type: number }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    snapshotDate: { type: string }
+                    openVacancies: { type: number }
+                    headcount: { type: number }
+                    newHires: { type: number }
+                    departures: { type: number }
+
+  /analytics/attendance-anomalies:
+    get:
+      summary: Employees with high absence rates
+      tags: [Analytics]
+      parameters:
+        - in: query
+          name: threshold
+          schema: { type: number }
+          description: Absence rate % threshold (default 15)
+        - in: query
+          name: departmentId
+          schema: { type: number }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  threshold: { type: number }
+                  period: { type: string }
+                  anomalies:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        employeeId: { type: number }
+                        employeeName: { type: ["string", "null"] }
+                        departmentId: { type: ["number", "null"] }
+                        absentDays: { type: number }
+                        totalWorkdays: { type: number }
+                        rate: { type: number }
+
+  /analytics/overtime-anomalies:
+    get:
+      summary: Employees with high overtime hours
+      tags: [Analytics]
+      parameters:
+        - in: query
+          name: threshold
+          schema: { type: number }
+          description: Overtime hours threshold (default 20)
+        - in: query
+          name: departmentId
+          schema: { type: number }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  threshold: { type: number }
+                  period: { type: string }
+                  anomalies:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        employeeId: { type: number }
+                        employeeName: { type: ["string", "null"] }
+                        departmentId: { type: ["number", "null"] }
+                        totalOvertimeHours: { type: number }
+                        daysWithOvertime: { type: number }
+
+  /analytics/payroll-variance:
+    get:
+      summary: Payroll variance trend
+      tags: [Analytics]
+      parameters:
+        - in: query
+          name: periods
+          schema: { type: number }
+          description: Number of periods (default 6, max 24)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PayrollVarianceLog' }
+
+  /analytics/leave-exposure:
+    get:
+      summary: Leave balance exposure by department
+      tags: [Analytics]
+      parameters:
+        - in: query
+          name: departmentId
+          schema: { type: number }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    departmentId: { type: number }
+                    departmentNameEn: { type: ["string", "null"] }
+                    totalPending: { type: string }
+                    totalUsed: { type: string }
+                    totalAccrued: { type: string }
+                    employeeCount: { type: number }
+
+  /analytics/training-compliance:
+    get:
+      summary: Training compliance rates by department
+      tags: [Analytics]
+      parameters:
+        - in: query
+          name: departmentId
+          schema: { type: number }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    departmentId: { type: number }
+                    departmentNameEn: { type: ["string", "null"] }
+                    totalNominations: { type: number }
+                    completedNominations: { type: number }
+                    complianceRate: { type: number }
+                    mandatoryTotal: { type: number }
+                    mandatoryCompleted: { type: number }
+                    mandatoryRate: { type: number }
+
+  /analytics/document-expiry:
+    get:
+      summary: Documents expiring within N days
+      tags: [Analytics]
+      parameters:
+        - in: query
+          name: days
+          schema: { type: number }
+          description: Days ahead to check (default 30)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  days: { type: number }
+                  count: { type: number }
+                  documents:
+                    type: array
+                    items: { type: object }
+
+  /report-builder-configs:
+    get:
+      summary: List report builder configurations
+      tags: [ReportBuilder]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReportBuilderConfig' }
+    post:
+      summary: Create a report builder configuration
+      tags: [ReportBuilder]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nameEn, nameAr, dataSource]
+              properties:
+                nameEn: { type: string }
+                nameAr: { type: string }
+                descriptionEn: { type: string }
+                dataSource: { type: string }
+                columnsJson: { type: string }
+                filtersJson: { type: string }
+                sortByJson: { type: string }
+                groupByJson: { type: string }
+                roleRestriction: { type: string }
+                isPublic: { type: boolean }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportBuilderConfig' }
+
+  /report-builder-configs/{id}:
+    get:
+      summary: Get report builder configuration
+      tags: [ReportBuilder]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportBuilderConfig' }
+    patch:
+      summary: Update report builder configuration
+      tags: [ReportBuilder]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nameEn: { type: string }
+                nameAr: { type: string }
+                descriptionEn: { type: string }
+                dataSource: { type: string }
+                columnsJson: { type: string }
+                filtersJson: { type: string }
+                sortByJson: { type: string }
+                groupByJson: { type: string }
+                roleRestriction: { type: string }
+                isPublic: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportBuilderConfig' }
+    delete:
+      summary: Delete report builder configuration
+      tags: [ReportBuilder]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                  id: { type: number }
+
+  /report-builder-configs/{id}/run:
+    post:
+      summary: Execute a report and return rows
+      tags: [ReportBuilder]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                limit: { type: number }
+      responses:
+        '200':
+          description: Report results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configId: { type: number }
+                  configName: { type: string }
+                  dataSource: { type: string }
+                  simulated: { type: boolean }
+                  rowCount: { type: number }
+                  rows: { type: array, items: { type: object } }
+                  columns: { type: array, items: { type: string } }
+                  executedAt: { type: string }
+                  note: { type: string }
+
+  /report-builder-configs/{id}/export:
+    post:
+      summary: Queue an export job for a report
+      tags: [ReportBuilder]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                format: { type: string, enum: [pdf, xlsx, csv] }
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId: { type: number }
+                  status: { type: string }
+
+  /export-jobs:
+    get:
+      summary: List export jobs
+      tags: [Exports]
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: jobType
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ExportJob' }
+
+  /export-jobs/{id}:
+    get:
+      summary: Get export job detail
+      tags: [Exports]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExportJob' }
+    delete:
+      summary: Cancel a queued export job
+      tags: [Exports]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                  id: { type: number }
+
+  /export-jobs/{id}/retry:
+    post:
+      summary: Retry a failed export job
+      tags: [Exports]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExportJob' }
+
+  /scheduled-exports:
+    get:
+      summary: List scheduled exports
+      tags: [Exports]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ScheduledExport' }
+    post:
+      summary: Create a scheduled export
+      tags: [Exports]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nameEn, cronExpression]
+              properties:
+                reportBuilderConfigId: { type: number }
+                nameEn: { type: string }
+                cronExpression: { type: string }
+                timezone: { type: string }
+                format: { type: string, enum: [pdf, xlsx, csv] }
+                recipientUserIds: { type: array, items: { type: number } }
+                isActive: { type: boolean }
+                nextRunAt: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduledExport' }
+
+  /scheduled-exports/{id}:
+    get:
+      summary: Get scheduled export
+      tags: [Exports]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduledExport' }
+    patch:
+      summary: Update scheduled export
+      tags: [Exports]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reportBuilderConfigId: { type: number }
+                nameEn: { type: string }
+                cronExpression: { type: string }
+                timezone: { type: string }
+                format: { type: string }
+                isActive: { type: boolean }
+                nextRunAt: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduledExport' }
+    delete:
+      summary: Delete scheduled export
+      tags: [Exports]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                  id: { type: number }
+
+  /scheduled-exports/{id}/run-now:
+    post:
+      summary: Manually trigger a scheduled export
+      tags: [Exports]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number }
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId: { type: number }
+                  status: { type: string }
+                  scheduledExportId: { type: number }
+
+  # ── PHASE 7B — INTEGRATION ADMINISTRATION CENTER ──────────────────────────────
+
+  /integration-connectors:
+    get:
+      operationId: listIntegrationConnectors
+      tags: [IntegrationCenter]
+      summary: List integration connectors
+      parameters:
+        - { name: connectorType, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: isActive, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/IntegrationConnector' }
+    post:
+      operationId: createIntegrationConnector
+      tags: [IntegrationCenter]
+      summary: Create a new integration connector
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IntegrationConnectorInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationConnector' }
+
+  /integration-connectors/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getIntegrationConnector
+      tags: [IntegrationCenter]
+      summary: Get connector detail with latest health
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationConnector' }
+    patch:
+      operationId: updateIntegrationConnector
+      tags: [IntegrationCenter]
+      summary: Update connector configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IntegrationConnectorInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationConnector' }
+    delete:
+      operationId: deleteIntegrationConnector
+      tags: [IntegrationCenter]
+      summary: Soft-delete connector (set isActive=false)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                  id: { type: number }
+
+  /integration-connectors/{id}/test:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    post:
+      operationId: testIntegrationConnector
+      tags: [IntegrationCenter]
+      summary: Run a simulated connection test
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  latencyMs: { type: ["number", "null"] }
+                  error: { type: ["string", "null"] }
+                  simulated: { type: boolean }
+
+  /integration-connectors/{id}/health:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getConnectorHealth
+      tags: [IntegrationCenter]
+      summary: Get last N health log entries for a connector
+      parameters:
+        - { name: limit, in: query, schema: { type: number } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ConnectionHealthLog' }
+
+  /integration-retry-queue:
+    get:
+      operationId: listIntegrationRetryQueue
+      tags: [IntegrationCenter]
+      summary: List retry queue entries
+      parameters:
+        - { name: connectorId, in: query, schema: { type: number } }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/IntegrationRetryQueue' }
+
+  /integration-retry-queue/clear-abandoned:
+    post:
+      operationId: clearAbandonedRetryQueue
+      tags: [IntegrationCenter]
+      summary: Delete all abandoned retry queue entries
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: number }
+
+  /integration-retry-queue/{id}/retry:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    post:
+      operationId: retryIntegrationQueueEntry
+      tags: [IntegrationCenter]
+      summary: Re-queue a retry entry (bump attemptCount, set retrying)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationRetryQueue' }
+
+  /integration-retry-queue/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    delete:
+      operationId: abandonIntegrationQueueEntry
+      tags: [IntegrationCenter]
+      summary: Abandon a retry queue entry
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  abandoned: { type: boolean }
+                  id: { type: number }
+
+  /integration-events:
+    get:
+      operationId: listIntegrationEvents
+      tags: [IntegrationCenter]
+      summary: List integration event log (paginated)
+      parameters:
+        - { name: connectorId, in: query, schema: { type: number } }
+        - { name: eventType, in: query, schema: { type: string } }
+        - { name: success, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string } }
+        - { name: to, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: number } }
+        - { name: limit, in: query, schema: { type: number } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/IntegrationEvent' }
+                  total: { type: number }
+                  page: { type: number }
+                  limit: { type: number }
+
+  /integration-events/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getIntegrationEvent
+      tags: [IntegrationCenter]
+      summary: Get a single integration event detail
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationEvent' }
+
+  # ── PHASE 7C — LOCAL AI LAYER ──────────────────────────────────────────────
+
+  /ai/config:
+    get:
+      operationId: getAiConfig
+      tags: [LocalAI]
+      summary: Get local AI configuration
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AiConfig' }
+    patch:
+      operationId: updateAiConfig
+      tags: [LocalAI]
+      summary: Update local AI configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiConfigInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AiConfig' }
+
+  /ai/policy-search:
+    post:
+      operationId: aiPolicySearch
+      tags: [LocalAI]
+      summary: Keyword/AI search on HR policy documents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query: { type: string }
+                limit: { type: number }
+              required: [query]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        documentId: { type: number }
+                        title: { type: string }
+                        excerpt: { type: string }
+                        relevanceScore: { type: number }
+                  model: { type: string }
+                  simulated: { type: boolean }
+                  auditId: { type: number }
+
+  /ai/report-query:
+    post:
+      operationId: aiReportQuery
+      tags: [LocalAI]
+      summary: Natural language to report data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query: { type: string }
+                context: { type: string }
+              required: [query]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  interpretation: { type: string }
+                  suggestedReport: { type: string }
+                  previewRows: { type: array, items: { type: object } }
+                  simulated: { type: boolean }
+                  auditId: { type: number }
+
+  /ai/classify-document:
+    post:
+      operationId: aiClassifyDocument
+      tags: [LocalAI]
+      summary: Classify a document by title/content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                documentId: { type: number }
+                title: { type: string }
+                content: { type: string }
+              required: [title]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  suggestedCategory: { type: string }
+                  confidence: { type: number }
+                  reasoning: { type: string }
+                  simulated: { type: boolean }
+                  auditId: { type: number }
+
+  /ai/explain-anomaly:
+    post:
+      operationId: aiExplainAnomaly
+      tags: [LocalAI]
+      summary: Generate plain-text explanation for a detected anomaly
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                anomalyType:
+                  type: string
+                  enum: [attendance_high, overtime_spike, payroll_variance, leave_exposure]
+                entityId: { type: number }
+                metrics: { type: object }
+              required: [anomalyType, metrics]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  explanation: { type: string }
+                  riskLevel: { type: string }
+                  recommendations:
+                    type: array
+                    items: { type: string }
+                  simulated: { type: boolean }
+                  auditId: { type: number }
+
+  /ai/queries:
+    get:
+      operationId: listAiQueries
+      tags: [LocalAI]
+      summary: Audit log of AI queries (paginated)
+      parameters:
+        - { name: featureType, in: query, schema: { type: string } }
+        - { name: wasSimulated, in: query, schema: { type: string } }
+        - { name: success, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: number } }
+        - { name: limit, in: query, schema: { type: number } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AiQuery' }
+                  total: { type: number }
+                  page: { type: number }
+                  limit: { type: number }
+
+  /ai/permissions:
+    get:
+      operationId: listAiPermissions
+      tags: [LocalAI]
+      summary: List AI feature permissions
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AiPermission' }
+
+  /ai/permissions/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    patch:
+      operationId: updateAiPermission
+      tags: [LocalAI]
+      summary: Update an AI permission
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isAllowed: { type: boolean }
+                featureType: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AiPermission' }
+
+
 components:
   schemas:
+    # ── Phase 7A — Workforce Analytics + Report Builder + Exports ──────────────
+    WorkforceSnapshot:
+      type: object
+      properties:
+        id: { type: number }
+        snapshotDate: { type: string }
+        period: { type: string }
+        headcount: { type: number }
+        newHires: { type: number }
+        departures: { type: number }
+        openVacancies: { type: number }
+        totalPayroll: { type: string }
+        avgSalary: { type: string }
+        overtimeHours: { type: string }
+        absenceRate: { type: string }
+        createdAt: { type: string }
+
+    PayrollVarianceLog:
+      type: object
+      properties:
+        id: { type: number }
+        periodId: { type: number }
+        prevPeriodId: { type: ["number", "null"] }
+        totalGross: { type: string }
+        prevTotalGross: { type: ["string", "null"] }
+        variance: { type: string }
+        variancePct: { type: string }
+        exceptionsCount: { type: number }
+        createdAt: { type: string }
+        periodCode: { type: string }
+        periodNameEn: { type: string }
+        startDate: { type: string }
+
+    AnalyticsKpiCache:
+      type: object
+      properties:
+        id: { type: number }
+        cacheKey: { type: string }
+        valueJson: { type: string }
+        computedAt: { type: string }
+        expiresAt: { type: string }
+
+    ReportBuilderConfig:
+      type: object
+      properties:
+        id: { type: number }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        descriptionEn: { type: ["string", "null"] }
+        createdByUserId: { type: ["number", "null"] }
+        dataSource: { type: string }
+        columnsJson: { type: string }
+        filtersJson: { type: ["string", "null"] }
+        sortByJson: { type: ["string", "null"] }
+        groupByJson: { type: ["string", "null"] }
+        roleRestriction: { type: ["string", "null"] }
+        isPublic: { type: boolean }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    ExportJob:
+      type: object
+      properties:
+        id: { type: number }
+        jobType: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["number", "null"] }
+        requestedByUserId: { type: ["number", "null"] }
+        status: { type: string }
+        parametersJson: { type: ["string", "null"] }
+        outputPath: { type: ["string", "null"] }
+        errorMessage: { type: ["string", "null"] }
+        startedAt: { type: ["string", "null"] }
+        completedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    ScheduledExport:
+      type: object
+      properties:
+        id: { type: number }
+        reportBuilderConfigId: { type: ["number", "null"] }
+        nameEn: { type: string }
+        cronExpression: { type: string }
+        timezone: { type: string }
+        format: { type: string }
+        recipientUserIds: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        lastRunAt: { type: ["string", "null"] }
+        nextRunAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
     HealthStatus:
       type: object
       properties:
@@ -11121,3 +12240,157 @@ components:
         createdAt: { type: string }
         updatedAt: { type: string }
       required: [id, checkName, checkType, status, severity, isRequired, createdAt, updatedAt]
+
+    # ── PHASE 7B — INTEGRATION ADMINISTRATION CENTER ───────────────────────────
+
+    IntegrationConnector:
+      type: object
+      properties:
+        id: { type: number }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        connectorType: { type: string }
+        protocol: { type: string }
+        endpoint: { type: ["string", "null"] }
+        portNumber: { type: ["number", "null"] }
+        useTls: { type: boolean }
+        credentialsJson: { type: ["string", "null"] }
+        timeoutSeconds: { type: number }
+        status: { type: string }
+        lastTestedAt: { type: ["string", "null"] }
+        lastSuccessAt: { type: ["string", "null"] }
+        lastErrorMessage: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        sortOrder: { type: number }
+        descriptionEn: { type: ["string", "null"] }
+        descriptionAr: { type: ["string", "null"] }
+        simulatedLabel: { type: ["string", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, nameEn, nameAr, connectorType, protocol, useTls, timeoutSeconds, status, isActive, sortOrder, createdAt, updatedAt]
+
+    IntegrationConnectorInput:
+      type: object
+      properties:
+        nameEn: { type: string }
+        nameAr: { type: string }
+        connectorType: { type: string }
+        protocol: { type: string }
+        endpoint: { type: ["string", "null"] }
+        portNumber: { type: ["number", "null"] }
+        useTls: { type: boolean }
+        credentialsJson: { type: ["string", "null"] }
+        timeoutSeconds: { type: number }
+        status: { type: string }
+        descriptionEn: { type: ["string", "null"] }
+        descriptionAr: { type: ["string", "null"] }
+        simulatedLabel: { type: ["string", "null"] }
+        sortOrder: { type: number }
+      required: [nameEn, nameAr, connectorType, protocol]
+
+    ConnectionHealthLog:
+      type: object
+      properties:
+        id: { type: number }
+        connectorId: { type: number }
+        testedAt: { type: string }
+        success: { type: boolean }
+        latencyMs: { type: ["number", "null"] }
+        errorMessage: { type: ["string", "null"] }
+        checkedByUserId: { type: ["number", "null"] }
+      required: [id, connectorId, testedAt, success]
+
+    IntegrationRetryQueue:
+      type: object
+      properties:
+        id: { type: number }
+        connectorId: { type: number }
+        operationType: { type: string }
+        payloadJson: { type: string }
+        attemptCount: { type: number }
+        maxAttempts: { type: number }
+        nextRetryAt: { type: string }
+        lastError: { type: ["string", "null"] }
+        status: { type: string }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, connectorId, operationType, payloadJson, attemptCount, maxAttempts, nextRetryAt, status, createdAt, updatedAt]
+
+    IntegrationEvent:
+      type: object
+      properties:
+        id: { type: number }
+        connectorId: { type: ["number", "null"] }
+        eventType: { type: string }
+        direction: { type: string }
+        entityType: { type: ["string", "null"] }
+        entityCount: { type: ["number", "null"] }
+        success: { type: boolean }
+        durationMs: { type: ["number", "null"] }
+        messageEn: { type: ["string", "null"] }
+        detailsJson: { type: ["string", "null"] }
+        actorUserId: { type: ["number", "null"] }
+        occurredAt: { type: string }
+      required: [id, eventType, direction, success, occurredAt]
+
+    # ── PHASE 7C — LOCAL AI LAYER ──────────────────────────────────────────────
+
+    AiConfig:
+      type: object
+      properties:
+        id: { type: number }
+        modelEndpoint: { type: ["string", "null"] }
+        modelName: { type: ["string", "null"] }
+        isEnabled: { type: boolean }
+        enabledFeatures: { type: ["string", "null"] }
+        maxTokens: { type: number }
+        temperatureX100: { type: number }
+        requireApprovalForBulk: { type: boolean }
+        auditAllQueries: { type: boolean }
+        updatedAt: { type: string }
+        updatedByUserId: { type: ["number", "null"] }
+      required: [id, isEnabled, maxTokens, temperatureX100, requireApprovalForBulk, auditAllQueries, updatedAt]
+
+    AiConfigInput:
+      type: object
+      properties:
+        modelEndpoint: { type: ["string", "null"] }
+        modelName: { type: ["string", "null"] }
+        isEnabled: { type: boolean }
+        enabledFeatures: { type: ["string", "null"] }
+        maxTokens: { type: number }
+        temperatureX100: { type: number }
+        requireApprovalForBulk: { type: boolean }
+        auditAllQueries: { type: boolean }
+
+    AiQuery:
+      type: object
+      properties:
+        id: { type: number }
+        featureType: { type: string }
+        queryText: { type: string }
+        responseText: { type: ["string", "null"] }
+        citationsJson: { type: ["string", "null"] }
+        modelUsed: { type: ["string", "null"] }
+        tokensUsed: { type: ["number", "null"] }
+        durationMs: { type: ["number", "null"] }
+        wasSimulated: { type: boolean }
+        success: { type: boolean }
+        errorMessage: { type: ["string", "null"] }
+        requestedByUserId: { type: ["number", "null"] }
+        entityType: { type: ["string", "null"] }
+        entityId: { type: ["number", "null"] }
+        ipAddress: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, featureType, queryText, wasSimulated, success, createdAt]
+
+    AiPermission:
+      type: object
+      properties:
+        id: { type: number }
+        roleId: { type: ["number", "null"] }
+        featureType: { type: string }
+        isAllowed: { type: boolean }
+        grantedByUserId: { type: ["number", "null"] }
+        grantedAt: { type: string }
+      required: [id, featureType, isAllowed, grantedAt]

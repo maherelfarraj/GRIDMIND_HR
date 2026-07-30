@@ -5,6 +5,110 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+export interface WorkforceSnapshot {
+  id?: number;
+  snapshotDate?: string;
+  period?: string;
+  headcount?: number;
+  newHires?: number;
+  departures?: number;
+  openVacancies?: number;
+  totalPayroll?: string;
+  avgSalary?: string;
+  overtimeHours?: string;
+  absenceRate?: string;
+  createdAt?: string;
+}
+
+export interface PayrollVarianceLog {
+  id?: number;
+  periodId?: number;
+  /** @nullable */
+  prevPeriodId?: number | null;
+  totalGross?: string;
+  /** @nullable */
+  prevTotalGross?: string | null;
+  variance?: string;
+  variancePct?: string;
+  exceptionsCount?: number;
+  createdAt?: string;
+  periodCode?: string;
+  periodNameEn?: string;
+  startDate?: string;
+}
+
+export interface AnalyticsKpiCache {
+  id?: number;
+  cacheKey?: string;
+  valueJson?: string;
+  computedAt?: string;
+  expiresAt?: string;
+}
+
+export interface ReportBuilderConfig {
+  id?: number;
+  nameEn?: string;
+  nameAr?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  createdByUserId?: number | null;
+  dataSource?: string;
+  columnsJson?: string;
+  /** @nullable */
+  filtersJson?: string | null;
+  /** @nullable */
+  sortByJson?: string | null;
+  /** @nullable */
+  groupByJson?: string | null;
+  /** @nullable */
+  roleRestriction?: string | null;
+  isPublic?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ExportJob {
+  id?: number;
+  jobType?: string;
+  entityType?: string;
+  /** @nullable */
+  entityId?: number | null;
+  /** @nullable */
+  requestedByUserId?: number | null;
+  status?: string;
+  /** @nullable */
+  parametersJson?: string | null;
+  /** @nullable */
+  outputPath?: string | null;
+  /** @nullable */
+  errorMessage?: string | null;
+  /** @nullable */
+  startedAt?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  createdAt?: string;
+}
+
+export interface ScheduledExport {
+  id?: number;
+  /** @nullable */
+  reportBuilderConfigId?: number | null;
+  nameEn?: string;
+  cronExpression?: string;
+  timezone?: string;
+  format?: string;
+  /** @nullable */
+  recipientUserIds?: string | null;
+  isActive?: boolean;
+  /** @nullable */
+  lastRunAt?: string | null;
+  /** @nullable */
+  nextRunAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -3831,6 +3935,184 @@ export interface InstallationReadiness {
   updatedAt: string;
 }
 
+export interface IntegrationConnector {
+  id: number;
+  nameEn: string;
+  nameAr: string;
+  connectorType: string;
+  protocol: string;
+  /** @nullable */
+  endpoint?: string | null;
+  /** @nullable */
+  portNumber?: number | null;
+  useTls: boolean;
+  /** @nullable */
+  credentialsJson?: string | null;
+  timeoutSeconds: number;
+  status: string;
+  /** @nullable */
+  lastTestedAt?: string | null;
+  /** @nullable */
+  lastSuccessAt?: string | null;
+  /** @nullable */
+  lastErrorMessage?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  /** @nullable */
+  simulatedLabel?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationConnectorInput {
+  nameEn: string;
+  nameAr: string;
+  connectorType: string;
+  protocol: string;
+  /** @nullable */
+  endpoint?: string | null;
+  /** @nullable */
+  portNumber?: number | null;
+  useTls?: boolean;
+  /** @nullable */
+  credentialsJson?: string | null;
+  timeoutSeconds?: number;
+  status?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  /** @nullable */
+  simulatedLabel?: string | null;
+  sortOrder?: number;
+}
+
+export interface ConnectionHealthLog {
+  id: number;
+  connectorId: number;
+  testedAt: string;
+  success: boolean;
+  /** @nullable */
+  latencyMs?: number | null;
+  /** @nullable */
+  errorMessage?: string | null;
+  /** @nullable */
+  checkedByUserId?: number | null;
+}
+
+export interface IntegrationRetryQueue {
+  id: number;
+  connectorId: number;
+  operationType: string;
+  payloadJson: string;
+  attemptCount: number;
+  maxAttempts: number;
+  nextRetryAt: string;
+  /** @nullable */
+  lastError?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationEvent {
+  id: number;
+  /** @nullable */
+  connectorId?: number | null;
+  eventType: string;
+  direction: string;
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityCount?: number | null;
+  success: boolean;
+  /** @nullable */
+  durationMs?: number | null;
+  /** @nullable */
+  messageEn?: string | null;
+  /** @nullable */
+  detailsJson?: string | null;
+  /** @nullable */
+  actorUserId?: number | null;
+  occurredAt: string;
+}
+
+export interface AiConfig {
+  id: number;
+  /** @nullable */
+  modelEndpoint?: string | null;
+  /** @nullable */
+  modelName?: string | null;
+  isEnabled: boolean;
+  /** @nullable */
+  enabledFeatures?: string | null;
+  maxTokens: number;
+  temperatureX100: number;
+  requireApprovalForBulk: boolean;
+  auditAllQueries: boolean;
+  updatedAt: string;
+  /** @nullable */
+  updatedByUserId?: number | null;
+}
+
+export interface AiConfigInput {
+  /** @nullable */
+  modelEndpoint?: string | null;
+  /** @nullable */
+  modelName?: string | null;
+  isEnabled?: boolean;
+  /** @nullable */
+  enabledFeatures?: string | null;
+  maxTokens?: number;
+  temperatureX100?: number;
+  requireApprovalForBulk?: boolean;
+  auditAllQueries?: boolean;
+}
+
+export interface AiQuery {
+  id: number;
+  featureType: string;
+  queryText: string;
+  /** @nullable */
+  responseText?: string | null;
+  /** @nullable */
+  citationsJson?: string | null;
+  /** @nullable */
+  modelUsed?: string | null;
+  /** @nullable */
+  tokensUsed?: number | null;
+  /** @nullable */
+  durationMs?: number | null;
+  wasSimulated: boolean;
+  success: boolean;
+  /** @nullable */
+  errorMessage?: string | null;
+  /** @nullable */
+  requestedByUserId?: number | null;
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityId?: number | null;
+  /** @nullable */
+  ipAddress?: string | null;
+  createdAt: string;
+}
+
+export interface AiPermission {
+  id: number;
+  /** @nullable */
+  roleId?: number | null;
+  featureType: string;
+  isAllowed: boolean;
+  /** @nullable */
+  grantedByUserId?: number | null;
+  grantedAt: string;
+}
+
 export type ListEmployeesParams = {
 /**
  * @nullable
@@ -4744,5 +5026,407 @@ export type UpdateInstallationReadinessBody = {
   status?: string;
   /** @nullable */
   message?: string | null;
+};
+
+export type GetAnalyticsExecutiveSummary200 = {
+  headcount?: number;
+  newHiresThisMonth?: number;
+  departuresThisMonth?: number;
+  openVacancies?: number;
+  avgSalary?: string;
+  absenceRateToday?: string;
+  overtimeHoursThisMonth?: string;
+  trainingComplianceRate?: number;
+  documentsExpiringIn30Days?: number;
+  pendingApprovals?: number;
+  /** @nullable */
+  snapshotDate?: string | null;
+};
+
+export type GetAnalyticsHeadcountParams = {
+/**
+ * Number of months to return (default 12, max 24)
+ */
+months?: number;
+};
+
+export type GetAnalyticsVacanciesParams = {
+months?: number;
+};
+
+export type GetAnalyticsVacancies200Item = {
+  snapshotDate?: string;
+  openVacancies?: number;
+  headcount?: number;
+  newHires?: number;
+  departures?: number;
+};
+
+export type GetAnalyticsAttendanceAnomaliesParams = {
+/**
+ * Absence rate % threshold (default 15)
+ */
+threshold?: number;
+departmentId?: number;
+};
+
+export type GetAnalyticsAttendanceAnomalies200AnomaliesItem = {
+  employeeId?: number;
+  /** @nullable */
+  employeeName?: string | null;
+  /** @nullable */
+  departmentId?: number | null;
+  absentDays?: number;
+  totalWorkdays?: number;
+  rate?: number;
+};
+
+export type GetAnalyticsAttendanceAnomalies200 = {
+  threshold?: number;
+  period?: string;
+  anomalies?: GetAnalyticsAttendanceAnomalies200AnomaliesItem[];
+};
+
+export type GetAnalyticsOvertimeAnomaliesParams = {
+/**
+ * Overtime hours threshold (default 20)
+ */
+threshold?: number;
+departmentId?: number;
+};
+
+export type GetAnalyticsOvertimeAnomalies200AnomaliesItem = {
+  employeeId?: number;
+  /** @nullable */
+  employeeName?: string | null;
+  /** @nullable */
+  departmentId?: number | null;
+  totalOvertimeHours?: number;
+  daysWithOvertime?: number;
+};
+
+export type GetAnalyticsOvertimeAnomalies200 = {
+  threshold?: number;
+  period?: string;
+  anomalies?: GetAnalyticsOvertimeAnomalies200AnomaliesItem[];
+};
+
+export type GetAnalyticsPayrollVarianceParams = {
+/**
+ * Number of periods (default 6, max 24)
+ */
+periods?: number;
+};
+
+export type GetAnalyticsLeaveExposureParams = {
+departmentId?: number;
+};
+
+export type GetAnalyticsLeaveExposure200Item = {
+  departmentId?: number;
+  /** @nullable */
+  departmentNameEn?: string | null;
+  totalPending?: string;
+  totalUsed?: string;
+  totalAccrued?: string;
+  employeeCount?: number;
+};
+
+export type GetAnalyticsTrainingComplianceParams = {
+departmentId?: number;
+};
+
+export type GetAnalyticsTrainingCompliance200Item = {
+  departmentId?: number;
+  /** @nullable */
+  departmentNameEn?: string | null;
+  totalNominations?: number;
+  completedNominations?: number;
+  complianceRate?: number;
+  mandatoryTotal?: number;
+  mandatoryCompleted?: number;
+  mandatoryRate?: number;
+};
+
+export type GetAnalyticsDocumentExpiryParams = {
+/**
+ * Days ahead to check (default 30)
+ */
+days?: number;
+};
+
+export type GetAnalyticsDocumentExpiry200DocumentsItem = { [key: string]: unknown };
+
+export type GetAnalyticsDocumentExpiry200 = {
+  days?: number;
+  count?: number;
+  documents?: GetAnalyticsDocumentExpiry200DocumentsItem[];
+};
+
+export type PostReportBuilderConfigsBody = {
+  nameEn: string;
+  nameAr: string;
+  descriptionEn?: string;
+  dataSource: string;
+  columnsJson?: string;
+  filtersJson?: string;
+  sortByJson?: string;
+  groupByJson?: string;
+  roleRestriction?: string;
+  isPublic?: boolean;
+};
+
+export type PatchReportBuilderConfigsIdBody = {
+  nameEn?: string;
+  nameAr?: string;
+  descriptionEn?: string;
+  dataSource?: string;
+  columnsJson?: string;
+  filtersJson?: string;
+  sortByJson?: string;
+  groupByJson?: string;
+  roleRestriction?: string;
+  isPublic?: boolean;
+};
+
+export type DeleteReportBuilderConfigsId200 = {
+  deleted?: boolean;
+  id?: number;
+};
+
+export type PostReportBuilderConfigsIdRunBody = {
+  limit?: number;
+};
+
+export type PostReportBuilderConfigsIdRun200RowsItem = { [key: string]: unknown };
+
+export type PostReportBuilderConfigsIdRun200 = {
+  configId?: number;
+  configName?: string;
+  dataSource?: string;
+  simulated?: boolean;
+  rowCount?: number;
+  rows?: PostReportBuilderConfigsIdRun200RowsItem[];
+  columns?: string[];
+  executedAt?: string;
+  note?: string;
+};
+
+export type PostReportBuilderConfigsIdExportBodyFormat = typeof PostReportBuilderConfigsIdExportBodyFormat[keyof typeof PostReportBuilderConfigsIdExportBodyFormat];
+
+
+export const PostReportBuilderConfigsIdExportBodyFormat = {
+  pdf: 'pdf',
+  xlsx: 'xlsx',
+  csv: 'csv',
+} as const;
+
+export type PostReportBuilderConfigsIdExportBody = {
+  format?: PostReportBuilderConfigsIdExportBodyFormat;
+};
+
+export type PostReportBuilderConfigsIdExport202 = {
+  jobId?: number;
+  status?: string;
+};
+
+export type GetExportJobsParams = {
+status?: string;
+jobType?: string;
+};
+
+export type DeleteExportJobsId200 = {
+  deleted?: boolean;
+  id?: number;
+};
+
+export type PostScheduledExportsBodyFormat = typeof PostScheduledExportsBodyFormat[keyof typeof PostScheduledExportsBodyFormat];
+
+
+export const PostScheduledExportsBodyFormat = {
+  pdf: 'pdf',
+  xlsx: 'xlsx',
+  csv: 'csv',
+} as const;
+
+export type PostScheduledExportsBody = {
+  reportBuilderConfigId?: number;
+  nameEn: string;
+  cronExpression: string;
+  timezone?: string;
+  format?: PostScheduledExportsBodyFormat;
+  recipientUserIds?: number[];
+  isActive?: boolean;
+  nextRunAt?: string;
+};
+
+export type PatchScheduledExportsIdBody = {
+  reportBuilderConfigId?: number;
+  nameEn?: string;
+  cronExpression?: string;
+  timezone?: string;
+  format?: string;
+  isActive?: boolean;
+  nextRunAt?: string;
+};
+
+export type DeleteScheduledExportsId200 = {
+  deleted?: boolean;
+  id?: number;
+};
+
+export type PostScheduledExportsIdRunNow202 = {
+  jobId?: number;
+  status?: string;
+  scheduledExportId?: number;
+};
+
+export type ListIntegrationConnectorsParams = {
+connectorType?: string;
+status?: string;
+isActive?: string;
+};
+
+export type DeleteIntegrationConnector200 = {
+  deleted?: boolean;
+  id?: number;
+};
+
+export type TestIntegrationConnector200 = {
+  success?: boolean;
+  /** @nullable */
+  latencyMs?: number | null;
+  /** @nullable */
+  error?: string | null;
+  simulated?: boolean;
+};
+
+export type GetConnectorHealthParams = {
+limit?: number;
+};
+
+export type ListIntegrationRetryQueueParams = {
+connectorId?: number;
+status?: string;
+};
+
+export type ClearAbandonedRetryQueue200 = {
+  deleted?: number;
+};
+
+export type AbandonIntegrationQueueEntry200 = {
+  abandoned?: boolean;
+  id?: number;
+};
+
+export type ListIntegrationEventsParams = {
+connectorId?: number;
+eventType?: string;
+success?: string;
+from?: string;
+to?: string;
+page?: number;
+limit?: number;
+};
+
+export type ListIntegrationEvents200 = {
+  data?: IntegrationEvent[];
+  total?: number;
+  page?: number;
+  limit?: number;
+};
+
+export type AiPolicySearchBody = {
+  query: string;
+  limit?: number;
+};
+
+export type AiPolicySearch200ResultsItem = {
+  documentId?: number;
+  title?: string;
+  excerpt?: string;
+  relevanceScore?: number;
+};
+
+export type AiPolicySearch200 = {
+  results?: AiPolicySearch200ResultsItem[];
+  model?: string;
+  simulated?: boolean;
+  auditId?: number;
+};
+
+export type AiReportQueryBody = {
+  query: string;
+  context?: string;
+};
+
+export type AiReportQuery200PreviewRowsItem = { [key: string]: unknown };
+
+export type AiReportQuery200 = {
+  interpretation?: string;
+  suggestedReport?: string;
+  previewRows?: AiReportQuery200PreviewRowsItem[];
+  simulated?: boolean;
+  auditId?: number;
+};
+
+export type AiClassifyDocumentBody = {
+  documentId?: number;
+  title: string;
+  content?: string;
+};
+
+export type AiClassifyDocument200 = {
+  suggestedCategory?: string;
+  confidence?: number;
+  reasoning?: string;
+  simulated?: boolean;
+  auditId?: number;
+};
+
+export type AiExplainAnomalyBodyAnomalyType = typeof AiExplainAnomalyBodyAnomalyType[keyof typeof AiExplainAnomalyBodyAnomalyType];
+
+
+export const AiExplainAnomalyBodyAnomalyType = {
+  attendance_high: 'attendance_high',
+  overtime_spike: 'overtime_spike',
+  payroll_variance: 'payroll_variance',
+  leave_exposure: 'leave_exposure',
+} as const;
+
+export type AiExplainAnomalyBodyMetrics = { [key: string]: unknown };
+
+export type AiExplainAnomalyBody = {
+  anomalyType: AiExplainAnomalyBodyAnomalyType;
+  entityId?: number;
+  metrics: AiExplainAnomalyBodyMetrics;
+};
+
+export type AiExplainAnomaly200 = {
+  explanation?: string;
+  riskLevel?: string;
+  recommendations?: string[];
+  simulated?: boolean;
+  auditId?: number;
+};
+
+export type ListAiQueriesParams = {
+featureType?: string;
+wasSimulated?: string;
+success?: string;
+page?: number;
+limit?: number;
+};
+
+export type ListAiQueries200 = {
+  data?: AiQuery[];
+  total?: number;
+  page?: number;
+  limit?: number;
+};
+
+export type UpdateAiPermissionBody = {
+  isAllowed?: boolean;
+  featureType?: string;
 };
 

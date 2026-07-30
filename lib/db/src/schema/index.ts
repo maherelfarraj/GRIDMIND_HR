@@ -70,3 +70,10 @@ export * from "./disciplinaryRecords";
 export * from "./training";
 export * from "./succession";
 export * from "./selfService";
+// Phase 7B — Integration Administration Center
+export * from "./integrationCenter";
+// Phase 7C — Local AI Layer
+export * from "./localAi";
+// Phase 7A — Workforce Analytics + Report Builder + Exports
+export * from "./workforceAnalytics";
+export * from "./reportBuilder";

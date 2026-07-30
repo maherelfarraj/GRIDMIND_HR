@@ -11789,3 +11789,1100 @@ export const UpdateInstallationReadinessResponse = zod.object({
 })
 
 
+/**
+ * @summary Get executive summary KPIs
+ */
+export const GetAnalyticsExecutiveSummaryResponse = zod.object({
+  "headcount": zod.number().optional(),
+  "newHiresThisMonth": zod.number().optional(),
+  "departuresThisMonth": zod.number().optional(),
+  "openVacancies": zod.number().optional(),
+  "avgSalary": zod.string().optional(),
+  "absenceRateToday": zod.string().optional(),
+  "overtimeHoursThisMonth": zod.string().optional(),
+  "trainingComplianceRate": zod.number().optional(),
+  "documentsExpiringIn30Days": zod.number().optional(),
+  "pendingApprovals": zod.number().optional(),
+  "snapshotDate": zod.string().nullish()
+})
+
+
+/**
+ * @summary Headcount trend
+ */
+export const GetAnalyticsHeadcountQueryParams = zod.object({
+  "months": zod.coerce.number().optional().describe('Number of months to return (default 12, max 24)')
+})
+
+export const GetAnalyticsHeadcountResponseItem = zod.object({
+  "id": zod.number().optional(),
+  "snapshotDate": zod.string().optional(),
+  "period": zod.string().optional(),
+  "headcount": zod.number().optional(),
+  "newHires": zod.number().optional(),
+  "departures": zod.number().optional(),
+  "openVacancies": zod.number().optional(),
+  "totalPayroll": zod.string().optional(),
+  "avgSalary": zod.string().optional(),
+  "overtimeHours": zod.string().optional(),
+  "absenceRate": zod.string().optional(),
+  "createdAt": zod.string().optional()
+})
+export const GetAnalyticsHeadcountResponse = zod.array(GetAnalyticsHeadcountResponseItem)
+
+
+/**
+ * @summary Vacancy trend
+ */
+export const GetAnalyticsVacanciesQueryParams = zod.object({
+  "months": zod.coerce.number().optional()
+})
+
+export const GetAnalyticsVacanciesResponseItem = zod.object({
+  "snapshotDate": zod.string().optional(),
+  "openVacancies": zod.number().optional(),
+  "headcount": zod.number().optional(),
+  "newHires": zod.number().optional(),
+  "departures": zod.number().optional()
+})
+export const GetAnalyticsVacanciesResponse = zod.array(GetAnalyticsVacanciesResponseItem)
+
+
+/**
+ * @summary Employees with high absence rates
+ */
+export const GetAnalyticsAttendanceAnomaliesQueryParams = zod.object({
+  "threshold": zod.coerce.number().optional().describe('Absence rate % threshold (default 15)'),
+  "departmentId": zod.coerce.number().optional()
+})
+
+export const GetAnalyticsAttendanceAnomaliesResponse = zod.object({
+  "threshold": zod.number().optional(),
+  "period": zod.string().optional(),
+  "anomalies": zod.array(zod.object({
+  "employeeId": zod.number().optional(),
+  "employeeName": zod.string().nullish(),
+  "departmentId": zod.number().nullish(),
+  "absentDays": zod.number().optional(),
+  "totalWorkdays": zod.number().optional(),
+  "rate": zod.number().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Employees with high overtime hours
+ */
+export const GetAnalyticsOvertimeAnomaliesQueryParams = zod.object({
+  "threshold": zod.coerce.number().optional().describe('Overtime hours threshold (default 20)'),
+  "departmentId": zod.coerce.number().optional()
+})
+
+export const GetAnalyticsOvertimeAnomaliesResponse = zod.object({
+  "threshold": zod.number().optional(),
+  "period": zod.string().optional(),
+  "anomalies": zod.array(zod.object({
+  "employeeId": zod.number().optional(),
+  "employeeName": zod.string().nullish(),
+  "departmentId": zod.number().nullish(),
+  "totalOvertimeHours": zod.number().optional(),
+  "daysWithOvertime": zod.number().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Payroll variance trend
+ */
+export const GetAnalyticsPayrollVarianceQueryParams = zod.object({
+  "periods": zod.coerce.number().optional().describe('Number of periods (default 6, max 24)')
+})
+
+export const GetAnalyticsPayrollVarianceResponseItem = zod.object({
+  "id": zod.number().optional(),
+  "periodId": zod.number().optional(),
+  "prevPeriodId": zod.number().nullish(),
+  "totalGross": zod.string().optional(),
+  "prevTotalGross": zod.string().nullish(),
+  "variance": zod.string().optional(),
+  "variancePct": zod.string().optional(),
+  "exceptionsCount": zod.number().optional(),
+  "createdAt": zod.string().optional(),
+  "periodCode": zod.string().optional(),
+  "periodNameEn": zod.string().optional(),
+  "startDate": zod.string().optional()
+})
+export const GetAnalyticsPayrollVarianceResponse = zod.array(GetAnalyticsPayrollVarianceResponseItem)
+
+
+/**
+ * @summary Leave balance exposure by department
+ */
+export const GetAnalyticsLeaveExposureQueryParams = zod.object({
+  "departmentId": zod.coerce.number().optional()
+})
+
+export const GetAnalyticsLeaveExposureResponseItem = zod.object({
+  "departmentId": zod.number().optional(),
+  "departmentNameEn": zod.string().nullish(),
+  "totalPending": zod.string().optional(),
+  "totalUsed": zod.string().optional(),
+  "totalAccrued": zod.string().optional(),
+  "employeeCount": zod.number().optional()
+})
+export const GetAnalyticsLeaveExposureResponse = zod.array(GetAnalyticsLeaveExposureResponseItem)
+
+
+/**
+ * @summary Training compliance rates by department
+ */
+export const GetAnalyticsTrainingComplianceQueryParams = zod.object({
+  "departmentId": zod.coerce.number().optional()
+})
+
+export const GetAnalyticsTrainingComplianceResponseItem = zod.object({
+  "departmentId": zod.number().optional(),
+  "departmentNameEn": zod.string().nullish(),
+  "totalNominations": zod.number().optional(),
+  "completedNominations": zod.number().optional(),
+  "complianceRate": zod.number().optional(),
+  "mandatoryTotal": zod.number().optional(),
+  "mandatoryCompleted": zod.number().optional(),
+  "mandatoryRate": zod.number().optional()
+})
+export const GetAnalyticsTrainingComplianceResponse = zod.array(GetAnalyticsTrainingComplianceResponseItem)
+
+
+/**
+ * @summary Documents expiring within N days
+ */
+export const GetAnalyticsDocumentExpiryQueryParams = zod.object({
+  "days": zod.coerce.number().optional().describe('Days ahead to check (default 30)')
+})
+
+export const GetAnalyticsDocumentExpiryResponse = zod.object({
+  "days": zod.number().optional(),
+  "count": zod.number().optional(),
+  "documents": zod.array(zod.object({}).passthrough()).optional()
+})
+
+
+/**
+ * @summary List report builder configurations
+ */
+export const GetReportBuilderConfigsResponseItem = zod.object({
+  "id": zod.number().optional(),
+  "nameEn": zod.string().optional(),
+  "nameAr": zod.string().optional(),
+  "descriptionEn": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "dataSource": zod.string().optional(),
+  "columnsJson": zod.string().optional(),
+  "filtersJson": zod.string().nullish(),
+  "sortByJson": zod.string().nullish(),
+  "groupByJson": zod.string().nullish(),
+  "roleRestriction": zod.string().nullish(),
+  "isPublic": zod.boolean().optional(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+export const GetReportBuilderConfigsResponse = zod.array(GetReportBuilderConfigsResponseItem)
+
+
+/**
+ * @summary Create a report builder configuration
+ */
+export const PostReportBuilderConfigsBody = zod.object({
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "descriptionEn": zod.string().optional(),
+  "dataSource": zod.string(),
+  "columnsJson": zod.string().optional(),
+  "filtersJson": zod.string().optional(),
+  "sortByJson": zod.string().optional(),
+  "groupByJson": zod.string().optional(),
+  "roleRestriction": zod.string().optional(),
+  "isPublic": zod.boolean().optional()
+})
+
+export const PostReportBuilderConfigsResponse = zod.object({
+  "id": zod.number().optional(),
+  "nameEn": zod.string().optional(),
+  "nameAr": zod.string().optional(),
+  "descriptionEn": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "dataSource": zod.string().optional(),
+  "columnsJson": zod.string().optional(),
+  "filtersJson": zod.string().nullish(),
+  "sortByJson": zod.string().nullish(),
+  "groupByJson": zod.string().nullish(),
+  "roleRestriction": zod.string().nullish(),
+  "isPublic": zod.boolean().optional(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Get report builder configuration
+ */
+export const GetReportBuilderConfigsIdParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetReportBuilderConfigsIdResponse = zod.object({
+  "id": zod.number().optional(),
+  "nameEn": zod.string().optional(),
+  "nameAr": zod.string().optional(),
+  "descriptionEn": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "dataSource": zod.string().optional(),
+  "columnsJson": zod.string().optional(),
+  "filtersJson": zod.string().nullish(),
+  "sortByJson": zod.string().nullish(),
+  "groupByJson": zod.string().nullish(),
+  "roleRestriction": zod.string().nullish(),
+  "isPublic": zod.boolean().optional(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Update report builder configuration
+ */
+export const PatchReportBuilderConfigsIdParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PatchReportBuilderConfigsIdBody = zod.object({
+  "nameEn": zod.string().optional(),
+  "nameAr": zod.string().optional(),
+  "descriptionEn": zod.string().optional(),
+  "dataSource": zod.string().optional(),
+  "columnsJson": zod.string().optional(),
+  "filtersJson": zod.string().optional(),
+  "sortByJson": zod.string().optional(),
+  "groupByJson": zod.string().optional(),
+  "roleRestriction": zod.string().optional(),
+  "isPublic": zod.boolean().optional()
+})
+
+export const PatchReportBuilderConfigsIdResponse = zod.object({
+  "id": zod.number().optional(),
+  "nameEn": zod.string().optional(),
+  "nameAr": zod.string().optional(),
+  "descriptionEn": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "dataSource": zod.string().optional(),
+  "columnsJson": zod.string().optional(),
+  "filtersJson": zod.string().nullish(),
+  "sortByJson": zod.string().nullish(),
+  "groupByJson": zod.string().nullish(),
+  "roleRestriction": zod.string().nullish(),
+  "isPublic": zod.boolean().optional(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete report builder configuration
+ */
+export const DeleteReportBuilderConfigsIdParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteReportBuilderConfigsIdResponse = zod.object({
+  "deleted": zod.boolean().optional(),
+  "id": zod.number().optional()
+})
+
+
+/**
+ * @summary Execute a report and return rows
+ */
+export const PostReportBuilderConfigsIdRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PostReportBuilderConfigsIdRunBody = zod.object({
+  "limit": zod.number().optional()
+})
+
+export const PostReportBuilderConfigsIdRunResponse = zod.object({
+  "configId": zod.number().optional(),
+  "configName": zod.string().optional(),
+  "dataSource": zod.string().optional(),
+  "simulated": zod.boolean().optional(),
+  "rowCount": zod.number().optional(),
+  "rows": zod.array(zod.object({}).passthrough()).optional(),
+  "columns": zod.array(zod.string()).optional(),
+  "executedAt": zod.string().optional(),
+  "note": zod.string().optional()
+})
+
+
+/**
+ * @summary Queue an export job for a report
+ */
+export const PostReportBuilderConfigsIdExportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PostReportBuilderConfigsIdExportBody = zod.object({
+  "format": zod.enum(['pdf', 'xlsx', 'csv']).optional()
+})
+
+export const PostReportBuilderConfigsIdExportResponse = zod.object({
+  "jobId": zod.number().optional(),
+  "status": zod.string().optional()
+})
+
+
+/**
+ * @summary List export jobs
+ */
+export const GetExportJobsQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "jobType": zod.coerce.string().optional()
+})
+
+export const GetExportJobsResponseItem = zod.object({
+  "id": zod.number().optional(),
+  "jobType": zod.string().optional(),
+  "entityType": zod.string().optional(),
+  "entityId": zod.number().nullish(),
+  "requestedByUserId": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "parametersJson": zod.string().nullish(),
+  "outputPath": zod.string().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "startedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+export const GetExportJobsResponse = zod.array(GetExportJobsResponseItem)
+
+
+/**
+ * @summary Get export job detail
+ */
+export const GetExportJobsIdParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetExportJobsIdResponse = zod.object({
+  "id": zod.number().optional(),
+  "jobType": zod.string().optional(),
+  "entityType": zod.string().optional(),
+  "entityId": zod.number().nullish(),
+  "requestedByUserId": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "parametersJson": zod.string().nullish(),
+  "outputPath": zod.string().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "startedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Cancel a queued export job
+ */
+export const DeleteExportJobsIdParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteExportJobsIdResponse = zod.object({
+  "deleted": zod.boolean().optional(),
+  "id": zod.number().optional()
+})
+
+
+/**
+ * @summary Retry a failed export job
+ */
+export const PostExportJobsIdRetryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PostExportJobsIdRetryResponse = zod.object({
+  "id": zod.number().optional(),
+  "jobType": zod.string().optional(),
+  "entityType": zod.string().optional(),
+  "entityId": zod.number().nullish(),
+  "requestedByUserId": zod.number().nullish(),
+  "status": zod.string().optional(),
+  "parametersJson": zod.string().nullish(),
+  "outputPath": zod.string().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "startedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary List scheduled exports
+ */
+export const GetScheduledExportsResponseItem = zod.object({
+  "id": zod.number().optional(),
+  "reportBuilderConfigId": zod.number().nullish(),
+  "nameEn": zod.string().optional(),
+  "cronExpression": zod.string().optional(),
+  "timezone": zod.string().optional(),
+  "format": zod.string().optional(),
+  "recipientUserIds": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "lastRunAt": zod.string().nullish(),
+  "nextRunAt": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+export const GetScheduledExportsResponse = zod.array(GetScheduledExportsResponseItem)
+
+
+/**
+ * @summary Create a scheduled export
+ */
+export const PostScheduledExportsBody = zod.object({
+  "reportBuilderConfigId": zod.number().optional(),
+  "nameEn": zod.string(),
+  "cronExpression": zod.string(),
+  "timezone": zod.string().optional(),
+  "format": zod.enum(['pdf', 'xlsx', 'csv']).optional(),
+  "recipientUserIds": zod.array(zod.number()).optional(),
+  "isActive": zod.boolean().optional(),
+  "nextRunAt": zod.string().optional()
+})
+
+export const PostScheduledExportsResponse = zod.object({
+  "id": zod.number().optional(),
+  "reportBuilderConfigId": zod.number().nullish(),
+  "nameEn": zod.string().optional(),
+  "cronExpression": zod.string().optional(),
+  "timezone": zod.string().optional(),
+  "format": zod.string().optional(),
+  "recipientUserIds": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "lastRunAt": zod.string().nullish(),
+  "nextRunAt": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Get scheduled export
+ */
+export const GetScheduledExportsIdParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetScheduledExportsIdResponse = zod.object({
+  "id": zod.number().optional(),
+  "reportBuilderConfigId": zod.number().nullish(),
+  "nameEn": zod.string().optional(),
+  "cronExpression": zod.string().optional(),
+  "timezone": zod.string().optional(),
+  "format": zod.string().optional(),
+  "recipientUserIds": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "lastRunAt": zod.string().nullish(),
+  "nextRunAt": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Update scheduled export
+ */
+export const PatchScheduledExportsIdParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PatchScheduledExportsIdBody = zod.object({
+  "reportBuilderConfigId": zod.number().optional(),
+  "nameEn": zod.string().optional(),
+  "cronExpression": zod.string().optional(),
+  "timezone": zod.string().optional(),
+  "format": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "nextRunAt": zod.string().optional()
+})
+
+export const PatchScheduledExportsIdResponse = zod.object({
+  "id": zod.number().optional(),
+  "reportBuilderConfigId": zod.number().nullish(),
+  "nameEn": zod.string().optional(),
+  "cronExpression": zod.string().optional(),
+  "timezone": zod.string().optional(),
+  "format": zod.string().optional(),
+  "recipientUserIds": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "lastRunAt": zod.string().nullish(),
+  "nextRunAt": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete scheduled export
+ */
+export const DeleteScheduledExportsIdParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteScheduledExportsIdResponse = zod.object({
+  "deleted": zod.boolean().optional(),
+  "id": zod.number().optional()
+})
+
+
+/**
+ * @summary Manually trigger a scheduled export
+ */
+export const PostScheduledExportsIdRunNowParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PostScheduledExportsIdRunNowResponse = zod.object({
+  "jobId": zod.number().optional(),
+  "status": zod.string().optional(),
+  "scheduledExportId": zod.number().optional()
+})
+
+
+/**
+ * @summary List integration connectors
+ */
+export const ListIntegrationConnectorsQueryParams = zod.object({
+  "connectorType": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "isActive": zod.coerce.string().optional()
+})
+
+export const ListIntegrationConnectorsResponseItem = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "connectorType": zod.string(),
+  "protocol": zod.string(),
+  "endpoint": zod.string().nullish(),
+  "portNumber": zod.number().nullish(),
+  "useTls": zod.boolean(),
+  "credentialsJson": zod.string().nullish(),
+  "timeoutSeconds": zod.number(),
+  "status": zod.string(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastSuccessAt": zod.string().nullish(),
+  "lastErrorMessage": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "sortOrder": zod.number(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "simulatedLabel": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListIntegrationConnectorsResponse = zod.array(ListIntegrationConnectorsResponseItem)
+
+
+/**
+ * @summary Create a new integration connector
+ */
+export const CreateIntegrationConnectorBody = zod.object({
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "connectorType": zod.string(),
+  "protocol": zod.string(),
+  "endpoint": zod.string().nullish(),
+  "portNumber": zod.number().nullish(),
+  "useTls": zod.boolean().optional(),
+  "credentialsJson": zod.string().nullish(),
+  "timeoutSeconds": zod.number().optional(),
+  "status": zod.string().optional(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "simulatedLabel": zod.string().nullish(),
+  "sortOrder": zod.number().optional()
+})
+
+export const CreateIntegrationConnectorResponse = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "connectorType": zod.string(),
+  "protocol": zod.string(),
+  "endpoint": zod.string().nullish(),
+  "portNumber": zod.number().nullish(),
+  "useTls": zod.boolean(),
+  "credentialsJson": zod.string().nullish(),
+  "timeoutSeconds": zod.number(),
+  "status": zod.string(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastSuccessAt": zod.string().nullish(),
+  "lastErrorMessage": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "sortOrder": zod.number(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "simulatedLabel": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get connector detail with latest health
+ */
+export const GetIntegrationConnectorParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetIntegrationConnectorResponse = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "connectorType": zod.string(),
+  "protocol": zod.string(),
+  "endpoint": zod.string().nullish(),
+  "portNumber": zod.number().nullish(),
+  "useTls": zod.boolean(),
+  "credentialsJson": zod.string().nullish(),
+  "timeoutSeconds": zod.number(),
+  "status": zod.string(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastSuccessAt": zod.string().nullish(),
+  "lastErrorMessage": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "sortOrder": zod.number(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "simulatedLabel": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update connector configuration
+ */
+export const UpdateIntegrationConnectorParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateIntegrationConnectorBody = zod.object({
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "connectorType": zod.string(),
+  "protocol": zod.string(),
+  "endpoint": zod.string().nullish(),
+  "portNumber": zod.number().nullish(),
+  "useTls": zod.boolean().optional(),
+  "credentialsJson": zod.string().nullish(),
+  "timeoutSeconds": zod.number().optional(),
+  "status": zod.string().optional(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "simulatedLabel": zod.string().nullish(),
+  "sortOrder": zod.number().optional()
+})
+
+export const UpdateIntegrationConnectorResponse = zod.object({
+  "id": zod.number(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "connectorType": zod.string(),
+  "protocol": zod.string(),
+  "endpoint": zod.string().nullish(),
+  "portNumber": zod.number().nullish(),
+  "useTls": zod.boolean(),
+  "credentialsJson": zod.string().nullish(),
+  "timeoutSeconds": zod.number(),
+  "status": zod.string(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastSuccessAt": zod.string().nullish(),
+  "lastErrorMessage": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "sortOrder": zod.number(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "simulatedLabel": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Soft-delete connector (set isActive=false)
+ */
+export const DeleteIntegrationConnectorParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteIntegrationConnectorResponse = zod.object({
+  "deleted": zod.boolean().optional(),
+  "id": zod.number().optional()
+})
+
+
+/**
+ * @summary Run a simulated connection test
+ */
+export const TestIntegrationConnectorParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const TestIntegrationConnectorResponse = zod.object({
+  "success": zod.boolean().optional(),
+  "latencyMs": zod.number().nullish(),
+  "error": zod.string().nullish(),
+  "simulated": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Get last N health log entries for a connector
+ */
+export const GetConnectorHealthParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetConnectorHealthQueryParams = zod.object({
+  "limit": zod.coerce.number().optional()
+})
+
+export const GetConnectorHealthResponseItem = zod.object({
+  "id": zod.number(),
+  "connectorId": zod.number(),
+  "testedAt": zod.string(),
+  "success": zod.boolean(),
+  "latencyMs": zod.number().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "checkedByUserId": zod.number().nullish()
+})
+export const GetConnectorHealthResponse = zod.array(GetConnectorHealthResponseItem)
+
+
+/**
+ * @summary List retry queue entries
+ */
+export const ListIntegrationRetryQueueQueryParams = zod.object({
+  "connectorId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListIntegrationRetryQueueResponseItem = zod.object({
+  "id": zod.number(),
+  "connectorId": zod.number(),
+  "operationType": zod.string(),
+  "payloadJson": zod.string(),
+  "attemptCount": zod.number(),
+  "maxAttempts": zod.number(),
+  "nextRetryAt": zod.string(),
+  "lastError": zod.string().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListIntegrationRetryQueueResponse = zod.array(ListIntegrationRetryQueueResponseItem)
+
+
+/**
+ * @summary Delete all abandoned retry queue entries
+ */
+export const ClearAbandonedRetryQueueResponse = zod.object({
+  "deleted": zod.number().optional()
+})
+
+
+/**
+ * @summary Re-queue a retry entry (bump attemptCount, set retrying)
+ */
+export const RetryIntegrationQueueEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RetryIntegrationQueueEntryResponse = zod.object({
+  "id": zod.number(),
+  "connectorId": zod.number(),
+  "operationType": zod.string(),
+  "payloadJson": zod.string(),
+  "attemptCount": zod.number(),
+  "maxAttempts": zod.number(),
+  "nextRetryAt": zod.string(),
+  "lastError": zod.string().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Abandon a retry queue entry
+ */
+export const AbandonIntegrationQueueEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AbandonIntegrationQueueEntryResponse = zod.object({
+  "abandoned": zod.boolean().optional(),
+  "id": zod.number().optional()
+})
+
+
+/**
+ * @summary List integration event log (paginated)
+ */
+export const ListIntegrationEventsQueryParams = zod.object({
+  "connectorId": zod.coerce.number().optional(),
+  "eventType": zod.coerce.string().optional(),
+  "success": zod.coerce.string().optional(),
+  "from": zod.coerce.string().optional(),
+  "to": zod.coerce.string().optional(),
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListIntegrationEventsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "connectorId": zod.number().nullish(),
+  "eventType": zod.string(),
+  "direction": zod.string(),
+  "entityType": zod.string().nullish(),
+  "entityCount": zod.number().nullish(),
+  "success": zod.boolean(),
+  "durationMs": zod.number().nullish(),
+  "messageEn": zod.string().nullish(),
+  "detailsJson": zod.string().nullish(),
+  "actorUserId": zod.number().nullish(),
+  "occurredAt": zod.string()
+})).optional(),
+  "total": zod.number().optional(),
+  "page": zod.number().optional(),
+  "limit": zod.number().optional()
+})
+
+
+/**
+ * @summary Get a single integration event detail
+ */
+export const GetIntegrationEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetIntegrationEventResponse = zod.object({
+  "id": zod.number(),
+  "connectorId": zod.number().nullish(),
+  "eventType": zod.string(),
+  "direction": zod.string(),
+  "entityType": zod.string().nullish(),
+  "entityCount": zod.number().nullish(),
+  "success": zod.boolean(),
+  "durationMs": zod.number().nullish(),
+  "messageEn": zod.string().nullish(),
+  "detailsJson": zod.string().nullish(),
+  "actorUserId": zod.number().nullish(),
+  "occurredAt": zod.string()
+})
+
+
+/**
+ * @summary Get local AI configuration
+ */
+export const GetAiConfigResponse = zod.object({
+  "id": zod.number(),
+  "modelEndpoint": zod.string().nullish(),
+  "modelName": zod.string().nullish(),
+  "isEnabled": zod.boolean(),
+  "enabledFeatures": zod.string().nullish(),
+  "maxTokens": zod.number(),
+  "temperatureX100": zod.number(),
+  "requireApprovalForBulk": zod.boolean(),
+  "auditAllQueries": zod.boolean(),
+  "updatedAt": zod.string(),
+  "updatedByUserId": zod.number().nullish()
+})
+
+
+/**
+ * @summary Update local AI configuration
+ */
+export const UpdateAiConfigBody = zod.object({
+  "modelEndpoint": zod.string().nullish(),
+  "modelName": zod.string().nullish(),
+  "isEnabled": zod.boolean().optional(),
+  "enabledFeatures": zod.string().nullish(),
+  "maxTokens": zod.number().optional(),
+  "temperatureX100": zod.number().optional(),
+  "requireApprovalForBulk": zod.boolean().optional(),
+  "auditAllQueries": zod.boolean().optional()
+})
+
+export const UpdateAiConfigResponse = zod.object({
+  "id": zod.number(),
+  "modelEndpoint": zod.string().nullish(),
+  "modelName": zod.string().nullish(),
+  "isEnabled": zod.boolean(),
+  "enabledFeatures": zod.string().nullish(),
+  "maxTokens": zod.number(),
+  "temperatureX100": zod.number(),
+  "requireApprovalForBulk": zod.boolean(),
+  "auditAllQueries": zod.boolean(),
+  "updatedAt": zod.string(),
+  "updatedByUserId": zod.number().nullish()
+})
+
+
+/**
+ * @summary Keyword/AI search on HR policy documents
+ */
+export const AiPolicySearchBody = zod.object({
+  "query": zod.string(),
+  "limit": zod.number().optional()
+})
+
+export const AiPolicySearchResponse = zod.object({
+  "results": zod.array(zod.object({
+  "documentId": zod.number().optional(),
+  "title": zod.string().optional(),
+  "excerpt": zod.string().optional(),
+  "relevanceScore": zod.number().optional()
+})).optional(),
+  "model": zod.string().optional(),
+  "simulated": zod.boolean().optional(),
+  "auditId": zod.number().optional()
+})
+
+
+/**
+ * @summary Natural language to report data
+ */
+export const AiReportQueryBody = zod.object({
+  "query": zod.string(),
+  "context": zod.string().optional()
+})
+
+export const AiReportQueryResponse = zod.object({
+  "interpretation": zod.string().optional(),
+  "suggestedReport": zod.string().optional(),
+  "previewRows": zod.array(zod.object({}).passthrough()).optional(),
+  "simulated": zod.boolean().optional(),
+  "auditId": zod.number().optional()
+})
+
+
+/**
+ * @summary Classify a document by title/content
+ */
+export const AiClassifyDocumentBody = zod.object({
+  "documentId": zod.number().optional(),
+  "title": zod.string(),
+  "content": zod.string().optional()
+})
+
+export const AiClassifyDocumentResponse = zod.object({
+  "suggestedCategory": zod.string().optional(),
+  "confidence": zod.number().optional(),
+  "reasoning": zod.string().optional(),
+  "simulated": zod.boolean().optional(),
+  "auditId": zod.number().optional()
+})
+
+
+/**
+ * @summary Generate plain-text explanation for a detected anomaly
+ */
+export const AiExplainAnomalyBody = zod.object({
+  "anomalyType": zod.enum(['attendance_high', 'overtime_spike', 'payroll_variance', 'leave_exposure']),
+  "entityId": zod.number().optional(),
+  "metrics": zod.object({}).passthrough()
+})
+
+export const AiExplainAnomalyResponse = zod.object({
+  "explanation": zod.string().optional(),
+  "riskLevel": zod.string().optional(),
+  "recommendations": zod.array(zod.string()).optional(),
+  "simulated": zod.boolean().optional(),
+  "auditId": zod.number().optional()
+})
+
+
+/**
+ * @summary Audit log of AI queries (paginated)
+ */
+export const ListAiQueriesQueryParams = zod.object({
+  "featureType": zod.coerce.string().optional(),
+  "wasSimulated": zod.coerce.string().optional(),
+  "success": zod.coerce.string().optional(),
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListAiQueriesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "featureType": zod.string(),
+  "queryText": zod.string(),
+  "responseText": zod.string().nullish(),
+  "citationsJson": zod.string().nullish(),
+  "modelUsed": zod.string().nullish(),
+  "tokensUsed": zod.number().nullish(),
+  "durationMs": zod.number().nullish(),
+  "wasSimulated": zod.boolean(),
+  "success": zod.boolean(),
+  "errorMessage": zod.string().nullish(),
+  "requestedByUserId": zod.number().nullish(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish(),
+  "ipAddress": zod.string().nullish(),
+  "createdAt": zod.string()
+})).optional(),
+  "total": zod.number().optional(),
+  "page": zod.number().optional(),
+  "limit": zod.number().optional()
+})
+
+
+/**
+ * @summary List AI feature permissions
+ */
+export const ListAiPermissionsResponseItem = zod.object({
+  "id": zod.number(),
+  "roleId": zod.number().nullish(),
+  "featureType": zod.string(),
+  "isAllowed": zod.boolean(),
+  "grantedByUserId": zod.number().nullish(),
+  "grantedAt": zod.string()
+})
+export const ListAiPermissionsResponse = zod.array(ListAiPermissionsResponseItem)
+
+
+/**
+ * @summary Update an AI permission
+ */
+export const UpdateAiPermissionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateAiPermissionBody = zod.object({
+  "isAllowed": zod.boolean().optional(),
+  "featureType": zod.string().optional()
+})
+
+export const UpdateAiPermissionResponse = zod.object({
+  "id": zod.number(),
+  "roleId": zod.number().nullish(),
+  "featureType": zod.string(),
+  "isAllowed": zod.boolean(),
+  "grantedByUserId": zod.number().nullish(),
+  "grantedAt": zod.string()
+})
+
+

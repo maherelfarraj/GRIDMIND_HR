@@ -201,7 +201,15 @@ Three task branches (cert gating, revoke, concurrency lock) all edited leaveRequ
 All db.insert(auditLogsTable) calls must include `actorUserId: (req as any).session?.userId ?? 1`. The column exists in auditLogsTable. 112 inserts were missing this in Phase 5/6 routes — all fixed in stabilization pass.
 
 ## Integration test suite (artifacts/api-server/src/__tests__/)
-12 test files total: helpers.ts, leave-workflow, leave-validation, leave-concurrency, annual-reset, dual-auth, payroll, authorization, attendance-workflow, document-workflow, report-workflow, deployment-ops, notification-workflow. Run: `pnpm --filter @workspace/api-server run test`. 60 pass, 7 skip (authorization stubs — document intended behavior for when real session enforcement is added). All new tests self-clean in afterAll.
+15 test files, 78 pass, 7 skip. Run: `pnpm --filter @workspace/api-server run test`. All self-clean in afterAll.
+
+## Payroll calculate handler — known pitfalls
+- The per-employee holiday set is `empHolidaySet` (not `holidaySet`). Any new code inside the employee loop that calls `overlapDays(...)` must pass `empHolidaySet` — using an undefined `holidaySet` causes a silent 500.
+- Period aggregate update uses column names `totalGrossSalary` / `totalNetSalary` (NOT `totalGrossPayroll` / `totalNetPayroll`). Wrong names silently throw a Drizzle type error → 500.
+- `exceptionCount` must be saved to `payrollPeriodsTable` in the update set; the GET /:id response includes it for "under_review" status checks.
+- Response must include `runsCreated: runs.length` (tests check this key).
+- `buildHolidaySet(rows, startYear, endYear, sectorFilter)` takes a sector string — pass `emp.organizationType ?? "commercial"`. Recurring dates use `h.date.slice(-6)` to extract "-MM-DD" regardless of how the date is stored ("YYYY-MM-DD" or "--MM-DD").
+- Feb 2098 test period has a seeded recurring "Founding Day" holiday on Feb 22 (Saturday). With Fri/Sat [5,6] it's already off (no impact). With Friday-only [5], Feb 22 becomes a working day, so the holiday removes one day → `FRIDAY_ONLY_WORKING_DAYS = 23`, not 24.
 
 ## Simulated integration labels
 Three endpoints return `simulated: true` in their response: POST /health-checks/run, POST /report-definitions/:id/run, POST /update-packages/:id/install. Frontend deployment.tsx and reports.tsx show amber "⚠ Simulated" badges next to these actions.
