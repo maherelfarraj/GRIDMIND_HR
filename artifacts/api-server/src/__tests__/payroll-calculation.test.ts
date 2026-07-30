@@ -38,6 +38,8 @@ const OT_EVENTS = 3; // engine counts 2h per OVERTIME_START event → 6 OT hours
 // Far-future period — no seeded punch events or rosters can leak in.
 const PERIOD_START = "2098-02-01";
 const PERIOD_END = "2098-02-28";
+// Feb 2098 has 20 working days (Fri/Sat weekends excluded; Feb 1 is a Saturday).
+const PERIOD_WORKING_DAYS = 20;
 
 let gradeId: number;
 let empWithGradeId: number;
@@ -228,7 +230,7 @@ describe("payroll calculation engine", () => {
     let emp3Id: number;
     let unpaidTypeId: number;
     let leaveId: number;
-    const UNPAID_DAYS = 4; // 2098-02-10 .. 2098-02-13 inclusive
+    const UNPAID_DAYS = 4; // 2098-02-10 (Mon) .. 2098-02-13 (Thu) — all working days
 
     beforeAll(async () => {
       const [seedEmp] = await db.select().from(employeesTable).limit(1);
@@ -292,13 +294,13 @@ describe("payroll calculation engine", () => {
 
       const housing = BASE_SALARY * (HOUSING_PCT / 100);
       const transport = BASE_SALARY * (TRANSPORT_PCT / 100);
-      const dailyRate = (BASE_SALARY + housing + transport) / 22;
+      const dailyRate = (BASE_SALARY + housing + transport) / PERIOD_WORKING_DAYS;
       const expectedDeduction = round2(UNPAID_DAYS * dailyRate);
 
       expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(UNPAID_DAYS, 1);
       expect(parseFloat(run.leaveDeductionAmount)).toBeCloseTo(expectedDeduction, 2);
-      expect(run.workingDays).toBe(22);
-      expect(run.presentDays).toBe(22 - UNPAID_DAYS);
+      expect(run.workingDays).toBe(PERIOD_WORKING_DAYS);
+      expect(run.presentDays).toBe(PERIOD_WORKING_DAYS - UNPAID_DAYS);
       expect(run.absentDays).toBe(UNPAID_DAYS);
 
       // The deduction line item exists and is reflected in totals.
@@ -323,14 +325,15 @@ describe("payroll calculation engine", () => {
       const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === empWithGradeId);
       expect(parseFloat(run.deductedLeaveDays)).toBe(0);
       expect(parseFloat(run.leaveDeductionAmount)).toBe(0);
-      expect(run.presentDays).toBe(22);
+      expect(run.presentDays).toBe(PERIOD_WORKING_DAYS);
       expect(run.absentDays).toBe(0);
       const detail = await request(app).get(`/api/payroll-runs/${run.id}`);
       expect(detail.body.lines.find((l: { codeEn: string }) => l.codeEn === "UNPAID_LEAVE")).toBeUndefined();
     });
 
-    it("only counts the days of a leave that overlap the period", async () => {
-      // Extend the leave beyond the period end: 2098-02-25 .. 2098-03-05 → 4 in-period days.
+    it("only counts the working days of a leave that overlap the period", async () => {
+      // Extend the leave beyond the period end: 2098-02-25 .. 2098-03-05.
+      // In-period slice is Feb 25 (Tue) – Feb 28 (Fri); Feb 28 is a weekend day → 3 working days.
       await db.update(leaveRequestsTable)
         .set({ startDate: "2098-02-25", endDate: "2098-03-05", totalDays: "9" })
         .where(eq(leaveRequestsTable.id, leaveId));
@@ -339,7 +342,7 @@ describe("payroll calculation engine", () => {
       expect(res.status).toBe(200);
       const runsRes = await request(app).get(`/api/payroll-runs?periodId=${periodId}`);
       const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === emp3Id);
-      expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(4, 1); // Feb 25–28 only
+      expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(3, 1); // Feb 25–27 working days only
     });
   });
 

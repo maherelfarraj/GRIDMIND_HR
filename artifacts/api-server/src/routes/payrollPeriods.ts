@@ -6,12 +6,28 @@ import {
 } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 
-/** Count days of a leave request that fall inside [periodStart, periodEnd] (inclusive, date strings). */
+/** Weekend day indexes (JS getUTCDay): Friday=5, Saturday=6 — the Saudi weekend. */
+const WEEKEND_DAYS = [5, 6];
+
+/** Count working days (excluding weekends) in [start, end] inclusive (YYYY-MM-DD strings). */
+function countWorkingDays(start: string, end: string): number {
+  if (start > end) return 0;
+  let count = 0;
+  const d = new Date(start + "T00:00:00Z");
+  const last = new Date(end + "T00:00:00Z");
+  while (d <= last) {
+    if (!WEEKEND_DAYS.includes(d.getUTCDay())) count++;
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return count;
+}
+
+/** Count working days of a leave request that fall inside [periodStart, periodEnd] (inclusive, date strings). */
 function overlapDays(leaveStart: string, leaveEnd: string, periodStart: string, periodEnd: string, halfDay: boolean): number {
   const start = leaveStart > periodStart ? leaveStart : periodStart;
   const end = leaveEnd < periodEnd ? leaveEnd : periodEnd;
   if (start > end) return 0;
-  const days = Math.round((Date.parse(end) - Date.parse(start)) / 86400000) + 1;
+  const days = countWorkingDays(start, end);
   if (halfDay && days === 1) return 0.5;
   return days;
 }
@@ -100,6 +116,9 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       gte(leaveRequestsTable.endDate, period.startDate),
     ));
 
+  // Real working days in this period's calendar (weekends excluded).
+  const periodWorkingDays = countWorkingDays(period.startDate, period.endDate);
+
   const gradeMap = Object.fromEntries(grades.map(g => [g.gradeCode, g]));
   let totalGross = 0, totalDeductions = 0, totalNet = 0, exceptionCount = 0;
 
@@ -118,7 +137,7 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     // Apply OT rule (use standard by default)
     const otRule = overtimeRules.find(r => r.nameEn.includes("Standard")) ?? overtimeRules[0];
     const otRate = otRule ? parseFloat(otRule.multiplierWeekday) : 1.5;
-    const hourlyRate = baseSalary / 176; // 22 working days × 8h
+    const hourlyRate = baseSalary / 176; // standard monthly hours convention (fixed, independent of period length)
     const overtimePay = overtimeHours * hourlyRate * otRate;
 
     // Calculate allowances from pay components
@@ -144,12 +163,11 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
 
     // Unpaid leave / absence deduction: proportional to days of approved
     // unpaid-category leave that fall inside this period.
-    const WORKING_DAYS = 22;
     const unpaidDays = approvedLeaves
       .filter(l => l.employeeId === emp.id && l.category === "unpaid")
       .reduce((sum, l) => sum + overlapDays(l.startDate, l.endDate, period.startDate, period.endDate, l.halfDay), 0);
-    const deductedLeaveDays = Math.min(unpaidDays, WORKING_DAYS);
-    const dailyRate = (baseSalary + housingAmount + transportAmount) / WORKING_DAYS;
+    const deductedLeaveDays = Math.min(unpaidDays, periodWorkingDays);
+    const dailyRate = (baseSalary + housingAmount + transportAmount) / periodWorkingDays;
     const leaveDeductionAmount = Math.round(deductedLeaveDays * dailyRate * 100) / 100;
     if (leaveDeductionAmount > 0) {
       lines.push({
@@ -201,8 +219,8 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       overtimePay: String(Math.round(overtimePay * 100) / 100),
       deductedLeaveDays: String(deductedLeaveDays),
       leaveDeductionAmount: String(leaveDeductionAmount),
-      workingDays: WORKING_DAYS,
-      presentDays: WORKING_DAYS - Math.ceil(deductedLeaveDays),
+      workingDays: periodWorkingDays,
+      presentDays: periodWorkingDays - Math.ceil(deductedLeaveDays),
       absentDays: Math.ceil(deductedLeaveDays), // integer column; half-days round up
       hasException,
       exceptionNote: hasException ? "No salary grade assigned — using default base salary" : null,
