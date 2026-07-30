@@ -3,6 +3,7 @@ import {
   db, payrollPeriodsTable, payrollRunsTable, payrollRunLinesTable,
   employeesTable, salaryGradesTable, payComponentsTable, auditLogsTable,
   overtimeRulesTable, punchEventsTable, leaveRequestsTable, leaveTypesTable,
+  attendanceRecordsTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 
@@ -30,6 +31,20 @@ function overlapDays(leaveStart: string, leaveEnd: string, periodStart: string, 
   const days = countWorkingDays(start, end);
   if (halfDay && days === 1) return 0.5;
   return days;
+}
+
+/** Sun–Thu are workdays; Fri/Sat are the weekend. */
+function isWorkday(dateStr: string): boolean {
+  return !WEEKEND_DAYS.includes(new Date(dateStr + "T00:00:00Z").getUTCDay());
+}
+
+/** All ISO date strings from start to end inclusive. */
+function datesInRange(start: string, end: string): string[] {
+  const out: string[] = [];
+  for (let t = Date.parse(start + "T00:00:00Z"); t <= Date.parse(end + "T00:00:00Z"); t += 86400000) {
+    out.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return out;
 }
 
 const router = Router();
@@ -99,6 +114,21 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       gte(punchEventsTable.eventTime, new Date(period.startDate)),
       lte(punchEventsTable.eventTime, new Date(period.endDate + "T23:59:59Z")),
     ));
+
+  // Attendance records for this period (for no-show detection).
+  const attendanceRecords = await db.select().from(attendanceRecordsTable)
+    .where(and(
+      gte(attendanceRecordsTable.date, period.startDate),
+      lte(attendanceRecordsTable.date, period.endDate),
+    ));
+
+  // Workdays in the period eligible for no-show checks: Sun–Thu, and never
+  // beyond today (future days can't be counted as absences yet).
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const noShowEnd = period.endDate < todayStr ? period.endDate : todayStr;
+  const eligibleWorkdays = period.startDate <= noShowEnd
+    ? datesInRange(period.startDate, noShowEnd).filter(isWorkday)
+    : [];
 
   // Approved leave requests overlapping this period, with their leave type category.
   const approvedLeaves = await db.select({
@@ -176,6 +206,36 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       });
     }
 
+    // No-show absences: eligible workdays with no punch activity, no attendance
+    // record showing presence, and no approved leave (any category) covering the day.
+    const attendedDates = new Set<string>();
+    for (const e of punchEvents) {
+      if (e.employeeId === emp.id) attendedDates.add(e.eventTime.toISOString().slice(0, 10));
+    }
+    for (const a of attendanceRecords) {
+      if (a.employeeId === emp.id && a.status !== "absent") attendedDates.add(a.date);
+    }
+    const leaveCoveredDates = new Set<string>();
+    for (const l of approvedLeaves) {
+      if (l.employeeId !== emp.id) continue;
+      const s = l.startDate > period.startDate ? l.startDate : period.startDate;
+      const e = l.endDate < period.endDate ? l.endDate : period.endDate;
+      if (s <= e) for (const d of datesInRange(s, e)) leaveCoveredDates.add(d);
+    }
+    const noShowDays = eligibleWorkdays.filter(d =>
+      d >= emp.hireDate && !attendedDates.has(d) && !leaveCoveredDates.has(d)
+    ).length;
+
+    // Cap total deducted days (unpaid leave + no-shows) at the period's working-day count.
+    const deductedNoShowDays = Math.max(0, Math.min(noShowDays, periodWorkingDays - deductedLeaveDays));
+    const absenceDeductionAmount = Math.round(deductedNoShowDays * dailyRate * 100) / 100;
+    if (absenceDeductionAmount > 0) {
+      lines.push({
+        codeEn: "ABSENCE", nameEn: "Absence Deduction (No-Show)", nameAr: "خصم الغياب بدون إذن",
+        type: "deduction", amount: absenceDeductionAmount, sortOrder: 5,
+      });
+    }
+
     // Apply pay components
     let compSortOrder = 10;
     for (const comp of components.filter(c => c.applicableTo === "all" || c.applicableTo === "commercial")) {
@@ -220,8 +280,8 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       deductedLeaveDays: String(deductedLeaveDays),
       leaveDeductionAmount: String(leaveDeductionAmount),
       workingDays: periodWorkingDays,
-      presentDays: periodWorkingDays - Math.ceil(deductedLeaveDays),
-      absentDays: Math.ceil(deductedLeaveDays), // integer column; half-days round up
+      presentDays: Math.max(0, periodWorkingDays - Math.ceil(deductedLeaveDays) - deductedNoShowDays),
+      absentDays: Math.ceil(deductedLeaveDays) + deductedNoShowDays, // integer column; half-days round up
       hasException,
       exceptionNote: hasException ? "No salary grade assigned — using default base salary" : null,
       status: hasException ? "exception" : "calculated",
