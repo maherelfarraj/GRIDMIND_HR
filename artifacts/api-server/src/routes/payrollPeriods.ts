@@ -2,9 +2,19 @@ import { Router } from "express";
 import {
   db, payrollPeriodsTable, payrollRunsTable, payrollRunLinesTable,
   employeesTable, salaryGradesTable, payComponentsTable, auditLogsTable,
-  overtimeRulesTable, punchEventsTable,
+  overtimeRulesTable, punchEventsTable, leaveRequestsTable, leaveTypesTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
+
+/** Count days of a leave request that fall inside [periodStart, periodEnd] (inclusive, date strings). */
+function overlapDays(leaveStart: string, leaveEnd: string, periodStart: string, periodEnd: string, halfDay: boolean): number {
+  const start = leaveStart > periodStart ? leaveStart : periodStart;
+  const end = leaveEnd < periodEnd ? leaveEnd : periodEnd;
+  if (start > end) return 0;
+  const days = Math.round((Date.parse(end) - Date.parse(start)) / 86400000) + 1;
+  if (halfDay && days === 1) return 0.5;
+  return days;
+}
 
 const router = Router();
 
@@ -74,6 +84,22 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       lte(punchEventsTable.eventTime, new Date(period.endDate + "T23:59:59Z")),
     ));
 
+  // Approved leave requests overlapping this period, with their leave type category.
+  const approvedLeaves = await db.select({
+    employeeId: leaveRequestsTable.employeeId,
+    startDate: leaveRequestsTable.startDate,
+    endDate: leaveRequestsTable.endDate,
+    halfDay: leaveRequestsTable.halfDay,
+    category: leaveTypesTable.category,
+  })
+    .from(leaveRequestsTable)
+    .innerJoin(leaveTypesTable, eq(leaveRequestsTable.leaveTypeId, leaveTypesTable.id))
+    .where(and(
+      eq(leaveRequestsTable.status, "approved"),
+      lte(leaveRequestsTable.startDate, period.endDate),
+      gte(leaveRequestsTable.endDate, period.startDate),
+    ));
+
   const gradeMap = Object.fromEntries(grades.map(g => [g.gradeCode, g]));
   let totalGross = 0, totalDeductions = 0, totalNet = 0, exceptionCount = 0;
 
@@ -114,6 +140,22 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     // OT pay
     if (overtimePay > 0) {
       lines.push({ codeEn: "OT_PAY", nameEn: "Overtime Pay", nameAr: "أجر الوقت الإضافي", type: "earning", amount: Math.round(overtimePay * 100) / 100, sortOrder: 3 });
+    }
+
+    // Unpaid leave / absence deduction: proportional to days of approved
+    // unpaid-category leave that fall inside this period.
+    const WORKING_DAYS = 22;
+    const unpaidDays = approvedLeaves
+      .filter(l => l.employeeId === emp.id && l.category === "unpaid")
+      .reduce((sum, l) => sum + overlapDays(l.startDate, l.endDate, period.startDate, period.endDate, l.halfDay), 0);
+    const deductedLeaveDays = Math.min(unpaidDays, WORKING_DAYS);
+    const dailyRate = (baseSalary + housingAmount + transportAmount) / WORKING_DAYS;
+    const leaveDeductionAmount = Math.round(deductedLeaveDays * dailyRate * 100) / 100;
+    if (leaveDeductionAmount > 0) {
+      lines.push({
+        codeEn: "UNPAID_LEAVE", nameEn: "Unpaid Leave Deduction", nameAr: "خصم إجازة بدون راتب",
+        type: "deduction", amount: leaveDeductionAmount, sortOrder: 4,
+      });
     }
 
     // Apply pay components
@@ -157,9 +199,11 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       netSalary: String(Math.round(netSalary * 100) / 100),
       overtimeHours: String(overtimeHours),
       overtimePay: String(Math.round(overtimePay * 100) / 100),
-      workingDays: 22,
-      presentDays: 22,
-      absentDays: 0,
+      deductedLeaveDays: String(deductedLeaveDays),
+      leaveDeductionAmount: String(leaveDeductionAmount),
+      workingDays: WORKING_DAYS,
+      presentDays: WORKING_DAYS - Math.ceil(deductedLeaveDays),
+      absentDays: Math.ceil(deductedLeaveDays), // integer column; half-days round up
       hasException,
       exceptionNote: hasException ? "No salary grade assigned — using default base salary" : null,
       status: hasException ? "exception" : "calculated",

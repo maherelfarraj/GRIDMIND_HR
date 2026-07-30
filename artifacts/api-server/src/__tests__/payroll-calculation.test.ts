@@ -20,6 +20,8 @@ import {
   employeesTable,
   punchEventsTable,
   auditLogsTable,
+  leaveRequestsTable,
+  leaveTypesTable,
 } from "@workspace/db";
 import app from "../app";
 
@@ -220,6 +222,125 @@ describe("payroll calculation engine", () => {
     const mine = after.body.filter((r: { employeeId: number }) =>
       r.employeeId === empWithGradeId || r.employeeId === empNoGradeId);
     expect(mine.length).toBe(2);
+  });
+
+  describe("unpaid leave deduction", () => {
+    let emp3Id: number;
+    let unpaidTypeId: number;
+    let leaveId: number;
+    const UNPAID_DAYS = 4; // 2098-02-10 .. 2098-02-13 inclusive
+
+    beforeAll(async () => {
+      const [seedEmp] = await db.select().from(employeesTable).limit(1);
+      const [e3] = await db.insert(employeesTable).values({
+        employeeNumber: `T-EMP-${SUFFIX}-3`,
+        firstNameEn: "Test", lastNameEn: "Payroll3",
+        firstNameAr: "اختبار", lastNameAr: "رواتب3",
+        nationalId: `T${SUFFIX}3`,
+        jobTitleEn: "Test Engineer", jobTitleAr: "مهندس اختبار",
+        departmentId: seedEmp.departmentId,
+        roleId: seedEmp.roleId,
+        status: "active",
+        grade: GRADE_CODE,
+        email: `test-payroll-${SUFFIX}-3@example.com`,
+        hireDate: "2020-01-01",
+        nationality: "SA",
+      }).returning();
+      emp3Id = e3.id;
+
+      const [lt] = await db.insert(leaveTypesTable).values({
+        codeEn: `T-UNP-${SUFFIX}`,
+        nameEn: "TEST Unpaid Leave", nameAr: "إجازة بدون راتب اختبار",
+        category: "unpaid",
+        isActive: false, // keep out of annual-reset sweeps
+      }).returning();
+      unpaidTypeId = lt.id;
+
+      const [lr] = await db.insert(leaveRequestsTable).values({
+        requestNumber: `T-LR-${SUFFIX}`,
+        employeeId: emp3Id,
+        leaveTypeId: unpaidTypeId,
+        startDate: "2098-02-10", endDate: "2098-02-13",
+        totalDays: String(UNPAID_DAYS),
+        status: "approved",
+      }).returning();
+      leaveId = lr.id;
+    });
+
+    afterAll(async () => {
+      // Remove emp3's runs first so the employee row can be deleted.
+      if (emp3Id) {
+        const runs = await db.select().from(payrollRunsTable).where(eq(payrollRunsTable.employeeId, emp3Id));
+        const runIds = runs.map(r => r.id);
+        if (runIds.length) {
+          await db.delete(payrollRunLinesTable).where(inArray(payrollRunLinesTable.payrollRunId, runIds));
+          await db.delete(payrollRunsTable).where(inArray(payrollRunsTable.id, runIds));
+        }
+      }
+      if (leaveId) await db.delete(leaveRequestsTable).where(eq(leaveRequestsTable.id, leaveId));
+      if (unpaidTypeId) await db.delete(leaveTypesTable).where(eq(leaveTypesTable.id, unpaidTypeId));
+      if (emp3Id) await db.delete(employeesTable).where(eq(employeesTable.id, emp3Id));
+    });
+
+    it("deducts approved unpaid leave days proportionally from the payslip", async () => {
+      const res = await request(app).post(`/api/payroll-periods/${periodId}/calculate`);
+      expect(res.status).toBe(200);
+
+      const runsRes = await request(app).get(`/api/payroll-runs?periodId=${periodId}`);
+      const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === emp3Id);
+      expect(run).toBeDefined();
+
+      const housing = BASE_SALARY * (HOUSING_PCT / 100);
+      const transport = BASE_SALARY * (TRANSPORT_PCT / 100);
+      const dailyRate = (BASE_SALARY + housing + transport) / 22;
+      const expectedDeduction = round2(UNPAID_DAYS * dailyRate);
+
+      expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(UNPAID_DAYS, 1);
+      expect(parseFloat(run.leaveDeductionAmount)).toBeCloseTo(expectedDeduction, 2);
+      expect(run.workingDays).toBe(22);
+      expect(run.presentDays).toBe(22 - UNPAID_DAYS);
+      expect(run.absentDays).toBe(UNPAID_DAYS);
+
+      // The deduction line item exists and is reflected in totals.
+      const detail = await request(app).get(`/api/payroll-runs/${run.id}`);
+      const lines: { codeEn: string; amount: string; type: string }[] = detail.body.lines;
+      const dedLine = lines.find(l => l.codeEn === "UNPAID_LEAVE");
+      expect(dedLine).toBeDefined();
+      expect(dedLine!.type).toBe("deduction");
+      expect(parseFloat(dedLine!.amount)).toBeCloseTo(expectedDeduction, 2);
+
+      expect(parseFloat(run.netSalary)).toBeCloseTo(parseFloat(run.grossSalary) - parseFloat(run.totalDeductions), 2);
+      expect(parseFloat(run.totalDeductions)).toBeGreaterThanOrEqual(expectedDeduction);
+
+      // Peer with same grade and no unpaid leave nets exactly the deduction more.
+      const peer = runsRes.body.find((r: { employeeId: number }) => r.employeeId === empWithGradeId);
+      const peerNetNoOt = parseFloat(peer.netSalary) - parseFloat(peer.overtimePay);
+      expect(peerNetNoOt - parseFloat(run.netSalary)).toBeCloseTo(expectedDeduction, 1);
+    });
+
+    it("does not deduct anything for employees without unpaid leave", async () => {
+      const runsRes = await request(app).get(`/api/payroll-runs?periodId=${periodId}`);
+      const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === empWithGradeId);
+      expect(parseFloat(run.deductedLeaveDays)).toBe(0);
+      expect(parseFloat(run.leaveDeductionAmount)).toBe(0);
+      expect(run.presentDays).toBe(22);
+      expect(run.absentDays).toBe(0);
+      const detail = await request(app).get(`/api/payroll-runs/${run.id}`);
+      expect(detail.body.lines.find((l: { codeEn: string }) => l.codeEn === "UNPAID_LEAVE")).toBeUndefined();
+    });
+
+    it("only counts the days of a leave that overlap the period", async () => {
+      // Extend the leave beyond the period end: 2098-02-25 .. 2098-03-05 → 4 in-period days.
+      await db.update(leaveRequestsTable)
+        .set({ startDate: "2098-02-25", endDate: "2098-03-05", totalDays: "9" })
+        .where(eq(leaveRequestsTable.id, leaveId));
+
+      const res = await request(app).post(`/api/payroll-periods/${periodId}/calculate`);
+      expect(res.status).toBe(200);
+      const runsRes = await request(app).get(`/api/payroll-runs?periodId=${periodId}`);
+      const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === emp3Id);
+      expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(4, 1); // Feb 25–28 only
+    });
   });
 
   it("refuses to recalculate a closed period", async () => {
