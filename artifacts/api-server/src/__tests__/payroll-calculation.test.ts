@@ -34,7 +34,10 @@ const MISSING_GRADE_CODE = `T-NOGRD-${SUFFIX}`;
 const BASE_SALARY = 12000;
 const HOUSING_PCT = 20;
 const TRANSPORT_PCT = 8;
-const OT_EVENTS = 3; // engine counts 2h per OVERTIME_START event → 6 OT hours
+// Overtime sessions: engine pairs OVERTIME_START with the next OVERTIME_END and
+// pays the actual duration; a start with no end falls back to 2h.
+// Session 1: 1.5h (paired), session 2: 3h (paired), session 3: no end → 2h fallback.
+const OT_WEEKDAY_HOURS = 1.5 + 3 + 2;
 
 // Far-future period — no seeded punch events or rosters can leak in.
 const PERIOD_START = "2098-02-01";
@@ -87,11 +90,20 @@ beforeAll(async () => {
   empNoGradeId = e2.id;
 
   // Overtime punch events inside the period for employee 1.
-  for (let i = 0; i < OT_EVENTS; i++) {
+  // Session 1 (Feb 2): 18:00 → 19:30 = 1.5h. Session 2 (Feb 3): 18:00 → 21:00 = 3h.
+  // Session 3 (Feb 4): start only, no end punch → 2h fallback.
+  const otPunches: { time: string; type: "OVERTIME_START" | "OVERTIME_END" }[] = [
+    { time: "2098-02-02T18:00:00Z", type: "OVERTIME_START" },
+    { time: "2098-02-02T19:30:00Z", type: "OVERTIME_END" },
+    { time: "2098-02-03T18:00:00Z", type: "OVERTIME_START" },
+    { time: "2098-02-03T21:00:00Z", type: "OVERTIME_END" },
+    { time: "2098-02-04T18:00:00Z", type: "OVERTIME_START" },
+  ];
+  for (const p of otPunches) {
     const [ev] = await db.insert(punchEventsTable).values({
       employeeId: empWithGradeId,
-      eventTime: new Date(`2098-02-0${i + 2}T18:00:00Z`),
-      eventType: "OVERTIME_START",
+      eventTime: new Date(p.time),
+      eventType: p.type,
       source: "MANUAL",
       notes: `TEST-PAYROLL-${SUFFIX}`,
     }).returning();
@@ -149,11 +161,12 @@ describe("payroll calculation engine", () => {
     const housing = BASE_SALARY * (HOUSING_PCT / 100);   // 2400
     const transport = BASE_SALARY * (TRANSPORT_PCT / 100); // 960
 
-    // Overtime: 2h per OVERTIME_START event, hourly = base/176, standard weekday rate.
+    // Overtime: actual paired start/end durations (2h fallback for the
+    // unterminated session), hourly = base/176, standard weekday rate.
     const otRules = await db.select().from(overtimeRulesTable).where(eq(overtimeRulesTable.isActive, true));
     const otRule = otRules.find(r => r.nameEn.includes("Standard")) ?? otRules[0];
     const otRate = otRule ? parseFloat(otRule.multiplierWeekday) : 1.5;
-    const otHours = OT_EVENTS * 2;
+    const otHours = OT_WEEKDAY_HOURS;
     const otPay = round2(otHours * (BASE_SALARY / 176) * otRate);
 
     // Active pay components applicable to all/commercial employees.
@@ -470,11 +483,18 @@ describe("payroll calculation engine", () => {
       }).returning();
       otHolidayId = h.id;
 
-      for (const date of [WEEKEND_OT_DATE, HOLIDAY_OT_DATE]) {
+      // Weekend session: start only → 2h fallback.
+      // Holiday session: paired 18:00 → 22:00 = 4h actual duration.
+      const punches: { time: string; type: "OVERTIME_START" | "OVERTIME_END" }[] = [
+        { time: `${WEEKEND_OT_DATE}T18:00:00Z`, type: "OVERTIME_START" },
+        { time: `${HOLIDAY_OT_DATE}T18:00:00Z`, type: "OVERTIME_START" },
+        { time: `${HOLIDAY_OT_DATE}T22:00:00Z`, type: "OVERTIME_END" },
+      ];
+      for (const p of punches) {
         const [ev] = await db.insert(punchEventsTable).values({
           employeeId: empWithGradeId,
-          eventTime: new Date(`${date}T18:00:00Z`),
-          eventType: "OVERTIME_START",
+          eventTime: new Date(p.time),
+          eventType: p.type,
           source: "MANUAL",
           notes: `TEST-PAYROLL-OT-${SUFFIX}`,
         }).returning();
@@ -506,13 +526,13 @@ describe("payroll calculation engine", () => {
       expect(weekendRate).toBeGreaterThan(weekdayRate);
 
       const hourly = BASE_SALARY / 176;
-      // Original OT_EVENTS weekday events (2h each) + 2h weekend + 2h holiday.
-      const expectedHours = OT_EVENTS * 2 + 2 + 2;
+      // Original weekday sessions (paired + fallback) + 2h weekend (fallback) + 4h holiday (paired).
+      const expectedHours = OT_WEEKDAY_HOURS + 2 + 4;
       // Each bucket is rounded independently, then summed (matches the payslip lines exactly).
       const expectedPay = round2(
-        round2(hourly * OT_EVENTS * 2 * weekdayRate) +
+        round2(hourly * OT_WEEKDAY_HOURS * weekdayRate) +
         round2(hourly * 2 * weekendRate) +
-        round2(hourly * 2 * holidayRate)
+        round2(hourly * 4 * holidayRate)
       );
 
       expect(parseFloat(run.overtimeHours)).toBeCloseTo(expectedHours, 2);
@@ -524,9 +544,9 @@ describe("payroll calculation engine", () => {
       expect(detail.status).toBe(200);
       const lines: { codeEn: string; nameEn: string; amount: string }[] = detail.body.lines;
       const lineAmount = (code: string) => parseFloat(lines.find(l => l.codeEn === code)?.amount ?? "NaN");
-      expect(lineAmount("OT_WEEKDAY")).toBeCloseTo(round2(hourly * OT_EVENTS * 2 * weekdayRate), 2);
+      expect(lineAmount("OT_WEEKDAY")).toBeCloseTo(round2(hourly * OT_WEEKDAY_HOURS * weekdayRate), 2);
       expect(lineAmount("OT_WEEKEND")).toBeCloseTo(round2(hourly * 2 * weekendRate), 2);
-      expect(lineAmount("OT_HOLIDAY")).toBeCloseTo(round2(hourly * 2 * holidayRate), 2);
+      expect(lineAmount("OT_HOLIDAY")).toBeCloseTo(round2(hourly * 4 * holidayRate), 2);
       const otLineSum = lines.filter(l => l.codeEn.startsWith("OT_")).reduce((s, l) => s + parseFloat(l.amount), 0);
       expect(otLineSum).toBeCloseTo(parseFloat(run.overtimePay), 2);
       // Hours are visible in the line names for auditability.

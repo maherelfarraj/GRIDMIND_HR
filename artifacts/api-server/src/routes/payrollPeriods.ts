@@ -182,6 +182,10 @@ async function loadHolidayRows(): Promise<HolidayRow[]> {
   }).from(publicHolidaysTable);
 }
 
+// Fallback duration (hours) for an overtime session whose OVERTIME_START punch
+// has no matching OVERTIME_END punch — the historical per-session approximation.
+const DEFAULT_OT_SESSION_HOURS = 2;
+
 const router = Router();
 
 // GET /payroll-periods?status=&year=
@@ -372,16 +376,33 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     const grade = emp.grade ? gradeMap[emp.grade] : null;
     const baseSalary = grade ? parseFloat(grade.baseSalary) : 5000; // fallback base
 
-    // Overtime: count OVERTIME_START events for this employee in the period,
-    // bucketed by day type so each bucket is paid at its own multiplier
-    // (weekday / weekend / holiday).
-    const empOtEvents = punchEvents.filter(e =>
-      e.employeeId === emp.id && e.eventType === "OVERTIME_START"
-    );
+    // Overtime: pair each OVERTIME_START punch with the next OVERTIME_END punch
+    // for the same employee and pay the actual duration, bucketed by day type
+    // so each bucket is paid at its own multiplier (weekday / weekend / holiday).
+    // Sessions with no matching end punch fall back to DEFAULT_OT_SESSION_HOURS.
+    const empOtStarts = punchEvents
+      .filter(e => e.employeeId === emp.id && e.eventType === "OVERTIME_START")
+      .sort((a, b) => a.eventTime.getTime() - b.eventTime.getTime());
+    const empOtEnds = punchEvents
+      .filter(e => e.employeeId === emp.id && e.eventType === "OVERTIME_END")
+      .sort((a, b) => a.eventTime.getTime() - b.eventTime.getTime());
     let weekdayOtHours = 0, weekendOtHours = 0, holidayOtHours = 0;
-    for (const e of empOtEvents) {
-      const iso = e.eventTime.toISOString().slice(0, 10);
-      const hours = 2; // approximate 2 h per OT session
+    let endIdx = 0;
+    for (let s = 0; s < empOtStarts.length; s++) {
+      const start = empOtStarts[s];
+      // Advance to the first end punch after this start.
+      while (endIdx < empOtEnds.length && empOtEnds[endIdx].eventTime.getTime() <= start.eventTime.getTime()) {
+        endIdx++;
+      }
+      // An end punch only closes this session if it comes before the next start
+      // (otherwise it belongs to a later session and this one is unterminated).
+      const nextStartTime = s + 1 < empOtStarts.length ? empOtStarts[s + 1].eventTime.getTime() : Infinity;
+      let hours = DEFAULT_OT_SESSION_HOURS;
+      if (endIdx < empOtEnds.length && empOtEnds[endIdx].eventTime.getTime() < nextStartTime) {
+        hours = (empOtEnds[endIdx].eventTime.getTime() - start.eventTime.getTime()) / 3_600_000;
+        endIdx++;
+      }
+      const iso = start.eventTime.toISOString().slice(0, 10);
       if (empHolidaySet.has(iso)) holidayOtHours += hours;
       else if (weekendDays.includes(new Date(iso + "T00:00:00Z").getUTCDay())) weekendOtHours += hours;
       else weekdayOtHours += hours;
