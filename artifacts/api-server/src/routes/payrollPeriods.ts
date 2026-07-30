@@ -3,32 +3,33 @@ import {
   db, payrollPeriodsTable, payrollRunsTable, payrollRunLinesTable,
   employeesTable, salaryGradesTable, payComponentsTable, auditLogsTable,
   overtimeRulesTable, punchEventsTable, leaveRequestsTable, leaveTypesTable,
-  attendanceRecordsTable,
+  attendanceRecordsTable, publicHolidaysTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 
 /** Weekend day indexes (JS getUTCDay): Friday=5, Saturday=6 — the Saudi weekend. */
 const WEEKEND_DAYS = [5, 6];
 
-/** Count working days (excluding weekends) in [start, end] inclusive (YYYY-MM-DD strings). */
-function countWorkingDays(start: string, end: string): number {
+/** Count working days (excluding weekends and public holidays) in [start, end] inclusive (YYYY-MM-DD strings). */
+function countWorkingDays(start: string, end: string, holidays: Set<string> = new Set()): number {
   if (start > end) return 0;
   let count = 0;
   const d = new Date(start + "T00:00:00Z");
   const last = new Date(end + "T00:00:00Z");
   while (d <= last) {
-    if (!WEEKEND_DAYS.includes(d.getUTCDay())) count++;
+    const iso = d.toISOString().slice(0, 10);
+    if (!WEEKEND_DAYS.includes(d.getUTCDay()) && !holidays.has(iso)) count++;
     d.setUTCDate(d.getUTCDate() + 1);
   }
   return count;
 }
 
 /** Count working days of a leave request that fall inside [periodStart, periodEnd] (inclusive, date strings). */
-function overlapDays(leaveStart: string, leaveEnd: string, periodStart: string, periodEnd: string, halfDay: boolean): number {
+function overlapDays(leaveStart: string, leaveEnd: string, periodStart: string, periodEnd: string, halfDay: boolean, holidays: Set<string> = new Set()): number {
   const start = leaveStart > periodStart ? leaveStart : periodStart;
   const end = leaveEnd < periodEnd ? leaveEnd : periodEnd;
   if (start > end) return 0;
-  const days = countWorkingDays(start, end);
+  const days = countWorkingDays(start, end, holidays);
   if (halfDay && days === 1) return 0.5;
   return days;
 }
@@ -146,8 +147,17 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       gte(leaveRequestsTable.endDate, period.startDate),
     ));
 
-  // Real working days in this period's calendar (weekends excluded).
-  const periodWorkingDays = countWorkingDays(period.startDate, period.endDate);
+  // Public holidays inside this period — excluded from working days.
+  const holidayRows = await db.select({ date: publicHolidaysTable.date })
+    .from(publicHolidaysTable)
+    .where(and(
+      gte(publicHolidaysTable.date, period.startDate),
+      lte(publicHolidaysTable.date, period.endDate),
+    ));
+  const holidaySet = new Set(holidayRows.map(h => h.date));
+
+  // Real working days in this period's calendar (weekends and public holidays excluded).
+  const periodWorkingDays = countWorkingDays(period.startDate, period.endDate, holidaySet);
 
   const gradeMap = Object.fromEntries(grades.map(g => [g.gradeCode, g]));
   let totalGross = 0, totalDeductions = 0, totalNet = 0, exceptionCount = 0;
@@ -195,7 +205,7 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     // unpaid-category leave that fall inside this period.
     const unpaidDays = approvedLeaves
       .filter(l => l.employeeId === emp.id && l.category === "unpaid")
-      .reduce((sum, l) => sum + overlapDays(l.startDate, l.endDate, period.startDate, period.endDate, l.halfDay), 0);
+      .reduce((sum, l) => sum + overlapDays(l.startDate, l.endDate, period.startDate, period.endDate, l.halfDay, holidaySet), 0);
     const deductedLeaveDays = Math.min(unpaidDays, periodWorkingDays);
     const dailyRate = (baseSalary + housingAmount + transportAmount) / periodWorkingDays;
     const leaveDeductionAmount = Math.round(deductedLeaveDays * dailyRate * 100) / 100;
@@ -223,7 +233,7 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       if (s <= e) for (const d of datesInRange(s, e)) leaveCoveredDates.add(d);
     }
     const noShowDays = eligibleWorkdays.filter(d =>
-      d >= emp.hireDate && !attendedDates.has(d) && !leaveCoveredDates.has(d)
+      d >= emp.hireDate && !holidaySet.has(d) && !attendedDates.has(d) && !leaveCoveredDates.has(d)
     ).length;
 
     // Cap total deducted days (unpaid leave + no-shows) at the period's working-day count.

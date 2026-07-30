@@ -22,6 +22,7 @@ import {
   auditLogsTable,
   leaveRequestsTable,
   leaveTypesTable,
+  publicHolidaysTable,
 } from "@workspace/db";
 import app from "../app";
 
@@ -343,6 +344,38 @@ describe("payroll calculation engine", () => {
       const runsRes = await request(app).get(`/api/payroll-runs?periodId=${periodId}`);
       const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === emp3Id);
       expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(3, 1); // Feb 25–27 working days only
+    });
+  });
+
+  describe("public holidays excluded from working days", () => {
+    let holidayId: number;
+    // 2098-02-16 is a Sunday — a working day under the Fri/Sat weekend.
+    const HOLIDAY_DATE = "2098-02-16";
+
+    beforeAll(async () => {
+      const [h] = await db.insert(publicHolidaysTable).values({
+        nameEn: `TEST Holiday ${SUFFIX}`,
+        nameAr: `عطلة اختبار ${SUFFIX}`,
+        date: HOLIDAY_DATE,
+        year: 2098,
+        applicableTo: "all",
+      }).returning();
+      holidayId = h.id;
+    });
+
+    afterAll(async () => {
+      if (holidayId) await db.delete(publicHolidaysTable).where(eq(publicHolidaysTable.id, holidayId));
+    });
+
+    it("drops workingDays by one when a public holiday falls in the period", async () => {
+      const res = await request(app).post(`/api/payroll-periods/${periodId}/calculate`);
+      expect(res.status).toBe(200);
+
+      const runsRes = await request(app).get(`/api/payroll-runs?periodId=${periodId}`);
+      const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === empWithGradeId);
+      expect(run).toBeDefined();
+      expect(run.workingDays).toBe(PERIOD_WORKING_DAYS - 1);
+      expect(run.presentDays).toBe(PERIOD_WORKING_DAYS - 1);
     });
   });
 
