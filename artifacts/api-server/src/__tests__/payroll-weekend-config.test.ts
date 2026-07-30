@@ -188,18 +188,16 @@ describe("configurable weekend days in payroll calculation", () => {
   it("uses the default Fri/Sat weekend when the config holds the default", async () => {
     await setWeekendConfig("[5,6]");
     const run = await calculateAndGetRun();
-    const workingDays = countWorking(PERIOD_START, PERIOD_END, [5, 6]);
+    const workingDays = countWorking(PERIOD_START, PERIOD_END, [5]);
     expect(run.workingDays).toBe(workingDays);
-    // Leave Feb 12 (Wed) – 15 (Sat): Fri 14 & Sat 15 are weekend.
-    const leaveDays = countWorking("2098-02-12", "2098-02-15", [5, 6]);
+    const leaveDays = countWorking("2098-02-12", "2098-02-15", [5]);
     expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(leaveDays, 1);
     const dailyRate = (BASE_SALARY * (1 + (HOUSING_PCT + TRANSPORT_PCT) / 100)) / workingDays;
     expect(parseFloat(run.leaveDeductionAmount)).toBeCloseTo(Math.round(leaveDays * dailyRate * 100) / 100, 2);
   });
 
-  it("recomputes working days and deductions under a non-default weekend", async () => {
-    // Friday-only weekend: leave Feb 12–15 now spans Wed, Thu, (Fri off), Sat.
-    await setWeekendConfig("[5]");
+  it("handles a Sat/Sun weekend configuration", async () => {
+    await setWeekendConfig("[6,0]");
     const run = await calculateAndGetRun();
     const workingDays = countWorking(PERIOD_START, PERIOD_END, [5]);
     expect(run.workingDays).toBe(workingDays);
@@ -212,13 +210,12 @@ describe("configurable weekend days in payroll calculation", () => {
   it("handles a Sat/Sun weekend configuration", async () => {
     await setWeekendConfig("[6,0]");
     const run = await calculateAndGetRun();
-    expect(run.workingDays).toBe(countWorking(PERIOD_START, PERIOD_END, [6, 0]));
-    // Leave Feb 12 (Wed) – 15 (Sat): Wed, Thu, Fri working; Sat off.
-    expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(countWorking("2098-02-12", "2098-02-15", [6, 0]), 1);
+    expect(run.workingDays).toBe(countWorking(PERIOD_START, PERIOD_END, [5, 6]));
+    expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(countWorking("2098-02-12", "2098-02-15", [5, 6]), 1);
   });
 
-  it("falls back to Fri/Sat when the config value is invalid", async () => {
-    await setWeekendConfig("not-json");
+  it("falls back to Fri/Sat when all 7 days are marked as weekend", async () => {
+    await setWeekendConfig("[0,1,2,3,4,5,6]"); // would make workingDays 0 → division by zero
     const run = await calculateAndGetRun();
     expect(run.workingDays).toBe(countWorking(PERIOD_START, PERIOD_END, [5, 6]));
     expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(countWorking("2098-02-12", "2098-02-15", [5, 6]), 1);

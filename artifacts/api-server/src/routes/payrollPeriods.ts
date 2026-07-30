@@ -3,9 +3,9 @@ import {
   db, payrollPeriodsTable, payrollRunsTable, payrollRunLinesTable,
   employeesTable, salaryGradesTable, payComponentsTable, auditLogsTable,
   overtimeRulesTable, punchEventsTable, leaveRequestsTable, leaveTypesTable,
-  attendanceRecordsTable, publicHolidaysTable,
+  attendanceRecordsTable, publicHolidaysTable, employmentContractsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getWeekendDays, WEEKEND_CONFIG_KEY } from "../lib/weekend";
 
 export { WEEKEND_CONFIG_KEY };
@@ -112,27 +112,13 @@ router.post("/payroll-periods", async (req, res): Promise<void> => {
     res.status(400).json({ error: "periodCode, nameEn, nameAr, startDate, endDate, payDate required" });
     return;
   }
-  const [p] = await db.insert(payrollPeriodsTable).values({
-    periodCode, nameEn, nameAr,
-    periodType: periodType ?? "monthly",
-    startDate, endDate, payDate,
-    currency: currency ?? "SAR",
-    notes: notes ?? null,
-    status: "draft",
-  }).returning();
-  await db.insert(auditLogsTable).values({
-    action: "payroll_period.created",
-    entityType: "payroll_period",
-    entityId: p.id,
-    entityLabel: p.nameEn,
-    actorUserId,
-    changesJson: JSON.stringify({ periodCode, startDate, endDate }),
-  });
-  res.status(201).json(p);
+  const [p] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
+  if (!p) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(p);
 });
 
-// GET /payroll-periods/:id
-router.get("/payroll-periods/:id", async (req, res): Promise<void> => {
+// PATCH /payroll-periods/:id — edit draft period metadata
+router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const [p] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
   if (!p) { res.status(404).json({ error: "Not found" }); return; }
@@ -142,19 +128,29 @@ router.get("/payroll-periods/:id", async (req, res): Promise<void> => {
 // PATCH /payroll-periods/:id — edit draft period metadata
 router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
-  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
   if (!period) { res.status(404).json({ error: "Not found" }); return; }
   if (period.isClosed) { res.status(400).json({ error: "Cannot edit a closed payroll period" }); return; }
   const { nameEn, nameAr, payDate, notes } = req.body;
   const [updated] = await db.update(payrollPeriodsTable)
-    .set({ nameEn, nameAr, payDate, notes, updatedAt: new Date() })
-    .where(eq(payrollPeriodsTable.id, id))
+    .set(updateData)
+    .where(eq(payrollPeriodsTable.id, periodId))
     .returning();
+
+  await db.insert(auditLogsTable).values({
+    action: `payroll.${updateData.status}`,
+    entityType: "payroll_period",
+    entityId: periodId,
+    entityLabel: period.nameEn,
+    actorUserId,
+    changesJson: JSON.stringify({ approverId, note }),
+  });
+
   res.json(updated);
 });
 
-// POST /payroll-periods/:id/calculate — generate/recalculate all payroll runs for the period
-router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> => {
+// POST /payroll-periods/:id/close — immutable close (requires second_approved)
+router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
   const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
   const periodId = parseInt(req.params.id, 10);
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
@@ -220,6 +216,13 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
   const todayStr = new Date().toISOString().slice(0, 10);
   const noShowEnd = period.endDate < todayStr ? period.endDate : todayStr;
 
+  const allContracts = await db.select({
+    employeeId: employmentContractsTable.employeeId,
+    terminationDate: employmentContractsTable.terminationDate,
+    status: employmentContractsTable.status,
+  })
+    .from(employmentContractsTable)
+    .where(sql`${employmentContractsTable.employeeId} IS NOT NULL`);
   const gradeMap = Object.fromEntries(grades.map(g => [g.gradeCode, g]));
   let totalGross = 0, totalDeductions = 0, totalNet = 0, exceptionCount = 0;
   const runs = [];
@@ -237,6 +240,7 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       ? datesInRange(period.startDate, noShowEnd).filter(d => isWorkday(d, weekendDays) && !empHolidaySet.has(d))
       : [];
 
+    const employStart = emp.hireDate > period.startDate ? emp.hireDate : period.startDate;
     const grade = emp.grade ? gradeMap[emp.grade] : null;
     const baseSalary = grade ? parseFloat(grade.baseSalary) : 5000; // fallback base
 
@@ -258,6 +262,8 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
 
     // Apply OT rule (use standard by default) — separate multipliers per day type.
     const otRule = overtimeRules.find(r => r.nameEn.includes("Standard")) ?? overtimeRules[0];
+
+    const weekdayRate = otRule ? parseFloat(otRule.multiplierWeekday) : 1.5;
     const weekdayRate = otRule ? parseFloat(otRule.multiplierWeekday) : 1.5;
     const weekendRate = otRule ? parseFloat(otRule.multiplierWeekend) : 2.0;
     const holidayRate = otRule ? parseFloat(otRule.multiplierHoliday) : 2.5;
@@ -271,25 +277,18 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     // Build payslip lines
     const lines: { codeEn: string; nameEn: string; nameAr: string; type: string; amount: number; sortOrder: number; payComponentId?: number }[] = [];
 
-    lines.push({ codeEn: "BASE", nameEn: "Basic Salary", nameAr: "الراتب الأساسي", type: "earning", amount: baseSalary, sortOrder: 0 });
-
+    // Full-month amounts drive the per-day rate; payable line amounts are prorated
+    // to the employed portion of the period.
     const housingPct = grade ? parseFloat(grade.housingAllowancePct) : 25;
     const housingAmount = baseSalary * (housingPct / 100);
-    lines.push({ codeEn: "HOUSING", nameEn: "Housing Allowance", nameAr: "بدل السكن", type: "earning", amount: housingAmount, sortOrder: 1 });
-
     const transportPct = grade ? parseFloat(grade.transportAllowancePct) : 10;
     const transportAmount = baseSalary * (transportPct / 100);
-    lines.push({ codeEn: "TRANSPORT", nameEn: "Transport Allowance", nameAr: "بدل المواصلات", type: "earning", amount: transportAmount, sortOrder: 2 });
 
-    if (overtimePay > 0) {
-      lines.push({ codeEn: "OT_PAY", nameEn: "Overtime Pay", nameAr: "أجر الوقت الإضافي", type: "earning", amount: Math.round(overtimePay * 100) / 100, sortOrder: 3 });
-    }
-
-    // Unpaid leave deduction
+    const proratedBase = Math.round(baseSalary * prorationFactor * 100) / 100;
     const unpaidDays = approvedLeaves
       .filter(l => l.employeeId === emp.id && l.category === "unpaid")
       .reduce((sum, l) => sum + overlapDays(l.startDate, l.endDate, period.startDate, period.endDate, l.halfDay ?? false, weekendDays, empHolidaySet), 0);
-    const deductedLeaveDays = Math.min(unpaidDays, periodWorkingDays);
+    const deductedLeaveDays = Math.min(unpaidDays, employedWorkingDays);
     const dailyRate = periodWorkingDays > 0
       ? (baseSalary + housingAmount + transportAmount) / periodWorkingDays
       : 0;
@@ -317,10 +316,10 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       if (s <= e2) for (const d of datesInRange(s, e2)) leaveCoveredDates.add(d);
     }
     const noShowDays = eligibleWorkdays.filter(d =>
-      d >= emp.hireDate && !attendedDates.has(d) && !leaveCoveredDates.has(d)
+      d >= emp.hireDate && d <= employEnd && !attendedDates.has(d) && !leaveCoveredDates.has(d)
     ).length;
 
-    const deductedNoShowDays = Math.max(0, Math.min(noShowDays, periodWorkingDays - deductedLeaveDays));
+    const deductedNoShowDays = Math.max(0, Math.min(noShowDays, employedWorkingDays - deductedLeaveDays));
     const absenceDeductionAmount = Math.round(deductedNoShowDays * dailyRate * 100) / 100;
     if (absenceDeductionAmount > 0) {
       lines.push({
@@ -337,8 +336,8 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
         amount = parseFloat(comp.value);
       } else if (comp.calculationMethod === "percentage") {
         const base = comp.percentageBase === "gross_salary"
-          ? baseSalary + housingAmount + transportAmount
-          : baseSalary;
+          ? proratedBase + proratedHousing + proratedTransport
+          : proratedBase;
         amount = base * (parseFloat(comp.value) / 100);
       }
       if (amount > 0) {
@@ -357,8 +356,8 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     const netSalary = grossSalary - totalDeductionsEmp;
 
     const hasException = !grade;
-    if (hasException) exceptionCount++;
 
+    const notes: string[] = [];
     const [run] = await db.insert(payrollRunsTable).values({
       payrollPeriodId: periodId,
       employeeId: emp.id,
@@ -373,10 +372,10 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       deductedLeaveDays: String(deductedLeaveDays),
       leaveDeductionAmount: String(leaveDeductionAmount),
       workingDays: periodWorkingDays,
-      presentDays: Math.max(0, periodWorkingDays - Math.ceil(deductedLeaveDays) - deductedNoShowDays),
+      presentDays: Math.max(0, employedWorkingDays - Math.ceil(deductedLeaveDays) - deductedNoShowDays),
       absentDays: Math.ceil(deductedLeaveDays) + deductedNoShowDays,
       hasException,
-      exceptionNote: hasException ? "No salary grade assigned — using default base salary" : null,
+      exceptionNote: notes.length > 0 ? notes.join("; ") : null,
       status: hasException ? "exception" : "calculated",
       calculatedAt: new Date(),
     }).returning();
@@ -466,7 +465,7 @@ router.post("/payroll-periods/:id/approve", async (req, res): Promise<void> => {
   }
 
   const [updated] = await db.update(payrollPeriodsTable)
-    .set(updateData as Parameters<typeof db.update>[0]["set"])
+    .set(updateData)
     .where(eq(payrollPeriodsTable.id, periodId))
     .returning();
 
@@ -512,3 +511,29 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
 });
 
 export default router;
+
+    const proratedTransport = Math.round(transportAmount * prorationFactor * 100) / 100;
+
+  const openContractEmps = new Set<number>();
+
+    const existing = latestTerminationByEmp[c.employeeId];
+
+    const employEnd = empTermination && empTermination < period.endDate ? empTermination : period.endDate;
+
+  const latestTerminationByEmp: Record<number, string> = {};
+
+    const prorationLabelAr = isProrated ? ` (نسبي ${employedWorkingDays}/${periodWorkingDays} يوم)` : "";
+
+    const employedWorkingDays = employStart <= employEnd ? countWorkingDays(employStart, employEnd, weekendDays, empHolidaySet) : 0;
+
+    const proratedHousing = Math.round(housingAmount * prorationFactor * 100) / 100;
+
+    const prorationLabelEn = isProrated ? ` (Prorated ${employedWorkingDays}/${periodWorkingDays} days)` : "";
+
+  const terminationByEmp: Record<number, string> = {};
+
+    const prorationFactor = periodWorkingDays > 0 ? employedWorkingDays / periodWorkingDays : 0;
+
+    const isProrated = prorationFactor < 1;
+
+    const empTermination = terminationByEmp[emp.id] ?? emp.contractEndDate ?? null;

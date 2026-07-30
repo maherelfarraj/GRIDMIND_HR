@@ -221,6 +221,9 @@ artifacts/hrms/src/pages/production-readiness.tsx — 8 checklist categories, 15
 Phase 3: ~3,200 lines → Phase 4: ~5,300 → Phase 5: ~9,485 → Phase 6: ~11,068 lines, 401 operationIds, 4 new tags (Documents, Reports, Notifications, DeploymentOps).
 
 
+## Payroll proration convention
+Mid-period hires/leavers are prorated by employed working days / period working days. Employment end comes from employment contracts: only termination dates on/after the period start count, take the latest, and ignore entirely if the employee has an open active/signed contract (rehires must get full pay). Full-month amounts still drive the per-day deduction rate; only BASE/HOUSING/TRANSPORT (and percentage components via prorated base) are prorated — fixed components are not.
+
 ## Configurable weekend days
 Payroll working-day math reads system_config key `payroll.weekendDays` (JSON array of getUTCDay indexes, e.g. "[5,6]") at calculate time, falling back to Fri/Sat when unset/invalid (incl. all-7-days, which would divide by zero). Other features (dashboard history seed, roster seeds) still assume Fri/Sat — read the config key if extending them.
 
