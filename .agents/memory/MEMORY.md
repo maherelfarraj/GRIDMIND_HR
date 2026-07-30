@@ -1,1 +1,2 @@
 - [HRMS architecture decisions](hrms-arch.md) — key constraints and conventions for the HRMS monorepo build.
+- [API integration testing conventions](api-testing.md) — vitest suite runs against the live seeded DB; fixtures must be self-cleaning, files run sequentially.
