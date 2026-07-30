@@ -2655,7 +2655,9 @@ export const RevokeLeaveRequestParams = zod.object({
 })
 
 export const RevokeLeaveRequestBody = zod.object({
-  "reason": zod.string().optional()
+  "reason": zod.string(),
+  "newEndDate": zod.string().nullish(),
+  "revokedByEmployeeId": zod.number().nullish()
 })
 
 export const RevokeLeaveRequestResponse = zod.object({

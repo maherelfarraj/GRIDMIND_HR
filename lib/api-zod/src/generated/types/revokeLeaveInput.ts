@@ -7,5 +7,9 @@
  */
 
 export interface RevokeLeaveInput {
-  reason?: string;
+  reason: string;
+  /** @nullable */
+  newEndDate?: string | null;
+  /** @nullable */
+  revokedByEmployeeId?: number | null;
 }

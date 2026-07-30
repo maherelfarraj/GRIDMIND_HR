@@ -134,7 +134,7 @@ describe("leave request lifecycle", () => {
 
     const res = await request(app).post(`/api/leave-requests/${requestId}/revoke`).send({ reason: "test revoke" });
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe("cancelled");
+    expect(res.body.status).toBe("revoked");
 
     const bal = await getBalance(TEST_EMPLOYEE_ID, f.annualTypeId, TEST_YEAR);
     expect(parseFloat(bal.used)).toBeCloseTo(0);

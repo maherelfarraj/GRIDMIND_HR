@@ -4,10 +4,26 @@ import {
   leaveApprovalStepsTable, leaveAttachmentsTable, employeesTable, rostersTable, auditLogsTable,
   approvalsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, or, between } from "drizzle-orm";
+import { eq, and, gte, lte, or } from "drizzle-orm";
 import { ensureLeaveBalance } from "../lib/leaveBalance.js";
 
 const router = Router();
+
+function datesInRange(startDate: string, endDate: string): string[] {
+  const dates: string[] = [];
+  const cur = new Date(startDate + "T00:00:00Z");
+  const end = new Date(endDate + "T00:00:00Z");
+  while (cur <= end) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function rosterMarker(requestNumber: string): string {
+  return `leave:${requestNumber}`;
+}
+
 
 function genRequestNumber(): string {
   const now = new Date();
@@ -332,6 +348,32 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
               .set({ pending: String(newPending), used: String(newUsed), updatedAt: new Date() })
               .where(eq(leaveBalancesTable.id, bal.id));
           }
+
+          // Task #9: mark roster days in the leave range as "leave".
+          // Rows created here carry a marker note so a later revoke can remove them.
+          const marker = rosterMarker(locked.requestNumber);
+          const dates = datesInRange(locked.startDate, locked.endDate);
+          const existing = await tx.select().from(rostersTable).where(
+            and(
+              eq(rostersTable.employeeId, locked.employeeId),
+              gte(rostersTable.date, locked.startDate),
+              lte(rostersTable.date, locked.endDate),
+            )
+          );
+          const existingByDate = new Map(existing.map(row => [row.date, row]));
+          for (const d of dates) {
+            const row = existingByDate.get(d);
+            if (row) {
+              await tx.update(rostersTable)
+                .set({ status: "leave", updatedAt: new Date() })
+                .where(eq(rostersTable.id, row.id));
+            } else {
+              await tx.insert(rostersTable).values({
+                employeeId: locked.employeeId, shiftId: null, date: d,
+                status: "leave", notes: marker,
+              });
+            }
+          }
         } else {
           newStatus = "under_review";
           newStep = step!.stepNumber + 1;
@@ -417,61 +459,114 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
   res.json(await enrichRequest(updated));
 });
 
-// POST /leave-requests/:id/revoke — revoke an approved leave (Task #9: restores balance + roster)
+// POST /leave-requests/:id/revoke — undo an approved leave (fully or shorten the range)
 router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
   const actorUserId: number | null = (req as any).session?.userId ?? null;
   const id = parseInt(req.params.id, 10);
-  const { reason } = req.body;
-  const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
-  if (!r) { res.status(404).json({ error: "Not found" }); return; }
-  if (r.status !== "approved") {
-    res.status(400).json({ error: "Only approved leave requests can be revoked" });
+  const { reason, newEndDate, revokedByEmployeeId } = req.body;
+
+  if (!reason || typeof reason !== "string" || !reason.trim()) {
+    res.status(400).json({ error: "reason is required" });
     return;
   }
 
-  // Restore used balance
-  const year = new Date(r.startDate).getFullYear();
-  const [balance] = await db.select().from(leaveBalancesTable).where(
-    and(
-      eq(leaveBalancesTable.employeeId, r.employeeId),
-      eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
-      eq(leaveBalancesTable.year, year),
-    )
-  );
-  if (balance) {
-    const days = parseFloat(r.totalDays);
-    const newUsed = Math.max(0, parseFloat(balance.used) - days);
-    await db.update(leaveBalancesTable)
-      .set({ used: String(newUsed), updatedAt: new Date() })
-      .where(eq(leaveBalancesTable.id, balance.id));
+  const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
+  if (!r) { res.status(404).json({ error: "Not found" }); return; }
+  if (r.status !== "approved") {
+    res.status(400).json({ error: "Only approved leaves can be revoked" });
+    return;
   }
 
-  // Restore roster entries: status="leave" → "scheduled"
-  const rosterRows = await db.select().from(rostersTable).where(
-    and(
-      eq(rostersTable.employeeId, r.employeeId),
-      eq(rostersTable.status, "leave"),
-      between(rostersTable.date, r.startDate, r.endDate),
-    )
-  );
-  for (const row of rosterRows) {
-    await db.update(rostersTable)
-      .set({ status: "scheduled", notes: `Reverted — leave revoked (${r.requestNumber})`, updatedAt: new Date() })
-      .where(eq(rostersTable.id, row.id));
+  // Partial revoke: shorten the range to end at newEndDate (must be within the original range)
+  const isPartial = newEndDate != null && newEndDate !== "";
+  if (isPartial) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newEndDate)) {
+      res.status(400).json({ error: "newEndDate must be YYYY-MM-DD" });
+      return;
+    }
+    if (newEndDate < r.startDate || newEndDate >= r.endDate) {
+      res.status(400).json({ error: "newEndDate must be within the leave range and before the current end date" });
+      return;
+    }
   }
 
-  const [updated] = await db.update(leaveRequestsTable)
-    .set({ status: "cancelled", updatedAt: new Date() })
-    .where(eq(leaveRequestsTable.id, id))
-    .returning();
+  const totalDays = parseFloat(r.totalDays);
+  const allDates = datesInRange(r.startDate, r.endDate);
+  const revokedDates = isPartial
+    ? allDates.filter(d => d > newEndDate)
+    : allDates;
+  // Credit back days proportionally to the calendar days being revoked
+  const creditedDays = isPartial
+    ? Math.round((totalDays * revokedDates.length / allDates.length) * 10) / 10
+    : totalDays;
+  const remainingDays = Math.max(0, Math.round((totalDays - creditedDays) * 10) / 10);
 
-  await db.insert(auditLogsTable).values({
-    action: "leave.revoked",
-    entityType: "leave_request",
-    entityId: id,
-    entityLabel: r.requestNumber,
-    actorUserId,
-    changesJson: JSON.stringify({ reason: reason ?? null, balanceRestored: r.totalDays }),
+  const marker = rosterMarker(r.requestNumber);
+  const revokedStart = revokedDates[0];
+  const revokedEnd = revokedDates[revokedDates.length - 1];
+
+  const updated = await db.transaction(async (tx) => {
+    // 1. Credit balance back
+    const year = new Date(r.startDate).getFullYear();
+    const [balance] = await tx.select().from(leaveBalancesTable).where(
+      and(
+        eq(leaveBalancesTable.employeeId, r.employeeId),
+        eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
+        eq(leaveBalancesTable.year, year),
+      )
+    ).for("update");
+    if (balance) {
+      const newUsed = Math.max(0, parseFloat(balance.used) - creditedDays);
+      await tx.update(leaveBalancesTable)
+        .set({ used: String(newUsed), updatedAt: new Date() })
+        .where(eq(leaveBalancesTable.id, balance.id));
+    }
+
+    // 2. Restore roster for revoked dates: delete rows created by the approval,
+    //    revert others marked "leave" back to "scheduled"
+    const rosterRows = await tx.select().from(rostersTable).where(
+      and(
+        eq(rostersTable.employeeId, r.employeeId),
+        gte(rostersTable.date, revokedStart),
+        lte(rostersTable.date, revokedEnd),
+      )
+    );
+    for (const row of rosterRows) {
+      if (row.notes === marker) {
+        await tx.delete(rostersTable).where(eq(rostersTable.id, row.id));
+      } else if (row.status === "leave") {
+        await tx.update(rostersTable)
+          .set({ status: "scheduled", notes: `Reverted — leave revoked (${r.requestNumber})`, updatedAt: new Date() })
+          .where(eq(rostersTable.id, row.id));
+      }
+    }
+
+    // 3. Update the request itself
+    const [u] = await tx.update(leaveRequestsTable)
+      .set(isPartial
+        ? { endDate: newEndDate, totalDays: String(remainingDays), updatedAt: new Date() }
+        : { status: "revoked", updatedAt: new Date() })
+      .where(eq(leaveRequestsTable.id, id))
+      .returning();
+
+    // 4. Audit trail
+    await tx.insert(auditLogsTable).values({
+      action: isPartial ? "leave.revoked_partial" : "leave.revoked",
+      entityType: "leave_request",
+      entityId: id,
+      entityLabel: r.requestNumber,
+      actorUserId,
+      changesJson: JSON.stringify({
+        reason,
+        revokedByEmployeeId: revokedByEmployeeId ?? null,
+        revokedFrom: revokedStart,
+        revokedTo: revokedEnd,
+        creditedDays,
+        ...(isPartial ? { newEndDate, remainingDays } : {}),
+      }),
+    });
+
+    return u;
   });
 
   res.json(await enrichRequest(updated));

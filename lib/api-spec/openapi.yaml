@@ -8468,12 +8468,6 @@ components:
         year: { type: number }
       required: [year]
 
-    RevokeLeaveInput:
-      type: object
-      properties:
-        reason: { type: string }
-      required: []
-
     # ── Leave Requests ────────────────────────────────────────
     LeaveApprovalStep:
       type: object
@@ -8585,6 +8579,14 @@ components:
       properties:
         returnDate: { type: string }
         returnNotes: { type: ["string", "null"] }
+
+    RevokeLeaveInput:
+      type: object
+      properties:
+        reason: { type: string }
+        newEndDate: { type: ["string", "null"] }
+        revokedByEmployeeId: { type: ["number", "null"] }
+      required: [reason]
 
     LeaveCalendarEntry:
       type: object

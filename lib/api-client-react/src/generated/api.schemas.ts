@@ -921,10 +921,6 @@ export interface AnnualLeaveResetInput {
   year: number;
 }
 
-export interface RevokeLeaveInput {
-  reason?: string;
-}
-
 export interface LeaveApprovalStep {
   id: number;
   leaveRequestId: number;
@@ -1042,6 +1038,14 @@ export interface ReturnToDutyInput {
   returnDate?: string;
   /** @nullable */
   returnNotes?: string | null;
+}
+
+export interface RevokeLeaveInput {
+  reason: string;
+  /** @nullable */
+  newEndDate?: string | null;
+  /** @nullable */
+  revokedByEmployeeId?: number | null;
 }
 
 export interface LeaveCalendarEntry {

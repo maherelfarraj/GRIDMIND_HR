@@ -117,6 +117,11 @@ The `gte`/`lte` comparison for `punchEventsTable.eventTime` (a Drizzle `timestam
 **Why:** Drizzle's `PgTimestamp.mapToDriverValue` calls `.toISOString()` on the value, failing if it's a string.
 
 
+## Leave approval ↔ roster linkage
+Final leave approval marks roster rows in the range as status "leave"; rows it creates carry `notes = "leave:<requestNumber>"` as a marker. The revoke endpoint (`POST /leave-requests/:id/revoke`, full or partial via `newEndDate`) deletes marker rows, reverts other "leave" rows to "scheduled", and credits `used` back proportionally to revoked calendar days.
+
+**Why:** The marker distinguishes roster rows created by the approval (delete on revoke) from pre-existing ones (revert only). Don't repurpose the notes field on these rows.
+
 ## Leave balance year rollover
 Balance rows are auto-provisioned lazily on leave submit via `ensureLeaveBalance` (accrued = leave type's defaultDaysPerYear; carriedOver = prior-year leftover capped at maxCarryoverDays). No cron; a missing year row is never an error on submit.
 

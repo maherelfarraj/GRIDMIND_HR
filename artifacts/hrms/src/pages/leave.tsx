@@ -38,6 +38,7 @@ const STATUS_COLORS: Record<string, string> = {
   approved: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   rejected: 'bg-red-100 text-red-700 border-red-200',
   cancelled: 'bg-gray-100 text-gray-500 border-gray-200',
+  revoked: 'bg-rose-100 text-rose-700 border-rose-200',
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -309,6 +310,9 @@ function RequestsTab() {
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [newDialog, setNewDialog] = useState(false);
   const [actioning, setActioning] = useState<number | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<{ id: number; startDate: string; endDate: string } | null>(null);
+  const [revokeReason, setRevokeReason] = useState('');
+  const [revokeNewEnd, setRevokeNewEnd] = useState('');
 
   const params = statusFilter !== 'all' ? { status: statusFilter } : undefined;
   const { data: requests, isLoading } = useListLeaveRequests(params);
@@ -382,6 +386,35 @@ function RequestsTab() {
     }
   }
 
+  async function handleRevoke() {
+    if (!revokeTarget) return;
+    if (!revokeReason.trim()) {
+      toast({ title: t('Reason is required', 'السبب مطلوب'), variant: 'destructive' });
+      return;
+    }
+    setActioning(revokeTarget.id);
+    try {
+      await revokeMut.mutateAsync({
+        id: revokeTarget.id,
+        data: { reason: revokeReason.trim(), newEndDate: revokeNewEnd || null },
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/leave-balances'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/rosters'] });
+      toast({
+        title: revokeNewEnd ? t('Leave shortened', 'تم تقصير الإجازة') : t('Leave revoked', 'تم إلغاء الإجازة'),
+        description: t('Balance credited back and roster restored', 'تمت إعادة الرصيد واستعادة جدول المناوبات'),
+      });
+      setRevokeTarget(null);
+      setRevokeReason('');
+      setRevokeNewEnd('');
+    } catch (e: any) {
+      toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
+    } finally {
+      setActioning(null);
+    }
+  }
+
   async function handleReturn(id: number) {
     setActioning(id);
     try {
@@ -445,7 +478,7 @@ function RequestsTab() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t('All Statuses', 'كل الحالات')}</SelectItem>
-              {['draft', 'submitted', 'under_review', 'approved', 'rejected', 'cancelled'].map(s => (
+              {['draft', 'submitted', 'under_review', 'approved', 'rejected', 'cancelled', 'revoked'].map(s => (
                 <SelectItem key={s} value={s}>{s.replace('_', ' ')}</SelectItem>
               ))}
             </SelectContent>
@@ -546,6 +579,13 @@ function RequestsTab() {
                                   </Button>
                                 </>
                               )}
+                              {req.status === 'approved' && (
+                                <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50" disabled={busy}
+                                  onClick={() => setRevokeTarget({ id: req.id, startDate: req.startDate, endDate: req.endDate })}>
+                                  <Undo2 className="w-3 h-3 mr-1" />
+                                  {t('Revoke', 'سحب الموافقة')}
+                                </Button>
+                              )}
                               {req.status === 'approved' && !req.returnedToWork && (
                                 <Button size="sm" variant="outline" disabled={busy} onClick={() => handleReturn(req.id)}>
                                   <ArrowRightCircle className="w-3 h-3 me-1" />
@@ -593,6 +633,56 @@ function RequestsTab() {
       </Card>
 
       <NewRequestDialog open={newDialog} onClose={() => setNewDialog(false)} />
+
+      {/* Revoke Dialog */}
+      <Dialog open={!!revokeTarget} onOpenChange={(open) => { if (!open) { setRevokeTarget(null); setRevokeReason(''); setRevokeNewEnd(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('Revoke Approved Leave', 'سحب الموافقة على الإجازة')}</DialogTitle>
+            <DialogDescription>
+              {t(
+                'Days will be credited back to the balance and roster days restored. Set a new end date to shorten the leave instead of revoking it fully.',
+                'ستتم إعادة الأيام إلى الرصيد واستعادة أيام جدول المناوبات. حدد تاريخ انتهاء جديدًا لتقصير الإجازة بدلاً من إلغائها بالكامل.'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t('Reason (required)', 'السبب (مطلوب)')}</label>
+              <Textarea
+                value={revokeReason}
+                onChange={e => setRevokeReason(e.target.value)}
+                placeholder={t('e.g. Employee returned early…', 'مثال: عاد الموظف مبكرًا…')}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t('New end date (optional — leave empty to revoke fully)', 'تاريخ الانتهاء الجديد (اختياري — اتركه فارغًا للإلغاء الكامل)')}</label>
+              <Input
+                type="date"
+                value={revokeNewEnd}
+                min={revokeTarget?.startDate}
+                max={revokeTarget?.endDate}
+                onChange={e => setRevokeNewEnd(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRevokeTarget(null); setRevokeReason(''); setRevokeNewEnd(''); }}>
+              {t('Cancel', 'إلغاء')}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={actioning === revokeTarget?.id || !revokeReason.trim()}
+              onClick={handleRevoke}
+            >
+              {actioning === revokeTarget?.id
+                ? t('Revoking…', 'جارٍ السحب…')
+                : revokeNewEnd ? t('Shorten Leave', 'تقصير الإجازة') : t('Revoke Fully', 'سحب بالكامل')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

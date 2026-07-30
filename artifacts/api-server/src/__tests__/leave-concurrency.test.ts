@@ -13,6 +13,7 @@ import {
   db, pool,
   employeesTable, departmentsTable, leaveTypesTable, leaveBalancesTable,
   leaveRequestsTable, leaveApprovalStepsTable, leaveAttachmentsTable, auditLogsTable,
+  rostersTable,
 } from "@workspace/db";
 import app from "../app";
 
@@ -38,6 +39,8 @@ async function cleanup() {
     await db.delete(leaveRequestsTable).where(inArray(leaveRequestsTable.id, requestIds));
   }
   if (balanceId) await db.delete(leaveBalancesTable).where(eq(leaveBalancesTable.id, balanceId));
+  // Approval marks roster rows for the employee; remove them before deleting the employee
+  if (employeeId) await db.delete(rostersTable).where(eq(rostersTable.employeeId, employeeId));
   if (leaveTypeId) await db.delete(leaveTypesTable).where(eq(leaveTypesTable.id, leaveTypeId));
   if (employeeId) await db.delete(employeesTable).where(eq(employeesTable.id, employeeId));
 }
