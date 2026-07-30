@@ -80,7 +80,9 @@ export default function Audit() {
                       <Badge variant="outline" className={`font-mono text-[10px] uppercase rounded-sm border-transparent
                         ${log.action === 'CREATE' ? 'bg-emerald-500/10 text-emerald-500' : 
                           log.action === 'UPDATE' ? 'bg-blue-500/10 text-blue-500' : 
-                          log.action === 'DELETE' ? 'bg-red-500/10 text-red-500' : 'bg-muted'}
+                          log.action === 'DELETE' ? 'bg-red-500/10 text-red-500' : 
+                          log.action === 'login.failed' ? 'bg-amber-500/10 text-amber-500' : 
+                          log.action === 'login.lockout' ? 'bg-red-500/10 text-red-500' : 'bg-muted'}
                       `}>
                         {log.action}
                       </Badge>

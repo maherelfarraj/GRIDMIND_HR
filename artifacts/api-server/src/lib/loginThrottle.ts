@@ -54,24 +54,39 @@ export function isLockedOut(
   return check(keyFor("ip", ip), now);
 }
 
-function bump(key: string, max: number, now: number): void {
+/** Returns true when this bump newly triggered a lockout for the key. */
+function bump(key: string, max: number, now: number): boolean {
   const entry = entries.get(key) ?? { failures: 0, lockedUntil: null };
   // If a previous lockout expired, start counting fresh.
   if (entry.lockedUntil !== null && entry.lockedUntil <= now) {
     entry.failures = 0;
     entry.lockedUntil = null;
   }
+  const wasLocked = entry.lockedUntil !== null;
   entry.failures += 1;
   if (entry.failures >= max) {
     entry.lockedUntil = now + LOCKOUT_MS;
   }
   entries.set(key, entry);
+  return !wasLocked && entry.lockedUntil !== null;
+}
+
+export interface FailureResult {
+  /** This failure just tripped the per-account lockout. */
+  accountLockedNow: boolean;
+  /** This failure just tripped the per-IP lockout. */
+  ipLockedNow: boolean;
 }
 
 /** Record a failed login attempt for both the account and the source IP. */
-export function recordFailure(username: string, ip: string, now: number = Date.now()): void {
-  bump(keyFor("user", username), MAX_FAILURES, now);
-  bump(keyFor("ip", ip), IP_MAX_FAILURES, now);
+export function recordFailure(
+  username: string,
+  ip: string,
+  now: number = Date.now(),
+): FailureResult {
+  const accountLockedNow = bump(keyFor("user", username), MAX_FAILURES, now);
+  const ipLockedNow = bump(keyFor("ip", ip), IP_MAX_FAILURES, now);
+  return { accountLockedNow, ipLockedNow };
 }
 
 /** Clear counters after a successful login. */

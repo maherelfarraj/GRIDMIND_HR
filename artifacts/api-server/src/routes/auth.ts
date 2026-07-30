@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db, systemUsersTable, rolesTable } from "@workspace/db";
+import { db, systemUsersTable, rolesTable, auditLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import {
   ChangeMyPasswordBody,
@@ -8,7 +8,7 @@ import {
   PASSWORD_REQUIREMENTS_EN,
   PASSWORD_REQUIREMENTS_AR,
 } from "@workspace/api-zod";
-import { isLockedOut, recordFailure, recordSuccess } from "../lib/loginThrottle";
+import { isLockedOut, recordFailure, recordSuccess, LOCKOUT_MS } from "../lib/loginThrottle";
 
 const router = Router();
 
@@ -38,6 +38,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   if (!username) { res.status(400).json({ error: "username required" }); return; }
 
   const ip = req.ip ?? "unknown";
+  const userAgent = req.get("user-agent") ?? null;
 
   // Brute-force protection: temporary lockout after repeated failures for
   // the same account or source IP. Checked before any credential work so a
@@ -55,8 +56,39 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const failLogin = (): void => {
-    recordFailure(username, ip);
+  // Audit trail: record failed attempts and lockout triggers so admins can
+  // spot brute-force activity. Never logs the submitted password.
+  const failLogin = async (knownUserId: number | null): Promise<void> => {
+    const { accountLockedNow, ipLockedNow } = recordFailure(username, ip);
+    const entries: (typeof auditLogsTable.$inferInsert)[] = [{
+      action: "login.failed",
+      entityType: "auth",
+      entityLabel: username,
+      actorUserId: knownUserId,
+      ipAddress: ip,
+      userAgent,
+    }];
+    if (accountLockedNow || ipLockedNow) {
+      entries.push({
+        action: "login.lockout",
+        entityType: "auth",
+        entityLabel: username,
+        actorUserId: knownUserId,
+        ipAddress: ip,
+        userAgent,
+        changesJson: JSON.stringify({
+          scope: accountLockedNow && ipLockedNow ? "account+ip"
+            : accountLockedNow ? "account" : "ip",
+          lockoutMs: LOCKOUT_MS,
+        }),
+      });
+    }
+    try {
+      await db.insert(auditLogsTable).values(entries);
+    } catch (err) {
+      // Auditing must not block the auth response path.
+      console.error("Failed to write login audit entry:", err);
+    }
     res.status(401).json({ error: "Invalid credentials" });
   };
 
@@ -64,7 +96,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     .where(eq(systemUsersTable.username, username));
 
   if (!user) {
-    failLogin();
+    await failLogin(null);
     return;
   }
   if (!user.isActive) {
@@ -79,12 +111,12 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     const userWithHash = user as typeof user & { passwordHash?: string | null };
     if (!password || !userWithHash.passwordHash) {
       // No password supplied, or account has no hash provisioned → reject.
-      failLogin();
+      await failLogin(user.id);
       return;
     }
     const valid = await bcrypt.compare(password, userWithHash.passwordHash);
     if (!valid) {
-      failLogin();
+      await failLogin(user.id);
       return;
     }
   }

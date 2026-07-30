@@ -13,7 +13,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vites
 import request from "supertest";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
-import { db, systemUsersTable } from "@workspace/db";
+import { db, systemUsersTable, auditLogsTable } from "@workspace/db";
+import { and, inArray, like } from "drizzle-orm";
 import type { Express } from "express";
 
 const SUFFIX = Date.now();
@@ -57,6 +58,11 @@ afterAll(async () => {
   for (const id of userIds) {
     await db.delete(systemUsersTable).where(eq(systemUsersTable.id, id)).catch(() => {});
   }
+  // Remove audit rows created by this suite's fixture usernames.
+  await db.delete(auditLogsTable).where(and(
+    inArray(auditLogsTable.action, ["login.failed", "login.lockout"]),
+    like(auditLogsTable.entityLabel, `%${SUFFIX}%`),
+  )).catch(() => {});
 });
 
 beforeEach(() => {
@@ -147,6 +153,53 @@ describe("login lockout", () => {
     await exhaustFailures(USERNAME);
     const res = await loginAttempt(USERNAME.toUpperCase(), PASSWORD);
     expect(res.status).toBe(429);
+  });
+});
+
+describe("failed-login audit trail", () => {
+  async function auditEntries(action: string, label: string) {
+    return db.select().from(auditLogsTable).where(and(
+      eq(auditLogsTable.action, action),
+      eq(auditLogsTable.entityLabel, label),
+    ));
+  }
+
+  it("writes a login.failed audit entry with username and IP, never the password", async () => {
+    const secret = `Sup3rSecret-${SUFFIX}!`;
+    const res = await loginAttempt(USERNAME, secret);
+    expect(res.status).toBe(401);
+
+    const rows = await auditEntries("login.failed", USERNAME);
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    const row = rows[rows.length - 1];
+    expect(row.entityType).toBe("auth");
+    expect(row.ipAddress).toBeTruthy();
+    expect(row.actorUserId).toBe(userIds[0]);
+    expect(JSON.stringify(row)).not.toContain(secret);
+  });
+
+  it("records failed attempts for unknown usernames without an actor", async () => {
+    const ghost = `audit-ghost-${SUFFIX}`;
+    await loginAttempt(ghost, "whatever");
+    const rows = await auditEntries("login.failed", ghost);
+    expect(rows.length).toBe(1);
+    expect(rows[0].actorUserId).toBeNull();
+  });
+
+  it("writes a single login.lockout entry when the threshold is crossed", async () => {
+    const before = (await auditEntries("login.lockout", USERNAME)).length;
+    await exhaustFailures(USERNAME);
+    // Extra attempt while locked (429) must not add another lockout entry.
+    expect((await loginAttempt(USERNAME, PASSWORD)).status).toBe(429);
+
+    const rows = await auditEntries("login.lockout", USERNAME);
+    expect(rows.length).toBe(before + 1);
+    const lockRow = rows[rows.length - 1];
+    expect(lockRow.entityType).toBe("auth");
+    expect(lockRow.ipAddress).toBeTruthy();
+    const changes = JSON.parse(lockRow.changesJson ?? "{}");
+    expect(changes.scope).toContain("account");
+    expect(changes.lockoutMs).toBe(LOCKOUT_MS);
   });
 });
 
