@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, Loader2 } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 
 function intTypeIcon(type: string): React.ComponentType<{ className?: string }> {
   const map: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -271,7 +271,31 @@ export default function IntegrationGovernance() {
                             )}
                           </div>
                         </div>
-                        {p.lastTestResult && <p className="text-xs text-slate-400">{t('Last test', 'آخر اختبار')}: {p.lastTestResult}</p>}
+                        {p.lastTestResult && (
+                          <div className={`rounded-md border p-2 space-y-1 ${p.lastTestResult === 'success' ? 'border-emerald-800/60 bg-emerald-900/20' : 'border-red-800/60 bg-red-900/20'}`}>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {p.lastTestResult === 'success'
+                                ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                : <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />}
+                              <span className={`text-xs font-medium ${p.lastTestResult === 'success' ? 'text-emerald-300' : 'text-red-300'}`}>
+                                {p.lastTestResult === 'success' ? t('Test passed', 'نجح الاختبار') : t('Test failed', 'فشل الاختبار')}
+                              </span>
+                              {typeof p.lastTestLatencyMs === 'number' && (
+                                <span className="text-xs text-slate-400">{p.lastTestLatencyMs}ms</span>
+                              )}
+                              {p.lastTestSimulated && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 text-amber-400 border-amber-500/40">{t('Simulated', 'محاكاة')}</Badge>
+                              )}
+                            </div>
+                            {p.lastTestedAt && (
+                              <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                                <Clock className="w-3 h-3 shrink-0" />
+                                {new Date(p.lastTestedAt).toLocaleString()}
+                              </p>
+                            )}
+                            {p.lastTestMessage && <p className="text-[11px] text-slate-400 break-words">{p.lastTestMessage}</p>}
+                          </div>
+                        )}
                         <div className="flex gap-1 flex-wrap">
                           <Button size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300 h-7 px-2 text-xs" onClick={() => { if (p.integrationType === 'smtp') { setSmtpRecipient(''); setSmtpTestTarget(p); } else { testConnection(p.id); } }} disabled={testing}>
                             {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5 me-1" />}{t('Test', 'اختبار')}

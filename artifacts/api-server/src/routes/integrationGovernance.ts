@@ -149,6 +149,8 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
       lastTestMessage: message,
       lastTestedAt: testedAt,
       lastTestedByUserId: actorUserId,
+      lastTestLatencyMs: latencyMs,
+      lastTestSimulated: simulated,
       status: success ? "active" : "error",
       updatedAt: new Date(),
     }).where(eq(integrationConnectionProfilesTable.id, id));

@@ -67,6 +67,8 @@ export const integrationConnectionProfilesTable = pgTable("integration_connectio
   lastTestMessage: text("last_test_message"),
   lastTestedAt: timestamp("last_tested_at"),
   lastTestedByUserId: integer("last_tested_by_user_id"),
+  lastTestLatencyMs: integer("last_test_latency_ms"),
+  lastTestSimulated: boolean("last_test_simulated"),
   // Health monitoring
   isHealthMonitoringEnabled: boolean("is_health_monitoring_enabled").notNull().default(false),
   healthCheckIntervalMinutes: integer("health_check_interval_minutes").notNull().default(15),
