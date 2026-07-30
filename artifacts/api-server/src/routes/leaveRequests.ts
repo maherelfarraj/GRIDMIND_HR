@@ -6,6 +6,7 @@ import {
 } from "@workspace/db";
 import { eq, and, gte, lte, or } from "drizzle-orm";
 import { ensureLeaveBalance } from "../lib/leaveBalance.js";
+import { getActorUserId } from "../middleware/requireAuth.js";
 
 const router = Router();
 
@@ -120,7 +121,7 @@ router.get("/leave-requests", async (req, res): Promise<void> => {
 
 // POST /leave-requests — create a new request (draft)
 router.post("/leave-requests", async (req, res): Promise<void> => {
-  const actorUserId: number | null = (req as any).session?.userId ?? null;
+  const actorUserId: number = getActorUserId(req);
 
   const {
     employeeId, leaveTypeId, startDate, endDate, totalDays,
@@ -175,7 +176,7 @@ router.get("/leave-requests/:id", async (req, res): Promise<void> => {
 
 // POST /leave-requests/:id/submit — move draft → submitted, check cert + reserve balance
 router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
-  const actorUserId: number | null = (req as any).session?.userId ?? null;
+  const actorUserId: number = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
   const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
   if (!r) { res.status(404).json({ error: "Not found" }); return; }
@@ -264,7 +265,7 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
 
 // POST /leave-requests/:id/decide — approve or reject an approval step (Task #18: row-locked)
 router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
-  const actorUserId: number | null = (req as any).session?.userId ?? null;
+  const actorUserId: number = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
   const { stepId, stepNumber, decision, notes } = req.body;
 
@@ -417,7 +418,7 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
 
 // POST /leave-requests/:id/cancel — cancel a draft or pending request, release pending balance
 router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
-  const actorUserId: number | null = (req as any).session?.userId ?? null;
+  const actorUserId: number = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
   const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
   if (!r) { res.status(404).json({ error: "Not found" }); return; }
@@ -461,7 +462,7 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
 
 // POST /leave-requests/:id/revoke — undo an approved leave (fully or shorten the range)
 router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
-  const actorUserId: number | null = (req as any).session?.userId ?? null;
+  const actorUserId: number = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
   const { reason, newEndDate, revokedByEmployeeId } = req.body;
 
@@ -574,7 +575,7 @@ router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
 
 // POST /leave-requests/:id/return — record employee's return to work after approved leave
 router.post("/leave-requests/:id/return", async (req, res): Promise<void> => {
-  const actorUserId: number | null = (req as any).session?.userId ?? null;
+  const actorUserId: number = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
   const { returnDate, returnNotes } = req.body;
   const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));

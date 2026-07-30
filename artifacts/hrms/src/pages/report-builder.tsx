@@ -455,7 +455,7 @@ export default function ReportBuilder() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm mb-4"><AlertTriangle className="w-4 h-4 shrink-0" />{t("This feature uses simulated data in demo mode. Verify behavior before production use.", "هذه الميزة تستخدم بيانات محاكاة في وضع العرض التوضيحي. تحقق من السلوك قبل الاستخدام الإنتاجي.")}</div>
+        <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm mb-4"><AlertTriangle className="w-4 h-4 shrink-0" />{t("Report execution is not implemented; results are placeholder data and do not reflect real records.", "تنفيذ التقارير غير مُطبَّق؛ النتائج بيانات وهمية ولا تعكس السجلات الفعلية.")}</div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-slate-800 border border-slate-700">

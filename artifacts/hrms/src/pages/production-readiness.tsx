@@ -142,7 +142,7 @@ const CATEGORIES: CheckCategory[] = [
 
 // ── Module table data ─────────────────────────────────────────────────────────
 
-type ModuleStatus = 'Production Ready' | 'Beta' | 'Simulated' | 'Planned';
+type ModuleStatus = 'Pending gate verification' | 'Beta' | 'Simulated' | 'Planned';
 
 interface ModuleRow {
   module: string;
@@ -152,18 +152,18 @@ interface ModuleRow {
 }
 
 const MODULE_STATUS_STYLES: Record<ModuleStatus, string> = {
-  'Production Ready': 'bg-green-500/20 text-green-400 border border-green-500/30',
-  'Beta':             'bg-amber-500/20 text-amber-400 border border-amber-500/30',
-  'Simulated':        'bg-purple-500/20 text-purple-400 border border-purple-500/30',
-  'Planned':          'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+  'Pending gate verification': 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+  'Beta':                      'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+  'Simulated':                 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
+  'Planned':                   'bg-blue-500/20 text-blue-400 border border-blue-500/30',
 };
 
 const MODULES: ModuleRow[] = [
-  { module: 'Core HR',             status: 'Production Ready', integrationTested: true,  notes: 'Employee directory, departments, roles' },
-  { module: 'Attendance',          status: 'Production Ready', integrationTested: true,  notes: 'Daily log, punch events, corrections' },
-  { module: 'Leave Management',    status: 'Production Ready', integrationTested: true,  notes: 'Full approval workflow, balances, revocation' },
-  { module: 'Payroll',             status: 'Production Ready', integrationTested: true,  notes: 'Multi-step approval, payslips, grades' },
-  { module: 'Government/Military', status: 'Production Ready', integrationTested: true,  notes: 'Hierarchy, postings, clearances, mobilization' },
+  { module: 'Core HR',             status: 'Pending gate verification', integrationTested: true,  notes: 'Employee directory, departments, roles — see /readiness for gate status' },
+  { module: 'Attendance',          status: 'Pending gate verification', integrationTested: true,  notes: 'Punch events stored; biometric vendor adapter not wired — see /readiness' },
+  { module: 'Leave Management',    status: 'Pending gate verification', integrationTested: true,  notes: 'Real DB queries; auth gates must pass before production — see /readiness' },
+  { module: 'Payroll',             status: 'Pending gate verification', integrationTested: true,  notes: 'Real calculation engine; requires auth middleware before production — see /readiness' },
+  { module: 'Government/Military', status: 'Pending gate verification', integrationTested: true,  notes: 'Hierarchy, postings, clearances, mobilization — see /readiness for gate status' },
   { module: 'Recruitment',         status: 'Beta',             integrationTested: true,  notes: 'Requisitions, postings, applications pipeline' },
   { module: 'Onboarding',          status: 'Beta',             integrationTested: false, notes: 'Checklists, probation tracking' },
   { module: 'Performance',         status: 'Beta',             integrationTested: false, notes: 'KPIs, reviews, disciplinary' },
@@ -171,9 +171,9 @@ const MODULES: ModuleRow[] = [
   { module: 'Succession',          status: 'Beta',             integrationTested: false, notes: 'Succession planning, talent pools' },
   { module: 'Self-Service',        status: 'Beta',             integrationTested: false, notes: 'My Portal, Manager Portal' },
   { module: 'Document Management', status: 'Beta',             integrationTested: true,  notes: 'Storage simulated; version history active' },
-  { module: 'Reports',             status: 'Simulated',        integrationTested: false, notes: 'Report engine is simulated for air-gap demo' },
+  { module: 'Reports',             status: 'Simulated',        integrationTested: false, notes: 'Report engine is NOT implemented; execution returns placeholder rows' },
   { module: 'Notifications',       status: 'Beta',             integrationTested: false, notes: 'In-app alerts; email/SMS requires config' },
-  { module: 'Deployment Ops',      status: 'Simulated',        integrationTested: false, notes: 'Health checks and package installs are simulated' },
+  { module: 'Deployment Ops',      status: 'Simulated',        integrationTested: false, notes: 'Health checks and package installs are NOT implemented in this installation' },
 ];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -205,7 +205,7 @@ export default function ProductionReadiness() {
         </p>
       </div>
 
-      <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm"><AlertTriangle className="w-4 h-4 shrink-0" />{t("This feature uses simulated data in demo mode. Verify behavior before production use.", "هذه الميزة تستخدم بيانات محاكاة في وضع العرض التوضيحي. تحقق من السلوك قبل الاستخدام الإنتاجي.")}</div>
+      <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm"><AlertTriangle className="w-4 h-4 shrink-0" />{t("NOT production ready in demo mode — authentication, backup, and biometric gates are BLOCKED. See /readiness for full details.", "ليس جاهزًا للإنتاج في وضع العرض التوضيحي — بوابات المصادقة والنسخ الاحتياطي والقياس الحيوي مُقفَلة. انظر /readiness للتفاصيل الكاملة.")}</div>
 
       {/* Summary stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

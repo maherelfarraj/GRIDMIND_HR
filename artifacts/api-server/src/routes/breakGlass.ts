@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, breakGlassAccessTable, systemUsersTable, auditLogsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { getActorUserId } from "../middleware/requireAuth.js";
 
 const router = Router();
 
@@ -55,7 +56,7 @@ router.post("/break-glass", async (req, res): Promise<void> => {
 
   // Log to audit
   await db.insert(auditLogsTable).values({
-    actorUserId: (req as any).session?.userId ?? null,
+    actorUserId: getActorUserId(req),
     action: "break_glass.granted",
     entityType: "break_glass_access",
     entityId: newRecord.id,
@@ -94,7 +95,7 @@ router.post("/break-glass/:id/revoke", async (req, res): Promise<void> => {
 
   // Log to audit
   await db.insert(auditLogsTable).values({
-    actorUserId: (req as any).session?.userId ?? null,
+    actorUserId: getActorUserId(req),
     action: "break_glass.revoked",
     entityType: "break_glass_access",
     entityId: id,

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, employeesTable, departmentsTable, rolesTable, documentsTable, attendanceRecordsTable, systemUsersTable } from "@workspace/db";
+import { db, employeesTable, departmentsTable, rolesTable, documentsTable, attendanceRecordsTable, systemUsersTable, auditLogsTable } from "@workspace/db";
 import { eq, and, ilike, sql, count } from "drizzle-orm";
 import {
   CreateEmployeeBody, UpdateEmployeeBody, ListEmployeesQueryParams,
@@ -74,12 +74,21 @@ router.get("/employees", async (req, res): Promise<void> => {
 router.post("/employees", async (req, res): Promise<void> => {
   // Demo mode: default to admin (userId=1) when no session is present.
   // In production, enforce real session middleware before this guard.
+  const actorUserId: number = (req as any).session?.userId ?? 1;
   const parsed = CreateEmployeeBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
   const [emp] = await db.insert(employeesTable).values(parsed.data).returning();
+  await db.insert(auditLogsTable).values({
+    action: "create",
+    entityType: "employee",
+    entityId: emp.id,
+    entityLabel: `${emp.firstNameEn} ${emp.lastNameEn}`,
+    actorUserId,
+    changesJson: JSON.stringify({ after: { employeeNumber: emp.employeeNumber, firstNameEn: emp.firstNameEn, lastNameEn: emp.lastNameEn } }),
+  });
   const result = await buildEmployeeResponse(emp);
   res.status(201).json(result);
 });
@@ -94,14 +103,24 @@ router.get("/employees/:id", async (req, res): Promise<void> => {
 router.patch("/employees/:id", async (req, res): Promise<void> => {
   // Demo mode: default to admin (userId=1) when no session is present.
   // In production, enforce real session middleware before this guard.
+  const actorUserId: number = (req as any).session?.userId ?? 1;
   const id = parseId(req.params.id);
   const parsed = UpdateEmployeeBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const [before] = await db.select().from(employeesTable).where(eq(employeesTable.id, id));
   const [emp] = await db.update(employeesTable)
     .set({ ...parsed.data, updatedAt: new Date() })
     .where(eq(employeesTable.id, id))
     .returning();
   if (!emp) { res.status(404).json({ error: "Not found" }); return; }
+  await db.insert(auditLogsTable).values({
+    action: "update",
+    entityType: "employee",
+    entityId: emp.id,
+    entityLabel: `${emp.firstNameEn} ${emp.lastNameEn}`,
+    actorUserId,
+    changesJson: JSON.stringify({ before: parsed.data, after: parsed.data }),
+  });
   res.json(await buildEmployeeResponse(emp));
 });
 

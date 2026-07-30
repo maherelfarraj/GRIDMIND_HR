@@ -717,7 +717,7 @@ export default function LocalAi() {
 
         <AiBanner config={aiConfig} />
 
-        <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm mb-4"><AlertTriangle className="w-4 h-4 shrink-0" />{t("This feature uses simulated data in demo mode. Verify behavior before production use.", "هذه الميزة تستخدم بيانات محاكاة في وضع العرض التوضيحي. تحقق من السلوك قبل الاستخدام الإنتاجي.")}</div>
+        <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm mb-4"><AlertTriangle className="w-4 h-4 shrink-0" />{t("AI analysis is not implemented; responses are illustrative placeholders and do not reflect real inference.", "تحليل الذكاء الاصطناعي غير مُطبَّق؛ الاستجابات نماذج توضيحية ولا تعكس استنتاجًا فعليًا.")}</div>
 
         <Tabs defaultValue="policy-search">
           <TabsList className="bg-slate-800 border border-slate-700 flex-wrap h-auto">

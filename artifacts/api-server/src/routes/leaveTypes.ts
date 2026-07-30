@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, leaveTypesTable } from "@workspace/db";
+import { db, leaveTypesTable, auditLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
@@ -10,6 +10,7 @@ router.get("/leave-types", async (_req, res): Promise<void> => {
 });
 
 router.post("/leave-types", async (req, res): Promise<void> => {
+  const actorUserId: number = (req as any).session?.userId ?? 1;
   const {
     codeEn, nameEn, nameAr, descriptionEn, descriptionAr, category,
     defaultDaysPerYear, accrualFrequency, accrualAmount, maxCarryoverDays,
@@ -37,6 +38,14 @@ router.post("/leave-types", async (req, res): Promise<void> => {
     isActive: isActive ?? true,
     color: color ?? "#6366F1",
   }).returning();
+  await db.insert(auditLogsTable).values({
+    action: "create",
+    entityType: "leave_type",
+    entityId: lt.id,
+    entityLabel: lt.nameEn,
+    actorUserId,
+    changesJson: JSON.stringify({ after: { codeEn, nameEn, nameAr, category } }),
+  });
   res.status(201).json(lt);
 });
 
@@ -48,6 +57,7 @@ router.get("/leave-types/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/leave-types/:id", async (req, res): Promise<void> => {
+  const actorUserId: number = (req as any).session?.userId ?? 1;
   const id = parseInt(req.params.id, 10);
   const {
     nameEn, nameAr, descriptionEn, descriptionAr, category,
@@ -55,6 +65,7 @@ router.patch("/leave-types/:id", async (req, res): Promise<void> => {
     requiresApproval, requiresAttachment, minAdvanceNoticeDays,
     maxConsecutiveDays, applicableToGender, isActive, color,
   } = req.body;
+  const [before] = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.id, id));
   const [lt] = await db.update(leaveTypesTable)
     .set({
       nameEn, nameAr, descriptionEn, descriptionAr, category,
@@ -66,6 +77,14 @@ router.patch("/leave-types/:id", async (req, res): Promise<void> => {
     .where(eq(leaveTypesTable.id, id))
     .returning();
   if (!lt) { res.status(404).json({ error: "Not found" }); return; }
+  await db.insert(auditLogsTable).values({
+    action: "update",
+    entityType: "leave_type",
+    entityId: id,
+    entityLabel: lt.nameEn,
+    actorUserId,
+    changesJson: JSON.stringify({ before: before ?? null, after: req.body }),
+  });
   res.json(lt);
 });
 

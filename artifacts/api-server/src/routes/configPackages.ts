@@ -6,6 +6,7 @@ import {
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { createHash, createHmac } from "crypto";
+import { getActorUserId } from "../middleware/requireAuth.js";
 
 const router = Router();
 
@@ -59,7 +60,7 @@ router.get("/config-packages", async (req, res): Promise<void> => {
 // POST /config-packages/import — static before /:id
 router.post("/config-packages/import", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId: number = getActorUserId(req);
     const { packageJson } = req.body;
     if (!packageJson) return void res.status(400).json({ error: "packageJson is required" });
 
@@ -114,7 +115,7 @@ router.post("/config-packages/import", async (req, res): Promise<void> => {
 
 router.post("/config-packages", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId: number = getActorUserId(req);
     const payload = req.body.payloadJson ?? JSON.stringify({ generatedAt: new Date(), source: "auto" });
     const checksum = computeChecksum(typeof payload === "string" ? payload : JSON.stringify(payload));
     const [row] = await db.insert(configPackagesTable).values({
@@ -131,7 +132,7 @@ router.post("/config-packages", async (req, res): Promise<void> => {
 // POST /config-packages/:id/sign
 router.post("/config-packages/:id/sign", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId: number = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [pkg] = await db.select().from(configPackagesTable).where(eq(configPackagesTable.id, id));
     if (!pkg) return void res.status(404).json({ error: "Not found" });
@@ -150,7 +151,7 @@ router.post("/config-packages/:id/sign", async (req, res): Promise<void> => {
 // POST /config-packages/:id/export
 router.post("/config-packages/:id/export", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId: number = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [pkg] = await db.select().from(configPackagesTable).where(eq(configPackagesTable.id, id));
     if (!pkg) return void res.status(404).json({ error: "Not found" });
@@ -172,7 +173,7 @@ router.post("/config-packages/:id/export", async (req, res): Promise<void> => {
 // POST /config-packages/:id/apply
 router.post("/config-packages/:id/apply", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId: number = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [pkg] = await db.select().from(configPackagesTable).where(eq(configPackagesTable.id, id));
     if (!pkg) return void res.status(404).json({ error: "Not found" });
@@ -197,7 +198,7 @@ router.post("/config-packages/:id/apply", async (req, res): Promise<void> => {
 // POST /config-packages/:id/reject
 router.post("/config-packages/:id/reject", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId: number = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [row] = await db.update(configPackagesTable).set({
       status: "rejected", rejectedAt: new Date(), rejectedByUserId: actorUserId,
@@ -293,7 +294,7 @@ router.post("/environment-snapshots/compare", async (req, res): Promise<void> =>
 
 router.post("/environment-snapshots", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId: number = getActorUserId(req);
     const snapshotData = req.body.snapshotJson ?? JSON.stringify({ capturedAt: new Date(), scope: req.body.scope ?? "full" });
     const snapshotStr = typeof snapshotData === "string" ? snapshotData : JSON.stringify(snapshotData);
     const checksum = computeChecksum(snapshotStr);
@@ -311,7 +312,7 @@ router.post("/environment-snapshots", async (req, res): Promise<void> => {
 // POST /environment-snapshots/:id/pin
 router.post("/environment-snapshots/:id/pin", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId: number = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [row] = await db.update(environmentSnapshotsTable).set({ isPinned: true }).where(eq(environmentSnapshotsTable.id, id)).returning();
     if (!row) return void res.status(404).json({ error: "Not found" });
@@ -345,7 +346,7 @@ router.get("/org-report-templates", async (req, res): Promise<void> => {
 
 router.post("/org-report-templates", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId: number = getActorUserId(req);
     const [row] = await db.insert(orgReportTemplatesTable).values({
       ...req.body, createdByUserId: req.body.createdByUserId ?? actorUserId,
     }).returning();
@@ -364,7 +365,7 @@ router.get("/org-report-templates/:id", async (req, res): Promise<void> => {
 
 router.patch("/org-report-templates/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId: number = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [before] = await db.select().from(orgReportTemplatesTable).where(eq(orgReportTemplatesTable.id, id));
     if (!before) return void res.status(404).json({ error: "Not found" });
@@ -376,7 +377,7 @@ router.patch("/org-report-templates/:id", async (req, res): Promise<void> => {
 
 router.delete("/org-report-templates/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId: number = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [row] = await db.delete(orgReportTemplatesTable).where(eq(orgReportTemplatesTable.id, id)).returning();
     if (!row) return void res.status(404).json({ error: "Not found" });

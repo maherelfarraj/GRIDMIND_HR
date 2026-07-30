@@ -1,12 +1,32 @@
 import { Router } from "express";
-import { db, systemUsersTable } from "@workspace/db";
+import bcrypt from "bcryptjs";
+import { db, systemUsersTable, rolesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
 
-// POST /auth/login — mock auth: match by username, any password accepted (demo)
+const PILOT_AUTH = process.env.PILOT_AUTH === "true";
+
+function userResponse(user: typeof systemUsersTable.$inferSelect) {
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    fullNameEn: user.fullNameEn,
+    fullNameAr: user.fullNameAr,
+    roleId: user.roleId,
+    employeeId: user.employeeId,
+    isActive: user.isActive,
+    mfaEnabled: user.mfaEnabled,
+    preferredLanguage: user.preferredLanguage,
+    lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+  };
+}
+
+// POST /auth/login — find user by username; demo mode accepts any password;
+// PILOT_AUTH mode requires bcrypt match if passwordHash is set
 router.post("/auth/login", async (req, res): Promise<void> => {
-  const { username, password } = req.body;
+  const { username } = req.body;
   if (!username) { res.status(400).json({ error: "username required" }); return; }
 
   const [user] = await db.select().from(systemUsersTable)
@@ -21,47 +41,74 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
+  // Password check — PILOT_AUTH mode is fail-closed: a password AND a stored
+  // hash are both required, and the bcrypt comparison must succeed.
+  if (PILOT_AUTH) {
+    const { password } = req.body;
+    const userWithHash = user as typeof user & { passwordHash?: string | null };
+    if (!password || !userWithHash.passwordHash) {
+      // No password supplied, or account has no hash provisioned → reject.
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
+    }
+    const valid = await bcrypt.compare(password, userWithHash.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
+    }
+  }
+  // Demo mode (PILOT_AUTH=false): accept any password, no check
+
+  // Look up role name for session
+  const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, user.roleId));
+  const userRole = role?.nameEn ?? "User";
+
   // Update last login
   await db.update(systemUsersTable).set({ lastLoginAt: new Date() }).where(eq(systemUsersTable.id, user.id));
 
-  res.json({
-    id: user.id,
-    username: user.username,
-    email: user.email,
-    fullNameEn: user.fullNameEn,
-    fullNameAr: user.fullNameAr,
-    roleId: user.roleId,
-    employeeId: user.employeeId,
-    isActive: user.isActive,
-    mfaEnabled: user.mfaEnabled,
-    preferredLanguage: user.preferredLanguage,
-    lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+  // Set session
+  req.session.userId = user.id;
+  req.session.userRole = userRole;
+  req.session.username = user.username;
+
+  res.json(userResponse(user));
+});
+
+// POST /auth/logout — destroys session, clears cookie
+router.post("/auth/logout", (req, res): void => {
+  req.session.destroy((err) => {
+    if (err) {
+      res.status(500).json({ error: "Logout failed" });
+      return;
+    }
+    res.clearCookie("connect.sid");
+    res.json({ success: true });
   });
 });
 
-// POST /auth/logout — clears session token (no-op in demo)
-router.post("/auth/logout", (_req, res) => {
-  res.json({ success: true });
-});
+// GET /auth/me — return current session user; demo fallback to first active user
+router.get("/auth/me", async (req, res): Promise<void> => {
+  if (req.session?.userId) {
+    const [user] = await db.select().from(systemUsersTable)
+      .where(eq(systemUsersTable.id, req.session.userId));
+    if (user && user.isActive) {
+      res.json(userResponse(user));
+      return;
+    }
+    // Session user not found or inactive — destroy session
+    req.session.destroy(() => {});
+  }
 
-// GET /auth/me — returns session user (first active user as session placeholder)
-router.get("/auth/me", async (_req, res): Promise<void> => {
-  const [user] = await db.select().from(systemUsersTable)
-    .where(eq(systemUsersTable.isActive, true));
-  if (!user) { res.status(401).json({ error: "Not authenticated" }); return; }
-  res.json({
-    id: user.id,
-    username: user.username,
-    email: user.email,
-    fullNameEn: user.fullNameEn,
-    fullNameAr: user.fullNameAr,
-    roleId: user.roleId,
-    employeeId: user.employeeId,
-    isActive: user.isActive,
-    mfaEnabled: user.mfaEnabled,
-    preferredLanguage: user.preferredLanguage,
-    lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
-  });
+  if (!PILOT_AUTH) {
+    // Demo fallback: return first active user
+    const [user] = await db.select().from(systemUsersTable)
+      .where(eq(systemUsersTable.isActive, true));
+    if (!user) { res.status(401).json({ error: "Not authenticated" }); return; }
+    res.json(userResponse(user));
+    return;
+  }
+
+  res.status(401).json({ error: "Not authenticated" });
 });
 
 export default router;

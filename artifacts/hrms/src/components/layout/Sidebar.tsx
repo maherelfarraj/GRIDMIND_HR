@@ -160,6 +160,7 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
 
   const pilotQAItems = [
     { href: '/pilot-control-center', icon: Gauge, labelEn: 'Pilot Control Center', labelAr: 'مركز التحكم التجريبي', highlight: true },
+    { href: '/readiness', icon: ClipboardList, labelEn: 'Readiness Report', labelAr: 'تقرير الجاهزية', highlight: false },
     { href: '/uat-scripts', icon: ClipboardCheck, labelEn: 'UAT Scripts', labelAr: 'نصوص قبول المستخدم', highlight: false },
     { href: '/security-tests', icon: ShieldAlert, labelEn: 'Security Tests', labelAr: 'اختبارات الأمان', highlight: false },
   ];

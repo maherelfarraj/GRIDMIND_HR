@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const parsed = JSON.parse(stored) as User;
       // Validate stored session is still good by re-fetching
-      fetch('/api/auth/me')
+      fetch('/api/auth/me', { credentials: 'include' })
         .then((res) => res.ok ? res.json() : Promise.reject())
         .then((userData: User) => {
           setUser(userData);
@@ -62,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
+      credentials: 'include',
     });
 
     if (!res.ok) {
@@ -75,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
     setUser(null);
     localStorage.removeItem(SESSION_KEY);
   };

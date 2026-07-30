@@ -341,6 +341,11 @@ export default function Diagnostics() {
         <p className="text-slate-400 mt-1">{t('Health checks, readiness, updates, and deployment checklist', 'فحوصات الصحة والجاهزية والتحديثات وقائمة النشر')}</p>
       </div>
 
+      <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm mb-2">
+        <Activity className="w-4 h-4 shrink-0" />
+        {t('Health checks are simulated and do not reflect real system state. Software update apply is not implemented in this installation.', 'فحوصات الصحة محاكاة ولا تعكس حالة النظام الفعلية. تطبيق تحديثات البرامج غير مُطبَّق في هذا التثبيت.')}
+      </div>
+
       <Tabs defaultValue="health">
         <TabsList className="bg-slate-800 border-slate-700">
           <TabsTrigger value="health" className="data-[state=active]:bg-slate-700">{t('Health Checks', 'فحوصات الصحة')}</TabsTrigger>

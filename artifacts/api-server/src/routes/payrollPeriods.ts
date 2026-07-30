@@ -9,6 +9,7 @@ import {
 import type { PayrollPeriod, Employee } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getWeekendDays, WEEKEND_CONFIG_KEY } from "../lib/weekend";
+import { getActorUserId } from "../middleware/requireAuth.js";
 
 export { WEEKEND_CONFIG_KEY };
 
@@ -199,7 +200,7 @@ router.get("/payroll-periods", async (req, res): Promise<void> => {
 
 // POST /payroll-periods — create a new payroll period
 router.post("/payroll-periods", async (req, res): Promise<void> => {
-  const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
+  const actorUserId: number = getActorUserId(req);
   const { periodCode, nameEn, nameAr, periodType, startDate, endDate, payDate, currency, notes } = req.body;
   if (!periodCode || !nameEn || !nameAr || !startDate || !endDate || !payDate) {
     res.status(400).json({ error: "periodCode, nameEn, nameAr, startDate, endDate, payDate required" });
@@ -248,7 +249,7 @@ router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
 
 // POST /payroll-periods/:id/calculate — generate/recalculate all payroll runs for the period
 router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> => {
-  const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
+  const actorUserId: number = getActorUserId(req);
   const periodId = parseInt(req.params.id, 10);
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }
@@ -656,7 +657,7 @@ router.get("/payroll-periods/:id/no-shows", async (req, res): Promise<void> => {
 
 // POST /payroll-periods/:id/excused-absences — HR excuses a detected no-show day
 router.post("/payroll-periods/:id/excused-absences", async (req, res): Promise<void> => {
-  const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
+  const actorUserId: number = getActorUserId(req);
   const periodId = parseInt(req.params.id, 10);
   const { employeeId, date, reason } = req.body ?? {};
   if (!employeeId || !date || !reason || !String(reason).trim()) {
@@ -720,7 +721,7 @@ router.post("/payroll-periods/:id/excused-absences", async (req, res): Promise<v
 
 // DELETE /payroll-periods/:id/excused-absences/:excusedId — undo an excusal
 router.delete("/payroll-periods/:id/excused-absences/:excusedId", async (req, res): Promise<void> => {
-  const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
+  const actorUserId: number = getActorUserId(req);
   const periodId = parseInt(req.params.id, 10);
   const excusedId = parseInt(req.params.excusedId, 10);
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
@@ -747,7 +748,7 @@ router.delete("/payroll-periods/:id/excused-absences/:excusedId", async (req, re
 
 // POST /payroll-periods/:id/approve — first/second approval step
 router.post("/payroll-periods/:id/approve", async (req, res): Promise<void> => {
-  const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
+  const actorUserId: number = getActorUserId(req);
   const periodId = parseInt(req.params.id, 10);
   const { approverId, note } = req.body;
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
@@ -796,7 +797,7 @@ router.post("/payroll-periods/:id/approve", async (req, res): Promise<void> => {
 
 // POST /payroll-periods/:id/close — immutable close (requires second_approved)
 router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
-  const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
+  const actorUserId: number = getActorUserId(req);
   const periodId = parseInt(req.params.id, 10);
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }

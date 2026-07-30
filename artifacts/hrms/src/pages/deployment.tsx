@@ -703,7 +703,7 @@ export default function Deployment() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm"><AlertTriangle className="w-4 h-4 shrink-0" />{t("This feature uses simulated data in demo mode. Verify behavior before production use.", "هذه الميزة تستخدم بيانات محاكاة في وضع العرض التوضيحي. تحقق من السلوك قبل الاستخدام الإنتاجي.")}</div>
+        <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm"><AlertTriangle className="w-4 h-4 shrink-0" />{t("Health checks are simulated and do not reflect real system state. Backup execution is not implemented; records shown are metadata only. Software update apply is not implemented in this installation.", "فحوصات الصحة محاكاة ولا تعكس حالة النظام الفعلية. تنفيذ النسخ الاحتياطي غير مُطبَّق؛ السجلات المعروضة بيانات وصفية فقط. تطبيق تحديثات البرامج غير مُطبَّق في هذا التثبيت.")}</div>
 
         <Tabs defaultValue="health">
           <TabsList className="bg-slate-800 border border-slate-700">

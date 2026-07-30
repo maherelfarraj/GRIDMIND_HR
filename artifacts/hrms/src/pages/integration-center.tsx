@@ -645,7 +645,7 @@ export default function IntegrationCenter() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm mb-4"><AlertTriangle className="w-4 h-4 shrink-0" />{t("This feature uses simulated data in demo mode. Verify behavior before production use.", "هذه الميزة تستخدم بيانات محاكاة في وضع العرض التوضيحي. تحقق من السلوك قبل الاستخدام الإنتاجي.")}</div>
+        <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm mb-4"><AlertTriangle className="w-4 h-4 shrink-0" />{t("OIDC/SAML connection tests are not implemented; connection test results are simulated. LDAP/SMTP/device adapters are real.", "اختبارات اتصال OIDC/SAML غير مُطبَّقة؛ نتائج الاختبار محاكاة. محولات LDAP/SMTP/الأجهزة حقيقية.")}</div>
 
         <Tabs defaultValue="connectors">
           <TabsList className="bg-slate-800 border border-slate-700">

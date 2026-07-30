@@ -1,234 +1,41 @@
 ---
 name: HRMS Architecture Decisions
-description: Key build constraints and conventions for the HRMS enterprise HR system (Phases 1–10)
+description: Key build constraints and conventions for the HRMS enterprise HR system (Phases 1–10 + audit)
 ---
 
-## OpenAPI / Zod v3 compatibility
-All `integer` types in `lib/api-spec/openapi.yaml` must use `number` — Orval 8.x generates `zod.int()` for `integer`, which is Zod v4 syntax and breaks the workspace (Zod v3). The codegen script in `lib/api-spec/package.json` also post-processes the output to replace any remaining `zod.int()` → `zod.number()`.
-
-**Why:** Workspace uses Zod v3; Orval 8.x emits Zod v4 syntax for integer types.
-
-**How to apply:** Any new integer fields in the OpenAPI spec must be declared as `type: number` (not `type: integer`).
-
-## OpenAPI YAML — new paths must go in the paths section, NOT components
-When adding new path blocks to `lib/api-spec/openapi.yaml`, the paths section ends just before `components:` at the top level. New paths (`/foo:`, `/foo/{id}:`) must be inserted within the `paths:` block (before the `components:` key), NOT inside `components:` or `components.schemas`.
-
-**Why:** When using Edit tool anchored on a schema name inside `components.schemas`, the new content gets inserted as siblings of that schema (inside components), not inside paths. This breaks Orval codegen.
-
-**How to apply:** Always anchor edits on content that is clearly inside the paths section, or use the Python split-and-reinsert technique if the YAML gets corrupted.
-
-## lib/api-zod index re-export
-`lib/api-zod/src/index.ts` must export ONLY from `./generated/api` — not from a types re-export. A types re-export causes TS2308 collision on `GetEmployeeAttendanceParams` (and likely other params).
-
-**Why:** The generated file and the types file both export the same symbol names.
-
-## useQueryClient import
-`useQueryClient` must be imported from `@tanstack/react-query` directly, NOT from `@workspace/api-client-react`. Subagents repeatedly import it from the wrong package.
-
-**Why:** `@workspace/api-client-react` does not re-export `useQueryClient`.
-
-**How to apply:** Whenever a page needs cache invalidation, add `import { useQueryClient } from '@tanstack/react-query';` separately.
-
-## useListEmployees data shape
-`useListEmployees()` returns `{ data: Employee[], total, page, limit }` — NOT a bare array. Any `.map()` on the result must use `employees?.data?.map(...)`.
-
-**Why:** Subagents consistently treat it as an array; causes runtime `employees?.map is not a function` crash.
-
-## Auth session gating
-`use-auth.tsx` must check `localStorage.getItem('hrms-session')` before calling `/api/auth/me` on mount. Without this gate, the API always returns the first active user (demo server has no real session), so the login page never appears.
-
-**Why:** The demo `/api/auth/me` always returns a user; session must be localStorage-gated.
-
-## Sidebar desktop layout
-The Sidebar must NOT use `fixed` positioning on desktop. Use `hidden md:flex` for desktop static layout, and only add `flex fixed inset-y-0 start-0 z-50` when `isMobileOpen` is true.
-
-**Why:** Combining `md:static` and `fixed inset-y-0` with Tailwind doesn't correctly override.
-
-## routes/index.ts must import all route files
-`artifacts/api-server/src/routes/index.ts` is the single mount point for all domain routers. Adding a new route file requires importing it here with `router.use(...)`.
-
-## Department list endpoint parentNameEn
-The `GET /departments` list route resolves parent names inline using a dept map (no N+1). `parentNameEn` and `parentNameAr` both populated.
-
-## Phase 2 new tables (all seeded)
-- `shifts` — 8 shift definitions (AM/DS/PM/NS/XOP/ADM/FLX/ONC)
-- `rosters` — employee-shift assignments (195 entries, 13 days × 15 employees)
-- `overtime_rules` — 3 rules (Standard / Operations / Medical)
-- `punch_events` — 164 events (CLOCK_IN, CLOCK_OUT, BREAK_START/END, OVERTIME_START/END, missing flagged)
-
-## Phase 2 new API routes
-- `/shifts` — CRUD + `/shifts/:id/roster` (GET with weekStart/weekEnd)
-- `/rosters` — GET with filters, POST (upsert), POST /bulk, GET /summary, DELETE /:id
-- `/overtime-rules` — CRUD
-- `/punch-events` — GET with filters, POST, GET /missing, GET /:id, PATCH /:id
-
-## Phase 2 new frontend pages
-- `src/pages/shifts.tsx` — shift cards grid with color-bordered cards, new shift dialog
-- `src/pages/rosters.tsx` — weekly grid table (employees × 7 days) with shift chips, week navigator
-- `src/pages/overtime.tsx` — 2-tab: OT rules cards + OT report with recharts BarChart
-- `src/pages/punch-events.tsx` — biometric audit log with event type/source badges, missing punch highlighting
-
-## Seed script
-Phase 2 seed is at `artifacts/api-server/src/lib/seed-phase2.ts`. Run via: `npx tsx artifacts/api-server/src/lib/seed-phase2.ts`
-
-## Codegen command
-`pnpm --filter @workspace/api-spec run codegen` — runs Orval → post-processes zod.int() → runs typecheck:libs. Must be run after any OpenAPI spec change.
-
-## Database seed state
-DB is seeded with fictional data: 10 departments, 6 roles, 15 employees, 6 system users, 8 attendance devices, 13 documents, 10 approvals, attendance records for 2026-07-27/28/29, 8 security alerts, 15 audit log entries, 20 device-employee mappings, 6 attendance corrections, 8 shifts, 195 roster entries, 3 overtime rules, 164 punch events.
-
-
-## Orval hook options require queryKey
-Passing `{ query: { enabled: ... } }` to generated query hooks fails typecheck (this Orval version's UseQueryOptions requires queryKey). Omit the options arg instead of using `enabled`.
-
-
-## Approval-style endpoints: atomic claim + conditional deduction in one transaction
-Any approve/decide endpoint must (1) claim the row with a conditional update (`WHERE status='pending'`, fail on 0 rows), (2) deduct quotas with a single atomic conditional SQL update (`SET used = used + n WHERE remaining >= n`), and (3) run all side effects in one `db.transaction`. Creation-time validation alone is insufficient — pending requests reserve nothing, and read-then-write balance updates race under concurrency.
-
-**Why:** Concurrent approvals can otherwise overdraw entitlements or double-process a request.
-**How to apply:** Applies to leave decisions and any future approval/quota flows (overtime, corrections, payroll adjustments).
-
-## Payroll module (Phase 3)
-- Canonical payroll implementation came from the leave-management branch: `salary_grades` (pct-based allowances, org type), `payroll_periods`, `payroll_runs` (per employee × period), `payroll_run_lines`, `pay_components`, `public_holidays`; routes salaryGrades/payComponents/payrollPeriods/payrollRuns; pages /payroll, /payroll/payslip/:id, /payroll/grades, /payroll/components.
-- A parallel simpler payroll engine (payroll_entries + routes/payroll.ts + seed-payroll.ts) was dropped at merge time in favor of the leave-integrated one — do not reintroduce it.
-- After adding schema files, run `npx tsc -b lib/db` — composite project; api-server typecheck reads stale dist/*.d.ts otherwise.
-
-## Generated hook query options
-Orval hooks type `options.query` as full `UseQueryOptions` (requires `queryKey`), so passing partial options like `{ query: { refetchInterval: 60000 } }` needs an `as any` cast.
-
-## Dashboard history seed
-`artifacts/api-server/src/lib/seed-dashboard-history.ts` backfills 30 days of attendance (idempotent, skips existing dates, Fri/Sat off) so 30-day analytics have data. Re-run if DB is reseeded.
-
-## Air-gap / deployment intent
-No Replit/Supabase/cloud API deps. Auth: localStorage-gated session + POST /auth/login (any password accepted in demo). All API routes at /api/* proxied by Vite dev server.
-
-## Phase 3 tables + seed (all pushed to DB)
-12 new tables: leaveTypes, leaveBalances, leaveRequests, leaveApprovalSteps, leaveAttachments, leaveDelegations, publicHolidays, salaryGrades, payComponents, payrollPeriods, payrollRuns, payrollRunLines. Seed script: `artifacts/api-server/src/lib/seed-phase3.ts`.
-Employee `grade` field (G6–G12) must match salary grade `gradeCode` exactly — mismatch causes 100% payroll exceptions. Salary grades G6–G12 are now seeded.
-
-## Leave approve/decide endpoint — decision values
-The `/leave-requests/:id/decide` route normalizes decision to `"approved"` / `"rejected"`. It accepts both the canonical form (`"approved"`) and shorthand (`"approve"`). Always pass `stepId` (the DB record id), not `stepNumber`. The route now accepts both `stepId` and legacy `stepNumber` for lookup.
-
-**Why:** Original route only accepted `"approve"`/`"reject"` shorthand but the frontend sends `"approved"`/`"rejected"`. Using `stepNumber` requires knowing the sequence; `stepId` is safer from the frontend.
-
-## Payroll calculate — Drizzle timestamp vs string date
-The `gte`/`lte` comparison for `punchEventsTable.eventTime` (a Drizzle `timestamp` column) requires a `Date` object, not a string. Pass `new Date(period.startDate)` and `new Date(period.endDate + "T23:59:59Z")` to avoid `value.toISOString is not a function`.
-
-**Why:** Drizzle's `PgTimestamp.mapToDriverValue` calls `.toISOString()` on the value, failing if it's a string.
-
-
-## Leave approval ↔ roster linkage
-Final leave approval marks roster rows in the range as status "leave"; rows it creates carry `notes = "leave:<requestNumber>"` as a marker. The revoke endpoint (`POST /leave-requests/:id/revoke`, full or partial via `newEndDate`) deletes marker rows, reverts other "leave" rows to "scheduled", and credits `used` back proportionally to revoked calendar days.
-
-**Why:** The marker distinguishes roster rows created by the approval (delete on revoke) from pre-existing ones (revert only). Don't repurpose the notes field on these rows.
-
-## Leave balance year rollover
-Balance rows are auto-provisioned lazily on leave submit via `ensureLeaveBalance` (accrued = leave type's defaultDaysPerYear; carriedOver = prior-year leftover capped at maxCarryoverDays). No cron; a missing year row is never an error on submit.
-
-## Leave request steps key
-`enrichRequest()` returns steps under the key `steps` (not `approvalSteps`). Frontend uses `req?.steps ?? []`.
-
-## Phase 3 new frontend pages (7 total)
-leave.tsx, leave-balances.tsx, leave-config.tsx, payroll.tsx, payroll-payslip.tsx, salary-grades.tsx, pay-components.tsx — all registered in App.tsx and Sidebar.tsx.
-
-## Pre-existing TypeScript fixes applied
-- `approvals.tsx`: mutation body key `data` (not `decision`), status values `approved`/`rejected` (not `approve`/`reject`), field `decisionNote` (not `notes`), field `assignedToUserName` (not `decidedByUsername`)
-- `attendance.tsx`: `AttendanceRecord` has no `employeeNumber` (use `departmentNameEn`); `lateMinutes` is nullable (use `?? 0`)
-- `departments.tsx`: `DepartmentNode` has no `organizationType` — TreeNode uses optional field with `?? 'commercial'` fallback
-- `devices.tsx`: `DeviceHealth` fields are `signalStrength`, `recordsToday`, `errorLog.length`, `lastPingAt` (not `scanSuccessRate`, `totalScansToday`, `failedAttempts`, `lastHeartbeat`)
-
-## Phase 4 new DB tables (17 total)
-systemConfig, militaryRanks, orgUnits, dutyStations, employeePostings, employeeTransfers, employeeSecondments, securityClearances, mobilizationStatuses, chainOfCommand, dualAuthRequests, breakGlassAccess, privilegedSessions, branchServers, syncQueue, backupRecords, licenseRecords — all in lib/db/src/schema/, exported from index.ts, pushed to DB, seeded via seed-phase4.ts.
-
-**Why:** Phase 4 "Government / Military Readiness" layer on top of commercial HRMS.
-
-**How to apply:** All defense features are gated by system_config key "org.type" (commercial/government/military). Seeded as "military" in demo. orgUnitsTable has self-referential parentId (plain integer, no FK constraint in Drizzle). backupRecords.fileSizeBytes is integer — values must be <2,147,483,647 (use numeric for larger values).
-
-## Phase 4 seed pitfalls
-orgUnitsTable inserts must use returned IDs for parentId — do NOT hardcode sequential IDs since postgres sequences don't reset on DELETE. employeePostings/transfers must reference these real IDs via the returned objects.
-
-## Phase 4 org unit tree route ordering
-GET /org-units/tree MUST be registered before GET /org-units/:id in Express, otherwise the string "tree" gets parsed as a numeric ID and returns 404.
-
-## Phase 4 new frontend pages (8 total)
-system-config, military-hierarchy, duty-stations, postings, security-clearances, mobilization, security-settings, admin-airgap — all in artifacts/hrms/src/pages/, lazy-imported in App.tsx, linked in Sidebar.tsx under "Military & Government" and "System Admin" sections.
-
-
-## Leave attachments — URL scheme whitelist
-Attachment `fileUrl` values are user-supplied and rendered as clickable hrefs. Both the API (POST /leave-requests/:id/attachments) and the approvals UI whitelist only `https:` and base64 `data:` URLs of pdf/png/jpeg/webp/gif — reject anything else to prevent `javascript:` stored-XSS. Express JSON body limit raised to 10mb for base64 certificates. Submitting a leave request whose type has `requiresAttachment` without an attachment returns 422; submit also inserts a pending `approvals` row (type "leave", metadata.leave_request_id) so it appears in /approvals.
-## Spec vs server drift (self-service)
-- `/announcements` rows use bilingual columns `titleEn/titleAr/bodyEn/bodyAr` (not `title/content`); the OpenAPI schema was corrected to match. If a generated type looks "flat English", curl the endpoint before trusting the spec.
-- Mobile (Expo) reaches the API via absolute `https://${EXPO_PUBLIC_DOMAIN}` (set with `setBaseUrl` in app/_layout.tsx); the dev script injects it from $REPLIT_DEV_DOMAIN.
-- `POST /api/auth/login` exists (demo: any password, 6 seeded users); returns AuthUser incl. `employeeId` (nullable — admin has none) used to scope employee queries.
-## Phase 5 tables (19 schema files, all pushed + seeded via seed-phase5.ts)
-jobRequisitions, jobPostings, applicants, applications, interviewScores, backgroundChecks, jobOffers, employmentContracts, onboardingTemplates, employeeOnboarding (+ onboardingTemplateItems + onboardingTasks), probationRecords, equipmentIssuances (+ idCardRecords), competencies (+ competencyFrameworks), goalCycles (+ employeeGoals), appraisals (+ appraisalRecords + appraisalCompetencyRatings + calibrationSessions), disciplinaryRecords (+ commendations + promotionRecommendations), training (7 tables), succession (4 tables), selfService (3 tables).
-
-## Phase 5 seed
-`artifacts/api-server/src/lib/seed-phase5.ts` — requires `import { db } from "@workspace/db"` (not `"../lib/db.js"`). Map callbacks need explicit type annotations: `(item: typeof templateItems[0], idx: number)`.
-
-## Phase 5 frontend pages (11 total)
-recruitment, recruitment-application, onboarding, probation, performance, disciplinary, training, skills, succession, my-portal, manager-portal. All in artifacts/hrms/src/pages/, registered in App.tsx and Sidebar.tsx. Key type fixes: Employee has no `fullNameEn` (use firstNameEn+lastNameEn), no `badgeNumber` (use employeeNumber); LeaveBalance has no `.balance` (use `available ?? openingBalance`).
-
-## Phase 5 task implementations (tasks #8, #9, #10)
-- **#8 medical cert gating**: POST /leave-requests/:id/submit returns 422 ATTACHMENT_REQUIRED if leaveType.requiresAttachment=true and no attachments. Frontend shows cert upload panel.
-- **#9 revoke approved leave**: POST /leave-requests/:id/revoke restores balance (subtracts from used), resets roster rows status="scheduled", sets request status="cancelled".
-- **#10 annual leave reset**: POST /leave-balances/annual-reset iterates all employees × active leave types, skips existing rows for target year, computes carryover = min(available_prev_year, maxCarryoverDays).
-
-## zod.int() runtime crash fix
-After any codegen run, scan `lib/api-zod/src/generated/*.ts` and `lib/api-client-react/src/generated/*.ts` for `zod.int()` and replace with `zod.number()`. The codegen post-processor should handle it but a subagent's partial regeneration can miss the step. Command: `python3 -c "import glob; [open(f,'w').write(open(f).read().replace('zod.int()','zod.number()')) for f in glob.glob('lib/api-zod/src/generated/*.ts')]"`
-
-## Phase 6 tables (4 schema files, all pushed + seeded via seed-phase6.ts)
-- `lib/db/src/schema/documentManagement.ts` — documentCategories, enterpriseDocuments, documentVersions, documentAccessLogs, documentAcknowledgements, documentTemplates
-- `lib/db/src/schema/reporting.ts` — reportDefinitions, savedReportFilters, reportSchedules, reportOutputs
-- `lib/db/src/schema/notifications.ts` — notifications, notificationPreferences, escalationRules, approvalInboxItems
-- `lib/db/src/schema/deploymentOps.ts` — healthChecks, updatePackages, deploymentEvents, installationReadiness
-
-## Phase 6 routes (15 files, all mounted in routes/index.ts)
-documentCategories, enterpriseDocuments, documentTemplates, reportDefinitions, savedReportFilters, reportSchedules, reportOutputs, notifications, notificationPreferences, escalationRules, approvalInbox, healthChecks, updatePackages, deploymentEvents, installationReadiness. Key ordering: `POST /mark-all-read` before `/:id` in notifications; `GET /results` and `POST /run` before `/:id` in healthChecks; `POST /run` before `/:id` in installationReadiness.
-
-## Phase 6 frontend pages (4 total)
-document-management (3 tabs: Documents/Templates/Categories), reports (3 tabs: Run Reports/Scheduled/Output History), notifications (2 tabs: Inbox/Escalation Rules), deployment (4 tabs: Health Checks/Update Packages/Deployment Events/Readiness). Sidebar sections added: "Documents & Reports" and "System".
-
-## Session guards — demo-mode fallback pattern
-All mutating route guards use `const actorUserId = (req as any).session?.userId ?? 1;` (demo fallback to admin) instead of a hard 401. This keeps the app fully functional without express-session while still populating actorUserId in audit logs. The production-readiness dashboard marks real session enforcement as "Planned". **Do not add hard 401 guards** until express-session is wired into app.ts and POST /auth/login sets req.session.userId.
-
-**Why:** express-session is not installed; app.ts has no session middleware; req.session is always undefined in dev/test; hard 401 guards break all integration tests and the demo UI.
-
-## leaveRequests.ts — merge corruption pattern
-Three task branches (cert gating, revoke, concurrency lock) all edited leaveRequests.ts and corrupted it: duplicate `const balance` declarations, wrong route paths (all labeled `/attachments`), and stray handler bodies mixed into other handlers. The canonical correct endpoints are: submit, decide, cancel, revoke, return, attachments — all distinct paths. Also: GET /leave-requests was filtering for approved/under_review only, ignoring all query params — fixed to proper conditional filter.
-
-## Audit log actorUserId
-All db.insert(auditLogsTable) calls must include `actorUserId: (req as any).session?.userId ?? 1`. The column exists in auditLogsTable. 112 inserts were missing this in Phase 5/6 routes — all fixed in stabilization pass.
-
-## Payroll calculate handler — known pitfalls
-- The per-employee holiday set is `empHolidaySet` (not `holidaySet`). Any new code inside the employee loop that calls `overlapDays(...)` must pass `empHolidaySet` — using an undefined `holidaySet` causes a silent 500.
-- Period aggregate update uses column names `totalGrossSalary` / `totalNetSalary` (NOT `totalGrossPayroll` / `totalNetPayroll`). Wrong names silently throw a Drizzle type error → 500.
-- `exceptionCount` must be saved to `payrollPeriodsTable` in the update set; the GET /:id response includes it for "under_review" status checks.
-- Response must include `runsCreated: runs.length` (tests check this key).
-- `buildHolidaySet(rows, startYear, endYear, sectorFilter)` takes a sector string — pass `emp.organizationType ?? "commercial"`. Recurring dates use `h.date.slice(-6)` to extract "-MM-DD" regardless of how the date is stored ("YYYY-MM-DD" or "--MM-DD").
-- Feb 2098 test period has a seeded recurring "Founding Day" holiday on Feb 22 (Saturday). With Fri/Sat [5,6] it's already off (no impact). With Friday-only [5], Feb 22 becomes a working day, so the holiday removes one day → `FRIDAY_ONLY_WORKING_DAYS = 23`, not 24.
-
-## Simulated integration labels
-Three endpoints return `simulated: true` in their response: POST /health-checks/run, POST /report-definitions/:id/run, POST /update-packages/:id/install. Frontend deployment.tsx and reports.tsx show amber "⚠ Simulated" badges next to these actions.
-Connection-profile tests are now REAL for ldap/active_directory (ldapts bind), smtp (nodemailer verify+send), attendance_device (fetch {DEVICE_API_URL}/health); env vars LDAP_*/SMTP_*/DEVICE_API_* hold credentials (vault-ref pattern). Other integration types still return `simulated: true`; the profiles UI badges only those types.
-
-## Production readiness page
-artifacts/hrms/src/pages/production-readiness.tsx — 8 checklist categories, 15-module verification table, status badges: PASS/WARN/FAIL/UNVERIFIED/SIMULATED/PLANNED. Route: /production-readiness. Sidebar: "Readiness" under System section.
-
-## Policy version scoping
-Policy version numbering and `isCurrent` demotion must be scoped to the full target tuple (policyArea + orgId + targetEntityType + targetEntityId), with `isNull` for null columns.
-
-**Why:** Scoping by policyArea alone let one org's apply/rollback demote and renumber another org's versions for the same area (caught in review).
-
-**How to apply:** Any new code touching policy versions should reuse the `versionScope` helper in the policy governance routes.
-
-
-## Payroll proration convention
-Mid-period hires/leavers are prorated by employed working days / period working days. Employment end comes from employment contracts: only termination dates on/after the period start count, take the latest, and ignore entirely if the employee has an open active/signed contract (rehires must get full pay). Full-month amounts still drive the per-day deduction rate; only BASE/HOUSING/TRANSPORT (and percentage components via prorated base) are prorated — fixed components are not.
-
-## Configurable weekend days
-Payroll working-day math reads system_config key `payroll.weekendDays` (JSON array of getUTCDay indexes, e.g. "[5,6]") at calculate time, falling back to Fri/Sat when unset/invalid (incl. all-7-days, which would divide by zero). Other features (dashboard history seed, roster seeds) still assume Fri/Sat — read the config key if extending them.
-
-## Merge/rebase caution
-- Auto-merged rebases have produced silently corrupted files that were NOT listed as conflicted (duplicate `const` declarations, route handlers cross-contaminated / mislabeled paths in api-server routes). After resolving any rebase, always run `tsc --noEmit` per package AND the api-server vitest suite before continuing the rebase — conflict markers being gone is not enough.
-- Leave revoke sets request status to "cancelled" (not "revoked") — the integration tests and frontend expect this.
+## Monorepo layout
+- `lib/db` — Drizzle + PostgreSQL, `composite: true` + `emitDeclarationOnly`. Must rebuild dist after any schema change: `pnpm --filter @workspace/db exec tsc --project tsconfig.json`. esbuild reads TS source directly, so runtime is fine before rebuild; `tsc --noEmit` will report stale dist errors.
+- `artifacts/api-server` — Express, port 8080, esbuild bundle via `build.mjs`. All handlers: `async (req, res): Promise<void>` with `return void res.json(...)`. Static routes before `/:id`.
+- `artifacts/hrms` — React + Vite. Routes via wouter. Dark theme bg-slate-900. i18n via `t(en, ar)`.
+- `artifacts/mobile` — Expo React Native.
+- Seed runner: `scripts/node_modules/.bin/tsx artifacts/api-server/src/lib/seed-phaseN.ts`
+
+## Auth pattern (Phase 10 audit)
+- `express-session` + `connect-pg-simple` wired in `app.ts` (uses `pool` from `@workspace/db`, NOT a new `pg.Pool` — direct `pg` import fails because pg is only in lib/db/node_modules).
+- `artifacts/api-server/src/middleware/requireAuth.ts` exports `requireAuth()` and `getActorUserId()`.
+- `PILOT_AUTH=true` → requireAuth returns 401 for unauthenticated mutations. Default false = demo mode (`?? 1` fallback via getActorUserId).
+- Session augmentation in `src/types/session.d.ts`: userId, userRole, username.
+- Frontend: `credentials: 'include'` on all auth fetch calls in `use-auth.tsx`. `artifacts/hrms/src/lib/api.ts` is a centralized fetch helper with 401 redirect.
+- CORS in app.ts reflects origin + `credentials: true`.
+
+## Weekend config
+- `payroll.weekendDays` in `system_config` — JSON array, default `[5,6]` (Fri/Sat Saudi standard).
+- Tests that depend on weekend config MUST set it in beforeAll and restore in afterAll (payroll-proration.test.ts shows the pattern). Seeded value may differ from test expectation.
+- `getWeekendDays()` in `lib/weekend.ts` reads from DB, falls back to [5,6].
+
+## Route & test patterns
+- Test files are sequential (`--sequence`). Self-cleaning: insert → test → delete in beforeAll/afterAll.
+- Route audit (July 2026): 42 routes smoke-tested, 0 returned 5xx. Route aliases: `/api/audit-logs` (not /audit), `/api/users` (not /system-users), `/api/attendance/corrections` (not /attendance-corrections).
+- Schema drift test: `schema-drift.test.ts` compares live DB information_schema to Drizzle declarations. Run via `schema-drift` workflow.
+
+## Honest production state (July 2026)
+- REAL: payroll calculation, 3-tier OT from punch events, leave balances, LDAP/SMTP/device adapters, connection health monitor, config package HMAC, policy maker-checker, audit logging, proration.
+- SIMULATED: backup execution (records only, no pg_dump), restore tests, system health checks, software update apply, report execution, local AI (all 4 endpoints), non-LDAP/SMTP/device connection tests.
+- BLOCKED: authentication guards (PILOT_AUTH=false by default), RBAC, cross-org isolation, Keycloak SSO.
+- MISSING: docker-compose, Keycloak config, air-gap deployment docs, biometric vendor SDK protocols.
+
+## Pages added (Phase 10 + audit)
+- `/readiness` — Module Readiness Report with static blockers list (never misleads even if API down)
+- `/pilot-control-center` — live go-live gate evaluation from DB
+- `/uat-scripts` — 30 scripts × 9 roles, step-by-step runner
+- `/security-tests` — automated security scenario runner

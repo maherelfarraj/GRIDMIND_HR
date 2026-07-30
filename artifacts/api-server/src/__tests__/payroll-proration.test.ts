@@ -18,8 +18,10 @@ import {
   punchEventsTable,
   auditLogsTable,
   employmentContractsTable,
+  systemConfigTable,
 } from "@workspace/db";
 import app from "../app";
+import { WEEKEND_CONFIG_KEY } from "../routes/payrollPeriods.js";
 
 const SUFFIX = `${Date.now() % 1000000}`;
 const GRADE_CODE = `T-PRG-${SUFFIX}`;
@@ -49,6 +51,8 @@ let empRehireId: number;
 const contractIds: number[] = [];
 let periodId: number;
 const punchEventIds: number[] = [];
+// Weekend config state — saved before the test, restored after.
+let prevWeekendConfig: string | null = null;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -66,6 +70,25 @@ async function addPunches(employeeId: number, days: string[]) {
 }
 
 beforeAll(async () => {
+  // Pin weekend to Fri+Sat ([5,6]) so test assertions are deterministic
+  // regardless of what the DB config was set to by other tests or seeds.
+  const [existing] = await db.select().from(systemConfigTable)
+    .where(eq(systemConfigTable.key, WEEKEND_CONFIG_KEY));
+  prevWeekendConfig = existing?.value ?? null;
+  await db.insert(systemConfigTable).values({
+    key: WEEKEND_CONFIG_KEY,
+    value: "[5,6]",
+    valueType: "json",
+    category: "payroll",
+    labelEn: "Weekend Days",
+    labelAr: "أيام عطلة نهاية الأسبوع",
+    isPublic: true,
+    isReadonly: false,
+  }).onConflictDoUpdate({
+    target: systemConfigTable.key,
+    set: { value: "[5,6]" },
+  });
+
   const [seedEmp] = await db.select().from(employeesTable).limit(1);
   expect(seedEmp).toBeDefined();
 
@@ -151,6 +174,16 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Restore previous weekend config, or delete the key if it didn't exist before
+  if (prevWeekendConfig !== null) {
+    await db.update(systemConfigTable)
+      .set({ value: prevWeekendConfig })
+      .where(eq(systemConfigTable.key, WEEKEND_CONFIG_KEY));
+  } else {
+    await db.delete(systemConfigTable)
+      .where(eq(systemConfigTable.key, WEEKEND_CONFIG_KEY));
+  }
+
   if (periodId) {
     const runs = await db.select().from(payrollRunsTable)
       .where(eq(payrollRunsTable.payrollPeriodId, periodId));

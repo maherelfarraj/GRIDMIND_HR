@@ -76,6 +76,7 @@ import Pilot from '@/pages/pilot';
 import PilotControlCenter from '@/pages/pilot-control-center';
 import UATScripts from '@/pages/uat-scripts';
 import SecurityTests from '@/pages/security-tests';
+import ReadinessPage from '@/pages/readiness';
 
 const queryClient = new QueryClient();
 
@@ -172,6 +173,7 @@ function ProtectedRouter() {
         <Route path="/pilot-control-center" component={PilotControlCenter} />
         <Route path="/uat-scripts" component={UATScripts} />
         <Route path="/security-tests" component={SecurityTests} />
+        <Route path="/readiness" component={ReadinessPage} />
         <Route component={NotFound} />
       </Switch>
     </Shell>

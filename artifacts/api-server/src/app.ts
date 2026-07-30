@@ -1,8 +1,11 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { pool as pgPool } from "@workspace/db";
 
 const app: Express = express();
 
@@ -25,7 +28,51 @@ app.use(
     },
   }),
 );
-app.use(cors());
+
+// CORS: credentialed requests only for trusted origins (Replit dev domain,
+// localhost dev ports, same-origin/no-origin requests like curl and the proxy).
+const allowedOrigins = new Set<string>(
+  [
+    process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null,
+    ...(process.env.REPLIT_DOMAINS?.split(",").map((d) => `https://${d.trim()}`) ?? []),
+    "http://localhost:80",
+    "http://localhost:5000",
+    "http://127.0.0.1:80",
+  ].filter((o): o is string => Boolean(o)),
+);
+app.use(cors({
+  origin: (origin, cb) => {
+    // No Origin header = same-origin, curl, or server-to-server — allow.
+    if (!origin || allowedOrigins.has(origin)) { cb(null, true); return; }
+    cb(null, false); // disallowed origin: no CORS headers, browser blocks
+  },
+  credentials: true,
+}));
+
+const PgSession = connectPg(session);
+
+app.use(session({
+  store: new PgSession({ pool: pgPool, createTableIfMissing: true }),
+  secret: (() => {
+    const s = process.env.SESSION_SECRET;
+    if (!s) {
+      if (process.env.PILOT_AUTH === "true" || process.env.NODE_ENV === "production") {
+        throw new Error("SESSION_SECRET must be set when PILOT_AUTH or production mode is enabled");
+      }
+      return "dev-only-insecure-secret";
+    }
+    return s;
+  })(),
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 8 * 60 * 60 * 1000, // 8 hours
+    sameSite: "lax",
+  },
+}));
+
 // 10mb limit to allow base64-encoded medical certificate attachments
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));

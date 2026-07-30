@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import authRouter from "./auth";
+import { requireAuth } from "../middleware/requireAuth.js";
 import healthRouter from "./health";
 import dashboardRouter from "./dashboard";
 import employeesRouter from "./employees";
@@ -68,8 +69,19 @@ import { employeeRequestsRouter, announcementsRouter, approvalDelegationsRouter 
 
 const router: IRouter = Router();
 
+// Auth router first — POST /auth/login must be unauthenticated
 router.use(authRouter);
 router.use(healthRouter);
+
+// Enforce authentication for all mutating requests (POST/PATCH/PUT/DELETE)
+// placed after authRouter so /auth/login and /auth/logout pass through freely
+router.use((req, res, next) => {
+  if (["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) {
+    requireAuth(req, res, next);
+  } else {
+    next();
+  }
+});
 router.use(dashboardRouter);
 router.use(employeesRouter);
 router.use(departmentsRouter);

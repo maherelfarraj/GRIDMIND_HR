@@ -348,6 +348,15 @@ function BackupDrTab() {
 
   return (
     <div className="space-y-6">
+      {/* Backup simulation banner */}
+      <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm">
+        <AlertTriangle className="w-4 h-4 shrink-0" />
+        {t(
+          'Backup execution is not implemented; records shown are metadata only. No pg_dump is executed in this installation.',
+          'تنفيذ النسخ الاحتياطي غير مُطبَّق؛ السجلات المعروضة بيانات وصفية فقط. لا يتم تنفيذ pg_dump في هذا التثبيت.'
+        )}
+      </div>
+
       {/* DR Status card */}
       {loadingDr ? <Skeleton className="h-48 rounded-xl" /> : dr && (
         <Card className="rounded-xl shadow-sm">
