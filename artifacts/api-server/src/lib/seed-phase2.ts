@@ -5,6 +5,7 @@
 import { db, shiftsTable, rostersTable, overtimeRulesTable, punchEventsTable,
          employeesTable, attendanceDevicesTable, attendanceRecordsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { getWeekendDays } from "./weekend";
 
 async function main() {
   console.log("🌱 Seeding Phase 2 data…");
@@ -71,13 +72,14 @@ async function main() {
   };
 
   const today = new Date("2026-07-29");
+  const weekendDays = await getWeekendDays();
   const rosterEntries: any[] = [];
   for (let d = -6; d <= 6; d++) {
     const dt = new Date(today);
     dt.setDate(dt.getDate() + d);
     const dateStr = dt.toISOString().split("T")[0];
     const dow = dt.getDay(); // 0=Sun, 5=Fri, 6=Sat
-    const isWeekend = dow === 5 || dow === 6;
+    const isWeekend = weekendDays.includes(dow); // configured weekend (default Fri/Sat)
 
     for (const emp of employees) {
       const shiftCode = empShiftMap[emp.id] ?? "DS";

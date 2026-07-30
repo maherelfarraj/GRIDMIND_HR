@@ -3,38 +3,12 @@ import {
   db, payrollPeriodsTable, payrollRunsTable, payrollRunLinesTable,
   employeesTable, salaryGradesTable, payComponentsTable, auditLogsTable,
   overtimeRulesTable, punchEventsTable, leaveRequestsTable, leaveTypesTable,
-  attendanceRecordsTable, publicHolidaysTable, systemConfigTable,
+  attendanceRecordsTable, publicHolidaysTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { getWeekendDays, WEEKEND_CONFIG_KEY } from "../lib/weekend";
 
-/** Default weekend day indexes (JS getUTCDay): Friday=5, Saturday=6 — the Saudi weekend. */
-const DEFAULT_WEEKEND_DAYS = [5, 6];
-
-/** System config key holding a JSON array of weekend day indexes (0=Sun … 6=Sat). */
-export const WEEKEND_CONFIG_KEY = "payroll.weekendDays";
-
-/**
- * Read configured weekend days from system_config ("payroll.weekendDays",
- * JSON array of day indexes 0–6). Falls back to Fri/Sat when unset or invalid.
- */
-async function getWeekendDays(): Promise<number[]> {
-  const [row] = await db.select().from(systemConfigTable)
-    .where(eq(systemConfigTable.key, WEEKEND_CONFIG_KEY));
-  if (!row?.value) return DEFAULT_WEEKEND_DAYS;
-  try {
-    const parsed = JSON.parse(row.value);
-    if (
-      Array.isArray(parsed) &&
-      parsed.length > 0 &&
-      parsed.length < 7 &&
-      parsed.every(d => Number.isInteger(d) && d >= 0 && d <= 6)
-    ) {
-      return [...new Set(parsed as number[])];
-    }
-  } catch { /* fall through to default */ }
-  console.warn(`Invalid ${WEEKEND_CONFIG_KEY} config value "${row.value}" — falling back to Fri/Sat`);
-  return DEFAULT_WEEKEND_DAYS;
-}
+export { WEEKEND_CONFIG_KEY };
 
 /** Count working days (excluding weekends and public holidays) in [start, end] inclusive (YYYY-MM-DD strings). */
 function countWorkingDays(start: string, end: string, weekendDays: number[], holidays: Set<string> = new Set()): number {

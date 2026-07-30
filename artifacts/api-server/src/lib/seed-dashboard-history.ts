@@ -6,6 +6,7 @@
  */
 import { db, employeesTable, attendanceRecordsTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
+import { getWeekendDays } from "./weekend";
 
 function mulberry32(seed: number) {
   return () => {
@@ -17,6 +18,7 @@ function mulberry32(seed: number) {
 }
 
 async function main() {
+  const weekendDays = await getWeekendDays();
   const employees = await db.select().from(employeesTable).where(eq(employeesTable.status, "active"));
   const today = new Date();
   const dates: string[] = [];
@@ -36,7 +38,7 @@ async function main() {
   for (const date of dates) {
     if (existingDates.has(date)) continue;
     const dow = new Date(date + "T00:00:00").getDay();
-    if (dow === 5 || dow === 6) continue; // Fri/Sat weekend
+    if (weekendDays.includes(dow)) continue; // configured weekend (default Fri/Sat)
     const rand = mulberry32(Number(date.replace(/-/g, "")));
     for (const emp of employees) {
       const r = rand();
