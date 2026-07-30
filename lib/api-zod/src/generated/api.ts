@@ -1333,6 +1333,26 @@ export const UpdateUserResponse = zod.object({
 
 
 /**
+ * @summary Set or reset a user's password (hashed server-side)
+ */
+export const SetUserPasswordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const setUserPasswordBodyPasswordMin = 8;
+
+
+
+export const SetUserPasswordBody = zod.object({
+  "password": zod.string().min(setUserPasswordBodyPasswordMin)
+})
+
+export const SetUserPasswordResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Get the current authenticated user
  */
 export const GetAuthMeResponse = zod.object({

@@ -47,3 +47,7 @@ Seeded with fictional data:
 - PostgreSQL backend (Drizzle ORM)
 - All `integer` types in OpenAPI spec use `number` (Zod v3 compatibility — avoids `zod.int()`)
 - Bilingual labels on all UI elements
+
+## Pilot auth password provisioning
+- Demo accounts (admin, fatima.zahrani, omar.ghamdi, aisha.otaibi) have bcrypt password hashes stored in the DB; admins can set/reset any password from the System Users page.
+- Optional re-provisioning at server boot is strictly opt-in: set `SEED_DEMO_PASSWORDS=true` and `DEMO_PILOT_PASSWORD=<value>` at runtime (never committed); it never runs when NODE_ENV=production and never overwrites an existing hash.

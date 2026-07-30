@@ -1,7 +1,8 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import { db, systemUsersTable, rolesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { CreateUserBody, UpdateUserBody } from "@workspace/api-zod";
+import { CreateUserBody, UpdateUserBody, SetUserPasswordBody } from "@workspace/api-zod";
 
 const router = Router();
 
@@ -11,8 +12,9 @@ function parseId(raw: string | string[]): number {
 
 async function buildUserResponse(u: typeof systemUsersTable.$inferSelect) {
   const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, u.roleId));
+  const { passwordHash: _passwordHash, ...safe } = u;
   return {
-    ...u,
+    ...safe,
     roleNameEn: role?.nameEn ?? "Unknown",
     lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toISOString() : null,
     createdAt: u.createdAt.toISOString(),
@@ -24,7 +26,7 @@ router.get("/users", async (req, res): Promise<void> => {
   const roles = await db.select().from(rolesTable);
   const roleMap = Object.fromEntries(roles.map((r) => [r.id, r]));
 
-  const result = users.map((u) => ({
+  const result = users.map(({ passwordHash: _passwordHash, ...u }) => ({
     ...u,
     roleNameEn: roleMap[u.roleId]?.nameEn ?? "Unknown",
     lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toISOString() : null,
@@ -58,6 +60,37 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
   const [user] = await db.update(systemUsersTable).set(parsed.data).where(eq(systemUsersTable.id, id)).returning();
   if (!user) { res.status(404).json({ error: "Not found" }); return; }
   res.json(await buildUserResponse(user));
+});
+
+// Roles allowed to set/reset other users' passwords.
+const PASSWORD_ADMIN_ROLES = new Set(["Super Administrator"]);
+
+// POST /users/:id/password — set or reset a user's password (admins only).
+// The plaintext password is hashed server-side with bcrypt; only the hash is stored.
+router.post("/users/:id/password", async (req, res): Promise<void> => {
+  // Authorization: the acting user (session user; demo fallback userId=1)
+  // must hold an admin role. Prevents any authenticated user from taking
+  // over other accounts via password reset.
+  const actorId = req.session?.userId ?? 1;
+  const [actor] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, actorId));
+  const [actorRole] = actor
+    ? await db.select().from(rolesTable).where(eq(rolesTable.id, actor.roleId))
+    : [];
+  if (!actor || !actor.isActive || !actorRole || !PASSWORD_ADMIN_ROLES.has(actorRole.nameEn)) {
+    res.status(403).json({ error: "Insufficient privileges to set passwords" });
+    return;
+  }
+
+  const id = parseId(req.params.id);
+  const parsed = SetUserPasswordBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [user] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, id));
+  if (!user) { res.status(404).json({ error: "Not found" }); return; }
+
+  const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+  await db.update(systemUsersTable).set({ passwordHash }).where(eq(systemUsersTable.id, id));
+  res.json({ success: true });
 });
 
 router.get("/auth/me", async (req, res): Promise<void> => {

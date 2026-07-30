@@ -421,6 +421,8 @@ export * from './scheduledExport';
 export * from './securityAlert';
 export * from './securityClearance';
 export * from './securityClearanceInput';
+export * from './setPasswordInput';
+export * from './setUserPassword200';
 export * from './shift';
 export * from './shiftInput';
 export * from './successionCandidate';

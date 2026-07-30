@@ -1,19 +1,60 @@
+import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { useListUsers, useCreateUser, useGetUser, useUpdateUser, getGetUserQueryKey } from '@workspace/api-client-react';
+import { useListUsers, useCreateUser, useGetUser, useUpdateUser, getGetUserQueryKey, useSetUserPassword } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Server, Search, Shield, UserCog, MoreHorizontal } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Server, Search, Shield, UserCog, MoreHorizontal, KeyRound } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Users() {
   const { t, lang } = useLanguage();
+  const { toast } = useToast();
   const { data: usersData, isLoading } = useListUsers();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const { data: userDetail } = useGetUser(1, { query: { enabled: false, queryKey: getGetUserQueryKey(1) } });
+  const setUserPassword = useSetUserPassword();
+
+  const [passwordTarget, setPasswordTarget] = useState<{ id: number; name: string } | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const closePasswordDialog = () => {
+    setPasswordTarget(null);
+    setNewPassword('');
+    setConfirmPassword('');
+  };
+
+  const handleSetPassword = () => {
+    if (!passwordTarget) return;
+    if (newPassword.length < 8) {
+      toast({ title: t('Password too short', 'كلمة المرور قصيرة جداً'), description: t('Password must be at least 8 characters.', 'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.'), variant: 'destructive' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: t('Passwords do not match', 'كلمتا المرور غير متطابقتين'), variant: 'destructive' });
+      return;
+    }
+    setUserPassword.mutate(
+      { id: passwordTarget.id, data: { password: newPassword } },
+      {
+        onSuccess: () => {
+          toast({ title: t('Password updated', 'تم تحديث كلمة المرور'), description: t(`Password set for ${passwordTarget.name}.`, `تم تعيين كلمة المرور لـ ${passwordTarget.name}.`) });
+          closePasswordDialog();
+        },
+        onError: () => {
+          toast({ title: t('Failed to set password', 'فشل تعيين كلمة المرور'), variant: 'destructive' });
+        },
+      },
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -115,9 +156,19 @@ export default function Users() {
                       {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : t('Never', 'أبداً')}
                     </TableCell>
                     <TableCell className="text-end">
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setPasswordTarget({ id: user.id, name: lang === 'en' ? user.fullNameEn : user.fullNameAr })}>
+                            <KeyRound className="w-4 h-4 me-2" />
+                            {t('Set Password', 'تعيين كلمة المرور')}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))
@@ -126,6 +177,44 @@ export default function Users() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={passwordTarget !== null} onOpenChange={(open) => { if (!open) closePasswordDialog(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('Set Password', 'تعيين كلمة المرور')}</DialogTitle>
+            <DialogDescription>
+              {passwordTarget && t(`Set a new password for ${passwordTarget.name}. It is hashed on the server and never stored in plain text.`, `تعيين كلمة مرور جديدة لـ ${passwordTarget.name}. يتم تشفيرها على الخادم ولا تُخزن كنص عادي أبداً.`)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">{t('New Password', 'كلمة المرور الجديدة')}</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder={t('At least 8 characters', '8 أحرف على الأقل')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">{t('Confirm Password', 'تأكيد كلمة المرور')}</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closePasswordDialog}>{t('Cancel', 'إلغاء')}</Button>
+            <Button onClick={handleSetPassword} disabled={setUserPassword.isPending}>
+              {setUserPassword.isPending ? t('Saving...', 'جارٍ الحفظ...') : t('Set Password', 'تعيين كلمة المرور')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

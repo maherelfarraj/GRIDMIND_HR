@@ -25,17 +25,5 @@ description: Key build constraints and conventions for the HRMS enterprise HR sy
 
 ## Route & test patterns
 - Test files are sequential (`--sequence`). Self-cleaning: insert → test → delete in beforeAll/afterAll.
-- Route audit (July 2026): 42 routes smoke-tested, 0 returned 5xx. Route aliases: `/api/audit-logs` (not /audit), `/api/users` (not /system-users), `/api/attendance/corrections` (not /attendance-corrections).
 - Schema drift test: `schema-drift.test.ts` compares live DB information_schema to Drizzle declarations. Run via `schema-drift` workflow.
-
-## Honest production state (July 2026)
-- REAL: payroll calculation, 3-tier OT from punch events, leave balances, LDAP/SMTP/device adapters, connection health monitor, config package HMAC, policy maker-checker, audit logging, proration.
-- SIMULATED: backup execution (records only, no pg_dump), restore tests, system health checks, software update apply, report execution, local AI (all 4 endpoints), non-LDAP/SMTP/device connection tests.
-- BLOCKED: authentication guards (PILOT_AUTH=false by default), RBAC, cross-org isolation, Keycloak SSO.
-- MISSING: docker-compose, Keycloak config, air-gap deployment docs, biometric vendor SDK protocols.
-
-## Pages added (Phase 10 + audit)
-- `/readiness` — Module Readiness Report with static blockers list (never misleads even if API down)
-- `/pilot-control-center` — live go-live gate evaluation from DB
-- `/uat-scripts` — 30 scripts × 9 roles, step-by-step runner
-- `/security-tests` — automated security scenario runner
+- Durable rule: several modules are intentionally simulated (backups, health checks, report execution, local AI, most connection tests); check whether a module is real or simulated before asserting behavior — don't assume a feature is wired to real infrastructure just because a UI exists.

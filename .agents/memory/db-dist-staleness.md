@@ -9,3 +9,5 @@ Rule: after any change to `lib/db/src/schema/*`, (1) run `pnpm exec tsc -b` in `
 **Why:** hit both at once — api-server typecheck failed on a column present in src, and the connection-profiles endpoint 500'd because two lastTest columns were never pushed.
 
 **How to apply:** whenever a drizzle select fails with "Failed query" and no reason, `\d <table>` via psql first; whenever @workspace/db types look wrong, rebuild lib/db before debugging.
+
+Update (Jul 2026): `pnpm run push` in lib/db now prompts to DROP the live `session` table (managed by connect-pg-simple, outside drizzle) and dies without a TTY. For additive column changes, apply `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` via psql instead, and let the schema-drift test confirm parity. Also: orval codegen emits zod-v4-only `zod.looseObject(` under zod v3 — the codegen script's postprocess now rewrites it to `zod.object(`.

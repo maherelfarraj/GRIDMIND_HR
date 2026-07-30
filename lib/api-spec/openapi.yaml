@@ -1007,6 +1007,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/SystemUser"
 
+  /users/{id}/password:
+    post:
+      operationId: setUserPassword
+      tags: [users]
+      summary: Set or reset a user's password (hashed server-side)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPasswordInput"
+      responses:
+        "200":
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                required: [success]
+
   /auth/me:
     get:
       operationId: getAuthMe
@@ -9556,6 +9584,12 @@ components:
         mfaEnabled: { type: boolean }
         preferredLanguage: { type: string }
         avatarUrl: { type: ["string", "null"] }
+
+    SetPasswordInput:
+      type: object
+      properties:
+        password: { type: string, minLength: 8 }
+      required: [password]
 
     # ── Leave Types ───────────────────────────────────────────
     LeaveType:

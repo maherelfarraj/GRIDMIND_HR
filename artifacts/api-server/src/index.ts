@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startHealthMonitor } from "./lib/health-monitor";
+import { seedDemoPasswords } from "./lib/seed-passwords";
 
 const rawPort = process.env["PORT"];
 
@@ -24,4 +25,7 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startHealthMonitor();
+  seedDemoPasswords().catch((err) => {
+    logger.error({ err }, "Failed to provision demo password hashes");
+  });
 });

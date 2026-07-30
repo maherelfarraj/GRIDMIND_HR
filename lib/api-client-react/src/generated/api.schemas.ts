@@ -942,6 +942,11 @@ export interface SystemUserUpdate {
   avatarUrl?: string | null;
 }
 
+export interface SetPasswordInput {
+  /** @minLength 8 */
+  password: string;
+}
+
 export interface LeaveType {
   id: number;
   codeEn: string;
@@ -4289,6 +4294,10 @@ severity?: string | null;
  * @nullable
  */
 acknowledged?: boolean | null;
+};
+
+export type SetUserPassword200 = {
+  success: boolean;
 };
 
 export type GetShiftRosterParams = {

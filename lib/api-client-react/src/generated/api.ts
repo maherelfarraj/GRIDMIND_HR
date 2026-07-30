@@ -404,6 +404,8 @@ import type {
   SecurityAlert,
   SecurityClearance,
   SecurityClearanceInput,
+  SetPasswordInput,
+  SetUserPassword200,
   Shift,
   ShiftInput,
   SuccessionCandidate,
@@ -4099,6 +4101,78 @@ export const useUpdateUser = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateUserMutationOptions(options));
+    }
+
+export const getSetUserPasswordUrl = (id: number,) => {
+
+
+
+
+  return `/api/users/${id}/password`
+}
+
+/**
+ * @summary Set or reset a user's password (hashed server-side)
+ */
+export const setUserPassword = async (id: number,
+    setPasswordInput: SetPasswordInput, options?: Parameters<typeof customFetch>[1]): Promise<SetUserPassword200> => {
+
+  return customFetch<SetUserPassword200>(getSetUserPasswordUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setPasswordInput)
+  }
+);}
+
+
+
+
+
+export const getSetUserPasswordMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setUserPassword>>, TError,{id: number;data: BodyType<SetPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setUserPassword>>, TError,{id: number;data: BodyType<SetPasswordInput>}, TContext> => {
+
+const mutationKey = ['setUserPassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setUserPassword>>, {id: number;data: BodyType<SetPasswordInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setUserPassword(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetUserPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof setUserPassword>>>
+    export type SetUserPasswordMutationBody = BodyType<SetPasswordInput>
+    export type SetUserPasswordMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Set or reset a user's password (hashed server-side)
+ */
+export const useSetUserPassword = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setUserPassword>>, TError,{id: number;data: BodyType<SetPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setUserPassword>>,
+        TError,
+        {id: number;data: BodyType<SetPasswordInput>},
+        TContext
+      > => {
+      return useMutation(getSetUserPasswordMutationOptions(options));
     }
 
 export const getGetAuthMeUrl = () => {
