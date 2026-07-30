@@ -125,6 +125,9 @@ function AddProfileDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
 // still return simulated test results.
 const REAL_ADAPTER_TYPES = new Set(['ldap', 'active_directory', 'smtp', 'attendance_device']);
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(v: string) { return EMAIL_RE.test(v.trim()); }
+
 export default function IntegrationGovernance() {
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -390,18 +393,21 @@ export default function IntegrationGovernance() {
                 value={smtpRecipient}
                 onChange={e => setSmtpRecipient(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && smtpRecipient.trim()) {
+                  if (e.key === 'Enter' && isValidEmail(smtpRecipient)) {
                     testConnection(smtpTestTarget.id, smtpRecipient.trim());
                     setSmtpTestTarget(null);
                   }
                 }}
               />
+              {smtpRecipient.trim() !== '' && !isValidEmail(smtpRecipient) && (
+                <p className="text-xs text-amber-400">{t('Enter a valid email address, e.g. name@company.com', 'أدخل عنوان بريد إلكتروني صالحاً، مثل name@company.com')}</p>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" className="border-slate-600" onClick={() => setSmtpTestTarget(null)}>{t('Cancel', 'إلغاء')}</Button>
               <Button
                 className="bg-blue-600 hover:bg-blue-700"
-                disabled={!smtpRecipient.trim()}
+                disabled={!isValidEmail(smtpRecipient)}
                 onClick={() => { testConnection(smtpTestTarget.id, smtpRecipient.trim()); setSmtpTestTarget(null); }}
               >
                 {t('Send Test', 'إرسال الاختبار')}

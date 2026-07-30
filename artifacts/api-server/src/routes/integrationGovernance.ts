@@ -97,6 +97,13 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
     const [profile] = await db.select().from(integrationConnectionProfilesTable).where(eq(integrationConnectionProfilesTable.id, id));
     if (!profile) return void res.status(404).json({ error: "Not found" });
 
+    const testRecipient = req.body?.testRecipient;
+    if (testRecipient !== undefined && testRecipient !== null && testRecipient !== "") {
+      if (typeof testRecipient !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testRecipient.trim())) {
+        return void res.status(400).json({ error: "Invalid testRecipient: must be a well-formed email address" });
+      }
+    }
+
     const testedAt = new Date();
     let success: boolean;
     let message: string;
@@ -117,7 +124,7 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
           result = await testLdapConnection();
           break;
         case "smtp":
-          result = await testSmtpConnection(req.body?.testRecipient);
+          result = await testSmtpConnection(typeof testRecipient === "string" ? testRecipient.trim() : undefined);
           break;
         case "attendance_device":
           result = await testDeviceConnection();
