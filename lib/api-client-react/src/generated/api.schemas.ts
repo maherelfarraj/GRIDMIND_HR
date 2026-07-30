@@ -1332,6 +1332,730 @@ export interface Payslip {
   calculatedAt?: string | null;
 }
 
+export interface SystemConfig {
+  id: number;
+  key: string;
+  value: string;
+  valueType: string;
+  category: string;
+  labelEn: string;
+  labelAr: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  isPublic: boolean;
+  isReadonly: boolean;
+  updatedAt: string;
+}
+
+/**
+ * Map of key → new value strings
+ */
+export interface SystemConfigPatch {[key: string]: string}
+
+export interface MilitaryRank {
+  id: number;
+  rankCode: string;
+  abbreviationEn: string;
+  abbreviationAr: string;
+  nameEn: string;
+  nameAr: string;
+  category: string;
+  /** @nullable */
+  natoEquivalent?: string | null;
+  rankOrder: number;
+  /** @nullable */
+  salaryGradeCode?: string | null;
+  organizationType: string;
+  /** @nullable */
+  insigniaDescription?: string | null;
+  isActive: boolean;
+  createdAt?: string;
+}
+
+export interface MilitaryRankInput {
+  rankCode: string;
+  abbreviationEn: string;
+  abbreviationAr: string;
+  nameEn: string;
+  nameAr: string;
+  category?: string;
+  /** @nullable */
+  natoEquivalent?: string | null;
+  rankOrder?: number;
+  /** @nullable */
+  salaryGradeCode?: string | null;
+  organizationType?: string;
+  /** @nullable */
+  insigniaDescription?: string | null;
+  isActive?: boolean;
+}
+
+export interface OrgUnit {
+  id: number;
+  unitCode: string;
+  nameEn: string;
+  nameAr: string;
+  /** @nullable */
+  shortNameEn?: string | null;
+  /** @nullable */
+  shortNameAr?: string | null;
+  unitType: string;
+  organizationType: string;
+  /** @nullable */
+  parentId?: number | null;
+  /** @nullable */
+  commanderEmployeeId?: number | null;
+  /** @nullable */
+  missionEn?: string | null;
+  levelDepth: number;
+  /** @nullable */
+  authorizedStrength?: number | null;
+  currentStrength: number;
+  /** @nullable */
+  locationCode?: string | null;
+  classificationLevel: string;
+  isActive: boolean;
+  createdAt?: string;
+}
+
+export type OrgUnitNode = OrgUnit & ({
+  /** @nullable */
+  commanderNameEn?: string | null;
+  /** @nullable */
+  parentNameEn?: string | null;
+  children?: OrgUnitNode[];
+});
+
+export interface OrgUnitInput {
+  unitCode: string;
+  nameEn: string;
+  nameAr: string;
+  /** @nullable */
+  shortNameEn?: string | null;
+  /** @nullable */
+  shortNameAr?: string | null;
+  unitType: string;
+  organizationType?: string;
+  /** @nullable */
+  parentId?: number | null;
+  /** @nullable */
+  commanderEmployeeId?: number | null;
+  /** @nullable */
+  missionEn?: string | null;
+  levelDepth?: number;
+  /** @nullable */
+  authorizedStrength?: number | null;
+  /** @nullable */
+  locationCode?: string | null;
+  classificationLevel?: string;
+  isActive?: boolean;
+}
+
+export interface DutyStation {
+  id: number;
+  stationCode: string;
+  nameEn: string;
+  nameAr: string;
+  country: string;
+  /** @nullable */
+  region?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  latitude?: string | null;
+  /** @nullable */
+  longitude?: string | null;
+  stationType: string;
+  classificationLevel: string;
+  /** @nullable */
+  commandingUnitCode?: string | null;
+  timezoneName?: string;
+  isActive: boolean;
+  createdAt?: string;
+}
+
+export interface DutyStationInput {
+  stationCode: string;
+  nameEn: string;
+  nameAr: string;
+  country?: string;
+  /** @nullable */
+  region?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  latitude?: string | null;
+  /** @nullable */
+  longitude?: string | null;
+  stationType?: string;
+  classificationLevel?: string;
+  /** @nullable */
+  commandingUnitCode?: string | null;
+  timezoneName?: string;
+  isActive?: boolean;
+}
+
+export interface EmployeePosting {
+  id: number;
+  employeeId: number;
+  orgUnitId: number;
+  /** @nullable */
+  dutyStationId?: number | null;
+  /** @nullable */
+  rankId?: number | null;
+  positionTitleEn: string;
+  positionTitleAr: string;
+  /** @nullable */
+  positionCode?: string | null;
+  postingType: string;
+  startDate: string;
+  /** @nullable */
+  endDate?: string | null;
+  isCurrent: boolean;
+  /** @nullable */
+  orderNumber?: string | null;
+  /** @nullable */
+  orderDate?: string | null;
+  /** @nullable */
+  authorizedByEmployeeId?: number | null;
+  /** @nullable */
+  remarksEn?: string | null;
+  createdAt?: string;
+  /** @nullable */
+  employeeNameEn?: string | null;
+  /** @nullable */
+  orgUnitNameEn?: string | null;
+  /** @nullable */
+  dutyStationNameEn?: string | null;
+  /** @nullable */
+  rankNameEn?: string | null;
+}
+
+export interface EmployeePostingInput {
+  employeeId: number;
+  orgUnitId: number;
+  /** @nullable */
+  dutyStationId?: number | null;
+  /** @nullable */
+  rankId?: number | null;
+  positionTitleEn: string;
+  positionTitleAr: string;
+  /** @nullable */
+  positionCode?: string | null;
+  postingType?: string;
+  startDate: string;
+  /** @nullable */
+  endDate?: string | null;
+  isCurrent?: boolean;
+  /** @nullable */
+  orderNumber?: string | null;
+  /** @nullable */
+  remarksEn?: string | null;
+}
+
+export interface EmployeeTransfer {
+  id: number;
+  employeeId: number;
+  /** @nullable */
+  fromOrgUnitId?: number | null;
+  toOrgUnitId: number;
+  /** @nullable */
+  fromStationId?: number | null;
+  /** @nullable */
+  toStationId?: number | null;
+  transferDate: string;
+  /** @nullable */
+  effectiveDate?: string | null;
+  orderNumber: string;
+  status: string;
+  /** @nullable */
+  reasonEn?: string | null;
+  /** @nullable */
+  approvedByEmployeeId?: number | null;
+  requiresDualAuth: boolean;
+  createdAt?: string;
+  /** @nullable */
+  employeeNameEn?: string | null;
+  /** @nullable */
+  fromUnitNameEn?: string | null;
+  /** @nullable */
+  toUnitNameEn?: string | null;
+}
+
+export interface EmployeeTransferInput {
+  employeeId: number;
+  /** @nullable */
+  fromOrgUnitId?: number | null;
+  toOrgUnitId: number;
+  /** @nullable */
+  fromStationId?: number | null;
+  /** @nullable */
+  toStationId?: number | null;
+  transferDate: string;
+  /** @nullable */
+  effectiveDate?: string | null;
+  orderNumber: string;
+  status?: string;
+  /** @nullable */
+  reasonEn?: string | null;
+  /** @nullable */
+  approvedByEmployeeId?: number | null;
+  requiresDualAuth?: boolean;
+}
+
+export interface EmployeeSecondment {
+  id: number;
+  employeeId: number;
+  hostOrgUnitId: number;
+  /** @nullable */
+  parentOrgUnitId?: number | null;
+  /** @nullable */
+  hostDutyStationId?: number | null;
+  startDate: string;
+  /** @nullable */
+  endDate?: string | null;
+  status: string;
+  /** @nullable */
+  purposeEn?: string | null;
+  allowancePct: string;
+  /** @nullable */
+  orderNumber?: string | null;
+  requiresDualAuth: boolean;
+  createdAt?: string;
+  /** @nullable */
+  employeeNameEn?: string | null;
+  /** @nullable */
+  hostUnitNameEn?: string | null;
+}
+
+export interface EmployeeSecondmentInput {
+  employeeId: number;
+  hostOrgUnitId: number;
+  /** @nullable */
+  parentOrgUnitId?: number | null;
+  /** @nullable */
+  hostDutyStationId?: number | null;
+  startDate: string;
+  /** @nullable */
+  endDate?: string | null;
+  status?: string;
+  /** @nullable */
+  purposeEn?: string | null;
+  allowancePct?: number;
+  /** @nullable */
+  orderNumber?: string | null;
+  requiresDualAuth?: boolean;
+}
+
+export interface SecurityClearance {
+  id: number;
+  employeeId: number;
+  clearanceLevel: string;
+  status: string;
+  /** @nullable */
+  grantedDate?: string | null;
+  /** @nullable */
+  expiryDate?: string | null;
+  /** @nullable */
+  investigationAuthority?: string | null;
+  /** @nullable */
+  investigationReferenceNumber?: string | null;
+  /** @nullable */
+  adjudicationNotes?: string | null;
+  /** @nullable */
+  lastReviewedAt?: string | null;
+  /** @nullable */
+  accessCaveats?: string | null;
+  requiresDualAuthForChanges: boolean;
+  createdAt?: string;
+  /** @nullable */
+  employeeNameEn?: string | null;
+  /** @nullable */
+  employeeNameAr?: string | null;
+}
+
+export interface SecurityClearanceInput {
+  employeeId: number;
+  clearanceLevel: string;
+  status?: string;
+  /** @nullable */
+  grantedDate?: string | null;
+  /** @nullable */
+  expiryDate?: string | null;
+  /** @nullable */
+  investigationAuthority?: string | null;
+  /** @nullable */
+  investigationReferenceNumber?: string | null;
+  /** @nullable */
+  adjudicationNotes?: string | null;
+  /** @nullable */
+  accessCaveats?: string | null;
+}
+
+export interface MobilizationStatus {
+  id: number;
+  employeeId: number;
+  status: string;
+  /** @nullable */
+  unitAssignment?: string | null;
+  /** @nullable */
+  deploymentStart?: string | null;
+  /** @nullable */
+  deploymentEnd?: string | null;
+  /** @nullable */
+  deploymentLocation?: string | null;
+  deploymentType: string;
+  readinessCode: string;
+  /** @nullable */
+  mraRating?: string | null;
+  /** @nullable */
+  exemptionReason?: string | null;
+  /** @nullable */
+  remarksEn?: string | null;
+  updatedAt?: string;
+  /** @nullable */
+  employeeNameEn?: string | null;
+  /** @nullable */
+  employeeNameAr?: string | null;
+}
+
+export interface MobilizationStatusInput {
+  employeeId: number;
+  status: string;
+  /** @nullable */
+  unitAssignment?: string | null;
+  /** @nullable */
+  deploymentStart?: string | null;
+  /** @nullable */
+  deploymentEnd?: string | null;
+  /** @nullable */
+  deploymentLocation?: string | null;
+  deploymentType?: string;
+  readinessCode?: string;
+  /** @nullable */
+  mraRating?: string | null;
+  /** @nullable */
+  exemptionReason?: string | null;
+  /** @nullable */
+  remarksEn?: string | null;
+}
+
+export interface ChainOfCommandEntry {
+  id: number;
+  employeeId: number;
+  supervisorEmployeeId: number;
+  relationshipType: string;
+  effectiveFrom: string;
+  /** @nullable */
+  effectiveTo?: string | null;
+  isActive: boolean;
+  /** @nullable */
+  notesEn?: string | null;
+  createdAt?: string;
+  /** @nullable */
+  employeeNameEn?: string | null;
+  /** @nullable */
+  supervisorNameEn?: string | null;
+}
+
+export interface ChainOfCommandInput {
+  employeeId: number;
+  supervisorEmployeeId: number;
+  relationshipType: string;
+  effectiveFrom: string;
+  /** @nullable */
+  effectiveTo?: string | null;
+  isActive?: boolean;
+  /** @nullable */
+  notesEn?: string | null;
+}
+
+export interface DualAuthRequest {
+  id: number;
+  actionType: string;
+  /** @nullable */
+  targetEntityType?: string | null;
+  /** @nullable */
+  targetEntityId?: number | null;
+  /** @nullable */
+  targetEntityLabel?: string | null;
+  descriptionEn: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  /** @nullable */
+  justification?: string | null;
+  initiatedByUserId: number;
+  status: string;
+  /** @nullable */
+  firstApproverUserId?: number | null;
+  /** @nullable */
+  firstApprovedAt?: string | null;
+  /** @nullable */
+  secondApproverUserId?: number | null;
+  /** @nullable */
+  secondApprovedAt?: string | null;
+  expiresAt: string;
+  /** @nullable */
+  completedAt?: string | null;
+  /** @nullable */
+  rejectionReason?: string | null;
+  requiresSeparateDepartments: boolean;
+  createdAt?: string;
+  /** @nullable */
+  initiatedByUserName?: string | null;
+}
+
+export interface DualAuthRequestInput {
+  actionType: string;
+  /** @nullable */
+  targetEntityType?: string | null;
+  /** @nullable */
+  targetEntityId?: number | null;
+  /** @nullable */
+  targetEntityLabel?: string | null;
+  descriptionEn: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  /** @nullable */
+  justification?: string | null;
+  /** @nullable */
+  payloadJson?: string | null;
+  ttlMinutes?: number;
+}
+
+export interface DualAuthDecision {
+  approverUserId: number;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface BreakGlassAccess {
+  id: number;
+  userId: number;
+  resourceType: string;
+  /** @nullable */
+  resourceId?: number | null;
+  /** @nullable */
+  resourceLabel?: string | null;
+  justification: string;
+  accessGrantedAt: string;
+  expiresAt: string;
+  isActive: boolean;
+  /** @nullable */
+  revokedAt?: string | null;
+  /** @nullable */
+  reviewOutcome?: string | null;
+  notificationSent: boolean;
+  createdAt?: string;
+  /** @nullable */
+  userName?: string | null;
+}
+
+export interface BreakGlassRequest {
+  userId: number;
+  resourceType: string;
+  /** @nullable */
+  resourceId?: number | null;
+  /** @nullable */
+  resourceLabel?: string | null;
+  justification: string;
+  /** @nullable */
+  emergencyCode?: string | null;
+  ttlMinutes?: number;
+}
+
+export interface BackupRecord {
+  id: number;
+  backupType: string;
+  status: string;
+  startedAt: string;
+  /** @nullable */
+  completedAt?: string | null;
+  /** @nullable */
+  fileSizeBytes?: number | null;
+  /** @nullable */
+  checksum?: string | null;
+  /** @nullable */
+  storageLocation?: string | null;
+  retentionDays: number;
+  isVerified: boolean;
+  /** @nullable */
+  verifiedAt?: string | null;
+  restoreTestResult: string;
+  serverCode: string;
+  /** @nullable */
+  errorMessage?: string | null;
+}
+
+export interface BackupRecordInput {
+  backupType: string;
+  status?: string;
+  /** @nullable */
+  fileSizeBytes?: number | null;
+  /** @nullable */
+  checksum?: string | null;
+  /** @nullable */
+  storageLocation?: string | null;
+  retentionDays?: number;
+  serverCode?: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface BranchServer {
+  id: number;
+  serverCode: string;
+  nameEn: string;
+  nameAr: string;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  orgUnitCode?: string | null;
+  /** @nullable */
+  ipAddress?: string | null;
+  /** @nullable */
+  publicKeyHash?: string | null;
+  status: string;
+  syncEnabled: boolean;
+  /** @nullable */
+  lastSeenAt?: string | null;
+  /** @nullable */
+  lastSyncAt?: string | null;
+  /** @nullable */
+  lastSyncStatus?: string | null;
+  pendingSyncCount: number;
+  /** @nullable */
+  adminEmail?: string | null;
+  /** @nullable */
+  softwareVersion?: string | null;
+  registeredAt?: string;
+}
+
+export interface BranchServerInput {
+  serverCode: string;
+  nameEn: string;
+  nameAr: string;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  orgUnitCode?: string | null;
+  /** @nullable */
+  ipAddress?: string | null;
+  /** @nullable */
+  publicKeyHash?: string | null;
+  status?: string;
+  syncEnabled?: boolean;
+  /** @nullable */
+  adminEmail?: string | null;
+  /** @nullable */
+  softwareVersion?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface SyncQueueEntry {
+  id: number;
+  sourceServerCode: string;
+  targetServerCode: string;
+  entityType: string;
+  /** @nullable */
+  entityId?: number | null;
+  /** @nullable */
+  entityLabel?: string | null;
+  operation: string;
+  status: string;
+  /** @nullable */
+  payloadHash?: string | null;
+  /** @nullable */
+  payloadSizeBytes?: number | null;
+  isEncrypted: boolean;
+  /** @nullable */
+  conflictResolution?: string | null;
+  /** @nullable */
+  conflictNotes?: string | null;
+  /** @nullable */
+  processedAt?: string | null;
+  /** @nullable */
+  errorMessage?: string | null;
+  retryCount: number;
+  /** @nullable */
+  resolvedAt?: string | null;
+  createdAt?: string;
+}
+
+export interface SyncStatusSummary {
+  totalServers: number;
+  onlineServers: number;
+  offlineServers: number;
+  pendingEntries: number;
+  conflictEntries: number;
+  failedEntries: number;
+  /** @nullable */
+  lastSyncAt?: string | null;
+  servers?: BranchServer[];
+}
+
+export interface LicenseRecord {
+  id: number;
+  productName: string;
+  edition: string;
+  licenseKeyHash: string;
+  /** @nullable */
+  issuedTo?: string | null;
+  /** @nullable */
+  issuedToOrgCode?: string | null;
+  maxUsers: number;
+  maxBranches: number;
+  validFrom: string;
+  /** @nullable */
+  validUntil?: string | null;
+  /** @nullable */
+  featuresJson?: string | null;
+  isActive: boolean;
+  /** @nullable */
+  activatedAt?: string | null;
+  /** @nullable */
+  lastValidatedAt?: string | null;
+  validationMethod: string;
+  offlineGraceDays: number;
+  /** @nullable */
+  nextValidationDue?: string | null;
+  createdAt?: string;
+  /** @nullable */
+  daysUntilExpiry?: number | null;
+  features?: string[];
+}
+
+export interface LicenseActivationInput {
+  licenseKey: string;
+  issuedTo: string;
+  validationMethod?: string;
+}
+
+export interface DrStatus {
+  overallStatus: string;
+  /** @nullable */
+  lastBackupAt?: string | null;
+  lastBackupStatus: string;
+  /** @nullable */
+  lastVerifiedAt?: string | null;
+  /** @nullable */
+  lastRestoreTestAt?: string | null;
+  lastRestoreTestResult: string;
+  /** @nullable */
+  rpoCurrent?: number | null;
+  rpoTarget: number;
+  rtoTarget: number;
+  totalBackupSizeBytes: number;
+  backupCount: number;
+  verifiedBackupCount: number;
+  alerts: string[];
+}
+
 export type ListEmployeesParams = {
 /**
  * @nullable
@@ -1601,5 +2325,85 @@ periodId?: number;
 employeeId?: number;
 status?: string;
 hasException?: string;
+};
+
+export type ListMilitaryRanksParams = {
+organizationType?: string;
+category?: string;
+};
+
+export type ListOrgUnitsParams = {
+organizationType?: string;
+unitType?: string;
+parentId?: number;
+};
+
+export type GetOrgUnitTreeParams = {
+organizationType?: string;
+};
+
+export type ListEmployeePostingsParams = {
+employeeId?: number;
+orgUnitId?: number;
+isCurrent?: boolean;
+};
+
+export type ListEmployeeTransfersParams = {
+employeeId?: number;
+status?: string;
+};
+
+export type ListEmployeeSecondmentsParams = {
+employeeId?: number;
+status?: string;
+};
+
+export type ListSecurityClearancesParams = {
+clearanceLevel?: string;
+status?: string;
+};
+
+export type ListMobilizationStatusesParams = {
+status?: string;
+readinessCode?: string;
+};
+
+export type ListChainOfCommandParams = {
+employeeId?: number;
+supervisorEmployeeId?: number;
+};
+
+export type ListDualAuthRequestsParams = {
+status?: string;
+actionType?: string;
+};
+
+export type ListBreakGlassAccessParams = {
+userId?: number;
+isActive?: boolean;
+};
+
+export type RevokeBreakGlassAccessBody = {
+  reason?: string;
+};
+
+export type ListBackupRecordsParams = {
+status?: string;
+backupType?: string;
+};
+
+export type VerifyBackupRecordBody = {
+  verificationNotes?: string;
+  restoreTestResult?: string;
+};
+
+export type ListSyncQueueParams = {
+status?: string;
+targetServerCode?: string;
+};
+
+export type ResolveSyncConflictBody = {
+  resolution?: string;
+  notes?: string;
 };
 

@@ -3650,3 +3650,1891 @@ export const GetPayslipResponse = zod.object({
 })
 
 
+/**
+ * @summary List all system configuration entries
+ */
+export const ListSystemConfigResponseItem = zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "value": zod.string(),
+  "valueType": zod.string(),
+  "category": zod.string(),
+  "labelEn": zod.string(),
+  "labelAr": zod.string(),
+  "descriptionEn": zod.string().nullish(),
+  "isPublic": zod.boolean(),
+  "isReadonly": zod.boolean(),
+  "updatedAt": zod.string()
+})
+export const ListSystemConfigResponse = zod.array(ListSystemConfigResponseItem)
+
+
+/**
+ * @summary Update one or more config values (key→value map)
+ */
+export const PatchSystemConfigBody = zod.record(zod.string(), zod.string()).describe('Map of key → new value strings')
+
+export const PatchSystemConfigResponseItem = zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "value": zod.string(),
+  "valueType": zod.string(),
+  "category": zod.string(),
+  "labelEn": zod.string(),
+  "labelAr": zod.string(),
+  "descriptionEn": zod.string().nullish(),
+  "isPublic": zod.boolean(),
+  "isReadonly": zod.boolean(),
+  "updatedAt": zod.string()
+})
+export const PatchSystemConfigResponse = zod.array(PatchSystemConfigResponseItem)
+
+
+/**
+ * @summary List military ranks
+ */
+export const ListMilitaryRanksQueryParams = zod.object({
+  "organizationType": zod.coerce.string().optional(),
+  "category": zod.coerce.string().optional()
+})
+
+export const ListMilitaryRanksResponseItem = zod.object({
+  "id": zod.number(),
+  "rankCode": zod.string(),
+  "abbreviationEn": zod.string(),
+  "abbreviationAr": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "category": zod.string(),
+  "natoEquivalent": zod.string().nullish(),
+  "rankOrder": zod.number(),
+  "salaryGradeCode": zod.string().nullish(),
+  "organizationType": zod.string(),
+  "insigniaDescription": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+export const ListMilitaryRanksResponse = zod.array(ListMilitaryRanksResponseItem)
+
+
+/**
+ * @summary Create a military rank
+ */
+export const CreateMilitaryRankBody = zod.object({
+  "rankCode": zod.string(),
+  "abbreviationEn": zod.string(),
+  "abbreviationAr": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "category": zod.string().optional(),
+  "natoEquivalent": zod.string().nullish(),
+  "rankOrder": zod.number().optional(),
+  "salaryGradeCode": zod.string().nullish(),
+  "organizationType": zod.string().optional(),
+  "insigniaDescription": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateMilitaryRankResponse = zod.object({
+  "id": zod.number(),
+  "rankCode": zod.string(),
+  "abbreviationEn": zod.string(),
+  "abbreviationAr": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "category": zod.string(),
+  "natoEquivalent": zod.string().nullish(),
+  "rankOrder": zod.number(),
+  "salaryGradeCode": zod.string().nullish(),
+  "organizationType": zod.string(),
+  "insigniaDescription": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Get a military rank
+ */
+export const GetMilitaryRankParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMilitaryRankResponse = zod.object({
+  "id": zod.number(),
+  "rankCode": zod.string(),
+  "abbreviationEn": zod.string(),
+  "abbreviationAr": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "category": zod.string(),
+  "natoEquivalent": zod.string().nullish(),
+  "rankOrder": zod.number(),
+  "salaryGradeCode": zod.string().nullish(),
+  "organizationType": zod.string(),
+  "insigniaDescription": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Update a military rank
+ */
+export const UpdateMilitaryRankParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateMilitaryRankBody = zod.object({
+  "rankCode": zod.string(),
+  "abbreviationEn": zod.string(),
+  "abbreviationAr": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "category": zod.string().optional(),
+  "natoEquivalent": zod.string().nullish(),
+  "rankOrder": zod.number().optional(),
+  "salaryGradeCode": zod.string().nullish(),
+  "organizationType": zod.string().optional(),
+  "insigniaDescription": zod.string().nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateMilitaryRankResponse = zod.object({
+  "id": zod.number(),
+  "rankCode": zod.string(),
+  "abbreviationEn": zod.string(),
+  "abbreviationAr": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "category": zod.string(),
+  "natoEquivalent": zod.string().nullish(),
+  "rankOrder": zod.number(),
+  "salaryGradeCode": zod.string().nullish(),
+  "organizationType": zod.string(),
+  "insigniaDescription": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete a military rank
+ */
+export const DeleteMilitaryRankParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteMilitaryRankResponse = zod.void()
+
+
+/**
+ * @summary List org units
+ */
+export const ListOrgUnitsQueryParams = zod.object({
+  "organizationType": zod.coerce.string().optional(),
+  "unitType": zod.coerce.string().optional(),
+  "parentId": zod.coerce.number().optional()
+})
+
+export const ListOrgUnitsResponseItem = zod.object({
+  "id": zod.number(),
+  "unitCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "unitType": zod.string(),
+  "organizationType": zod.string(),
+  "parentId": zod.number().nullish(),
+  "commanderEmployeeId": zod.number().nullish(),
+  "missionEn": zod.string().nullish(),
+  "levelDepth": zod.number(),
+  "authorizedStrength": zod.number().nullish(),
+  "currentStrength": zod.number(),
+  "locationCode": zod.string().nullish(),
+  "classificationLevel": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+export const ListOrgUnitsResponse = zod.array(ListOrgUnitsResponseItem)
+
+
+/**
+ * @summary Create an org unit
+ */
+export const CreateOrgUnitBody = zod.object({
+  "unitCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "unitType": zod.string(),
+  "organizationType": zod.string().optional(),
+  "parentId": zod.number().nullish(),
+  "commanderEmployeeId": zod.number().nullish(),
+  "missionEn": zod.string().nullish(),
+  "levelDepth": zod.number().optional(),
+  "authorizedStrength": zod.number().nullish(),
+  "locationCode": zod.string().nullish(),
+  "classificationLevel": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateOrgUnitResponse = zod.object({
+  "id": zod.number(),
+  "unitCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "unitType": zod.string(),
+  "organizationType": zod.string(),
+  "parentId": zod.number().nullish(),
+  "commanderEmployeeId": zod.number().nullish(),
+  "missionEn": zod.string().nullish(),
+  "levelDepth": zod.number(),
+  "authorizedStrength": zod.number().nullish(),
+  "currentStrength": zod.number(),
+  "locationCode": zod.string().nullish(),
+  "classificationLevel": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Get org unit hierarchy as a tree
+ */
+export const GetOrgUnitTreeQueryParams = zod.object({
+  "organizationType": zod.coerce.string().optional()
+})
+
+export const GetOrgUnitTreeResponseItem = zod.object({
+  "id": zod.number(),
+  "unitCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "unitType": zod.string(),
+  "organizationType": zod.string(),
+  "parentId": zod.number().nullish(),
+  "commanderEmployeeId": zod.number().nullish(),
+  "missionEn": zod.string().nullish(),
+  "levelDepth": zod.number(),
+  "authorizedStrength": zod.number().nullish(),
+  "currentStrength": zod.number(),
+  "locationCode": zod.string().nullish(),
+  "classificationLevel": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+}).and(zod.object({
+  "commanderNameEn": zod.string().nullish(),
+  "parentNameEn": zod.string().nullish(),
+  "children": zod.array(zod.unknown()).optional()
+}))
+export const GetOrgUnitTreeResponse = zod.array(GetOrgUnitTreeResponseItem)
+
+
+/**
+ * @summary Get an org unit
+ */
+export const GetOrgUnitParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetOrgUnitResponse = zod.object({
+  "id": zod.number(),
+  "unitCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "unitType": zod.string(),
+  "organizationType": zod.string(),
+  "parentId": zod.number().nullish(),
+  "commanderEmployeeId": zod.number().nullish(),
+  "missionEn": zod.string().nullish(),
+  "levelDepth": zod.number(),
+  "authorizedStrength": zod.number().nullish(),
+  "currentStrength": zod.number(),
+  "locationCode": zod.string().nullish(),
+  "classificationLevel": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Update an org unit
+ */
+export const UpdateOrgUnitParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateOrgUnitBody = zod.object({
+  "unitCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "unitType": zod.string(),
+  "organizationType": zod.string().optional(),
+  "parentId": zod.number().nullish(),
+  "commanderEmployeeId": zod.number().nullish(),
+  "missionEn": zod.string().nullish(),
+  "levelDepth": zod.number().optional(),
+  "authorizedStrength": zod.number().nullish(),
+  "locationCode": zod.string().nullish(),
+  "classificationLevel": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateOrgUnitResponse = zod.object({
+  "id": zod.number(),
+  "unitCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "unitType": zod.string(),
+  "organizationType": zod.string(),
+  "parentId": zod.number().nullish(),
+  "commanderEmployeeId": zod.number().nullish(),
+  "missionEn": zod.string().nullish(),
+  "levelDepth": zod.number(),
+  "authorizedStrength": zod.number().nullish(),
+  "currentStrength": zod.number(),
+  "locationCode": zod.string().nullish(),
+  "classificationLevel": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete an org unit
+ */
+export const DeleteOrgUnitParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteOrgUnitResponse = zod.void()
+
+
+/**
+ * @summary List duty stations
+ */
+export const ListDutyStationsResponseItem = zod.object({
+  "id": zod.number(),
+  "stationCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "country": zod.string(),
+  "region": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "latitude": zod.string().nullish(),
+  "longitude": zod.string().nullish(),
+  "stationType": zod.string(),
+  "classificationLevel": zod.string(),
+  "commandingUnitCode": zod.string().nullish(),
+  "timezoneName": zod.string().optional(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+export const ListDutyStationsResponse = zod.array(ListDutyStationsResponseItem)
+
+
+/**
+ * @summary Create a duty station
+ */
+export const CreateDutyStationBody = zod.object({
+  "stationCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "country": zod.string().optional(),
+  "region": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "latitude": zod.string().nullish(),
+  "longitude": zod.string().nullish(),
+  "stationType": zod.string().optional(),
+  "classificationLevel": zod.string().optional(),
+  "commandingUnitCode": zod.string().nullish(),
+  "timezoneName": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateDutyStationResponse = zod.object({
+  "id": zod.number(),
+  "stationCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "country": zod.string(),
+  "region": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "latitude": zod.string().nullish(),
+  "longitude": zod.string().nullish(),
+  "stationType": zod.string(),
+  "classificationLevel": zod.string(),
+  "commandingUnitCode": zod.string().nullish(),
+  "timezoneName": zod.string().optional(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Get a duty station
+ */
+export const GetDutyStationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetDutyStationResponse = zod.object({
+  "id": zod.number(),
+  "stationCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "country": zod.string(),
+  "region": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "latitude": zod.string().nullish(),
+  "longitude": zod.string().nullish(),
+  "stationType": zod.string(),
+  "classificationLevel": zod.string(),
+  "commandingUnitCode": zod.string().nullish(),
+  "timezoneName": zod.string().optional(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Update a duty station
+ */
+export const UpdateDutyStationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateDutyStationBody = zod.object({
+  "stationCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "country": zod.string().optional(),
+  "region": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "latitude": zod.string().nullish(),
+  "longitude": zod.string().nullish(),
+  "stationType": zod.string().optional(),
+  "classificationLevel": zod.string().optional(),
+  "commandingUnitCode": zod.string().nullish(),
+  "timezoneName": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateDutyStationResponse = zod.object({
+  "id": zod.number(),
+  "stationCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "country": zod.string(),
+  "region": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "latitude": zod.string().nullish(),
+  "longitude": zod.string().nullish(),
+  "stationType": zod.string(),
+  "classificationLevel": zod.string(),
+  "commandingUnitCode": zod.string().nullish(),
+  "timezoneName": zod.string().optional(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete a duty station
+ */
+export const DeleteDutyStationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteDutyStationResponse = zod.void()
+
+
+/**
+ * @summary List employee postings
+ */
+export const ListEmployeePostingsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "orgUnitId": zod.coerce.number().optional(),
+  "isCurrent": zod.coerce.boolean().optional()
+})
+
+export const ListEmployeePostingsResponseItem = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "orgUnitId": zod.number(),
+  "dutyStationId": zod.number().nullish(),
+  "rankId": zod.number().nullish(),
+  "positionTitleEn": zod.string(),
+  "positionTitleAr": zod.string(),
+  "positionCode": zod.string().nullish(),
+  "postingType": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "isCurrent": zod.boolean(),
+  "orderNumber": zod.string().nullish(),
+  "orderDate": zod.string().nullish(),
+  "authorizedByEmployeeId": zod.number().nullish(),
+  "remarksEn": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "orgUnitNameEn": zod.string().nullish(),
+  "dutyStationNameEn": zod.string().nullish(),
+  "rankNameEn": zod.string().nullish()
+})
+export const ListEmployeePostingsResponse = zod.array(ListEmployeePostingsResponseItem)
+
+
+/**
+ * @summary Create an employee posting
+ */
+export const CreateEmployeePostingBody = zod.object({
+  "employeeId": zod.number(),
+  "orgUnitId": zod.number(),
+  "dutyStationId": zod.number().nullish(),
+  "rankId": zod.number().nullish(),
+  "positionTitleEn": zod.string(),
+  "positionTitleAr": zod.string(),
+  "positionCode": zod.string().nullish(),
+  "postingType": zod.string().optional(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "isCurrent": zod.boolean().optional(),
+  "orderNumber": zod.string().nullish(),
+  "remarksEn": zod.string().nullish()
+})
+
+export const CreateEmployeePostingResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "orgUnitId": zod.number(),
+  "dutyStationId": zod.number().nullish(),
+  "rankId": zod.number().nullish(),
+  "positionTitleEn": zod.string(),
+  "positionTitleAr": zod.string(),
+  "positionCode": zod.string().nullish(),
+  "postingType": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "isCurrent": zod.boolean(),
+  "orderNumber": zod.string().nullish(),
+  "orderDate": zod.string().nullish(),
+  "authorizedByEmployeeId": zod.number().nullish(),
+  "remarksEn": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "orgUnitNameEn": zod.string().nullish(),
+  "dutyStationNameEn": zod.string().nullish(),
+  "rankNameEn": zod.string().nullish()
+})
+
+
+/**
+ * @summary Get an employee posting
+ */
+export const GetEmployeePostingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmployeePostingResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "orgUnitId": zod.number(),
+  "dutyStationId": zod.number().nullish(),
+  "rankId": zod.number().nullish(),
+  "positionTitleEn": zod.string(),
+  "positionTitleAr": zod.string(),
+  "positionCode": zod.string().nullish(),
+  "postingType": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "isCurrent": zod.boolean(),
+  "orderNumber": zod.string().nullish(),
+  "orderDate": zod.string().nullish(),
+  "authorizedByEmployeeId": zod.number().nullish(),
+  "remarksEn": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "orgUnitNameEn": zod.string().nullish(),
+  "dutyStationNameEn": zod.string().nullish(),
+  "rankNameEn": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update an employee posting
+ */
+export const UpdateEmployeePostingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEmployeePostingBody = zod.object({
+  "employeeId": zod.number(),
+  "orgUnitId": zod.number(),
+  "dutyStationId": zod.number().nullish(),
+  "rankId": zod.number().nullish(),
+  "positionTitleEn": zod.string(),
+  "positionTitleAr": zod.string(),
+  "positionCode": zod.string().nullish(),
+  "postingType": zod.string().optional(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "isCurrent": zod.boolean().optional(),
+  "orderNumber": zod.string().nullish(),
+  "remarksEn": zod.string().nullish()
+})
+
+export const UpdateEmployeePostingResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "orgUnitId": zod.number(),
+  "dutyStationId": zod.number().nullish(),
+  "rankId": zod.number().nullish(),
+  "positionTitleEn": zod.string(),
+  "positionTitleAr": zod.string(),
+  "positionCode": zod.string().nullish(),
+  "postingType": zod.string(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "isCurrent": zod.boolean(),
+  "orderNumber": zod.string().nullish(),
+  "orderDate": zod.string().nullish(),
+  "authorizedByEmployeeId": zod.number().nullish(),
+  "remarksEn": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "orgUnitNameEn": zod.string().nullish(),
+  "dutyStationNameEn": zod.string().nullish(),
+  "rankNameEn": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete an employee posting
+ */
+export const DeleteEmployeePostingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteEmployeePostingResponse = zod.void()
+
+
+/**
+ * @summary List employee transfers
+ */
+export const ListEmployeeTransfersQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListEmployeeTransfersResponseItem = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "fromOrgUnitId": zod.number().nullish(),
+  "toOrgUnitId": zod.number(),
+  "fromStationId": zod.number().nullish(),
+  "toStationId": zod.number().nullish(),
+  "transferDate": zod.string(),
+  "effectiveDate": zod.string().nullish(),
+  "orderNumber": zod.string(),
+  "status": zod.string(),
+  "reasonEn": zod.string().nullish(),
+  "approvedByEmployeeId": zod.number().nullish(),
+  "requiresDualAuth": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "fromUnitNameEn": zod.string().nullish(),
+  "toUnitNameEn": zod.string().nullish()
+})
+export const ListEmployeeTransfersResponse = zod.array(ListEmployeeTransfersResponseItem)
+
+
+/**
+ * @summary Create a transfer order
+ */
+export const CreateEmployeeTransferBody = zod.object({
+  "employeeId": zod.number(),
+  "fromOrgUnitId": zod.number().nullish(),
+  "toOrgUnitId": zod.number(),
+  "fromStationId": zod.number().nullish(),
+  "toStationId": zod.number().nullish(),
+  "transferDate": zod.string(),
+  "effectiveDate": zod.string().nullish(),
+  "orderNumber": zod.string(),
+  "status": zod.string().optional(),
+  "reasonEn": zod.string().nullish(),
+  "approvedByEmployeeId": zod.number().nullish(),
+  "requiresDualAuth": zod.boolean().optional()
+})
+
+export const CreateEmployeeTransferResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "fromOrgUnitId": zod.number().nullish(),
+  "toOrgUnitId": zod.number(),
+  "fromStationId": zod.number().nullish(),
+  "toStationId": zod.number().nullish(),
+  "transferDate": zod.string(),
+  "effectiveDate": zod.string().nullish(),
+  "orderNumber": zod.string(),
+  "status": zod.string(),
+  "reasonEn": zod.string().nullish(),
+  "approvedByEmployeeId": zod.number().nullish(),
+  "requiresDualAuth": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "fromUnitNameEn": zod.string().nullish(),
+  "toUnitNameEn": zod.string().nullish()
+})
+
+
+/**
+ * @summary Get a transfer order
+ */
+export const GetEmployeeTransferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmployeeTransferResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "fromOrgUnitId": zod.number().nullish(),
+  "toOrgUnitId": zod.number(),
+  "fromStationId": zod.number().nullish(),
+  "toStationId": zod.number().nullish(),
+  "transferDate": zod.string(),
+  "effectiveDate": zod.string().nullish(),
+  "orderNumber": zod.string(),
+  "status": zod.string(),
+  "reasonEn": zod.string().nullish(),
+  "approvedByEmployeeId": zod.number().nullish(),
+  "requiresDualAuth": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "fromUnitNameEn": zod.string().nullish(),
+  "toUnitNameEn": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update a transfer order status
+ */
+export const UpdateEmployeeTransferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEmployeeTransferBody = zod.object({
+  "employeeId": zod.number(),
+  "fromOrgUnitId": zod.number().nullish(),
+  "toOrgUnitId": zod.number(),
+  "fromStationId": zod.number().nullish(),
+  "toStationId": zod.number().nullish(),
+  "transferDate": zod.string(),
+  "effectiveDate": zod.string().nullish(),
+  "orderNumber": zod.string(),
+  "status": zod.string().optional(),
+  "reasonEn": zod.string().nullish(),
+  "approvedByEmployeeId": zod.number().nullish(),
+  "requiresDualAuth": zod.boolean().optional()
+})
+
+export const UpdateEmployeeTransferResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "fromOrgUnitId": zod.number().nullish(),
+  "toOrgUnitId": zod.number(),
+  "fromStationId": zod.number().nullish(),
+  "toStationId": zod.number().nullish(),
+  "transferDate": zod.string(),
+  "effectiveDate": zod.string().nullish(),
+  "orderNumber": zod.string(),
+  "status": zod.string(),
+  "reasonEn": zod.string().nullish(),
+  "approvedByEmployeeId": zod.number().nullish(),
+  "requiresDualAuth": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "fromUnitNameEn": zod.string().nullish(),
+  "toUnitNameEn": zod.string().nullish()
+})
+
+
+/**
+ * @summary List employee secondments
+ */
+export const ListEmployeeSecondmentsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListEmployeeSecondmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "hostOrgUnitId": zod.number(),
+  "parentOrgUnitId": zod.number().nullish(),
+  "hostDutyStationId": zod.number().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string(),
+  "purposeEn": zod.string().nullish(),
+  "allowancePct": zod.string(),
+  "orderNumber": zod.string().nullish(),
+  "requiresDualAuth": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "hostUnitNameEn": zod.string().nullish()
+})
+export const ListEmployeeSecondmentsResponse = zod.array(ListEmployeeSecondmentsResponseItem)
+
+
+/**
+ * @summary Create a secondment record
+ */
+export const CreateEmployeeSecondmentBody = zod.object({
+  "employeeId": zod.number(),
+  "hostOrgUnitId": zod.number(),
+  "parentOrgUnitId": zod.number().nullish(),
+  "hostDutyStationId": zod.number().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "purposeEn": zod.string().nullish(),
+  "allowancePct": zod.number().optional(),
+  "orderNumber": zod.string().nullish(),
+  "requiresDualAuth": zod.boolean().optional()
+})
+
+export const CreateEmployeeSecondmentResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "hostOrgUnitId": zod.number(),
+  "parentOrgUnitId": zod.number().nullish(),
+  "hostDutyStationId": zod.number().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string(),
+  "purposeEn": zod.string().nullish(),
+  "allowancePct": zod.string(),
+  "orderNumber": zod.string().nullish(),
+  "requiresDualAuth": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "hostUnitNameEn": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update a secondment record
+ */
+export const UpdateEmployeeSecondmentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEmployeeSecondmentBody = zod.object({
+  "employeeId": zod.number(),
+  "hostOrgUnitId": zod.number(),
+  "parentOrgUnitId": zod.number().nullish(),
+  "hostDutyStationId": zod.number().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "purposeEn": zod.string().nullish(),
+  "allowancePct": zod.number().optional(),
+  "orderNumber": zod.string().nullish(),
+  "requiresDualAuth": zod.boolean().optional()
+})
+
+export const UpdateEmployeeSecondmentResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "hostOrgUnitId": zod.number(),
+  "parentOrgUnitId": zod.number().nullish(),
+  "hostDutyStationId": zod.number().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string(),
+  "purposeEn": zod.string().nullish(),
+  "allowancePct": zod.string(),
+  "orderNumber": zod.string().nullish(),
+  "requiresDualAuth": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "hostUnitNameEn": zod.string().nullish()
+})
+
+
+/**
+ * @summary List security clearances (restricted endpoint)
+ */
+export const ListSecurityClearancesQueryParams = zod.object({
+  "clearanceLevel": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListSecurityClearancesResponseItem = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "clearanceLevel": zod.string(),
+  "status": zod.string(),
+  "grantedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "investigationAuthority": zod.string().nullish(),
+  "investigationReferenceNumber": zod.string().nullish(),
+  "adjudicationNotes": zod.string().nullish(),
+  "lastReviewedAt": zod.string().nullish(),
+  "accessCaveats": zod.string().nullish(),
+  "requiresDualAuthForChanges": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish()
+})
+export const ListSecurityClearancesResponse = zod.array(ListSecurityClearancesResponseItem)
+
+
+/**
+ * @summary Create or upsert a security clearance record
+ */
+export const CreateSecurityClearanceBody = zod.object({
+  "employeeId": zod.number(),
+  "clearanceLevel": zod.string(),
+  "status": zod.string().optional(),
+  "grantedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "investigationAuthority": zod.string().nullish(),
+  "investigationReferenceNumber": zod.string().nullish(),
+  "adjudicationNotes": zod.string().nullish(),
+  "accessCaveats": zod.string().nullish()
+})
+
+export const CreateSecurityClearanceResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "clearanceLevel": zod.string(),
+  "status": zod.string(),
+  "grantedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "investigationAuthority": zod.string().nullish(),
+  "investigationReferenceNumber": zod.string().nullish(),
+  "adjudicationNotes": zod.string().nullish(),
+  "lastReviewedAt": zod.string().nullish(),
+  "accessCaveats": zod.string().nullish(),
+  "requiresDualAuthForChanges": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish()
+})
+
+
+/**
+ * @summary Get a security clearance record
+ */
+export const GetSecurityClearanceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSecurityClearanceResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "clearanceLevel": zod.string(),
+  "status": zod.string(),
+  "grantedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "investigationAuthority": zod.string().nullish(),
+  "investigationReferenceNumber": zod.string().nullish(),
+  "adjudicationNotes": zod.string().nullish(),
+  "lastReviewedAt": zod.string().nullish(),
+  "accessCaveats": zod.string().nullish(),
+  "requiresDualAuthForChanges": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update a security clearance (requires dual-auth for level changes)
+ */
+export const UpdateSecurityClearanceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateSecurityClearanceBody = zod.object({
+  "employeeId": zod.number(),
+  "clearanceLevel": zod.string(),
+  "status": zod.string().optional(),
+  "grantedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "investigationAuthority": zod.string().nullish(),
+  "investigationReferenceNumber": zod.string().nullish(),
+  "adjudicationNotes": zod.string().nullish(),
+  "accessCaveats": zod.string().nullish()
+})
+
+export const UpdateSecurityClearanceResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "clearanceLevel": zod.string(),
+  "status": zod.string(),
+  "grantedDate": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "investigationAuthority": zod.string().nullish(),
+  "investigationReferenceNumber": zod.string().nullish(),
+  "adjudicationNotes": zod.string().nullish(),
+  "lastReviewedAt": zod.string().nullish(),
+  "accessCaveats": zod.string().nullish(),
+  "requiresDualAuthForChanges": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish()
+})
+
+
+/**
+ * @summary List mobilization statuses
+ */
+export const ListMobilizationStatusesQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "readinessCode": zod.coerce.string().optional()
+})
+
+export const ListMobilizationStatusesResponseItem = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.string(),
+  "unitAssignment": zod.string().nullish(),
+  "deploymentStart": zod.string().nullish(),
+  "deploymentEnd": zod.string().nullish(),
+  "deploymentLocation": zod.string().nullish(),
+  "deploymentType": zod.string(),
+  "readinessCode": zod.string(),
+  "mraRating": zod.string().nullish(),
+  "exemptionReason": zod.string().nullish(),
+  "remarksEn": zod.string().nullish(),
+  "updatedAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish()
+})
+export const ListMobilizationStatusesResponse = zod.array(ListMobilizationStatusesResponseItem)
+
+
+/**
+ * @summary Create or upsert a mobilization status
+ */
+export const CreateMobilizationStatusBody = zod.object({
+  "employeeId": zod.number(),
+  "status": zod.string(),
+  "unitAssignment": zod.string().nullish(),
+  "deploymentStart": zod.string().nullish(),
+  "deploymentEnd": zod.string().nullish(),
+  "deploymentLocation": zod.string().nullish(),
+  "deploymentType": zod.string().optional(),
+  "readinessCode": zod.string().optional(),
+  "mraRating": zod.string().nullish(),
+  "exemptionReason": zod.string().nullish(),
+  "remarksEn": zod.string().nullish()
+})
+
+export const CreateMobilizationStatusResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.string(),
+  "unitAssignment": zod.string().nullish(),
+  "deploymentStart": zod.string().nullish(),
+  "deploymentEnd": zod.string().nullish(),
+  "deploymentLocation": zod.string().nullish(),
+  "deploymentType": zod.string(),
+  "readinessCode": zod.string(),
+  "mraRating": zod.string().nullish(),
+  "exemptionReason": zod.string().nullish(),
+  "remarksEn": zod.string().nullish(),
+  "updatedAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update a mobilization status
+ */
+export const UpdateMobilizationStatusParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateMobilizationStatusBody = zod.object({
+  "employeeId": zod.number(),
+  "status": zod.string(),
+  "unitAssignment": zod.string().nullish(),
+  "deploymentStart": zod.string().nullish(),
+  "deploymentEnd": zod.string().nullish(),
+  "deploymentLocation": zod.string().nullish(),
+  "deploymentType": zod.string().optional(),
+  "readinessCode": zod.string().optional(),
+  "mraRating": zod.string().nullish(),
+  "exemptionReason": zod.string().nullish(),
+  "remarksEn": zod.string().nullish()
+})
+
+export const UpdateMobilizationStatusResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.string(),
+  "unitAssignment": zod.string().nullish(),
+  "deploymentStart": zod.string().nullish(),
+  "deploymentEnd": zod.string().nullish(),
+  "deploymentLocation": zod.string().nullish(),
+  "deploymentType": zod.string(),
+  "readinessCode": zod.string(),
+  "mraRating": zod.string().nullish(),
+  "exemptionReason": zod.string().nullish(),
+  "remarksEn": zod.string().nullish(),
+  "updatedAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish()
+})
+
+
+/**
+ * @summary List chain-of-command entries
+ */
+export const ListChainOfCommandQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "supervisorEmployeeId": zod.coerce.number().optional()
+})
+
+export const ListChainOfCommandResponseItem = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "supervisorEmployeeId": zod.number(),
+  "relationshipType": zod.string(),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "notesEn": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "supervisorNameEn": zod.string().nullish()
+})
+export const ListChainOfCommandResponse = zod.array(ListChainOfCommandResponseItem)
+
+
+/**
+ * @summary Create a chain-of-command entry
+ */
+export const CreateChainOfCommandBody = zod.object({
+  "employeeId": zod.number(),
+  "supervisorEmployeeId": zod.number(),
+  "relationshipType": zod.string(),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "notesEn": zod.string().nullish()
+})
+
+export const CreateChainOfCommandResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "supervisorEmployeeId": zod.number(),
+  "relationshipType": zod.string(),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "notesEn": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "supervisorNameEn": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update a CoC entry
+ */
+export const UpdateChainOfCommandParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateChainOfCommandBody = zod.object({
+  "employeeId": zod.number(),
+  "supervisorEmployeeId": zod.number(),
+  "relationshipType": zod.string(),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "notesEn": zod.string().nullish()
+})
+
+export const UpdateChainOfCommandResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "supervisorEmployeeId": zod.number(),
+  "relationshipType": zod.string(),
+  "effectiveFrom": zod.string(),
+  "effectiveTo": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "notesEn": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "employeeNameEn": zod.string().nullish(),
+  "supervisorNameEn": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete a CoC entry
+ */
+export const DeleteChainOfCommandParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteChainOfCommandResponse = zod.void()
+
+
+/**
+ * @summary List dual-authorization requests
+ */
+export const ListDualAuthRequestsQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "actionType": zod.coerce.string().optional()
+})
+
+export const ListDualAuthRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "actionType": zod.string(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "descriptionEn": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "initiatedByUserId": zod.number(),
+  "status": zod.string(),
+  "firstApproverUserId": zod.number().nullish(),
+  "firstApprovedAt": zod.string().nullish(),
+  "secondApproverUserId": zod.number().nullish(),
+  "secondApprovedAt": zod.string().nullish(),
+  "expiresAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "requiresSeparateDepartments": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "initiatedByUserName": zod.string().nullish()
+})
+export const ListDualAuthRequestsResponse = zod.array(ListDualAuthRequestsResponseItem)
+
+
+/**
+ * @summary Initiate a dual-authorization request
+ */
+export const CreateDualAuthRequestBody = zod.object({
+  "actionType": zod.string(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "descriptionEn": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "payloadJson": zod.string().nullish(),
+  "ttlMinutes": zod.number().optional()
+})
+
+export const CreateDualAuthRequestResponse = zod.object({
+  "id": zod.number(),
+  "actionType": zod.string(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "descriptionEn": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "initiatedByUserId": zod.number(),
+  "status": zod.string(),
+  "firstApproverUserId": zod.number().nullish(),
+  "firstApprovedAt": zod.string().nullish(),
+  "secondApproverUserId": zod.number().nullish(),
+  "secondApprovedAt": zod.string().nullish(),
+  "expiresAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "requiresSeparateDepartments": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "initiatedByUserName": zod.string().nullish()
+})
+
+
+/**
+ * @summary Approve a dual-auth request (1st or 2nd approver)
+ */
+export const ApproveDualAuthRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveDualAuthRequestBody = zod.object({
+  "approverUserId": zod.number(),
+  "notes": zod.string().nullish()
+})
+
+export const ApproveDualAuthRequestResponse = zod.object({
+  "id": zod.number(),
+  "actionType": zod.string(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "descriptionEn": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "initiatedByUserId": zod.number(),
+  "status": zod.string(),
+  "firstApproverUserId": zod.number().nullish(),
+  "firstApprovedAt": zod.string().nullish(),
+  "secondApproverUserId": zod.number().nullish(),
+  "secondApprovedAt": zod.string().nullish(),
+  "expiresAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "requiresSeparateDepartments": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "initiatedByUserName": zod.string().nullish()
+})
+
+
+/**
+ * @summary Reject a dual-auth request
+ */
+export const RejectDualAuthRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectDualAuthRequestBody = zod.object({
+  "approverUserId": zod.number(),
+  "notes": zod.string().nullish()
+})
+
+export const RejectDualAuthRequestResponse = zod.object({
+  "id": zod.number(),
+  "actionType": zod.string(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "descriptionEn": zod.string(),
+  "descriptionAr": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "initiatedByUserId": zod.number(),
+  "status": zod.string(),
+  "firstApproverUserId": zod.number().nullish(),
+  "firstApprovedAt": zod.string().nullish(),
+  "secondApproverUserId": zod.number().nullish(),
+  "secondApprovedAt": zod.string().nullish(),
+  "expiresAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "requiresSeparateDepartments": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "initiatedByUserName": zod.string().nullish()
+})
+
+
+/**
+ * @summary List break-glass access records (audit)
+ */
+export const ListBreakGlassAccessQueryParams = zod.object({
+  "userId": zod.coerce.number().optional(),
+  "isActive": zod.coerce.boolean().optional()
+})
+
+export const ListBreakGlassAccessResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "resourceType": zod.string(),
+  "resourceId": zod.number().nullish(),
+  "resourceLabel": zod.string().nullish(),
+  "justification": zod.string(),
+  "accessGrantedAt": zod.string(),
+  "expiresAt": zod.string(),
+  "isActive": zod.boolean(),
+  "revokedAt": zod.string().nullish(),
+  "reviewOutcome": zod.string().nullish(),
+  "notificationSent": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "userName": zod.string().nullish()
+})
+export const ListBreakGlassAccessResponse = zod.array(ListBreakGlassAccessResponseItem)
+
+
+/**
+ * @summary Request emergency break-glass access
+ */
+export const RequestBreakGlassAccessBody = zod.object({
+  "userId": zod.number(),
+  "resourceType": zod.string(),
+  "resourceId": zod.number().nullish(),
+  "resourceLabel": zod.string().nullish(),
+  "justification": zod.string(),
+  "emergencyCode": zod.string().nullish(),
+  "ttlMinutes": zod.number().optional()
+})
+
+export const RequestBreakGlassAccessResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "resourceType": zod.string(),
+  "resourceId": zod.number().nullish(),
+  "resourceLabel": zod.string().nullish(),
+  "justification": zod.string(),
+  "accessGrantedAt": zod.string(),
+  "expiresAt": zod.string(),
+  "isActive": zod.boolean(),
+  "revokedAt": zod.string().nullish(),
+  "reviewOutcome": zod.string().nullish(),
+  "notificationSent": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "userName": zod.string().nullish()
+})
+
+
+/**
+ * @summary Revoke an active break-glass access
+ */
+export const RevokeBreakGlassAccessParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RevokeBreakGlassAccessBody = zod.object({
+  "reason": zod.string().optional()
+})
+
+export const RevokeBreakGlassAccessResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "resourceType": zod.string(),
+  "resourceId": zod.number().nullish(),
+  "resourceLabel": zod.string().nullish(),
+  "justification": zod.string(),
+  "accessGrantedAt": zod.string(),
+  "expiresAt": zod.string(),
+  "isActive": zod.boolean(),
+  "revokedAt": zod.string().nullish(),
+  "reviewOutcome": zod.string().nullish(),
+  "notificationSent": zod.boolean(),
+  "createdAt": zod.string().optional(),
+  "userName": zod.string().nullish()
+})
+
+
+/**
+ * @summary List backup records
+ */
+export const ListBackupRecordsQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "backupType": zod.coerce.string().optional()
+})
+
+export const ListBackupRecordsResponseItem = zod.object({
+  "id": zod.number(),
+  "backupType": zod.string(),
+  "status": zod.string(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "fileSizeBytes": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "storageLocation": zod.string().nullish(),
+  "retentionDays": zod.number(),
+  "isVerified": zod.boolean(),
+  "verifiedAt": zod.string().nullish(),
+  "restoreTestResult": zod.string(),
+  "serverCode": zod.string(),
+  "errorMessage": zod.string().nullish()
+})
+export const ListBackupRecordsResponse = zod.array(ListBackupRecordsResponseItem)
+
+
+/**
+ * @summary Register a new backup record (or trigger backup)
+ */
+export const CreateBackupRecordBody = zod.object({
+  "backupType": zod.string(),
+  "status": zod.string().optional(),
+  "fileSizeBytes": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "storageLocation": zod.string().nullish(),
+  "retentionDays": zod.number().optional(),
+  "serverCode": zod.string().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateBackupRecordResponse = zod.object({
+  "id": zod.number(),
+  "backupType": zod.string(),
+  "status": zod.string(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "fileSizeBytes": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "storageLocation": zod.string().nullish(),
+  "retentionDays": zod.number(),
+  "isVerified": zod.boolean(),
+  "verifiedAt": zod.string().nullish(),
+  "restoreTestResult": zod.string(),
+  "serverCode": zod.string(),
+  "errorMessage": zod.string().nullish()
+})
+
+
+/**
+ * @summary Mark a backup as verified
+ */
+export const VerifyBackupRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const VerifyBackupRecordBody = zod.object({
+  "verificationNotes": zod.string().optional(),
+  "restoreTestResult": zod.string().optional()
+})
+
+export const VerifyBackupRecordResponse = zod.object({
+  "id": zod.number(),
+  "backupType": zod.string(),
+  "status": zod.string(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "fileSizeBytes": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "storageLocation": zod.string().nullish(),
+  "retentionDays": zod.number(),
+  "isVerified": zod.boolean(),
+  "verifiedAt": zod.string().nullish(),
+  "restoreTestResult": zod.string(),
+  "serverCode": zod.string(),
+  "errorMessage": zod.string().nullish()
+})
+
+
+/**
+ * @summary List registered branch servers
+ */
+export const ListBranchServersResponseItem = zod.object({
+  "id": zod.number(),
+  "serverCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "location": zod.string().nullish(),
+  "orgUnitCode": zod.string().nullish(),
+  "ipAddress": zod.string().nullish(),
+  "publicKeyHash": zod.string().nullish(),
+  "status": zod.string(),
+  "syncEnabled": zod.boolean(),
+  "lastSeenAt": zod.string().nullish(),
+  "lastSyncAt": zod.string().nullish(),
+  "lastSyncStatus": zod.string().nullish(),
+  "pendingSyncCount": zod.number(),
+  "adminEmail": zod.string().nullish(),
+  "softwareVersion": zod.string().nullish(),
+  "registeredAt": zod.string().optional()
+})
+export const ListBranchServersResponse = zod.array(ListBranchServersResponseItem)
+
+
+/**
+ * @summary Register a new branch server
+ */
+export const RegisterBranchServerBody = zod.object({
+  "serverCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "location": zod.string().nullish(),
+  "orgUnitCode": zod.string().nullish(),
+  "ipAddress": zod.string().nullish(),
+  "publicKeyHash": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "syncEnabled": zod.boolean().optional(),
+  "adminEmail": zod.string().nullish(),
+  "softwareVersion": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const RegisterBranchServerResponse = zod.object({
+  "id": zod.number(),
+  "serverCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "location": zod.string().nullish(),
+  "orgUnitCode": zod.string().nullish(),
+  "ipAddress": zod.string().nullish(),
+  "publicKeyHash": zod.string().nullish(),
+  "status": zod.string(),
+  "syncEnabled": zod.boolean(),
+  "lastSeenAt": zod.string().nullish(),
+  "lastSyncAt": zod.string().nullish(),
+  "lastSyncStatus": zod.string().nullish(),
+  "pendingSyncCount": zod.number(),
+  "adminEmail": zod.string().nullish(),
+  "softwareVersion": zod.string().nullish(),
+  "registeredAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Get a branch server
+ */
+export const GetBranchServerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetBranchServerResponse = zod.object({
+  "id": zod.number(),
+  "serverCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "location": zod.string().nullish(),
+  "orgUnitCode": zod.string().nullish(),
+  "ipAddress": zod.string().nullish(),
+  "publicKeyHash": zod.string().nullish(),
+  "status": zod.string(),
+  "syncEnabled": zod.boolean(),
+  "lastSeenAt": zod.string().nullish(),
+  "lastSyncAt": zod.string().nullish(),
+  "lastSyncStatus": zod.string().nullish(),
+  "pendingSyncCount": zod.number(),
+  "adminEmail": zod.string().nullish(),
+  "softwareVersion": zod.string().nullish(),
+  "registeredAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Update a branch server registration
+ */
+export const UpdateBranchServerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateBranchServerBody = zod.object({
+  "serverCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "location": zod.string().nullish(),
+  "orgUnitCode": zod.string().nullish(),
+  "ipAddress": zod.string().nullish(),
+  "publicKeyHash": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "syncEnabled": zod.boolean().optional(),
+  "adminEmail": zod.string().nullish(),
+  "softwareVersion": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateBranchServerResponse = zod.object({
+  "id": zod.number(),
+  "serverCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "location": zod.string().nullish(),
+  "orgUnitCode": zod.string().nullish(),
+  "ipAddress": zod.string().nullish(),
+  "publicKeyHash": zod.string().nullish(),
+  "status": zod.string(),
+  "syncEnabled": zod.boolean(),
+  "lastSeenAt": zod.string().nullish(),
+  "lastSyncAt": zod.string().nullish(),
+  "lastSyncStatus": zod.string().nullish(),
+  "pendingSyncCount": zod.number(),
+  "adminEmail": zod.string().nullish(),
+  "softwareVersion": zod.string().nullish(),
+  "registeredAt": zod.string().optional()
+})
+
+
+/**
+ * @summary List sync queue entries
+ */
+export const ListSyncQueueQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "targetServerCode": zod.coerce.string().optional()
+})
+
+export const ListSyncQueueResponseItem = zod.object({
+  "id": zod.number(),
+  "sourceServerCode": zod.string(),
+  "targetServerCode": zod.string(),
+  "entityType": zod.string(),
+  "entityId": zod.number().nullish(),
+  "entityLabel": zod.string().nullish(),
+  "operation": zod.string(),
+  "status": zod.string(),
+  "payloadHash": zod.string().nullish(),
+  "payloadSizeBytes": zod.number().nullish(),
+  "isEncrypted": zod.boolean(),
+  "conflictResolution": zod.string().nullish(),
+  "conflictNotes": zod.string().nullish(),
+  "processedAt": zod.string().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "resolvedAt": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+export const ListSyncQueueResponse = zod.array(ListSyncQueueResponseItem)
+
+
+/**
+ * @summary Resolve a sync conflict
+ */
+export const ResolveSyncConflictParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ResolveSyncConflictBody = zod.object({
+  "resolution": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const ResolveSyncConflictResponse = zod.object({
+  "id": zod.number(),
+  "sourceServerCode": zod.string(),
+  "targetServerCode": zod.string(),
+  "entityType": zod.string(),
+  "entityId": zod.number().nullish(),
+  "entityLabel": zod.string().nullish(),
+  "operation": zod.string(),
+  "status": zod.string(),
+  "payloadHash": zod.string().nullish(),
+  "payloadSizeBytes": zod.number().nullish(),
+  "isEncrypted": zod.boolean(),
+  "conflictResolution": zod.string().nullish(),
+  "conflictNotes": zod.string().nullish(),
+  "processedAt": zod.string().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "retryCount": zod.number(),
+  "resolvedAt": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Get overall HQ-to-branch sync status summary
+ */
+export const GetSyncStatusResponse = zod.object({
+  "totalServers": zod.number(),
+  "onlineServers": zod.number(),
+  "offlineServers": zod.number(),
+  "pendingEntries": zod.number(),
+  "conflictEntries": zod.number(),
+  "failedEntries": zod.number(),
+  "lastSyncAt": zod.string().nullish(),
+  "servers": zod.array(zod.object({
+  "id": zod.number(),
+  "serverCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "location": zod.string().nullish(),
+  "orgUnitCode": zod.string().nullish(),
+  "ipAddress": zod.string().nullish(),
+  "publicKeyHash": zod.string().nullish(),
+  "status": zod.string(),
+  "syncEnabled": zod.boolean(),
+  "lastSeenAt": zod.string().nullish(),
+  "lastSyncAt": zod.string().nullish(),
+  "lastSyncStatus": zod.string().nullish(),
+  "pendingSyncCount": zod.number(),
+  "adminEmail": zod.string().nullish(),
+  "softwareVersion": zod.string().nullish(),
+  "registeredAt": zod.string().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Get current license record
+ */
+export const GetLicenseResponse = zod.object({
+  "id": zod.number(),
+  "productName": zod.string(),
+  "edition": zod.string(),
+  "licenseKeyHash": zod.string(),
+  "issuedTo": zod.string().nullish(),
+  "issuedToOrgCode": zod.string().nullish(),
+  "maxUsers": zod.number(),
+  "maxBranches": zod.number(),
+  "validFrom": zod.string(),
+  "validUntil": zod.string().nullish(),
+  "featuresJson": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "activatedAt": zod.string().nullish(),
+  "lastValidatedAt": zod.string().nullish(),
+  "validationMethod": zod.string(),
+  "offlineGraceDays": zod.number(),
+  "nextValidationDue": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "daysUntilExpiry": zod.number().nullish(),
+  "features": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Activate or update the license
+ */
+export const ActivateLicenseBody = zod.object({
+  "licenseKey": zod.string(),
+  "issuedTo": zod.string(),
+  "validationMethod": zod.string().optional()
+})
+
+export const ActivateLicenseResponse = zod.object({
+  "id": zod.number(),
+  "productName": zod.string(),
+  "edition": zod.string(),
+  "licenseKeyHash": zod.string(),
+  "issuedTo": zod.string().nullish(),
+  "issuedToOrgCode": zod.string().nullish(),
+  "maxUsers": zod.number(),
+  "maxBranches": zod.number(),
+  "validFrom": zod.string(),
+  "validUntil": zod.string().nullish(),
+  "featuresJson": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "activatedAt": zod.string().nullish(),
+  "lastValidatedAt": zod.string().nullish(),
+  "validationMethod": zod.string(),
+  "offlineGraceDays": zod.number(),
+  "nextValidationDue": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "daysUntilExpiry": zod.number().nullish(),
+  "features": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Get disaster-recovery readiness status
+ */
+export const GetDrStatusResponse = zod.object({
+  "overallStatus": zod.string(),
+  "lastBackupAt": zod.string().nullish(),
+  "lastBackupStatus": zod.string(),
+  "lastVerifiedAt": zod.string().nullish(),
+  "lastRestoreTestAt": zod.string().nullish(),
+  "lastRestoreTestResult": zod.string(),
+  "rpoCurrent": zod.number().nullish(),
+  "rpoTarget": zod.number(),
+  "rtoTarget": zod.number(),
+  "totalBackupSizeBytes": zod.number(),
+  "backupCount": zod.number(),
+  "verifiedBackupCount": zod.number(),
+  "alerts": zod.array(zod.string())
+})
+
+

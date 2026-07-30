@@ -2309,6 +2309,913 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Payslip" }
 
+
+  # ── System Config ─────────────────────────────────────────────────────────
+  /system-config:
+    get:
+      operationId: listSystemConfig
+      tags: [admin]
+      summary: List all system configuration entries
+      responses:
+        '200':
+          description: Config list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SystemConfig' }
+    patch:
+      operationId: patchSystemConfig
+      tags: [admin]
+      summary: Update one or more config values (key→value map)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SystemConfigPatch' }
+      responses:
+        '200':
+          description: Updated entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SystemConfig' }
+
+  # ── Military Ranks ─────────────────────────────────────────────────────────
+  /military-ranks:
+    get:
+      operationId: listMilitaryRanks
+      tags: [military]
+      summary: List military ranks
+      parameters:
+        - { name: organizationType, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Ranks list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/MilitaryRank' } }
+    post:
+      operationId: createMilitaryRank
+      tags: [military]
+      summary: Create a military rank
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MilitaryRankInput' }
+      responses:
+        '201':
+          description: Created rank
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MilitaryRank' }
+
+  /military-ranks/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getMilitaryRank
+      tags: [military]
+      summary: Get a military rank
+      responses:
+        '200':
+          description: Rank
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MilitaryRank' }
+    patch:
+      operationId: updateMilitaryRank
+      tags: [military]
+      summary: Update a military rank
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MilitaryRankInput' }
+      responses:
+        '200':
+          description: Updated rank
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MilitaryRank' }
+    delete:
+      operationId: deleteMilitaryRank
+      tags: [military]
+      summary: Delete a military rank
+      responses: { '204': { description: Deleted } }
+
+  # ── Org Units ──────────────────────────────────────────────────────────────
+  /org-units:
+    get:
+      operationId: listOrgUnits
+      tags: [military]
+      summary: List org units
+      parameters:
+        - { name: organizationType, in: query, schema: { type: string } }
+        - { name: unitType, in: query, schema: { type: string } }
+        - { name: parentId, in: query, schema: { type: number } }
+      responses:
+        '200':
+          description: Org units list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/OrgUnit' } }
+    post:
+      operationId: createOrgUnit
+      tags: [military]
+      summary: Create an org unit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrgUnitInput' }
+      responses:
+        '201':
+          description: Created org unit
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrgUnit' }
+
+  /org-units/tree:
+    get:
+      operationId: getOrgUnitTree
+      tags: [military]
+      summary: Get org unit hierarchy as a tree
+      parameters:
+        - { name: organizationType, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Org unit tree
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/OrgUnitNode' } }
+
+  /org-units/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getOrgUnit
+      tags: [military]
+      summary: Get an org unit
+      responses:
+        '200':
+          description: Org unit
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrgUnit' }
+    patch:
+      operationId: updateOrgUnit
+      tags: [military]
+      summary: Update an org unit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrgUnitInput' }
+      responses:
+        '200':
+          description: Updated org unit
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrgUnit' }
+    delete:
+      operationId: deleteOrgUnit
+      tags: [military]
+      summary: Delete an org unit
+      responses: { '204': { description: Deleted } }
+
+  # ── Duty Stations ──────────────────────────────────────────────────────────
+  /duty-stations:
+    get:
+      operationId: listDutyStations
+      tags: [military]
+      summary: List duty stations
+      responses:
+        '200':
+          description: Duty stations
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/DutyStation' } }
+    post:
+      operationId: createDutyStation
+      tags: [military]
+      summary: Create a duty station
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DutyStationInput' }
+      responses:
+        '201':
+          description: Created duty station
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DutyStation' }
+
+  /duty-stations/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getDutyStation
+      tags: [military]
+      summary: Get a duty station
+      responses:
+        '200':
+          description: Duty station
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DutyStation' }
+    patch:
+      operationId: updateDutyStation
+      tags: [military]
+      summary: Update a duty station
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DutyStationInput' }
+      responses:
+        '200':
+          description: Updated duty station
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DutyStation' }
+    delete:
+      operationId: deleteDutyStation
+      tags: [military]
+      summary: Delete a duty station
+      responses: { '204': { description: Deleted } }
+
+  # ── Employee Postings ──────────────────────────────────────────────────────
+  /employee-postings:
+    get:
+      operationId: listEmployeePostings
+      tags: [military]
+      summary: List employee postings
+      parameters:
+        - { name: employeeId, in: query, schema: { type: number } }
+        - { name: orgUnitId, in: query, schema: { type: number } }
+        - { name: isCurrent, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Postings list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/EmployeePosting' } }
+    post:
+      operationId: createEmployeePosting
+      tags: [military]
+      summary: Create an employee posting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeePostingInput' }
+      responses:
+        '201':
+          description: Created posting
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmployeePosting' }
+
+  /employee-postings/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getEmployeePosting
+      tags: [military]
+      summary: Get an employee posting
+      responses:
+        '200':
+          description: Posting
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmployeePosting' }
+    patch:
+      operationId: updateEmployeePosting
+      tags: [military]
+      summary: Update an employee posting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeePostingInput' }
+      responses:
+        '200':
+          description: Updated posting
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmployeePosting' }
+    delete:
+      operationId: deleteEmployeePosting
+      tags: [military]
+      summary: Delete an employee posting
+      responses: { '204': { description: Deleted } }
+
+  # ── Employee Transfers ─────────────────────────────────────────────────────
+  /employee-transfers:
+    get:
+      operationId: listEmployeeTransfers
+      tags: [military]
+      summary: List employee transfers
+      parameters:
+        - { name: employeeId, in: query, schema: { type: number } }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Transfers list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/EmployeeTransfer' } }
+    post:
+      operationId: createEmployeeTransfer
+      tags: [military]
+      summary: Create a transfer order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeTransferInput' }
+      responses:
+        '201':
+          description: Created transfer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmployeeTransfer' }
+
+  /employee-transfers/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getEmployeeTransfer
+      tags: [military]
+      summary: Get a transfer order
+      responses:
+        '200':
+          description: Transfer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmployeeTransfer' }
+    patch:
+      operationId: updateEmployeeTransfer
+      tags: [military]
+      summary: Update a transfer order status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeTransferInput' }
+      responses:
+        '200':
+          description: Updated transfer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmployeeTransfer' }
+
+  # ── Employee Secondments ───────────────────────────────────────────────────
+  /employee-secondments:
+    get:
+      operationId: listEmployeeSecondments
+      tags: [military]
+      summary: List employee secondments
+      parameters:
+        - { name: employeeId, in: query, schema: { type: number } }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Secondments list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/EmployeeSecondment' } }
+    post:
+      operationId: createEmployeeSecondment
+      tags: [military]
+      summary: Create a secondment record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeSecondmentInput' }
+      responses:
+        '201':
+          description: Created secondment
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmployeeSecondment' }
+
+  /employee-secondments/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    patch:
+      operationId: updateEmployeeSecondment
+      tags: [military]
+      summary: Update a secondment record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeSecondmentInput' }
+      responses:
+        '200':
+          description: Updated secondment
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmployeeSecondment' }
+
+  # ── Security Clearances ────────────────────────────────────────────────────
+  /security-clearances:
+    get:
+      operationId: listSecurityClearances
+      tags: [security]
+      summary: List security clearances (restricted endpoint)
+      parameters:
+        - { name: clearanceLevel, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Clearances list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SecurityClearance' } }
+    post:
+      operationId: createSecurityClearance
+      tags: [security]
+      summary: Create or upsert a security clearance record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SecurityClearanceInput' }
+      responses:
+        '201':
+          description: Created clearance
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SecurityClearance' }
+
+  /security-clearances/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getSecurityClearance
+      tags: [security]
+      summary: Get a security clearance record
+      responses:
+        '200':
+          description: Clearance
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SecurityClearance' }
+    patch:
+      operationId: updateSecurityClearance
+      tags: [security]
+      summary: Update a security clearance (requires dual-auth for level changes)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SecurityClearanceInput' }
+      responses:
+        '200':
+          description: Updated clearance
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SecurityClearance' }
+
+  # ── Mobilization Statuses ──────────────────────────────────────────────────
+  /mobilization-statuses:
+    get:
+      operationId: listMobilizationStatuses
+      tags: [military]
+      summary: List mobilization statuses
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: readinessCode, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Mobilization list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/MobilizationStatus' } }
+    post:
+      operationId: createMobilizationStatus
+      tags: [military]
+      summary: Create or upsert a mobilization status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MobilizationStatusInput' }
+      responses:
+        '201':
+          description: Created status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MobilizationStatus' }
+
+  /mobilization-statuses/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    patch:
+      operationId: updateMobilizationStatus
+      tags: [military]
+      summary: Update a mobilization status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MobilizationStatusInput' }
+      responses:
+        '200':
+          description: Updated status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MobilizationStatus' }
+
+  # ── Chain of Command ───────────────────────────────────────────────────────
+  /chain-of-command:
+    get:
+      operationId: listChainOfCommand
+      tags: [military]
+      summary: List chain-of-command entries
+      parameters:
+        - { name: employeeId, in: query, schema: { type: number } }
+        - { name: supervisorEmployeeId, in: query, schema: { type: number } }
+      responses:
+        '200':
+          description: CoC entries
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ChainOfCommandEntry' } }
+    post:
+      operationId: createChainOfCommand
+      tags: [military]
+      summary: Create a chain-of-command entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChainOfCommandInput' }
+      responses:
+        '201':
+          description: Created entry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChainOfCommandEntry' }
+
+  /chain-of-command/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    patch:
+      operationId: updateChainOfCommand
+      tags: [military]
+      summary: Update a CoC entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChainOfCommandInput' }
+      responses:
+        '200':
+          description: Updated entry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChainOfCommandEntry' }
+    delete:
+      operationId: deleteChainOfCommand
+      tags: [military]
+      summary: Delete a CoC entry
+      responses: { '204': { description: Deleted } }
+
+  # ── Dual Authorization ─────────────────────────────────────────────────────
+  /dual-auth:
+    get:
+      operationId: listDualAuthRequests
+      tags: [security]
+      summary: List dual-authorization requests
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: actionType, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Dual-auth requests
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/DualAuthRequest' } }
+    post:
+      operationId: createDualAuthRequest
+      tags: [security]
+      summary: Initiate a dual-authorization request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DualAuthRequestInput' }
+      responses:
+        '201':
+          description: Created request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DualAuthRequest' }
+
+  /dual-auth/{id}/approve:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    post:
+      operationId: approveDualAuthRequest
+      tags: [security]
+      summary: Approve a dual-auth request (1st or 2nd approver)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DualAuthDecision' }
+      responses:
+        '200':
+          description: Updated request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DualAuthRequest' }
+
+  /dual-auth/{id}/reject:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    post:
+      operationId: rejectDualAuthRequest
+      tags: [security]
+      summary: Reject a dual-auth request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DualAuthDecision' }
+      responses:
+        '200':
+          description: Updated request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DualAuthRequest' }
+
+  # ── Break-Glass Access ─────────────────────────────────────────────────────
+  /break-glass:
+    get:
+      operationId: listBreakGlassAccess
+      tags: [security]
+      summary: List break-glass access records (audit)
+      parameters:
+        - { name: userId, in: query, schema: { type: number } }
+        - { name: isActive, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Break-glass records
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/BreakGlassAccess' } }
+    post:
+      operationId: requestBreakGlassAccess
+      tags: [security]
+      summary: Request emergency break-glass access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BreakGlassRequest' }
+      responses:
+        '201':
+          description: Access granted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BreakGlassAccess' }
+
+  /break-glass/{id}/revoke:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    post:
+      operationId: revokeBreakGlassAccess
+      tags: [security]
+      summary: Revoke an active break-glass access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BreakGlassAccess' }
+
+  # ── Admin — Backup Records ─────────────────────────────────────────────────
+  /admin/backup-records:
+    get:
+      operationId: listBackupRecords
+      tags: [admin]
+      summary: List backup records
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: backupType, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Backup records
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/BackupRecord' } }
+    post:
+      operationId: createBackupRecord
+      tags: [admin]
+      summary: Register a new backup record (or trigger backup)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BackupRecordInput' }
+      responses:
+        '201':
+          description: Created record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BackupRecord' }
+
+  /admin/backup-records/{id}/verify:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    post:
+      operationId: verifyBackupRecord
+      tags: [admin]
+      summary: Mark a backup as verified
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                verificationNotes: { type: string }
+                restoreTestResult: { type: string }
+      responses:
+        '200':
+          description: Updated record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BackupRecord' }
+
+  # ── Admin — Branch Servers ─────────────────────────────────────────────────
+  /admin/branch-servers:
+    get:
+      operationId: listBranchServers
+      tags: [admin]
+      summary: List registered branch servers
+      responses:
+        '200':
+          description: Branch servers
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/BranchServer' } }
+    post:
+      operationId: registerBranchServer
+      tags: [admin]
+      summary: Register a new branch server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BranchServerInput' }
+      responses:
+        '201':
+          description: Registered server
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BranchServer' }
+
+  /admin/branch-servers/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getBranchServer
+      tags: [admin]
+      summary: Get a branch server
+      responses:
+        '200':
+          description: Branch server
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BranchServer' }
+    patch:
+      operationId: updateBranchServer
+      tags: [admin]
+      summary: Update a branch server registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BranchServerInput' }
+      responses:
+        '200':
+          description: Updated server
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BranchServer' }
+
+  # ── Admin — Sync Queue ─────────────────────────────────────────────────────
+  /admin/sync-queue:
+    get:
+      operationId: listSyncQueue
+      tags: [admin]
+      summary: List sync queue entries
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: targetServerCode, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sync queue entries
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SyncQueueEntry' } }
+
+  /admin/sync-queue/{id}/resolve:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    post:
+      operationId: resolveSyncConflict
+      tags: [admin]
+      summary: Resolve a sync conflict
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolution: { type: string }
+                notes: { type: string }
+      responses:
+        '200':
+          description: Resolved entry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncQueueEntry' }
+
+  /admin/sync-status:
+    get:
+      operationId: getSyncStatus
+      tags: [admin]
+      summary: Get overall HQ-to-branch sync status summary
+      responses:
+        '200':
+          description: Sync status summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncStatusSummary' }
+
+  # ── Admin — License ────────────────────────────────────────────────────────
+  /admin/license:
+    get:
+      operationId: getLicense
+      tags: [admin]
+      summary: Get current license record
+      responses:
+        '200':
+          description: License record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LicenseRecord' }
+    post:
+      operationId: activateLicense
+      tags: [admin]
+      summary: Activate or update the license
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LicenseActivationInput' }
+      responses:
+        '200':
+          description: Activated license
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LicenseRecord' }
+
+  # ── Admin — DR Status ──────────────────────────────────────────────────────
+  /admin/dr-status:
+    get:
+      operationId: getDrStatus
+      tags: [admin]
+      summary: Get disaster-recovery readiness status
+      responses:
+        '200':
+          description: DR status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DrStatus' }
+
+
 components:
   schemas:
     HealthStatus:
@@ -3783,3 +4690,611 @@ components:
         calculatedAt: { type: ["string", "null"] }
       required: [runId, employee, period, summary, earnings, deductions, hasException]
 
+    # ── Phase 4 Schemas ────────────────────────────────────────────────────────
+
+    SystemConfig:
+      type: object
+      properties:
+        id: { type: number }
+        key: { type: string }
+        value: { type: string }
+        valueType: { type: string }
+        category: { type: string }
+        labelEn: { type: string }
+        labelAr: { type: string }
+        descriptionEn: { type: ["string", "null"] }
+        isPublic: { type: boolean }
+        isReadonly: { type: boolean }
+        updatedAt: { type: string }
+      required: [id, key, value, valueType, category, labelEn, labelAr, isPublic, isReadonly, updatedAt]
+
+    SystemConfigPatch:
+      type: object
+      description: Map of key → new value strings
+      additionalProperties: { type: string }
+
+    MilitaryRank:
+      type: object
+      properties:
+        id: { type: number }
+        rankCode: { type: string }
+        abbreviationEn: { type: string }
+        abbreviationAr: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        category: { type: string }
+        natoEquivalent: { type: ["string", "null"] }
+        rankOrder: { type: number }
+        salaryGradeCode: { type: ["string", "null"] }
+        organizationType: { type: string }
+        insigniaDescription: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        createdAt: { type: string }
+      required: [id, rankCode, abbreviationEn, abbreviationAr, nameEn, nameAr, category, rankOrder, organizationType, isActive]
+
+    MilitaryRankInput:
+      type: object
+      properties:
+        rankCode: { type: string }
+        abbreviationEn: { type: string }
+        abbreviationAr: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        category: { type: string }
+        natoEquivalent: { type: ["string", "null"] }
+        rankOrder: { type: number }
+        salaryGradeCode: { type: ["string", "null"] }
+        organizationType: { type: string }
+        insigniaDescription: { type: ["string", "null"] }
+        isActive: { type: boolean }
+      required: [rankCode, abbreviationEn, abbreviationAr, nameEn, nameAr]
+
+    OrgUnit:
+      type: object
+      properties:
+        id: { type: number }
+        unitCode: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        shortNameEn: { type: ["string", "null"] }
+        shortNameAr: { type: ["string", "null"] }
+        unitType: { type: string }
+        organizationType: { type: string }
+        parentId: { type: ["number", "null"] }
+        commanderEmployeeId: { type: ["number", "null"] }
+        missionEn: { type: ["string", "null"] }
+        levelDepth: { type: number }
+        authorizedStrength: { type: ["number", "null"] }
+        currentStrength: { type: number }
+        locationCode: { type: ["string", "null"] }
+        classificationLevel: { type: string }
+        isActive: { type: boolean }
+        createdAt: { type: string }
+      required: [id, unitCode, nameEn, nameAr, unitType, organizationType, levelDepth, currentStrength, classificationLevel, isActive]
+
+    OrgUnitNode:
+      allOf:
+        - $ref: '#/components/schemas/OrgUnit'
+        - type: object
+          properties:
+            commanderNameEn: { type: ["string", "null"] }
+            parentNameEn: { type: ["string", "null"] }
+            children:
+              type: array
+              items: { $ref: '#/components/schemas/OrgUnitNode' }
+
+    OrgUnitInput:
+      type: object
+      properties:
+        unitCode: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        shortNameEn: { type: ["string", "null"] }
+        shortNameAr: { type: ["string", "null"] }
+        unitType: { type: string }
+        organizationType: { type: string }
+        parentId: { type: ["number", "null"] }
+        commanderEmployeeId: { type: ["number", "null"] }
+        missionEn: { type: ["string", "null"] }
+        levelDepth: { type: number }
+        authorizedStrength: { type: ["number", "null"] }
+        locationCode: { type: ["string", "null"] }
+        classificationLevel: { type: string }
+        isActive: { type: boolean }
+      required: [unitCode, nameEn, nameAr, unitType]
+
+    DutyStation:
+      type: object
+      properties:
+        id: { type: number }
+        stationCode: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        country: { type: string }
+        region: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        latitude: { type: ["string", "null"] }
+        longitude: { type: ["string", "null"] }
+        stationType: { type: string }
+        classificationLevel: { type: string }
+        commandingUnitCode: { type: ["string", "null"] }
+        timezoneName: { type: string }
+        isActive: { type: boolean }
+        createdAt: { type: string }
+      required: [id, stationCode, nameEn, nameAr, country, stationType, classificationLevel, isActive]
+
+    DutyStationInput:
+      type: object
+      properties:
+        stationCode: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        country: { type: string }
+        region: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        latitude: { type: ["string", "null"] }
+        longitude: { type: ["string", "null"] }
+        stationType: { type: string }
+        classificationLevel: { type: string }
+        commandingUnitCode: { type: ["string", "null"] }
+        timezoneName: { type: string }
+        isActive: { type: boolean }
+      required: [stationCode, nameEn, nameAr]
+
+    EmployeePosting:
+      type: object
+      properties:
+        id: { type: number }
+        employeeId: { type: number }
+        orgUnitId: { type: number }
+        dutyStationId: { type: ["number", "null"] }
+        rankId: { type: ["number", "null"] }
+        positionTitleEn: { type: string }
+        positionTitleAr: { type: string }
+        positionCode: { type: ["string", "null"] }
+        postingType: { type: string }
+        startDate: { type: string }
+        endDate: { type: ["string", "null"] }
+        isCurrent: { type: boolean }
+        orderNumber: { type: ["string", "null"] }
+        orderDate: { type: ["string", "null"] }
+        authorizedByEmployeeId: { type: ["number", "null"] }
+        remarksEn: { type: ["string", "null"] }
+        createdAt: { type: string }
+        employeeNameEn: { type: ["string", "null"] }
+        orgUnitNameEn: { type: ["string", "null"] }
+        dutyStationNameEn: { type: ["string", "null"] }
+        rankNameEn: { type: ["string", "null"] }
+      required: [id, employeeId, orgUnitId, positionTitleEn, positionTitleAr, postingType, startDate, isCurrent]
+
+    EmployeePostingInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        orgUnitId: { type: number }
+        dutyStationId: { type: ["number", "null"] }
+        rankId: { type: ["number", "null"] }
+        positionTitleEn: { type: string }
+        positionTitleAr: { type: string }
+        positionCode: { type: ["string", "null"] }
+        postingType: { type: string }
+        startDate: { type: string }
+        endDate: { type: ["string", "null"] }
+        isCurrent: { type: boolean }
+        orderNumber: { type: ["string", "null"] }
+        remarksEn: { type: ["string", "null"] }
+      required: [employeeId, orgUnitId, positionTitleEn, positionTitleAr, startDate]
+
+    EmployeeTransfer:
+      type: object
+      properties:
+        id: { type: number }
+        employeeId: { type: number }
+        fromOrgUnitId: { type: ["number", "null"] }
+        toOrgUnitId: { type: number }
+        fromStationId: { type: ["number", "null"] }
+        toStationId: { type: ["number", "null"] }
+        transferDate: { type: string }
+        effectiveDate: { type: ["string", "null"] }
+        orderNumber: { type: string }
+        status: { type: string }
+        reasonEn: { type: ["string", "null"] }
+        approvedByEmployeeId: { type: ["number", "null"] }
+        requiresDualAuth: { type: boolean }
+        createdAt: { type: string }
+        employeeNameEn: { type: ["string", "null"] }
+        fromUnitNameEn: { type: ["string", "null"] }
+        toUnitNameEn: { type: ["string", "null"] }
+      required: [id, employeeId, toOrgUnitId, transferDate, orderNumber, status, requiresDualAuth]
+
+    EmployeeTransferInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        fromOrgUnitId: { type: ["number", "null"] }
+        toOrgUnitId: { type: number }
+        fromStationId: { type: ["number", "null"] }
+        toStationId: { type: ["number", "null"] }
+        transferDate: { type: string }
+        effectiveDate: { type: ["string", "null"] }
+        orderNumber: { type: string }
+        status: { type: string }
+        reasonEn: { type: ["string", "null"] }
+        approvedByEmployeeId: { type: ["number", "null"] }
+        requiresDualAuth: { type: boolean }
+      required: [employeeId, toOrgUnitId, transferDate, orderNumber]
+
+    EmployeeSecondment:
+      type: object
+      properties:
+        id: { type: number }
+        employeeId: { type: number }
+        hostOrgUnitId: { type: number }
+        parentOrgUnitId: { type: ["number", "null"] }
+        hostDutyStationId: { type: ["number", "null"] }
+        startDate: { type: string }
+        endDate: { type: ["string", "null"] }
+        status: { type: string }
+        purposeEn: { type: ["string", "null"] }
+        allowancePct: { type: string }
+        orderNumber: { type: ["string", "null"] }
+        requiresDualAuth: { type: boolean }
+        createdAt: { type: string }
+        employeeNameEn: { type: ["string", "null"] }
+        hostUnitNameEn: { type: ["string", "null"] }
+      required: [id, employeeId, hostOrgUnitId, startDate, status, allowancePct, requiresDualAuth]
+
+    EmployeeSecondmentInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        hostOrgUnitId: { type: number }
+        parentOrgUnitId: { type: ["number", "null"] }
+        hostDutyStationId: { type: ["number", "null"] }
+        startDate: { type: string }
+        endDate: { type: ["string", "null"] }
+        status: { type: string }
+        purposeEn: { type: ["string", "null"] }
+        allowancePct: { type: number }
+        orderNumber: { type: ["string", "null"] }
+        requiresDualAuth: { type: boolean }
+      required: [employeeId, hostOrgUnitId, startDate]
+
+    SecurityClearance:
+      type: object
+      properties:
+        id: { type: number }
+        employeeId: { type: number }
+        clearanceLevel: { type: string }
+        status: { type: string }
+        grantedDate: { type: ["string", "null"] }
+        expiryDate: { type: ["string", "null"] }
+        investigationAuthority: { type: ["string", "null"] }
+        investigationReferenceNumber: { type: ["string", "null"] }
+        adjudicationNotes: { type: ["string", "null"] }
+        lastReviewedAt: { type: ["string", "null"] }
+        accessCaveats: { type: ["string", "null"] }
+        requiresDualAuthForChanges: { type: boolean }
+        createdAt: { type: string }
+        employeeNameEn: { type: ["string", "null"] }
+        employeeNameAr: { type: ["string", "null"] }
+      required: [id, employeeId, clearanceLevel, status, requiresDualAuthForChanges]
+
+    SecurityClearanceInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        clearanceLevel: { type: string }
+        status: { type: string }
+        grantedDate: { type: ["string", "null"] }
+        expiryDate: { type: ["string", "null"] }
+        investigationAuthority: { type: ["string", "null"] }
+        investigationReferenceNumber: { type: ["string", "null"] }
+        adjudicationNotes: { type: ["string", "null"] }
+        accessCaveats: { type: ["string", "null"] }
+      required: [employeeId, clearanceLevel]
+
+    MobilizationStatus:
+      type: object
+      properties:
+        id: { type: number }
+        employeeId: { type: number }
+        status: { type: string }
+        unitAssignment: { type: ["string", "null"] }
+        deploymentStart: { type: ["string", "null"] }
+        deploymentEnd: { type: ["string", "null"] }
+        deploymentLocation: { type: ["string", "null"] }
+        deploymentType: { type: string }
+        readinessCode: { type: string }
+        mraRating: { type: ["string", "null"] }
+        exemptionReason: { type: ["string", "null"] }
+        remarksEn: { type: ["string", "null"] }
+        updatedAt: { type: string }
+        employeeNameEn: { type: ["string", "null"] }
+        employeeNameAr: { type: ["string", "null"] }
+      required: [id, employeeId, status, deploymentType, readinessCode]
+
+    MobilizationStatusInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        status: { type: string }
+        unitAssignment: { type: ["string", "null"] }
+        deploymentStart: { type: ["string", "null"] }
+        deploymentEnd: { type: ["string", "null"] }
+        deploymentLocation: { type: ["string", "null"] }
+        deploymentType: { type: string }
+        readinessCode: { type: string }
+        mraRating: { type: ["string", "null"] }
+        exemptionReason: { type: ["string", "null"] }
+        remarksEn: { type: ["string", "null"] }
+      required: [employeeId, status]
+
+    ChainOfCommandEntry:
+      type: object
+      properties:
+        id: { type: number }
+        employeeId: { type: number }
+        supervisorEmployeeId: { type: number }
+        relationshipType: { type: string }
+        effectiveFrom: { type: string }
+        effectiveTo: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        notesEn: { type: ["string", "null"] }
+        createdAt: { type: string }
+        employeeNameEn: { type: ["string", "null"] }
+        supervisorNameEn: { type: ["string", "null"] }
+      required: [id, employeeId, supervisorEmployeeId, relationshipType, effectiveFrom, isActive]
+
+    ChainOfCommandInput:
+      type: object
+      properties:
+        employeeId: { type: number }
+        supervisorEmployeeId: { type: number }
+        relationshipType: { type: string }
+        effectiveFrom: { type: string }
+        effectiveTo: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        notesEn: { type: ["string", "null"] }
+      required: [employeeId, supervisorEmployeeId, relationshipType, effectiveFrom]
+
+    DualAuthRequest:
+      type: object
+      properties:
+        id: { type: number }
+        actionType: { type: string }
+        targetEntityType: { type: ["string", "null"] }
+        targetEntityId: { type: ["number", "null"] }
+        targetEntityLabel: { type: ["string", "null"] }
+        descriptionEn: { type: string }
+        descriptionAr: { type: ["string", "null"] }
+        justification: { type: ["string", "null"] }
+        initiatedByUserId: { type: number }
+        status: { type: string }
+        firstApproverUserId: { type: ["number", "null"] }
+        firstApprovedAt: { type: ["string", "null"] }
+        secondApproverUserId: { type: ["number", "null"] }
+        secondApprovedAt: { type: ["string", "null"] }
+        expiresAt: { type: string }
+        completedAt: { type: ["string", "null"] }
+        rejectionReason: { type: ["string", "null"] }
+        requiresSeparateDepartments: { type: boolean }
+        createdAt: { type: string }
+        initiatedByUserName: { type: ["string", "null"] }
+      required: [id, actionType, descriptionEn, initiatedByUserId, status, expiresAt, requiresSeparateDepartments]
+
+    DualAuthRequestInput:
+      type: object
+      properties:
+        actionType: { type: string }
+        targetEntityType: { type: ["string", "null"] }
+        targetEntityId: { type: ["number", "null"] }
+        targetEntityLabel: { type: ["string", "null"] }
+        descriptionEn: { type: string }
+        descriptionAr: { type: ["string", "null"] }
+        justification: { type: ["string", "null"] }
+        payloadJson: { type: ["string", "null"] }
+        ttlMinutes: { type: number }
+      required: [actionType, descriptionEn]
+
+    DualAuthDecision:
+      type: object
+      properties:
+        approverUserId: { type: number }
+        notes: { type: ["string", "null"] }
+      required: [approverUserId]
+
+    BreakGlassAccess:
+      type: object
+      properties:
+        id: { type: number }
+        userId: { type: number }
+        resourceType: { type: string }
+        resourceId: { type: ["number", "null"] }
+        resourceLabel: { type: ["string", "null"] }
+        justification: { type: string }
+        accessGrantedAt: { type: string }
+        expiresAt: { type: string }
+        isActive: { type: boolean }
+        revokedAt: { type: ["string", "null"] }
+        reviewOutcome: { type: ["string", "null"] }
+        notificationSent: { type: boolean }
+        createdAt: { type: string }
+        userName: { type: ["string", "null"] }
+      required: [id, userId, resourceType, justification, accessGrantedAt, expiresAt, isActive, notificationSent]
+
+    BreakGlassRequest:
+      type: object
+      properties:
+        userId: { type: number }
+        resourceType: { type: string }
+        resourceId: { type: ["number", "null"] }
+        resourceLabel: { type: ["string", "null"] }
+        justification: { type: string }
+        emergencyCode: { type: ["string", "null"] }
+        ttlMinutes: { type: number }
+      required: [userId, resourceType, justification]
+
+    BackupRecord:
+      type: object
+      properties:
+        id: { type: number }
+        backupType: { type: string }
+        status: { type: string }
+        startedAt: { type: string }
+        completedAt: { type: ["string", "null"] }
+        fileSizeBytes: { type: ["number", "null"] }
+        checksum: { type: ["string", "null"] }
+        storageLocation: { type: ["string", "null"] }
+        retentionDays: { type: number }
+        isVerified: { type: boolean }
+        verifiedAt: { type: ["string", "null"] }
+        restoreTestResult: { type: string }
+        serverCode: { type: string }
+        errorMessage: { type: ["string", "null"] }
+      required: [id, backupType, status, startedAt, retentionDays, isVerified, restoreTestResult, serverCode]
+
+    BackupRecordInput:
+      type: object
+      properties:
+        backupType: { type: string }
+        status: { type: string }
+        fileSizeBytes: { type: ["number", "null"] }
+        checksum: { type: ["string", "null"] }
+        storageLocation: { type: ["string", "null"] }
+        retentionDays: { type: number }
+        serverCode: { type: string }
+        notes: { type: ["string", "null"] }
+      required: [backupType]
+
+    BranchServer:
+      type: object
+      properties:
+        id: { type: number }
+        serverCode: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        location: { type: ["string", "null"] }
+        orgUnitCode: { type: ["string", "null"] }
+        ipAddress: { type: ["string", "null"] }
+        publicKeyHash: { type: ["string", "null"] }
+        status: { type: string }
+        syncEnabled: { type: boolean }
+        lastSeenAt: { type: ["string", "null"] }
+        lastSyncAt: { type: ["string", "null"] }
+        lastSyncStatus: { type: ["string", "null"] }
+        pendingSyncCount: { type: number }
+        adminEmail: { type: ["string", "null"] }
+        softwareVersion: { type: ["string", "null"] }
+        registeredAt: { type: string }
+      required: [id, serverCode, nameEn, nameAr, status, syncEnabled, pendingSyncCount]
+
+    BranchServerInput:
+      type: object
+      properties:
+        serverCode: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        location: { type: ["string", "null"] }
+        orgUnitCode: { type: ["string", "null"] }
+        ipAddress: { type: ["string", "null"] }
+        publicKeyHash: { type: ["string", "null"] }
+        status: { type: string }
+        syncEnabled: { type: boolean }
+        adminEmail: { type: ["string", "null"] }
+        softwareVersion: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+      required: [serverCode, nameEn, nameAr]
+
+    SyncQueueEntry:
+      type: object
+      properties:
+        id: { type: number }
+        sourceServerCode: { type: string }
+        targetServerCode: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["number", "null"] }
+        entityLabel: { type: ["string", "null"] }
+        operation: { type: string }
+        status: { type: string }
+        payloadHash: { type: ["string", "null"] }
+        payloadSizeBytes: { type: ["number", "null"] }
+        isEncrypted: { type: boolean }
+        conflictResolution: { type: ["string", "null"] }
+        conflictNotes: { type: ["string", "null"] }
+        processedAt: { type: ["string", "null"] }
+        errorMessage: { type: ["string", "null"] }
+        retryCount: { type: number }
+        resolvedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, sourceServerCode, targetServerCode, entityType, operation, status, isEncrypted, retryCount]
+
+    SyncStatusSummary:
+      type: object
+      properties:
+        totalServers: { type: number }
+        onlineServers: { type: number }
+        offlineServers: { type: number }
+        pendingEntries: { type: number }
+        conflictEntries: { type: number }
+        failedEntries: { type: number }
+        lastSyncAt: { type: ["string", "null"] }
+        servers:
+          type: array
+          items: { $ref: '#/components/schemas/BranchServer' }
+      required: [totalServers, onlineServers, offlineServers, pendingEntries, conflictEntries, failedEntries]
+
+    LicenseRecord:
+      type: object
+      properties:
+        id: { type: number }
+        productName: { type: string }
+        edition: { type: string }
+        licenseKeyHash: { type: string }
+        issuedTo: { type: ["string", "null"] }
+        issuedToOrgCode: { type: ["string", "null"] }
+        maxUsers: { type: number }
+        maxBranches: { type: number }
+        validFrom: { type: string }
+        validUntil: { type: ["string", "null"] }
+        featuresJson: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        activatedAt: { type: ["string", "null"] }
+        lastValidatedAt: { type: ["string", "null"] }
+        validationMethod: { type: string }
+        offlineGraceDays: { type: number }
+        nextValidationDue: { type: ["string", "null"] }
+        createdAt: { type: string }
+        daysUntilExpiry: { type: ["number", "null"] }
+        features: { type: array, items: { type: string } }
+      required: [id, productName, edition, licenseKeyHash, maxUsers, maxBranches, validFrom, isActive, validationMethod, offlineGraceDays]
+
+    LicenseActivationInput:
+      type: object
+      properties:
+        licenseKey: { type: string }
+        issuedTo: { type: string }
+        validationMethod: { type: string }
+      required: [licenseKey, issuedTo]
+
+    DrStatus:
+      type: object
+      properties:
+        overallStatus: { type: string }
+        lastBackupAt: { type: ["string", "null"] }
+        lastBackupStatus: { type: string }
+        lastVerifiedAt: { type: ["string", "null"] }
+        lastRestoreTestAt: { type: ["string", "null"] }
+        lastRestoreTestResult: { type: string }
+        rpoCurrent: { type: ["number", "null"] }
+        rpoTarget: { type: number }
+        rtoTarget: { type: number }
+        totalBackupSizeBytes: { type: number }
+        backupCount: { type: number }
+        verifiedBackupCount: { type: number }
+        alerts:
+          type: array
+          items: { type: string }
+      required: [overallStatus, lastBackupStatus, lastRestoreTestResult, rpoTarget, rtoTarget, totalBackupSizeBytes, backupCount, verifiedBackupCount, alerts]

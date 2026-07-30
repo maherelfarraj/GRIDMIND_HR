@@ -33,6 +33,14 @@ import Payroll from '@/pages/payroll';
 import PayrollPayslip from '@/pages/payroll-payslip';
 import SalaryGrades from '@/pages/salary-grades';
 import PayComponents from '@/pages/pay-components';
+import SystemConfig from '@/pages/system-config';
+import MilitaryHierarchy from '@/pages/military-hierarchy';
+import DutyStations from '@/pages/duty-stations';
+import Postings from '@/pages/postings';
+import SecurityClearances from '@/pages/security-clearances';
+import Mobilization from '@/pages/mobilization';
+import SecuritySettings from '@/pages/security-settings';
+import AdminAirgap from '@/pages/admin-airgap';
 
 const queryClient = new QueryClient();
 
@@ -86,6 +94,14 @@ function ProtectedRouter() {
         <Route path="/payroll/grades" component={SalaryGrades} />
         <Route path="/payroll/components" component={PayComponents} />
         <Route path="/payroll" component={Payroll} />
+        <Route path="/system-config" component={SystemConfig} />
+        <Route path="/military-hierarchy" component={MilitaryHierarchy} />
+        <Route path="/duty-stations" component={DutyStations} />
+        <Route path="/postings" component={Postings} />
+        <Route path="/security-clearances" component={SecurityClearances} />
+        <Route path="/mobilization" component={Mobilization} />
+        <Route path="/security-settings" component={SecuritySettings} />
+        <Route path="/admin-airgap" component={AdminAirgap} />
         <Route component={NotFound} />
       </Switch>
     </Shell>

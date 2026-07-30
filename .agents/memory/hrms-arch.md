@@ -1,6 +1,6 @@
 ---
 name: HRMS Architecture Decisions
-description: Key build constraints and conventions for the HRMS enterprise HR system (Phase 1 + Phase 2)
+description: Key build constraints and conventions for the HRMS enterprise HR system (Phases 1–4)
 ---
 
 ## OpenAPI / Zod v3 compatibility
@@ -117,3 +117,19 @@ leave.tsx, leave-balances.tsx, leave-config.tsx, payroll.tsx, payroll-payslip.ts
 - `attendance.tsx`: `AttendanceRecord` has no `employeeNumber` (use `departmentNameEn`); `lateMinutes` is nullable (use `?? 0`)
 - `departments.tsx`: `DepartmentNode` has no `organizationType` — TreeNode uses optional field with `?? 'commercial'` fallback
 - `devices.tsx`: `DeviceHealth` fields are `signalStrength`, `recordsToday`, `errorLog.length`, `lastPingAt` (not `scanSuccessRate`, `totalScansToday`, `failedAttempts`, `lastHeartbeat`)
+
+## Phase 4 new DB tables (17 total)
+systemConfig, militaryRanks, orgUnits, dutyStations, employeePostings, employeeTransfers, employeeSecondments, securityClearances, mobilizationStatuses, chainOfCommand, dualAuthRequests, breakGlassAccess, privilegedSessions, branchServers, syncQueue, backupRecords, licenseRecords — all in lib/db/src/schema/, exported from index.ts, pushed to DB, seeded via seed-phase4.ts.
+
+**Why:** Phase 4 "Government / Military Readiness" layer on top of commercial HRMS.
+
+**How to apply:** All defense features are gated by system_config key "org.type" (commercial/government/military). Seeded as "military" in demo. orgUnitsTable has self-referential parentId (plain integer, no FK constraint in Drizzle). backupRecords.fileSizeBytes is integer — values must be <2,147,483,647 (use numeric for larger values).
+
+## Phase 4 seed pitfalls
+orgUnitsTable inserts must use returned IDs for parentId — do NOT hardcode sequential IDs since postgres sequences don't reset on DELETE. employeePostings/transfers must reference these real IDs via the returned objects.
+
+## Phase 4 org unit tree route ordering
+GET /org-units/tree MUST be registered before GET /org-units/:id in Express, otherwise the string "tree" gets parsed as a numeric ID and returns 404.
+
+## Phase 4 new frontend pages (8 total)
+system-config, military-hierarchy, duty-stations, postings, security-clearances, mobilization, security-settings, admin-airgap — all in artifacts/hrms/src/pages/, lazy-imported in App.tsx, linked in Sidebar.tsx under "Military & Government" and "System Admin" sections.

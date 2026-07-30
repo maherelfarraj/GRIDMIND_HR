@@ -86,7 +86,7 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
 
     // Apply OT rule (use standard by default)
     const otRule = overtimeRules.find(r => r.nameEn.includes("Standard")) ?? overtimeRules[0];
-    const otRate = otRule ? parseFloat(otRule.rate1Multiplier) : 1.5;
+    const otRate = otRule ? parseFloat(otRule.multiplierWeekday) : 1.5;
     const hourlyRate = baseSalary / 176; // 22 working days × 8h
     const overtimePay = overtimeHours * hourlyRate * otRate;
 

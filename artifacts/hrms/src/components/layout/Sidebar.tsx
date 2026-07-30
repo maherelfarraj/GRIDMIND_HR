@@ -27,6 +27,13 @@ import {
   Wallet,
   SlidersHorizontal,
   Receipt,
+  Shield,
+  MapPin,
+  ArrowRightLeft,
+  Lock,
+  Activity,
+  Server,
+  SlidersVertical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -68,6 +75,20 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
     { href: '/payroll', icon: Banknote, labelEn: 'Payroll Periods', labelAr: 'فترات الرواتب' },
     { href: '/payroll/grades', icon: Wallet, labelEn: 'Salary Grades', labelAr: 'الدرجات الوظيفية' },
     { href: '/payroll/components', icon: Receipt, labelEn: 'Pay Components', labelAr: 'مكونات الراتب' },
+  ];
+
+  const militaryItems = [
+    { href: '/system-config', icon: SlidersVertical, labelEn: 'System Config', labelAr: 'إعدادات النظام' },
+    { href: '/military-hierarchy', icon: Shield, labelEn: 'Military Hierarchy', labelAr: 'الهيكل العسكري' },
+    { href: '/duty-stations', icon: MapPin, labelEn: 'Duty Stations', labelAr: 'محطات الخدمة' },
+    { href: '/postings', icon: ArrowRightLeft, labelEn: 'Postings & Transfers', labelAr: 'التكليفات والنقل' },
+    { href: '/security-clearances', icon: ShieldCheck, labelEn: 'Security Clearances', labelAr: 'التصاريح الأمنية' },
+    { href: '/mobilization', icon: Activity, labelEn: 'Mobilization', labelAr: 'التعبئة' },
+    { href: '/security-settings', icon: Lock, labelEn: 'Security Settings', labelAr: 'إعدادات الأمان' },
+  ];
+
+  const systemAdminItems = [
+    { href: '/admin-airgap', icon: Server, labelEn: 'Air-Gap Admin', labelAr: 'إدارة الفصل الجوي' },
   ];
 
   const comingSoonItems = [
@@ -156,6 +177,46 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
           {t('Payroll', 'الرواتب')}
         </div>
         {payrollItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive 
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary" 
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          {t('Military & Government', 'عسكري وحكومي')}
+        </div>
+        {militaryItems.map((item) => {
+          const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={onMobileClose}>
+              <div className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
+                isActive 
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground border-s-[3px] border-primary" 
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}>
+                <item.icon className="w-4 h-4" />
+                <span>{t(item.labelEn, item.labelAr)}</span>
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="px-3 mt-6 mb-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+          {t('System Admin', 'إدارة النظام')}
+        </div>
+        {systemAdminItems.map((item) => {
           const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
           return (
             <Link key={item.href} href={item.href} onClick={onMobileClose}>

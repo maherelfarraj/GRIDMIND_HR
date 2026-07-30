@@ -60,7 +60,7 @@ router.post("/documents", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [doc] = await db.insert(documentsTable).values({
     ...parsed.data,
-    uploadedByUserId: parsed.data.uploadedByUserId ?? 1,
+    uploadedByUserId: (parsed.data as any).uploadedByUserId ?? 1,
   }).returning();
   res.status(201).json(await buildDocResponse(doc));
 });
