@@ -244,60 +244,85 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
   const isReject = decision === "rejected" || decision === "reject";
   const normalizedDecision = isApprove ? "approved" : "rejected";
 
-  await db.update(leaveApprovalStepsTable)
-    .set({ status: normalizedDecision, decision: normalizedDecision, notes: notes ?? null, decidedAt: new Date() })
-    .where(eq(leaveApprovalStepsTable.id, step.id));
-
-  let newStatus = r.status;
-  let newStep = r.currentStepNumber;
-
-  if (isReject) {
-    newStatus = "rejected";
-    // Release pending balance
-    const year = new Date(r.startDate).getFullYear();
-    const [balance] = await db.select().from(leaveBalancesTable).where(
-      and(
-        eq(leaveBalancesTable.employeeId, r.employeeId),
-        eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
-        eq(leaveBalancesTable.year, year),
-      )
-    );
-    if (balance) {
-      const newPending = Math.max(0, parseFloat(balance.pending) - parseFloat(r.totalDays));
-      await db.update(leaveBalancesTable).set({ pending: String(newPending) }).where(eq(leaveBalancesTable.id, balance.id));
-    }
-  } else if (isApprove) {
-    if (step.stepNumber >= r.totalApprovalSteps) {
-      // Final approval
-      newStatus = "approved";
-      newStep = step.stepNumber;
-      // Move pending → used
-      const year = new Date(r.startDate).getFullYear();
-      const [balance] = await db.select().from(leaveBalancesTable).where(
-        and(
-          eq(leaveBalancesTable.employeeId, r.employeeId),
-          eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
-          eq(leaveBalancesTable.year, year),
-        )
-      );
-      if (balance) {
-        const days = parseFloat(r.totalDays);
-        const newPending = Math.max(0, parseFloat(balance.pending) - days);
-        const newUsed = parseFloat(balance.used) + days;
-        await db.update(leaveBalancesTable)
-          .set({ pending: String(newPending), used: String(newUsed) })
-          .where(eq(leaveBalancesTable.id, balance.id));
+  // Task #18: run decision atomically. Row-level locks (SELECT ... FOR UPDATE)
+  // on the leave request and its balance row prevent two concurrent approvals
+  // from both passing the balance check and overdrawing the balance.
+  let updated: typeof leaveRequestsTable.$inferSelect;
+  try {
+    updated = await db.transaction(async (tx) => {
+      // Re-read + lock the request row inside the transaction; a concurrent
+      // decision may have already finalized it.
+      const [locked] = await tx.select().from(leaveRequestsTable)
+        .where(eq(leaveRequestsTable.id, id))
+        .for("update");
+      if (!locked || !["submitted", "under_review"].includes(locked.status)) {
+        throw Object.assign(new Error("Request is no longer pending a decision"), { httpStatus: 409 });
       }
-    } else {
-      newStatus = "under_review";
-      newStep = step.stepNumber + 1;
-    }
-  }
 
-  const [updated] = await db.update(leaveRequestsTable)
-    .set({ status: newStatus, currentStepNumber: newStep, decidedAt: newStatus === "approved" || newStatus === "rejected" ? new Date() : null, updatedAt: new Date() })
-    .where(eq(leaveRequestsTable.id, id))
-    .returning();
+      let newStatus = locked.status;
+      let newStep = locked.currentStepNumber;
+      const year = new Date(locked.startDate).getFullYear();
+      const balanceWhere = and(
+        eq(leaveBalancesTable.employeeId, locked.employeeId),
+        eq(leaveBalancesTable.leaveTypeId, locked.leaveTypeId),
+        eq(leaveBalancesTable.year, year),
+      );
+
+      if (isReject) {
+        newStatus = "rejected";
+        // Release pending balance (locked)
+        const [balance] = await tx.select().from(leaveBalancesTable).where(balanceWhere).for("update");
+        if (balance) {
+          const newPending = Math.max(0, parseFloat(balance.pending) - parseFloat(locked.totalDays));
+          await tx.update(leaveBalancesTable)
+            .set({ pending: String(newPending), updatedAt: new Date() })
+            .where(eq(leaveBalancesTable.id, balance.id));
+        }
+      } else if (isApprove) {
+        if (step.stepNumber >= locked.totalApprovalSteps) {
+          // Final approval — lock the balance row before deducting
+          newStatus = "approved";
+          newStep = step.stepNumber;
+          const [balance] = await tx.select().from(leaveBalancesTable).where(balanceWhere).for("update");
+          if (balance) {
+            const days = parseFloat(locked.totalDays);
+            const entitlement = parseFloat(balance.openingBalance) + parseFloat(balance.accrued) +
+              parseFloat(balance.carriedOver) + parseFloat(balance.adjustment);
+            const newUsed = parseFloat(balance.used) + days;
+            if (newUsed > entitlement + 1e-9) {
+              throw Object.assign(
+                new Error("Insufficient leave balance: approving this request would overdraw the employee's balance"),
+                { httpStatus: 409, code: "BALANCE_CONFLICT" },
+              );
+            }
+            const newPending = Math.max(0, parseFloat(balance.pending) - days);
+            await tx.update(leaveBalancesTable)
+              .set({ pending: String(newPending), used: String(newUsed), updatedAt: new Date() })
+              .where(eq(leaveBalancesTable.id, balance.id));
+          }
+        } else {
+          newStatus = "under_review";
+          newStep = step.stepNumber + 1;
+        }
+      }
+
+      await tx.update(leaveApprovalStepsTable)
+        .set({ status: normalizedDecision, decision: normalizedDecision, notes: notes ?? null, decidedAt: new Date() })
+        .where(eq(leaveApprovalStepsTable.id, step.id));
+
+      const [row] = await tx.update(leaveRequestsTable)
+        .set({ status: newStatus, currentStepNumber: newStep, decidedAt: newStatus === "approved" || newStatus === "rejected" ? new Date() : null, updatedAt: new Date() })
+        .where(eq(leaveRequestsTable.id, id))
+        .returning();
+      return row;
+    });
+  } catch (err: any) {
+    if (err?.httpStatus) {
+      res.status(err.httpStatus).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+      return;
+    }
+    throw err;
+  }
 
   await db.insert(auditLogsTable).values({
     action: `leave.${decision}d`,
