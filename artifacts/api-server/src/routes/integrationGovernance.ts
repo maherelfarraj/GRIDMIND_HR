@@ -239,9 +239,17 @@ router.post("/integration-governance/connection-profiles/:id/suspend", async (re
 
 router.get("/integration-governance/connection-profiles/:id", async (req, res): Promise<void> => {
   try {
-    const [row] = await db.select().from(integrationConnectionProfilesTable).where(eq(integrationConnectionProfilesTable.id, parseInt(req.params.id)));
-    if (!row) return void res.status(404).json({ error: "Not found" });
-    res.json(row);
+    const [r] = await db
+      .select({
+        profile: integrationConnectionProfilesTable,
+        lastTestedByNameEn: systemUsersTable.fullNameEn,
+        lastTestedByNameAr: systemUsersTable.fullNameAr,
+      })
+      .from(integrationConnectionProfilesTable)
+      .leftJoin(systemUsersTable, eq(integrationConnectionProfilesTable.lastTestedByUserId, systemUsersTable.id))
+      .where(eq(integrationConnectionProfilesTable.id, parseInt(req.params.id)));
+    if (!r) return void res.status(404).json({ error: "Not found" });
+    res.json({ ...r.profile, lastTestedByNameEn: r.lastTestedByNameEn, lastTestedByNameAr: r.lastTestedByNameAr });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
