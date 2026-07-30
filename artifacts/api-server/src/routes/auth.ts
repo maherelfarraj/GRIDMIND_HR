@@ -2,6 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, systemUsersTable, rolesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { ChangeMyPasswordBody } from "@workspace/api-zod";
 
 const router = Router();
 
@@ -130,6 +131,46 @@ router.post("/auth/logout", (req, res): void => {
     res.clearCookie("connect.sid");
     res.json({ success: true });
   });
+});
+
+// POST /auth/change-password — signed-in user changes their own password.
+// Requires the current password to match the stored bcrypt hash (fail-closed:
+// accounts without a stored hash cannot self-change until an admin provisions one).
+router.post("/auth/change-password", async (req, res): Promise<void> => {
+  const userId = req.session?.userId;
+  if (!userId) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  const parsed = ChangeMyPasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "newPassword must be at least 8 characters and currentPassword is required" });
+    return;
+  }
+  const { currentPassword, newPassword } = parsed.data;
+
+  const [user] = await db.select().from(systemUsersTable)
+    .where(eq(systemUsersTable.id, userId));
+  if (!user || !user.isActive) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  const userWithHash = user as typeof user & { passwordHash?: string | null };
+  if (!userWithHash.passwordHash) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+  const valid = await bcrypt.compare(currentPassword, userWithHash.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await db.update(systemUsersTable).set({ passwordHash }).where(eq(systemUsersTable.id, user.id));
+  res.json({ success: true });
 });
 
 // GET /auth/me — return current session user; demo fallback to first active user

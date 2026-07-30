@@ -1035,6 +1035,28 @@ paths:
                   success: { type: boolean }
                 required: [success]
 
+  /auth/change-password:
+    post:
+      operationId: changeMyPassword
+      tags: [users]
+      summary: Change the signed-in user's own password (verifies current password)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordInput"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                required: [success]
+
   /auth/me:
     get:
       operationId: getAuthMe
@@ -9590,6 +9612,13 @@ components:
       properties:
         password: { type: string, minLength: 8 }
       required: [password]
+
+    ChangePasswordInput:
+      type: object
+      properties:
+        currentPassword: { type: string, minLength: 1 }
+        newPassword: { type: string, minLength: 8 }
+      required: [currentPassword, newPassword]
 
     # ── Leave Types ───────────────────────────────────────────
     LeaveType:

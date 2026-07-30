@@ -71,6 +71,8 @@ export * from './certification';
 export * from './certificationInput';
 export * from './chainOfCommandEntry';
 export * from './chainOfCommandInput';
+export * from './changeMyPassword200';
+export * from './changePasswordInput';
 export * from './clearAbandonedRetryQueue200';
 export * from './commendationRecord';
 export * from './commendationRecordInput';

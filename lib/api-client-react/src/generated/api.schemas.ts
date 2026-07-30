@@ -947,6 +947,13 @@ export interface SetPasswordInput {
   password: string;
 }
 
+export interface ChangePasswordInput {
+  /** @minLength 1 */
+  currentPassword: string;
+  /** @minLength 8 */
+  newPassword: string;
+}
+
 export interface LeaveType {
   id: number;
   codeEn: string;
@@ -4297,6 +4304,10 @@ acknowledged?: boolean | null;
 };
 
 export type SetUserPassword200 = {
+  success: boolean;
+};
+
+export type ChangeMyPassword200 = {
   success: boolean;
 };
 

@@ -19,11 +19,32 @@ export function handleSessionExpired(): void {
 }
 
 /**
+ * Endpoints where a 401 means "your input was wrong", not "your session
+ * expired" — e.g. a bad login attempt or an incorrect current password on
+ * self-service change. These must show an inline error, never force logout.
+ */
+const CREDENTIAL_CHECK_PATHS = ['/auth/login', '/auth/change-password'];
+
+/** True when a 401 response should trigger the global session-expired flow. */
+export function isSessionExpiry401(responseUrl: string): boolean {
+  let pathname = responseUrl;
+  try {
+    pathname = new URL(responseUrl, 'http://localhost').pathname;
+  } catch {
+    // keep raw string fallback
+  }
+  return !CREDENTIAL_CHECK_PATHS.some((p) => pathname.endsWith(p));
+}
+
+/**
  * Configure the generated API client (react-query hooks) so every request
- * carries cookies and any 401 response signs the user out safely.
- * Called once at app startup.
+ * carries cookies and any session-expiry 401 signs the user out safely.
+ * 401s from credential-check endpoints (login, change-password) are left to
+ * the calling screen to display inline. Called once at app startup.
  */
 export function configureApiClient(): void {
   setDefaultCredentials('include');
-  setUnauthorizedHandler(() => handleSessionExpired());
+  setUnauthorizedHandler((response) => {
+    if (isSessionExpiry401(response.url)) handleSessionExpired();
+  });
 }

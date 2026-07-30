@@ -199,3 +199,97 @@ describe("POST /users/:id/password (set/reset)", () => {
     expect(detail.body.passwordHash).toBeUndefined();
   });
 });
+
+describe("POST /auth/change-password (self-service)", () => {
+  // Dedicated fixture user so password rotation here can't affect other tests.
+  const SELF_USERNAME = `pilot-selfchange-test-${SUFFIX}`;
+  const SELF_PASSWORD = "SelfStart123!";
+  let selfUserId: number;
+
+  beforeAll(async () => {
+    const passwordHash = await bcrypt.hash(SELF_PASSWORD, 10);
+    const [row] = await db.insert(systemUsersTable).values({
+      username: SELF_USERNAME,
+      email: `${SELF_USERNAME}@test.example`,
+      fullNameEn: "Pilot SelfChange Test",
+      fullNameAr: "اختبار",
+      roleId: 5,
+      isActive: true,
+      passwordHash,
+    }).returning();
+    selfUserId = row.id;
+  });
+
+  afterAll(async () => {
+    await db.delete(systemUsersTable).where(eq(systemUsersTable.id, selfUserId)).catch(() => {});
+  });
+
+  async function selfAgent(password: string) {
+    const agent = request.agent(app);
+    const login = await agent.post("/api/auth/login").send({ username: SELF_USERNAME, password });
+    expect(login.status).toBe(200);
+    return agent;
+  }
+
+  it("rejects the request without a session", async () => {
+    const res = await request(app)
+      .post("/api/auth/change-password")
+      .send({ currentPassword: SELF_PASSWORD, newPassword: "AnotherPass123!" });
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects a wrong current password", async () => {
+    const agent = await selfAgent(SELF_PASSWORD);
+    const res = await agent
+      .post("/api/auth/change-password")
+      .send({ currentPassword: "not-my-password", newPassword: "AnotherPass123!" });
+    expect(res.status).toBe(401);
+
+    // Old password still works.
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ username: SELF_USERNAME, password: SELF_PASSWORD });
+    expect(login.status).toBe(200);
+  });
+
+  it("rejects a weak new password (under 8 characters)", async () => {
+    const agent = await selfAgent(SELF_PASSWORD);
+    const res = await agent
+      .post("/api/auth/change-password")
+      .send({ currentPassword: SELF_PASSWORD, newPassword: "short" });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects when currentPassword is missing", async () => {
+    const agent = await selfAgent(SELF_PASSWORD);
+    const res = await agent
+      .post("/api/auth/change-password")
+      .send({ newPassword: "AnotherPass123!" });
+    expect(res.status).toBe(400);
+  });
+
+  it("changes the password: new login works, old password is rejected, hash stored", async () => {
+    const agent = await selfAgent(SELF_PASSWORD);
+    const newPassword = "RotatedPass456!";
+    const res = await agent
+      .post("/api/auth/change-password")
+      .send({ currentPassword: SELF_PASSWORD, newPassword });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const [row] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, selfUserId));
+    expect(row.passwordHash).toBeTruthy();
+    expect(row.passwordHash).not.toBe(newPassword);
+    expect(row.passwordHash!.startsWith("$2")).toBe(true);
+
+    const oldLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ username: SELF_USERNAME, password: SELF_PASSWORD });
+    expect(oldLogin.status).toBe(401);
+
+    const newLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ username: SELF_USERNAME, password: newPassword });
+    expect(newLogin.status).toBe(200);
+  });
+});

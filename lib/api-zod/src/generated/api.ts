@@ -1353,6 +1353,24 @@ export const SetUserPasswordResponse = zod.object({
 
 
 /**
+ * @summary Change the signed-in user's own password (verifies current password)
+ */
+
+export const changeMyPasswordBodyNewPasswordMin = 8;
+
+
+
+export const ChangeMyPasswordBody = zod.object({
+  "currentPassword": zod.string().min(1),
+  "newPassword": zod.string().min(changeMyPasswordBodyNewPasswordMin)
+})
+
+export const ChangeMyPasswordResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Get the current authenticated user
  */
 export const GetAuthMeResponse = zod.object({
