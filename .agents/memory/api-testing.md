@@ -11,6 +11,7 @@ Integration tests live in `artifacts/api-server/src/__tests__/` and run with `pn
 - Test leave types are created `isActive: false` so annual-reset sweeps don't pick them up; the annual-reset test activates its type and uses far-future years (2098/2099), deleting all rows for those years afterwards.
 - Vitest config sets `fileParallelism: false` — files share one DB; parallel files would race on balances/audit counts.
 
+- Far-future test periods (Feb 2098) are not holiday-free: seeded *recurring* public holidays expand into any year, so working-day expectations must be computed against the live holiday table, not hardcoded.
 - Task merges from other sessions can land with botched conflict resolution (syntax errors in route files). Run `pnpm --filter @workspace/api-server run typecheck` before completion review; if a merged file is mangled, restore it from the last known-good commit and re-apply only the intended change minimally.
 
 **Why:** No separate test database exists (air-gap demo, single DATABASE_URL); tests must be self-cleaning and sequential to stay deterministic.

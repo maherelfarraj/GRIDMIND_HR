@@ -447,6 +447,68 @@ describe("payroll calculation engine", () => {
     });
   });
 
+  describe("overtime multipliers by day type", () => {
+    // 2098-02-07 is a Friday (configured weekend); 2098-02-11 is a Tuesday.
+    const WEEKEND_OT_DATE = "2098-02-07";
+    const HOLIDAY_OT_DATE = "2098-02-11";
+    const extraPunchIds: number[] = [];
+    let otHolidayId: number;
+
+    beforeAll(async () => {
+      const [h] = await db.insert(publicHolidaysTable).values({
+        nameEn: `TEST OT Holiday ${SUFFIX}`,
+        nameAr: `عطلة وقت إضافي اختبار ${SUFFIX}`,
+        date: HOLIDAY_OT_DATE,
+        year: 2098,
+        applicableTo: "all",
+      }).returning();
+      otHolidayId = h.id;
+
+      for (const date of [WEEKEND_OT_DATE, HOLIDAY_OT_DATE]) {
+        const [ev] = await db.insert(punchEventsTable).values({
+          employeeId: empWithGradeId,
+          eventTime: new Date(`${date}T18:00:00Z`),
+          eventType: "OVERTIME_START",
+          source: "MANUAL",
+          notes: `TEST-PAYROLL-OT-${SUFFIX}`,
+        }).returning();
+        extraPunchIds.push(ev.id);
+      }
+    });
+
+    afterAll(async () => {
+      if (extraPunchIds.length) {
+        await db.delete(punchEventsTable).where(inArray(punchEventsTable.id, extraPunchIds));
+      }
+      if (otHolidayId) await db.delete(publicHolidaysTable).where(eq(publicHolidaysTable.id, otHolidayId));
+    });
+
+    it("pays weekend and holiday overtime at their own multipliers", async () => {
+      const res = await request(app).post(`/api/payroll-periods/${periodId}/calculate`);
+      expect(res.status).toBe(200);
+
+      const runsRes = await request(app).get(`/api/payroll-runs?periodId=${periodId}`);
+      const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === empWithGradeId);
+      expect(run).toBeDefined();
+
+      const otRules = await db.select().from(overtimeRulesTable).where(eq(overtimeRulesTable.isActive, true));
+      const otRule = otRules.find(r => r.nameEn.includes("Standard")) ?? otRules[0];
+      const weekdayRate = otRule ? parseFloat(String(otRule.multiplierWeekday)) : 1.5;
+      const weekendRate = otRule ? parseFloat(String(otRule.multiplierWeekend)) : 2.0;
+      const holidayRate = otRule ? parseFloat(String(otRule.multiplierHoliday)) : 2.5;
+      // Sanity: seeded rule must actually differentiate the rates for this test to be meaningful.
+      expect(weekendRate).toBeGreaterThan(weekdayRate);
+
+      const hourly = BASE_SALARY / 176;
+      // Original OT_EVENTS weekday events (2h each) + 2h weekend + 2h holiday.
+      const expectedHours = OT_EVENTS * 2 + 2 + 2;
+      const expectedPay = round2(hourly * (OT_EVENTS * 2 * weekdayRate + 2 * weekendRate + 2 * holidayRate));
+
+      expect(parseFloat(run.overtimeHours)).toBeCloseTo(expectedHours, 2);
+      expect(parseFloat(run.overtimePay)).toBeCloseTo(expectedPay, 2);
+    });
+  });
+
   it("refuses to recalculate a closed period", async () => {
     const [closed] = await db.insert(payrollPeriodsTable).values({
       periodCode: `T-PPC-${SUFFIX}`,

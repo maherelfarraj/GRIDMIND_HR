@@ -21,6 +21,7 @@ import {
   leaveRequestsTable,
   leaveTypesTable,
   systemConfigTable,
+  publicHolidaysTable,
 } from "@workspace/db";
 import app from "../app";
 
@@ -34,12 +35,21 @@ const TRANSPORT_PCT = 10;
 // Feb 2098: 28 days, Feb 1 is a Saturday → exactly 4 of every weekday.
 const PERIOD_START = "2098-02-01";
 const PERIOD_END = "2098-02-28";
-const DEFAULT_WORKING_DAYS = 20;      // Fri/Sat weekend
-// Feb 2098 has a seeded recurring holiday on Feb 22 (Founding Day, applicableTo: "all").
-// Feb 22 is a Saturday. With Fri/Sat [5,6] it's already a non-working day (20 unchanged).
-// With Friday-only [5] weekend, Saturday becomes a working day, so Founding Day removes
-// one working day: 28 − 4 Fridays − 1 Founding Day = 23.
-const FRIDAY_ONLY_WORKING_DAYS = 23;  // [5] — single-day weekend (minus Founding Day Feb 22)
+
+// Seeded public holidays (including recurring ones expanded into 2098) also
+// reduce working days, so expectations are computed against the live holiday
+// table rather than hardcoded. `holidayDates` is filled in beforeAll.
+const holidayDates = new Set<string>();
+
+function countWorking(start: string, end: string, weekendDays: number[]): number {
+  let count = 0;
+  for (let t = Date.parse(start + "T00:00:00Z"); t <= Date.parse(end + "T00:00:00Z"); t += 86400000) {
+    const d = new Date(t);
+    const iso = d.toISOString().slice(0, 10);
+    if (!weekendDays.includes(d.getUTCDay()) && !holidayDates.has(iso)) count++;
+  }
+  return count;
+}
 
 let gradeId: number;
 let empId: number;
@@ -66,6 +76,15 @@ async function calculateAndGetRun() {
 }
 
 beforeAll(async () => {
+  // Collect holidays applying to the test employee (commercial sector) in the
+  // period, expanding recurring holidays into 2098 the same way payroll does.
+  const holidays = await db.select().from(publicHolidaysTable);
+  for (const h of holidays) {
+    if (h.applicableTo && h.applicableTo !== "all" && h.applicableTo !== "commercial") continue;
+    const iso = h.isRecurring ? `2098${h.date.slice(4)}` : h.date;
+    if (iso >= PERIOD_START && iso <= PERIOD_END) holidayDates.add(iso);
+  }
+
   // Snapshot (or create) the config row so we can mutate it safely.
   const [existing] = await db.select().from(systemConfigTable)
     .where(eq(systemConfigTable.key, CONFIG_KEY));
@@ -169,42 +188,45 @@ describe("configurable weekend days in payroll calculation", () => {
   it("uses the default Fri/Sat weekend when the config holds the default", async () => {
     await setWeekendConfig("[5,6]");
     const run = await calculateAndGetRun();
-    expect(run.workingDays).toBe(DEFAULT_WORKING_DAYS);
-    // Leave Feb 12 (Wed) – 15 (Sat): Wed, Thu, Sun-start? → Fri 14 & Sat 15 are weekend → 2 working days.
-    expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(2, 1);
-    const dailyRate = (BASE_SALARY * (1 + (HOUSING_PCT + TRANSPORT_PCT) / 100)) / DEFAULT_WORKING_DAYS;
-    expect(parseFloat(run.leaveDeductionAmount)).toBeCloseTo(Math.round(2 * dailyRate * 100) / 100, 2);
+    const workingDays = countWorking(PERIOD_START, PERIOD_END, [5, 6]);
+    expect(run.workingDays).toBe(workingDays);
+    // Leave Feb 12 (Wed) – 15 (Sat): Fri 14 & Sat 15 are weekend.
+    const leaveDays = countWorking("2098-02-12", "2098-02-15", [5, 6]);
+    expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(leaveDays, 1);
+    const dailyRate = (BASE_SALARY * (1 + (HOUSING_PCT + TRANSPORT_PCT) / 100)) / workingDays;
+    expect(parseFloat(run.leaveDeductionAmount)).toBeCloseTo(Math.round(leaveDays * dailyRate * 100) / 100, 2);
   });
 
   it("recomputes working days and deductions under a non-default weekend", async () => {
-    // Friday-only weekend: 24 working days; leave Feb 12–15 now spans
-    // Wed, Thu, (Fri off), Sat → 3 working days.
+    // Friday-only weekend: leave Feb 12–15 now spans Wed, Thu, (Fri off), Sat.
     await setWeekendConfig("[5]");
     const run = await calculateAndGetRun();
-    expect(run.workingDays).toBe(FRIDAY_ONLY_WORKING_DAYS);
-    expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(3, 1);
-    const dailyRate = (BASE_SALARY * (1 + (HOUSING_PCT + TRANSPORT_PCT) / 100)) / FRIDAY_ONLY_WORKING_DAYS;
-    expect(parseFloat(run.leaveDeductionAmount)).toBeCloseTo(Math.round(3 * dailyRate * 100) / 100, 2);
+    const workingDays = countWorking(PERIOD_START, PERIOD_END, [5]);
+    expect(run.workingDays).toBe(workingDays);
+    const leaveDays = countWorking("2098-02-12", "2098-02-15", [5]);
+    expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(leaveDays, 1);
+    const dailyRate = (BASE_SALARY * (1 + (HOUSING_PCT + TRANSPORT_PCT) / 100)) / workingDays;
+    expect(parseFloat(run.leaveDeductionAmount)).toBeCloseTo(Math.round(leaveDays * dailyRate * 100) / 100, 2);
   });
 
   it("handles a Sat/Sun weekend configuration", async () => {
     await setWeekendConfig("[6,0]");
     const run = await calculateAndGetRun();
-    expect(run.workingDays).toBe(DEFAULT_WORKING_DAYS); // still 20 in a 28-day month
-    // Leave Feb 12 (Wed) – 15 (Sat): Wed, Thu, Fri working; Sat off → 3 days.
-    expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(3, 1);
+    expect(run.workingDays).toBe(countWorking(PERIOD_START, PERIOD_END, [6, 0]));
+    // Leave Feb 12 (Wed) – 15 (Sat): Wed, Thu, Fri working; Sat off.
+    expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(countWorking("2098-02-12", "2098-02-15", [6, 0]), 1);
   });
 
   it("falls back to Fri/Sat when the config value is invalid", async () => {
     await setWeekendConfig("not-json");
     const run = await calculateAndGetRun();
-    expect(run.workingDays).toBe(DEFAULT_WORKING_DAYS);
-    expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(2, 1);
+    expect(run.workingDays).toBe(countWorking(PERIOD_START, PERIOD_END, [5, 6]));
+    expect(parseFloat(run.deductedLeaveDays)).toBeCloseTo(countWorking("2098-02-12", "2098-02-15", [5, 6]), 1);
   });
 
   it("falls back to Fri/Sat when all 7 days are marked as weekend", async () => {
     await setWeekendConfig("[0,1,2,3,4,5,6]"); // would make workingDays 0 → division by zero
     const run = await calculateAndGetRun();
-    expect(run.workingDays).toBe(DEFAULT_WORKING_DAYS);
+    expect(run.workingDays).toBe(countWorking(PERIOD_START, PERIOD_END, [5, 6]));
   });
 });
