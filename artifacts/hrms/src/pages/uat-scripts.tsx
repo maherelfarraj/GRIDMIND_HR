@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -60,7 +61,7 @@ function ScriptRunDialog({ script, open, onClose, onComplete }: { script: UATScr
   async function finishRun(finalResults: StepResult[]) {
     setFinishing(true);
     try {
-      await fetch(`/api/uat-test-runs`, {
+      await apiFetch(`/api/uat-test-runs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scriptId, testerName: tester, environment: env, stepResults: finalResults }),
@@ -193,8 +194,8 @@ export default function UATScripts() {
     setLoading(true);
     try {
       const [sc, ru] = await Promise.allSettled([
-        fetch('/api/uat-scripts').then(r => r.json()),
-        fetch('/api/uat-test-runs').then(r => r.json()),
+        apiFetch('/api/uat-scripts').then(r => r.json()),
+        apiFetch('/api/uat-test-runs').then(r => r.json()),
       ]);
       if (sc.status === 'fulfilled') setScripts(Array.isArray(sc.value) ? sc.value : sc.value.scripts ?? []);
       if (ru.status === 'fulfilled') setRuns(Array.isArray(ru.value) ? ru.value : ru.value.runs ?? []);

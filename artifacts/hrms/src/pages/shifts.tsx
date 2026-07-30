@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -53,12 +54,12 @@ export default function Shifts() {
 
   const { data: shifts, isLoading } = useQuery<Shift[]>({
     queryKey: ['shifts'],
-    queryFn: () => fetch('/api/shifts', { credentials: 'include' }).then(r => r.json()),
+    queryFn: () => apiFetch('/api/shifts', { credentials: 'include' }).then(r => r.json()),
   });
 
   const createShift = useMutation({
     mutationFn: (data: typeof defaultForm) =>
-      fetch('/api/shifts', {
+      apiFetch('/api/shifts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

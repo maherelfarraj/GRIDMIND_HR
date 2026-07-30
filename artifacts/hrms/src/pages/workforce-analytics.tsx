@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -109,31 +110,31 @@ export default function WorkforceAnalytics() {
   const [docExpiryLoading, setDocExpiryLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/analytics/executive-summary')
+    apiFetch('/api/analytics/executive-summary')
       .then(r => r.json()).then(setSummary).catch(() => setSummary(null))
       .finally(() => setSummaryLoading(false));
 
-    fetch('/api/analytics/headcount?months=12')
+    apiFetch('/api/analytics/headcount?months=12')
       .then(r => r.json()).then(d => setHeadcount(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
       .finally(() => setHeadcountLoading(false));
 
-    fetch('/api/analytics/payroll-variance?periods=6')
+    apiFetch('/api/analytics/payroll-variance?periods=6')
       .then(r => r.json()).then(d => setPayrollVar(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
       .finally(() => setPayrollVarLoading(false));
 
-    fetch('/api/analytics/attendance-anomalies?threshold=15')
+    apiFetch('/api/analytics/attendance-anomalies?threshold=15')
       .then(r => r.json()).then(d => setAnomalies(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
       .finally(() => setAnomaliesLoading(false));
 
-    fetch('/api/analytics/leave-exposure')
+    apiFetch('/api/analytics/leave-exposure')
       .then(r => r.json()).then(d => setLeaveExposure(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
       .finally(() => setLeaveExposureLoading(false));
 
-    fetch('/api/analytics/training-compliance')
+    apiFetch('/api/analytics/training-compliance')
       .then(r => r.json()).then(d => setTraining(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
       .finally(() => setTrainingLoading(false));
 
-    fetch('/api/analytics/document-expiry?days=30')
+    apiFetch('/api/analytics/document-expiry?days=30')
       .then(r => r.json()).then(d => setDocExpiry(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
       .finally(() => setDocExpiryLoading(false));
   }, []);

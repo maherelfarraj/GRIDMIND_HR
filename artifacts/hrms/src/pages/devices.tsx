@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useListDevices, useGetDevice, useGetDeviceHealth, getGetDeviceQueryKey, getGetDeviceHealthQueryKey } from '@workspace/api-client-react';
@@ -57,7 +58,7 @@ export default function Devices() {
     setSelectedId(id);
     setLoadingMappings(true);
     try {
-      const res = await fetch(`/api/device-mappings?deviceId=${id}`, { credentials: 'include' });
+      const res = await apiFetch(`/api/device-mappings?deviceId=${id}`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setMappings(data);

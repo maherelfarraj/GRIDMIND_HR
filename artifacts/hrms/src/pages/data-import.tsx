@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -95,7 +96,7 @@ function NewImportTab() {
     setSubmitting(true);
     try {
       const rows = csvText.split('\n').slice(1).filter(Boolean).map(r => r.split(','));
-      await fetch('/api/imports', {
+      await apiFetch('/api/imports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ importType, fileFormat: 'csv', rowsJson: rows, columnMappingJson: mapping }),

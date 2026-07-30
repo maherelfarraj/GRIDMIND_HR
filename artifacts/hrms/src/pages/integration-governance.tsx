@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -77,7 +78,7 @@ function AddProfileDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
         environment: form.environment,
         connectionParamsJson: JSON.stringify({ baseUrl: form.baseUrl, description: form.description }),
       };
-      const res = await fetch('/api/integration-governance/connection-profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const res = await apiFetch('/api/integration-governance/connection-profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error();
       toast({ title: t('Profile created', 'تم إنشاء الملف الشخصي') });
       onSaved(); onClose();
@@ -146,10 +147,10 @@ export default function IntegrationGovernance() {
     setLoading(true);
     try {
       const [p, v, r, a] = await Promise.allSettled([
-        fetch('/api/integration-governance/connection-profiles').then(r => r.json()),
-        fetch('/api/integration-governance/credential-vault-refs').then(r => r.json()),
-        fetch('/api/integration-governance/governance-rules').then(r => r.json()),
-        fetch('/api/integration-governance/audit-log').then(r => r.json()),
+        apiFetch('/api/integration-governance/connection-profiles').then(r => r.json()),
+        apiFetch('/api/integration-governance/credential-vault-refs').then(r => r.json()),
+        apiFetch('/api/integration-governance/governance-rules').then(r => r.json()),
+        apiFetch('/api/integration-governance/audit-log').then(r => r.json()),
       ]);
       setProfiles(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : []);
       setVault(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : []);
@@ -163,7 +164,7 @@ export default function IntegrationGovernance() {
   async function testConnection(id: number, testRecipient?: string) {
     setTestingIds(prev => new Set(prev).add(id));
     try {
-      const res = await fetch(`/api/integration-governance/connection-profiles/${id}/test`, {
+      const res = await apiFetch(`/api/integration-governance/connection-profiles/${id}/test`, {
         method: 'POST',
         ...(testRecipient ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testRecipient }) } : {}),
       });
@@ -195,7 +196,7 @@ export default function IntegrationGovernance() {
 
   async function approveProfile(id: number) {
     try {
-      await fetch(`/api/integration-governance/connection-profiles/${id}/approve`, { method: 'POST' });
+      await apiFetch(`/api/integration-governance/connection-profiles/${id}/approve`, { method: 'POST' });
       toast({ title: t('Approved', 'تمت الموافقة') });
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -204,7 +205,7 @@ export default function IntegrationGovernance() {
   async function suspendProfile() {
     if (!suspendTarget) return;
     try {
-      await fetch(`/api/integration-governance/connection-profiles/${suspendTarget.id}/suspend`, { method: 'POST' });
+      await apiFetch(`/api/integration-governance/connection-profiles/${suspendTarget.id}/suspend`, { method: 'POST' });
       toast({ title: t('Suspended', 'تم التعليق') });
       setSuspendTarget(null);
       load();
@@ -213,7 +214,7 @@ export default function IntegrationGovernance() {
 
   async function toggleRule(id: number, active: boolean) {
     try {
-      await fetch(`/api/integration-governance/governance-rules/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: active }) });
+      await apiFetch(`/api/integration-governance/governance-rules/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: active }) });
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }

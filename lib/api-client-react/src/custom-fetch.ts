@@ -17,6 +17,29 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _defaultCredentials: RequestCredentials | null = null;
+let _unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export type UnauthorizedHandler = (response: Response) => void;
+
+/**
+ * Set a default `credentials` mode applied to every request that does not
+ * explicitly specify one (e.g. "include" for cookie-based web sessions).
+ * Pass `null` to clear.
+ */
+export function setDefaultCredentials(credentials: RequestCredentials | null): void {
+  _defaultCredentials = credentials;
+}
+
+/**
+ * Register a handler invoked whenever a request receives a 401 Unauthorized
+ * response, before the ApiError is thrown. Useful for centralized
+ * session-expiry handling (clear stored session, redirect to login).
+ * Pass `null` to clear.
+ */
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  _unauthorizedHandler = handler;
+}
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -360,7 +383,16 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  const credentials = init.credentials ?? _defaultCredentials ?? undefined;
+  const response = await fetch(input, { ...init, method, headers, credentials });
+
+  if (response.status === 401 && _unauthorizedHandler) {
+    try {
+      _unauthorizedHandler(response.clone());
+    } catch {
+      // Never let the handler mask the original ApiError.
+    }
+  }
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

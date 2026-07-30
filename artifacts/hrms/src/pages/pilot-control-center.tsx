@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -75,7 +76,7 @@ function RaiseDefectDialog({ open, onClose, onCreated }: { open: boolean; onClos
   async function submit() {
     setSaving(true);
     try {
-      await fetch('/api/pilot-defects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      await apiFetch('/api/pilot-defects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       toast({ title: t('Defect raised', 'تم رفع العيب') });
       onCreated();
       onClose();
@@ -120,7 +121,7 @@ function OverrideGateDialog({ gate, open, onClose, onDone }: { gate: GoLiveGate 
     if (!gate) return;
     setSaving(true);
     try {
-      await fetch(`/api/go-live-gates/${gate.id}/override`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
+      await apiFetch(`/api/go-live-gates/${gate.id}/override`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
       toast({ title: t('Gate overridden', 'تم تجاوز البوابة') });
       onDone();
       onClose();
@@ -175,15 +176,15 @@ export default function PilotControlCenter() {
     setLoading(true);
     try {
       const [sum, sc, g, def, mig, bk, uat, pr, dev] = await Promise.allSettled([
-        fetch('/api/go-live-gates/summary').then(r => r.json()),
-        fetch('/api/readiness-scorecard').then(r => r.json()),
-        fetch('/api/go-live-gates').then(r => r.json()),
-        fetch('/api/pilot-defects?status=open').then(r => r.json()),
-        fetch('/api/migration-status').then(r => r.json()),
-        Promise.all([fetch('/api/restore-tests/latest').then(r => r.json()), fetch('/api/admin/backup').then(r => r.json())]),
-        fetch('/api/uat-test-runs/summary').then(r => r.json()),
-        fetch('/api/integration-governance/connection-profiles').then(r => r.json()),
-        fetch('/api/devices').then(r => r.json()),
+        apiFetch('/api/go-live-gates/summary').then(r => r.json()),
+        apiFetch('/api/readiness-scorecard').then(r => r.json()),
+        apiFetch('/api/go-live-gates').then(r => r.json()),
+        apiFetch('/api/pilot-defects?status=open').then(r => r.json()),
+        apiFetch('/api/migration-status').then(r => r.json()),
+        Promise.all([apiFetch('/api/restore-tests/latest').then(r => r.json()), apiFetch('/api/admin/backup').then(r => r.json())]),
+        apiFetch('/api/uat-test-runs/summary').then(r => r.json()),
+        apiFetch('/api/integration-governance/connection-profiles').then(r => r.json()),
+        apiFetch('/api/devices').then(r => r.json()),
       ]);
       if (sum.status === 'fulfilled') setSummary(sum.value);
       if (sc.status === 'fulfilled') setScorecards(Array.isArray(sc.value) ? sc.value : sc.value.scorecards ?? []);
@@ -206,7 +207,7 @@ export default function PilotControlCenter() {
   async function handleEvaluate() {
     setEvaluating(true);
     try {
-      await fetch('/api/go-live-gates/evaluate', { method: 'POST' });
+      await apiFetch('/api/go-live-gates/evaluate', { method: 'POST' });
       toast({ title: t('Gates re-evaluated', 'تمت إعادة تقييم البوابات') });
       loadAll();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -216,7 +217,7 @@ export default function PilotControlCenter() {
   async function handleRecalculate() {
     setRecalculating(true);
     try {
-      await fetch('/api/readiness-scorecard/recalculate', { method: 'POST' });
+      await apiFetch('/api/readiness-scorecard/recalculate', { method: 'POST' });
       toast({ title: t('Scorecards recalculated', 'تمت إعادة حساب بطاقات الجاهزية') });
       loadAll();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -226,7 +227,7 @@ export default function PilotControlCenter() {
   async function handleRunRestore() {
     setRunningRestore(true);
     try {
-      const res = await fetch('/api/restore-tests', { method: 'POST' }).then(r => r.json());
+      const res = await apiFetch('/api/restore-tests', { method: 'POST' }).then(r => r.json());
       setRestoreResult(res.result ?? 'completed');
       loadAll();
     } catch { setRestoreResult('error'); }
@@ -235,7 +236,7 @@ export default function PilotControlCenter() {
 
   async function handleManualEvaluate(gateId: number) {
     try {
-      await fetch(`/api/go-live-gates/${gateId}/evaluate`, { method: 'POST' });
+      await apiFetch(`/api/go-live-gates/${gateId}/evaluate`, { method: 'POST' });
       toast({ title: t('Gate evaluated', 'تم تقييم البوابة') });
       loadAll();
     } catch { /* silent */ }

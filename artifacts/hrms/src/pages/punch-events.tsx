@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useListDevices } from '@workspace/api-client-react';
@@ -62,13 +63,13 @@ export default function PunchEvents() {
   const { data: events, isLoading } = useQuery<PunchEvent[]>({
     queryKey: ['punch-events'],
     queryFn: () =>
-      fetch('/api/punch-events?limit=100', { credentials: 'include' }).then(r => r.json()),
+      apiFetch('/api/punch-events?limit=100', { credentials: 'include' }).then(r => r.json()),
   });
 
   const { data: missingData } = useQuery<PunchEvent[]>({
     queryKey: ['punch-events-missing'],
     queryFn: () =>
-      fetch('/api/punch-events/missing', { credentials: 'include' }).then(r => r.json()),
+      apiFetch('/api/punch-events/missing', { credentials: 'include' }).then(r => r.json()),
   });
 
   const filtered = (events ?? []).filter(ev => {

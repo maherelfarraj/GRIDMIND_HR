@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -51,7 +52,7 @@ function NewChangeDialog({ open, onClose, onSaved }: { open: boolean; onClose: (
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch('/api/policy-change-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const res = await apiFetch('/api/policy-change-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       if (!res.ok) throw new Error();
       toast({ title: t('Change request created', 'تم إنشاء طلب التغيير') });
       onSaved(); onClose();
@@ -130,7 +131,7 @@ export default function PolicyGovernance() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch('/api/policy-change-requests');
+      const res = await apiFetch('/api/policy-change-requests');
       if (!res.ok) throw new Error();
       const data = await res.json();
       setRequests(Array.isArray(data) ? data : []);
@@ -142,7 +143,7 @@ export default function PolicyGovernance() {
 
   async function submitForReview(id: number) {
     try {
-      await fetch(`/api/policy-change-requests/${id}/submit`, { method: 'POST' });
+      await apiFetch(`/api/policy-change-requests/${id}/submit`, { method: 'POST' });
       toast({ title: t('Submitted for review', 'تم الإرسال للمراجعة') });
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -150,7 +151,7 @@ export default function PolicyGovernance() {
 
   async function withdraw(id: number) {
     try {
-      await fetch(`/api/policy-change-requests/${id}/withdraw`, { method: 'POST' });
+      await apiFetch(`/api/policy-change-requests/${id}/withdraw`, { method: 'POST' });
       toast({ title: t('Withdrawn', 'تم السحب') });
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -158,7 +159,7 @@ export default function PolicyGovernance() {
 
   async function approve(id: number) {
     try {
-      await fetch(`/api/policy-change-requests/${id}/approve`, { method: 'POST' });
+      await apiFetch(`/api/policy-change-requests/${id}/approve`, { method: 'POST' });
       toast({ title: t('Approved', 'تمت الموافقة') });
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -166,7 +167,7 @@ export default function PolicyGovernance() {
 
   async function reject(id: number, reason: string) {
     try {
-      await fetch(`/api/policy-change-requests/${id}/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
+      await apiFetch(`/api/policy-change-requests/${id}/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
       toast({ title: t('Rejected', 'تم الرفض') });
       setRejectTarget(null);
       load();
@@ -175,7 +176,7 @@ export default function PolicyGovernance() {
 
   async function rollback(id: number) {
     try {
-      await fetch(`/api/policy-change-requests/${id}/rollback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: rollbackReason }) });
+      await apiFetch(`/api/policy-change-requests/${id}/rollback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: rollbackReason }) });
       toast({ title: t('Rolled back', 'تم التراجع') });
       setRollbackTarget(null);
       setRollbackReason('');

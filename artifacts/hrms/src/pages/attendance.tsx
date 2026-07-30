@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useListAttendance, useGetAttendanceDailySummary, useListDevices, useListEmployees } from '@workspace/api-client-react';
@@ -116,7 +117,7 @@ export default function Attendance() {
     
     setSubmittingCorrection(true);
     try {
-      const res = await fetch(`/api/attendance/${selectedAttendance.id}/correction`, {
+      const res = await apiFetch(`/api/attendance/${selectedAttendance.id}/correction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -145,7 +146,7 @@ export default function Attendance() {
   const fetchDeviceMappings = async (deviceId: number) => {
     setLoadingMappings(true);
     try {
-      const res = await fetch(`/api/device-mappings?deviceId=${deviceId}`, { credentials: 'include' });
+      const res = await apiFetch(`/api/device-mappings?deviceId=${deviceId}`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch mappings');
       const data = await res.json();
       setDeviceMappings(data);
@@ -166,7 +167,7 @@ export default function Attendance() {
     
     setEnrolling(true);
     try {
-      const res = await fetch(`/api/devices/${selectedDevice}/mappings`, {
+      const res = await apiFetch(`/api/devices/${selectedDevice}/mappings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -194,7 +195,7 @@ export default function Attendance() {
 
   const removeMapping = async (deviceId: number, employeeId: number) => {
     try {
-      const res = await fetch(`/api/devices/${deviceId}/mappings/${employeeId}`, {
+      const res = await apiFetch(`/api/devices/${deviceId}/mappings/${employeeId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -212,7 +213,7 @@ export default function Attendance() {
     setLoadingCorrections(true);
     try {
       const url = status ? `/api/attendance/corrections?status=${status}` : '/api/attendance/corrections';
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await apiFetch(url, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch corrections');
       const data = await res.json();
       setCorrections(data);
@@ -226,7 +227,7 @@ export default function Attendance() {
   const decideCorrection = async (id: number, decision: 'approved' | 'rejected', note?: string) => {
     setDecidingId(id);
     try {
-      const res = await fetch(`/api/attendance/corrections/${id}/decision`, {
+      const res = await apiFetch(`/api/attendance/corrections/${id}/decision`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

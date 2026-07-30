@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+import { apiFetch } from '@/lib/api';
 
 interface GoLiveSummary {
   isReadyForGoLive: boolean;
@@ -174,10 +175,10 @@ export default function ReadinessPage() {
     async function load() {
       setLoading(true);
       const [sumR, scR, defR, migSumR] = await Promise.allSettled([
-        fetch('/api/go-live-gates/summary').then(r => r.json()),
-        fetch('/api/readiness-scorecard').then(r => r.json()),
-        fetch('/api/pilot-defects?status=open').then(r => r.json()),
-        fetch('/api/migration-status/summary').then(r => r.json()),
+        apiFetch('/api/go-live-gates/summary').then(r => r.json()),
+        apiFetch('/api/readiness-scorecard').then(r => r.json()),
+        apiFetch('/api/pilot-defects?status=open').then(r => r.json()),
+        apiFetch('/api/migration-status/summary').then(r => r.json()),
       ]);
       if (sumR.status === 'fulfilled') setSummary(sumR.value);
       if (scR.status === 'fulfilled') setScorecards(Array.isArray(scR.value) ? scR.value : scR.value?.scorecards ?? []);

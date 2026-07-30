@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -99,7 +100,7 @@ function ConfigureDialog({ open, connector, onClose, onSaved }: {
     if (!connector) return;
     setSaving(true);
     try {
-      await fetch(`/api/integration-connectors/${connector.id}`, {
+      await apiFetch(`/api/integration-connectors/${connector.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint, port: port ? Number(port) : undefined }),
@@ -161,7 +162,7 @@ function ConnectorsTab({ connectors, loading, onRefresh }: {
   async function handleTest(id: number) {
     setTestingIds(prev => new Set(prev).add(id));
     try {
-      const res = await fetch(`/api/integration-connectors/${id}/test`, { method: 'POST' });
+      const res = await apiFetch(`/api/integration-connectors/${id}/test`, { method: 'POST' });
       const data = await res.json();
       const latency = data?.latencyMs ?? data?.latency ?? '?';
       const simulated = data?.simulated || data?.wasSimulated;
@@ -296,7 +297,7 @@ function HealthMonitorTab({ connectors }: { connectors: any[] }) {
   useEffect(() => {
     if (!selectedId) return;
     setLoading(true);
-    fetch(`/api/integration-connectors/${selectedId}/health`)
+    apiFetch(`/api/integration-connectors/${selectedId}/health`)
       .then(r => r.json())
       .then(d => setHealth(Array.isArray(d) ? d : d?.tests ?? d?.history ?? []))
       .catch(() => setHealth([]))
@@ -309,7 +310,7 @@ function HealthMonitorTab({ connectors }: { connectors: any[] }) {
     let fail = 0;
     await Promise.allSettled(
       connectors.map(c =>
-        fetch(`/api/integration-connectors/${c.id}/test`, { method: 'POST' })
+        apiFetch(`/api/integration-connectors/${c.id}/test`, { method: 'POST' })
           .then(() => ok++)
           .catch(() => fail++)
       )
@@ -397,7 +398,7 @@ function RetryQueueTab() {
 
   function loadItems() {
     setLoading(true);
-    fetch('/api/integration-retry-queue')
+    apiFetch('/api/integration-retry-queue')
       .then(r => r.json())
       .then(d => setItems(Array.isArray(d) ? d : d?.data ?? []))
       .catch(() => setItems([]))
@@ -408,7 +409,7 @@ function RetryQueueTab() {
 
   async function handleRetry(id: number) {
     try {
-      await fetch(`/api/integration-retry-queue/${id}/retry`, { method: 'POST' });
+      await apiFetch(`/api/integration-retry-queue/${id}/retry`, { method: 'POST' });
       toast({ title: t('Retry queued', 'تمت إعادة المحاولة') });
       loadItems();
     } catch {
@@ -418,7 +419,7 @@ function RetryQueueTab() {
 
   async function handleAbandon(id: number) {
     try {
-      await fetch(`/api/integration-retry-queue/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/integration-retry-queue/${id}`, { method: 'DELETE' });
       toast({ title: t('Abandoned', 'تم التخلي') });
       loadItems();
     } catch {
@@ -428,7 +429,7 @@ function RetryQueueTab() {
 
   async function handleClearAbandoned() {
     try {
-      await fetch('/api/integration-retry-queue/clear-abandoned', { method: 'POST' });
+      await apiFetch('/api/integration-retry-queue/clear-abandoned', { method: 'POST' });
       toast({ title: t('Cleared abandoned items', 'تم مسح العناصر المتروكة') });
       loadItems();
     } catch {
@@ -519,7 +520,7 @@ function EventLogTab({ connectors }: { connectors: any[] }) {
     const params = new URLSearchParams();
     if (connectorFilter !== 'all') params.set('connectorId', connectorFilter);
     if (typeFilter !== 'all') params.set('eventType', typeFilter);
-    fetch(`/api/integration-events?${params}`)
+    apiFetch(`/api/integration-events?${params}`)
       .then(r => r.json())
       .then(d => setEvents(Array.isArray(d) ? d : d?.data ?? []))
       .catch(() => setEvents([]))
@@ -624,7 +625,7 @@ export default function IntegrationCenter() {
 
   function loadConnectors() {
     setConnLoading(true);
-    fetch('/api/integration-connectors')
+    apiFetch('/api/integration-connectors')
       .then(r => r.json())
       .then(d => setConnectors(Array.isArray(d) ? d : d?.data ?? []))
       .catch(() => setConnectors([]))

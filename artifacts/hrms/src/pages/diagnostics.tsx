@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -90,7 +91,7 @@ function HealthChecksTab() {
   async function runChecks() {
     setRunning(true);
     try {
-      await fetch('/api/diagnostics/run', { method: 'POST' });
+      await apiFetch('/api/diagnostics/run', { method: 'POST' });
     } catch {}
     await new Promise(r => setTimeout(r, 1000));
     setRan(true);

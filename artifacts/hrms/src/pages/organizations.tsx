@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -61,7 +62,7 @@ function AddOrgDialog({ open, onClose, onSaved }: { open: boolean; onClose: () =
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/organizations', {
+      const res = await apiFetch('/api/organizations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -162,7 +163,7 @@ export default function Organizations() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch('/api/organizations');
+      const res = await apiFetch('/api/organizations');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setOrgs(Array.isArray(data) ? data : (data.organizations ?? []));
@@ -177,7 +178,7 @@ export default function Organizations() {
 
   async function handleActivate(org: any) {
     try {
-      await fetch(`/api/organizations/${org.id}/activate`, { method: 'POST' });
+      await apiFetch(`/api/organizations/${org.id}/activate`, { method: 'POST' });
       toast({ title: t('Organization activated', 'تم تفعيل المؤسسة') });
       load();
     } catch {
@@ -188,7 +189,7 @@ export default function Organizations() {
   async function handleArchive() {
     if (!archiveTarget) return;
     try {
-      await fetch(`/api/organizations/${archiveTarget.id}/archive`, { method: 'POST' });
+      await apiFetch(`/api/organizations/${archiveTarget.id}/archive`, { method: 'POST' });
       toast({ title: t('Organization archived', 'تم أرشفة المؤسسة') });
       setArchiveTarget(null);
       load();

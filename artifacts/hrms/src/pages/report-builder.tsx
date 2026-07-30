@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -117,7 +118,7 @@ function MyReportsTab() {
 
   function loadConfigs() {
     setLoading(true);
-    fetch('/api/report-builder-configs')
+    apiFetch('/api/report-builder-configs')
       .then(r => r.json())
       .then(d => setConfigs(Array.isArray(d) ? d : d?.data ?? []))
       .catch(() => setConfigs([]))
@@ -131,7 +132,7 @@ function MyReportsTab() {
     setRunDialogOpen(true);
     setRunResults([]);
     try {
-      const res = await fetch(`/api/report-builder-configs/${id}/run`, { method: 'POST' });
+      const res = await apiFetch(`/api/report-builder-configs/${id}/run`, { method: 'POST' });
       const data = await res.json();
       setRunResults(Array.isArray(data) ? data : data?.rows ?? data?.data ?? []);
     } catch {
@@ -144,7 +145,7 @@ function MyReportsTab() {
 
   async function handleExport(id: number) {
     try {
-      const res = await fetch(`/api/report-builder-configs/${id}/export`, { method: 'POST' });
+      const res = await apiFetch(`/api/report-builder-configs/${id}/export`, { method: 'POST' });
       const data = await res.json();
       const jobId = data?.jobId ?? data?.id ?? 'N';
       toast({ title: t('Export queued', 'تم قائمة التصدير'), description: `Job #${jobId}` });
@@ -155,7 +156,7 @@ function MyReportsTab() {
 
   async function handleDelete(id: number) {
     try {
-      await fetch(`/api/report-builder-configs/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/report-builder-configs/${id}`, { method: 'DELETE' });
       toast({ title: t('Deleted', 'تم الحذف') });
       loadConfigs();
     } catch {
@@ -258,7 +259,7 @@ function NewReportTab({ onCreated }: { onCreated: () => void }) {
     }
     setSaving(true);
     try {
-      await fetch('/api/report-builder-configs', {
+      await apiFetch('/api/report-builder-configs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -355,7 +356,7 @@ function ExportQueueTab() {
 
   function loadJobs() {
     setLoading(true);
-    fetch('/api/export-jobs')
+    apiFetch('/api/export-jobs')
       .then(r => r.json())
       .then(d => setJobs(Array.isArray(d) ? d : d?.data ?? []))
       .catch(() => setJobs([]))
@@ -366,7 +367,7 @@ function ExportQueueTab() {
 
   async function handleRetry(id: number) {
     try {
-      await fetch(`/api/export-jobs/${id}/retry`, { method: 'POST' });
+      await apiFetch(`/api/export-jobs/${id}/retry`, { method: 'POST' });
       toast({ title: t('Retry queued', 'تمت إعادة المحاولة') });
       loadJobs();
     } catch {

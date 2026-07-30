@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -25,7 +26,7 @@ function AddTemplateDialog({ open, onClose, onSaved, orgId }: { open: boolean; o
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch('/api/org-report-templates', {
+      const res = await apiFetch('/api/org-report-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, orgId }),
@@ -96,7 +97,7 @@ export default function OrgBranding() {
   function setF(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
   useEffect(() => {
-    fetch('/api/organizations').then(r => r.json()).then(d => {
+    apiFetch('/api/organizations').then(r => r.json()).then(d => {
       const list = Array.isArray(d) ? d : (d.organizations ?? []);
       setOrgs(list);
       if (list.length > 0) setSelectedOrg(String(list[0].id));
@@ -106,14 +107,14 @@ export default function OrgBranding() {
   useEffect(() => {
     if (!selectedOrg) return;
     setLoadingBranding(true);
-    fetch(`/api/org-branding/${selectedOrg}`)
+    apiFetch(`/api/org-branding/${selectedOrg}`)
       .then(r => r.json())
       .then(d => { setBranding(d); setForm(f => ({ ...f, ...d })); })
       .catch(() => {})
       .finally(() => setLoadingBranding(false));
 
     setLoadingTemplates(true);
-    fetch(`/api/org-report-templates?orgId=${selectedOrg}`)
+    apiFetch(`/api/org-report-templates?orgId=${selectedOrg}`)
       .then(r => r.json())
       .then(d => setTemplates(Array.isArray(d) ? d : []))
       .catch(() => setTemplates([]))
@@ -123,7 +124,7 @@ export default function OrgBranding() {
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch(`/api/org-branding/${selectedOrg}`, {
+      const res = await apiFetch(`/api/org-branding/${selectedOrg}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),

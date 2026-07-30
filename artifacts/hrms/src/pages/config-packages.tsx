@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -51,7 +52,7 @@ function CreatePackageDialog({ open, onClose, onSaved }: { open: boolean; onClos
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch('/api/config-packages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const res = await apiFetch('/api/config-packages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       if (!res.ok) throw new Error();
       toast({ title: t('Package created', 'تم إنشاء الحزمة') });
       onSaved(); onClose();
@@ -147,7 +148,7 @@ function CaptureSnapshotDialog({ open, onClose, onSaved }: { open: boolean; onCl
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch('/api/config-snapshots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const res = await apiFetch('/api/config-snapshots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       if (!res.ok) throw new Error();
       toast({ title: t('Snapshot captured', 'تم التقاط اللقطة') });
       onSaved(); onClose();
@@ -207,8 +208,8 @@ export default function ConfigPackages() {
     setLoading(true);
     try {
       const [pkgs, snaps] = await Promise.allSettled([
-        fetch('/api/config-packages').then(r => r.json()),
-        fetch('/api/config-snapshots').then(r => r.json()),
+        apiFetch('/api/config-packages').then(r => r.json()),
+        apiFetch('/api/config-snapshots').then(r => r.json()),
       ]);
       setPackages(pkgs.status === 'fulfilled' && Array.isArray(pkgs.value) ? pkgs.value : []);
       setSnapshots(snaps.status === 'fulfilled' && Array.isArray(snaps.value) ? snaps.value : []);
@@ -219,7 +220,7 @@ export default function ConfigPackages() {
 
   async function signPackage(id: number) {
     try {
-      await fetch(`/api/config-packages/${id}/sign`, { method: 'POST' });
+      await apiFetch(`/api/config-packages/${id}/sign`, { method: 'POST' });
       toast({ title: t('Package signed', 'تم توقيع الحزمة') });
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -227,7 +228,7 @@ export default function ConfigPackages() {
 
   async function exportPackage(id: number, name: string) {
     try {
-      const res = await fetch(`/api/config-packages/${id}/export`, { method: 'POST' });
+      const res = await apiFetch(`/api/config-packages/${id}/export`, { method: 'POST' });
       const data = await res.json();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -240,7 +241,7 @@ export default function ConfigPackages() {
 
   async function applyPackage(id: number, reason: string) {
     try {
-      await fetch(`/api/config-packages/${id}/apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
+      await apiFetch(`/api/config-packages/${id}/apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
       toast({ title: t('Package applied', 'تم تطبيق الحزمة') });
       setImpactPkg(null);
       load();
@@ -251,7 +252,7 @@ export default function ConfigPackages() {
     if (!importJson.trim()) return;
     setImportLoading(true);
     try {
-      const res = await fetch('/api/config-packages/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: importJson });
+      const res = await apiFetch('/api/config-packages/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: importJson });
       if (!res.ok) throw new Error();
       toast({ title: t('Package imported', 'تم استيراد الحزمة') });
       setImportJson('');
@@ -263,14 +264,14 @@ export default function ConfigPackages() {
   async function compareSnapshots() {
     if (!compareA || !compareB) return;
     try {
-      const res = await fetch('/api/config-snapshots/compare', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ snapshotAId: compareA, snapshotBId: compareB }) });
+      const res = await apiFetch('/api/config-snapshots/compare', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ snapshotAId: compareA, snapshotBId: compareB }) });
       setCompareResult(await res.json());
     } catch { toast({ title: t('Compare failed', 'فشلت المقارنة'), variant: 'destructive' }); }
   }
 
   async function togglePin(id: number, pinned: boolean) {
     try {
-      await fetch(`/api/config-snapshots/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isPinned: !pinned }) });
+      await apiFetch(`/api/config-snapshots/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isPinned: !pinned }) });
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }

@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -108,7 +109,7 @@ function PolicySearchTab() {
     setLoading(true);
     setResults([]);
     try {
-      const res = await fetch('/api/ai/policy-search', {
+      const res = await apiFetch('/api/ai/policy-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),
@@ -216,7 +217,7 @@ function ReportQueryTab() {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch('/api/ai/report-query', {
+      const res = await apiFetch('/api/ai/report-query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question }),
@@ -339,7 +340,7 @@ function ClassifyDocumentTab() {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch('/api/ai/classify-document', {
+      const res = await apiFetch('/api/ai/classify-document', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content: content || undefined, documentId: documentId || undefined }),
@@ -356,7 +357,7 @@ function ClassifyDocumentTab() {
   async function handleApply() {
     if (!result || !documentId) return;
     try {
-      await fetch(`/api/documents/${documentId}`, {
+      await apiFetch(`/api/documents/${documentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category: result.category }),
@@ -460,13 +461,13 @@ function ConfigurationTab() {
   const [queriesLoading, setQueriesLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/ai/config')
+    apiFetch('/api/ai/config')
       .then(r => r.json())
       .then(setConfig)
       .catch(() => setConfig({}))
       .finally(() => setLoading(false));
 
-    fetch('/api/ai/queries')
+    apiFetch('/api/ai/queries')
       .then(r => r.json())
       .then(d => setQueries(Array.isArray(d) ? d : d?.data ?? []))
       .catch(() => setQueries([]))
@@ -488,7 +489,7 @@ function ConfigurationTab() {
   async function handleSave() {
     setSaving(true);
     try {
-      await fetch('/api/ai/config', {
+      await apiFetch('/api/ai/config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -662,7 +663,7 @@ export default function LocalAi() {
   const [configLoading, setConfigLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/ai/config')
+    apiFetch('/api/ai/config')
       .then(r => r.json())
       .then(setAiConfig)
       .catch(() => setAiConfig(null))

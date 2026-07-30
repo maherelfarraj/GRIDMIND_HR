@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -27,7 +28,7 @@ function AddSchemeDialog({ open, onClose, onSaved }: { open: boolean; onClose: (
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch('/api/numbering-schemes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const res = await apiFetch('/api/numbering-schemes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       if (!res.ok) throw new Error();
       toast({ title: t('Scheme created', 'تم إنشاء المخطط') });
       onSaved(); onClose();
@@ -71,7 +72,7 @@ function AddEmploymentTypeDialog({ open, onClose, onSaved }: { open: boolean; on
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch('/api/employment-types', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const res = await apiFetch('/api/employment-types', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       if (!res.ok) throw new Error();
       toast({ title: t('Employment type created', 'تم إنشاء نوع التوظيف') });
       onSaved(); onClose();
@@ -116,7 +117,7 @@ function AddRetentionRuleDialog({ open, onClose, onSaved }: { open: boolean; onC
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch('/api/retention-rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const res = await apiFetch('/api/retention-rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       if (!res.ok) throw new Error();
       toast({ title: t('Rule created', 'تم إنشاء القاعدة') });
       onSaved(); onClose();
@@ -180,25 +181,25 @@ export default function PolicyLocalization() {
   const [calForm, setCalForm] = useState({ standardHoursPerDay: '8', shiftStart: '08:00', shiftEnd: '16:00', summerSchedule: false });
 
   useEffect(() => {
-    fetch('/api/organizations').then(r => r.json()).then(d => {
+    apiFetch('/api/organizations').then(r => r.json()).then(d => {
       const list = Array.isArray(d) ? d : (d.organizations ?? []);
       setOrgs(list);
       if (list.length > 0) setSelectedOrg(String(list[0].id));
     }).catch(() => {});
-    fetch('/api/numbering-schemes').then(r => r.json()).then(d => setSchemes(Array.isArray(d) ? d : [])).catch(() => {});
-    fetch('/api/employment-types').then(r => r.json()).then(d => setEmpTypes(Array.isArray(d) ? d : [])).catch(() => {});
-    fetch('/api/retention-rules').then(r => r.json()).then(d => setRetention(Array.isArray(d) ? d : [])).catch(() => {});
+    apiFetch('/api/numbering-schemes').then(r => r.json()).then(d => setSchemes(Array.isArray(d) ? d : [])).catch(() => {});
+    apiFetch('/api/employment-types').then(r => r.json()).then(d => setEmpTypes(Array.isArray(d) ? d : [])).catch(() => {});
+    apiFetch('/api/retention-rules').then(r => r.json()).then(d => setRetention(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!selectedOrg) return;
-    fetch(`/api/org-locale/${selectedOrg}`).then(r => r.json()).then(d => setLocale(d ?? {})).catch(() => {});
+    apiFetch(`/api/org-locale/${selectedOrg}`).then(r => r.json()).then(d => setLocale(d ?? {})).catch(() => {});
   }, [selectedOrg]);
 
   async function saveLocale() {
     setSavingLocale(true);
     try {
-      await fetch(`/api/org-locale/${selectedOrg}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(locale) });
+      await apiFetch(`/api/org-locale/${selectedOrg}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(locale) });
       toast({ title: t('Locale saved', 'تم حفظ الإعدادات المحلية') });
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
     finally { setSavingLocale(false); }
@@ -206,10 +207,10 @@ export default function PolicyLocalization() {
 
   async function incrementScheme(id: number) {
     try {
-      const res = await fetch(`/api/numbering-schemes/${id}/increment`, { method: 'POST' });
+      const res = await apiFetch(`/api/numbering-schemes/${id}/increment`, { method: 'POST' });
       const data = await res.json();
       toast({ title: t('Incremented', 'تم الزيادة'), description: data?.nextValue ?? '' });
-      fetch('/api/numbering-schemes').then(r => r.json()).then(d => setSchemes(Array.isArray(d) ? d : [])).catch(() => {});
+      apiFetch('/api/numbering-schemes').then(r => r.json()).then(d => setSchemes(Array.isArray(d) ? d : [])).catch(() => {});
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
@@ -321,7 +322,7 @@ export default function PolicyLocalization() {
                 </Table>
               </CardContent>
             </Card>
-            <AddSchemeDialog open={addSchemeOpen} onClose={() => setAddSchemeOpen(false)} onSaved={() => fetch('/api/numbering-schemes').then(r => r.json()).then(d => setSchemes(Array.isArray(d) ? d : []))} />
+            <AddSchemeDialog open={addSchemeOpen} onClose={() => setAddSchemeOpen(false)} onSaved={() => apiFetch('/api/numbering-schemes').then(r => r.json()).then(d => setSchemes(Array.isArray(d) ? d : []))} />
           </TabsContent>
 
           {/* Employment Types Tab */}
@@ -360,7 +361,7 @@ export default function PolicyLocalization() {
                 </Table>
               </CardContent>
             </Card>
-            <AddEmploymentTypeDialog open={addEmpTypeOpen} onClose={() => setAddEmpTypeOpen(false)} onSaved={() => fetch('/api/employment-types').then(r => r.json()).then(d => setEmpTypes(Array.isArray(d) ? d : []))} />
+            <AddEmploymentTypeDialog open={addEmpTypeOpen} onClose={() => setAddEmpTypeOpen(false)} onSaved={() => apiFetch('/api/employment-types').then(r => r.json()).then(d => setEmpTypes(Array.isArray(d) ? d : []))} />
           </TabsContent>
 
           {/* Calendar Tab */}
@@ -433,7 +434,7 @@ export default function PolicyLocalization() {
                 </Table>
               </CardContent>
             </Card>
-            <AddRetentionRuleDialog open={addRetentionOpen} onClose={() => setAddRetentionOpen(false)} onSaved={() => fetch('/api/retention-rules').then(r => r.json()).then(d => setRetention(Array.isArray(d) ? d : []))} />
+            <AddRetentionRuleDialog open={addRetentionOpen} onClose={() => setAddRetentionOpen(false)} onSaved={() => apiFetch('/api/retention-rules').then(r => r.json()).then(d => setRetention(Array.isArray(d) ? d : []))} />
           </TabsContent>
         </Tabs>
       </div>

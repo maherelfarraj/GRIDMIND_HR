@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -127,8 +128,8 @@ export default function SecurityTests() {
     setLoading(true);
     try {
       const [sc, ru] = await Promise.allSettled([
-        fetch('/api/security-test-scenarios').then(r => r.json()),
-        fetch('/api/security-test-runs').then(r => r.json()),
+        apiFetch('/api/security-test-scenarios').then(r => r.json()),
+        apiFetch('/api/security-test-runs').then(r => r.json()),
       ]);
       if (sc.status === 'fulfilled') setScenarios(Array.isArray(sc.value) ? sc.value : sc.value.scenarios ?? []);
       if (ru.status === 'fulfilled') setRuns(Array.isArray(ru.value) ? ru.value : ru.value.runs ?? []);
@@ -140,7 +141,7 @@ export default function SecurityTests() {
   async function handleRunAll() {
     setRunningAll(true);
     try {
-      await fetch('/api/security-test-runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runType: 'automated' }) });
+      await apiFetch('/api/security-test-runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runType: 'automated' }) });
       toast({ title: t('Security tests triggered', 'تم تشغيل اختبارات الأمان') });
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -149,7 +150,7 @@ export default function SecurityTests() {
 
   async function loadFindings(run: SecurityRun) {
     try {
-      const data = await fetch(`/api/security-test-runs/${run.id}`).then(r => r.json());
+      const data = await apiFetch(`/api/security-test-runs/${run.id}`).then(r => r.json());
       setViewRun({ ...run, findings: data.findings ?? data ?? [] });
     } catch { setViewRun(run); }
   }

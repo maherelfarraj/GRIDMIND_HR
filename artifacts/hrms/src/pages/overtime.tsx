@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useListAttendance } from '@workspace/api-client-react';
@@ -67,14 +68,14 @@ export default function Overtime() {
 
   const { data: rules, isLoading: loadingRules } = useQuery<OvertimeRule[]>({
     queryKey: ['overtime-rules'],
-    queryFn: () => fetch('/api/overtime-rules', { credentials: 'include' }).then(r => r.json()),
+    queryFn: () => apiFetch('/api/overtime-rules', { credentials: 'include' }).then(r => r.json()),
   });
 
   const { data: attendanceData, isLoading: loadingAttendance } = useListAttendance();
 
   const createRule = useMutation({
     mutationFn: (data: typeof defaultRuleForm) =>
-      fetch('/api/overtime-rules', {
+      apiFetch('/api/overtime-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

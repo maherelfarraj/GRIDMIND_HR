@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useMemo } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useListDepartments } from '@workspace/api-client-react';
@@ -68,13 +69,13 @@ export default function Rosters() {
     queryFn: () => {
       let url = `/api/rosters?weekStart=${weekStartStr}&weekEnd=${weekEnd}`;
       if (departmentId !== 'all') url += `&departmentId=${departmentId}`;
-      return fetch(url, { credentials: 'include' }).then(r => r.json());
+      return apiFetch(url, { credentials: 'include' }).then(r => r.json());
     },
   });
 
   const { data: shifts } = useQuery<Shift[]>({
     queryKey: ['shifts'],
-    queryFn: () => fetch('/api/shifts', { credentials: 'include' }).then(r => r.json()),
+    queryFn: () => apiFetch('/api/shifts', { credentials: 'include' }).then(r => r.json()),
   });
 
   const shiftColorMap = useMemo(() => {
