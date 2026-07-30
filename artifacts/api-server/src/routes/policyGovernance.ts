@@ -1,9 +1,25 @@
 import { Router } from "express";
 import { db, auditLogsTable, policyChangeRequestsTable, policyVersionsTable, approvalChainConfigsTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 import { createHash } from "crypto";
 
 const router = Router();
+
+/**
+ * Builds the WHERE clause identifying "the same policy" for versioning.
+ * Version numbering and isCurrent demotion must be scoped to the full target
+ * tuple (policyArea + orgId + targetEntityType + targetEntityId) — scoping by
+ * policyArea alone would let one org's apply/rollback demote or renumber
+ * another org's versions for the same area.
+ */
+function versionScope(v: { policyArea: string; orgId: number | null; targetEntityType: string | null; targetEntityId: number | null }) {
+  return and(
+    eq(policyVersionsTable.policyArea, v.policyArea),
+    v.orgId == null ? isNull(policyVersionsTable.orgId) : eq(policyVersionsTable.orgId, v.orgId),
+    v.targetEntityType == null ? isNull(policyVersionsTable.targetEntityType) : eq(policyVersionsTable.targetEntityType, v.targetEntityType),
+    v.targetEntityId == null ? isNull(policyVersionsTable.targetEntityId) : eq(policyVersionsTable.targetEntityId, v.targetEntityId),
+  );
+}
 
 // ─── Policy Change Requests ───────────────────────────────────────────────────
 
@@ -101,22 +117,16 @@ router.patch("/policy-change-requests/:id/apply", async (req, res): Promise<void
     if (!cr) return void res.status(404).json({ error: "Not found" });
     if (cr.status !== "approved") return void res.status(400).json({ error: "Change request must be approved before applying" });
 
-    // Get current max version for this policy area + entity
+    // Get current max version for this exact policy target (area + org + entity)
+    const scope = versionScope(cr);
     const existing = await db.select().from(policyVersionsTable)
-      .where(and(
-        eq(policyVersionsTable.policyArea, cr.policyArea),
-        cr.targetEntityId ? eq(policyVersionsTable.targetEntityId, cr.targetEntityId) : eq(policyVersionsTable.policyArea, cr.policyArea),
-      )).orderBy(desc(policyVersionsTable.version));
+      .where(scope).orderBy(desc(policyVersionsTable.version));
 
     const nextVersion = (existing[0]?.version ?? 0) + 1;
 
-    // Mark old versions as not current
+    // Mark old versions of this exact target as not current
     if (existing.length > 0) {
-      await db.update(policyVersionsTable).set({ isCurrent: false })
-        .where(and(
-          eq(policyVersionsTable.policyArea, cr.policyArea),
-          cr.targetEntityId ? eq(policyVersionsTable.targetEntityId, cr.targetEntityId) : eq(policyVersionsTable.policyArea, cr.policyArea),
-        ));
+      await db.update(policyVersionsTable).set({ isCurrent: false }).where(scope);
     }
 
     const snapshot = cr.changeAfterJson;
@@ -208,15 +218,14 @@ router.post("/policy-versions/:id/rollback", async (req, res): Promise<void> => 
     const [target] = await db.select().from(policyVersionsTable).where(eq(policyVersionsTable.id, id));
     if (!target) return void res.status(404).json({ error: "Version not found" });
 
-    // Get current version number
+    // Get current version number for this exact policy target (area + org + entity)
+    const scope = versionScope(target);
     const existing = await db.select().from(policyVersionsTable)
-      .where(eq(policyVersionsTable.policyArea, target.policyArea))
-      .orderBy(desc(policyVersionsTable.version));
+      .where(scope).orderBy(desc(policyVersionsTable.version));
     const nextVersion = (existing[0]?.version ?? 0) + 1;
 
-    // Mark all old versions for this area as not current
-    await db.update(policyVersionsTable).set({ isCurrent: false })
-      .where(eq(policyVersionsTable.policyArea, target.policyArea));
+    // Mark old versions of this exact target as not current
+    await db.update(policyVersionsTable).set({ isCurrent: false }).where(scope);
 
     const checksum = createHash("sha256").update(target.snapshotJson).digest("hex");
 

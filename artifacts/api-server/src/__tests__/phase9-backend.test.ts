@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
+import { createHmac } from "crypto";
 import { inArray, eq, and } from "drizzle-orm";
 import {
   db,
@@ -578,6 +579,293 @@ describe("Config Package lifecycle: create → sign → export → import → ap
       .send({ reason: "Not ready for deployment" });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("rejected");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RESTART-SURVIVAL E2E — POLICY CHANGE → APPLY → VERSION → ROLLBACK
+// (Task: confirm policy changes and config package signing survive a restart.
+//  Everything is persisted to the DB and the signing key is read from the env
+//  on every call, so a fresh app instance must reproduce the same results.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Policy change E2E: create → approve → apply → version → rollback restores previous", () => {
+  // Unique policy area isolates version numbering from other tests/data
+  const policyArea = `restart_test_${Date.now()}`;
+  const snapshotV1 = JSON.stringify({ annualLeaveDays: 21, carryOverDays: 5 });
+  const snapshotV2 = JSON.stringify({ annualLeaveDays: 30, carryOverDays: 10 });
+  let crId1: number;
+  let crId2: number;
+  let versionId1: number;
+  let versionId2: number;
+
+  it("applies first change request → creates version 1", async () => {
+    const createRes = await request(app).post("/api/policy-change-requests").send({
+      policyArea,
+      titleEn: "Restart Test — initial policy",
+      titleAr: "اختبار إعادة التشغيل — السياسة الأولية",
+      makerUserId: 1,
+      changeBeforeJson: JSON.stringify({}),
+      changeAfterJson: snapshotV1,
+    });
+    expect(createRes.status).toBe(201);
+    crId1 = createRes.body.id;
+    createdChangeRequestIds.push(crId1);
+
+    const submitRes = await request(app).patch(`/api/policy-change-requests/${crId1}/submit`);
+    expect(submitRes.status).toBe(200);
+    const approveRes = await request(app).patch(`/api/policy-change-requests/${crId1}/approve`).send({ checkerComment: "ok" });
+    expect(approveRes.status).toBe(200);
+
+    const applyRes = await request(app).patch(`/api/policy-change-requests/${crId1}/apply`);
+    expect(applyRes.status).toBe(200);
+    expect(applyRes.body.changeRequest.status).toBe("applied");
+    expect(applyRes.body.version.version).toBe(1);
+    expect(applyRes.body.version.isCurrent).toBe(true);
+    expect(applyRes.body.version.snapshotJson).toBe(snapshotV1);
+    versionId1 = applyRes.body.version.id;
+    createdVersionIds.push(versionId1);
+  });
+
+  it("applies second change request → version 2 becomes current, version 1 demoted", async () => {
+    const createRes = await request(app).post("/api/policy-change-requests").send({
+      policyArea,
+      titleEn: "Restart Test — updated policy",
+      titleAr: "اختبار إعادة التشغيل — السياسة المحدثة",
+      makerUserId: 1,
+      changeBeforeJson: snapshotV1,
+      changeAfterJson: snapshotV2,
+    });
+    crId2 = createRes.body.id;
+    createdChangeRequestIds.push(crId2);
+    await request(app).patch(`/api/policy-change-requests/${crId2}/submit`);
+    await request(app).patch(`/api/policy-change-requests/${crId2}/approve`).send({});
+    const applyRes = await request(app).patch(`/api/policy-change-requests/${crId2}/apply`);
+    expect(applyRes.status).toBe(200);
+    expect(applyRes.body.version.version).toBe(2);
+    expect(applyRes.body.version.snapshotJson).toBe(snapshotV2);
+    versionId2 = applyRes.body.version.id;
+    createdVersionIds.push(versionId2);
+
+    // Version 1 must no longer be current (state persisted in DB, not memory)
+    const [v1] = await db.select().from(policyVersionsTable).where(eq(policyVersionsTable.id, versionId1));
+    expect(v1.isCurrent).toBe(false);
+  });
+
+  it("rollback to version 1 → new current version carries version 1's snapshot", async () => {
+    const res = await request(app)
+      .post(`/api/policy-versions/${versionId1}/rollback`)
+      .send({ reason: "Restart test rollback" });
+    expect(res.status).toBe(200);
+    expect(res.body.isCurrent).toBe(true);
+    expect(res.body.version).toBe(3);
+    expect(res.body.rolledBackFromVersion).toBe(1);
+    // The rollback restores the previous (v1) snapshot verbatim
+    expect(res.body.snapshotJson).toBe(snapshotV1);
+    createdVersionIds.push(res.body.id);
+
+    // v2 demoted; exactly one current version for this area — all read from DB
+    const versions = await db.select().from(policyVersionsTable).where(eq(policyVersionsTable.policyArea, policyArea));
+    const current = versions.filter((v) => v.isCurrent);
+    expect(current).toHaveLength(1);
+    expect(current[0].snapshotJson).toBe(snapshotV1);
+    const [v2] = await db.select().from(policyVersionsTable).where(eq(policyVersionsTable.id, versionId2));
+    expect(v2.isCurrent).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CROSS-ORG ISOLATION — one org's apply/rollback must not touch another org's
+// versions for the same policy area
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Policy versioning is scoped per org: org A actions don't affect org B", () => {
+  const sharedArea = `shared_area_${Date.now()}`;
+  let orgAId: number;
+  let orgBId: number;
+  let orgBVersionId: number;
+  let orgAv1Id: number;
+
+  beforeAll(async () => {
+    const [orgA] = await db.insert(organizationsTable).values({
+      orgCode: `SCOPE-A-${Date.now()}`, nameEn: "Scope Test Org A", nameAr: "منظمة أ",
+      orgType: "company", status: "active", countryCode: "SA", isDefault: false,
+    }).returning();
+    const [orgB] = await db.insert(organizationsTable).values({
+      orgCode: `SCOPE-B-${Date.now()}`, nameEn: "Scope Test Org B", nameAr: "منظمة ب",
+      orgType: "company", status: "active", countryCode: "SA", isDefault: false,
+    }).returning();
+    orgAId = orgA.id;
+    orgBId = orgB.id;
+    createdOrgIds.push(orgAId, orgBId);
+
+    // Org B already has a current version 5 in the shared area
+    const [vB] = await db.insert(policyVersionsTable).values({
+      orgId: orgBId, policyArea: sharedArea, version: 5,
+      snapshotJson: JSON.stringify({ owner: "orgB" }),
+      appliedByUserId: 1, isCurrent: true,
+    }).returning();
+    orgBVersionId = vB.id;
+    createdVersionIds.push(orgBVersionId);
+  });
+
+  it("applying a change in org A starts at version 1 and leaves org B's version current", async () => {
+    const createRes = await request(app).post("/api/policy-change-requests").send({
+      policyArea: sharedArea,
+      orgId: orgAId,
+      titleEn: "Org A change in shared area",
+      titleAr: "تغيير المنظمة أ",
+      makerUserId: 1,
+      changeAfterJson: JSON.stringify({ owner: "orgA" }),
+    });
+    expect(createRes.status).toBe(201);
+    const crId = createRes.body.id;
+    createdChangeRequestIds.push(crId);
+    await request(app).patch(`/api/policy-change-requests/${crId}/submit`);
+    await request(app).patch(`/api/policy-change-requests/${crId}/approve`).send({});
+    const applyRes = await request(app).patch(`/api/policy-change-requests/${crId}/apply`);
+    expect(applyRes.status).toBe(200);
+    // Org A's numbering is independent of org B's v5
+    expect(applyRes.body.version.version).toBe(1);
+    expect(applyRes.body.version.orgId).toBe(orgAId);
+    orgAv1Id = applyRes.body.version.id;
+    createdVersionIds.push(orgAv1Id);
+
+    // Org B's version must remain current and unrenumbered
+    const [vB] = await db.select().from(policyVersionsTable).where(eq(policyVersionsTable.id, orgBVersionId));
+    expect(vB.isCurrent).toBe(true);
+    expect(vB.version).toBe(5);
+  });
+
+  it("rolling back in org A leaves org B's version current", async () => {
+    const res = await request(app)
+      .post(`/api/policy-versions/${orgAv1Id}/rollback`)
+      .send({ reason: "Cross-org scope test" });
+    expect(res.status).toBe(200);
+    expect(res.body.orgId).toBe(orgAId);
+    expect(res.body.version).toBe(2);
+    createdVersionIds.push(res.body.id);
+
+    const [vB] = await db.select().from(policyVersionsTable).where(eq(policyVersionsTable.id, orgBVersionId));
+    expect(vB.isCurrent).toBe(true);
+    expect(vB.version).toBe(5);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIG PACKAGE SIGNING — SAME-KEY ROUND TRIP AND WRONG-KEY REJECTION
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Config package signing: same-key round trip passes, wrong key is rejected", () => {
+  const payload = JSON.stringify({ policy: { weekendDays: [5, 6] }, exportedFor: "restart-test" });
+  let packageId: number;
+  let signature: string;
+
+  it("create → sign → export: signature is a deterministic HMAC of the payload", async () => {
+    const createRes = await request(app).post("/api/config-packages").send({
+      packageName: "Restart Survival Package",
+      packageType: "policy_set",
+      version: "1.0.0",
+      sourceEnvironment: "development",
+      targetEnvironment: "production",
+      policyAreasJson: JSON.stringify(["calendar_config"]),
+      payloadJson: payload,
+    });
+    expect(createRes.status).toBe(201);
+    packageId = createRes.body.id;
+    createdPackageIds.push(packageId);
+
+    const signRes = await request(app).post(`/api/config-packages/${packageId}/sign`);
+    expect(signRes.status).toBe(200);
+    expect(signRes.body.signature).toBeTruthy();
+    signature = signRes.body.signature;
+
+    // Signature must match an HMAC computed independently with the same env
+    // key — proving it depends only on (payload, SESSION_SECRET), both of
+    // which survive a server restart (payload in DB, key in env).
+    const expected = createHmac("sha256", process.env.SESSION_SECRET ?? "default-secret")
+      .update(payload).digest("hex");
+    expect(signature).toBe(expected);
+
+    const exportRes = await request(app).post(`/api/config-packages/${packageId}/export`);
+    expect(exportRes.status).toBe(200);
+    expect(exportRes.body.status).toBe("exported");
+    expect(exportRes.body.signature).toBe(signature);
+    expect(exportRes.body.payloadJson).toBe(payload);
+  });
+
+  it("import on the same server (same key) → signature check passes", async () => {
+    const res = await request(app).post("/api/config-packages/import").send({
+      packageJson: {
+        packageName: "Restart Survival Package (imported)",
+        packageType: "policy_set",
+        version: "1.0.0",
+        sourceEnvironment: "development",
+        targetEnvironment: "production",
+        payloadJson: payload,
+        signature,
+        items: [],
+      },
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe("imported");
+    createdPackageIds.push(res.body.id);
+
+    // Imported package can then be applied
+    const applyRes = await request(app).post(`/api/config-packages/${res.body.id}/apply`);
+    expect(applyRes.status).toBe(200);
+    expect(applyRes.body.package.status).toBe("applied");
+  });
+
+  it("import signed with a WRONG key → clear error, package not stored or applied", async () => {
+    const uniqueName = `Wrong Key Package ${Date.now()}`;
+    // Simulate a package exported from an environment with a different
+    // SESSION_SECRET (rotated or mismatched key)
+    const wrongSignature = createHmac("sha256", "a-completely-different-secret")
+      .update(payload).digest("hex");
+    expect(wrongSignature).not.toBe(signature);
+
+    const res = await request(app).post("/api/config-packages/import").send({
+      packageJson: {
+        packageName: uniqueName,
+        packageType: "policy_set",
+        version: "1.0.0",
+        sourceEnvironment: "other-environment",
+        targetEnvironment: "production",
+        payloadJson: payload,
+        signature: wrongSignature,
+        items: [],
+      },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/signature verification failed/i);
+
+    // Nothing was persisted — rejected packages must not exist in the DB
+    const rows = await db.select().from(configPackagesTable)
+      .where(eq(configPackagesTable.packageName, uniqueName));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("tampered payload with a valid-format signature → rejected", async () => {
+    const uniqueName = `Tampered Package ${Date.now()}`;
+    const tamperedPayload = JSON.stringify({ policy: { weekendDays: [0, 1] }, exportedFor: "tampered" });
+    const res = await request(app).post("/api/config-packages/import").send({
+      packageJson: {
+        packageName: uniqueName,
+        packageType: "policy_set",
+        version: "1.0.0",
+        sourceEnvironment: "development",
+        targetEnvironment: "production",
+        payloadJson: tamperedPayload,
+        signature, // valid signature, but for the ORIGINAL payload
+        items: [],
+      },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/signature verification failed/i);
+    const rows = await db.select().from(configPackagesTable)
+      .where(eq(configPackagesTable.packageName, uniqueName));
+    expect(rows).toHaveLength(0);
   });
 });
 

@@ -249,5 +249,4 @@ router.use(migrationStatusRouter);
 router.use(restoreTestsRouter);
 router.use(uatScriptsRouter);
 router.use(securityTestsRouter);
-
 export default router;

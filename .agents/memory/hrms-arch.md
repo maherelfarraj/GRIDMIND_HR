@@ -200,9 +200,6 @@ Three task branches (cert gating, revoke, concurrency lock) all edited leaveRequ
 ## Audit log actorUserId
 All db.insert(auditLogsTable) calls must include `actorUserId: (req as any).session?.userId ?? 1`. The column exists in auditLogsTable. 112 inserts were missing this in Phase 5/6 routes — all fixed in stabilization pass.
 
-## Integration test suite (artifacts/api-server/src/__tests__/)
-15 test files, 78 pass, 7 skip. Run: `pnpm --filter @workspace/api-server run test`. All self-clean in afterAll.
-
 ## Payroll calculate handler — known pitfalls
 - The per-employee holiday set is `empHolidaySet` (not `holidaySet`). Any new code inside the employee loop that calls `overlapDays(...)` must pass `empHolidaySet` — using an undefined `holidaySet` causes a silent 500.
 - Period aggregate update uses column names `totalGrossSalary` / `totalNetSalary` (NOT `totalGrossPayroll` / `totalNetPayroll`). Wrong names silently throw a Drizzle type error → 500.
@@ -218,8 +215,12 @@ Connection-profile tests are now REAL for ldap/active_directory (ldapts bind), s
 ## Production readiness page
 artifacts/hrms/src/pages/production-readiness.tsx — 8 checklist categories, 15-module verification table, status badges: PASS/WARN/FAIL/UNVERIFIED/SIMULATED/PLANNED. Route: /production-readiness. Sidebar: "Readiness" under System section.
 
-## OpenAPI spec size history
-Phase 3: ~3,200 lines → Phase 4: ~5,300 → Phase 5: ~9,485 → Phase 6: ~11,068 lines, 401 operationIds, 4 new tags (Documents, Reports, Notifications, DeploymentOps).
+## Policy version scoping
+Policy version numbering and `isCurrent` demotion must be scoped to the full target tuple (policyArea + orgId + targetEntityType + targetEntityId), with `isNull` for null columns.
+
+**Why:** Scoping by policyArea alone let one org's apply/rollback demote and renumber another org's versions for the same area (caught in review).
+
+**How to apply:** Any new code touching policy versions should reuse the `versionScope` helper in the policy governance routes.
 
 
 ## Payroll proration convention

@@ -13,6 +13,29 @@ function computeChecksum(data: string): string {
   return createHash("sha256").update(data).digest("hex");
 }
 
+/**
+ * Config package signing — key-management contract
+ *
+ * Packages are signed with HMAC-SHA256 using SESSION_SECRET as the signing key.
+ * The signature is computed over the package's `payloadJson` at sign time and
+ * verified at import time by recomputing the HMAC with the *importing* server's
+ * SESSION_SECRET.
+ *
+ * Implications:
+ * - A package exported from one environment can only be imported into an
+ *   environment that shares the SAME SESSION_SECRET. If the secret differs
+ *   (or has been rotated since export), import fails with
+ *   "Signature verification failed" and the package is NOT stored or applied.
+ * - Rotating SESSION_SECRET invalidates the signatures of all previously
+ *   exported (but not yet imported) packages. After a rotation, re-sign and
+ *   re-export any packages still in transit.
+ * - Signatures survive server restarts as long as SESSION_SECRET is stable:
+ *   the key is read from the environment on every call, and both the payload
+ *   and its signature are persisted in the database, so nothing is held only
+ *   in process memory.
+ * - The "default-secret" fallback exists only so development environments
+ *   without SESSION_SECRET still function; production must set SESSION_SECRET.
+ */
 function computeSignature(data: string): string {
   const secret = process.env.SESSION_SECRET ?? "default-secret";
   return createHmac("sha256", secret).update(data).digest("hex");
