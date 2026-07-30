@@ -52,7 +52,9 @@ app.use(cors({
 const PgSession = connectPg(session);
 
 app.use(session({
-  store: new PgSession({ pool: pgPool, createTableIfMissing: true }),
+  // Table is provisioned via schema push; createTableIfMissing reads table.sql
+  // from disk at runtime, which is not included in the esbuild bundle.
+  store: new PgSession({ pool: pgPool, createTableIfMissing: false }),
   secret: (() => {
     const s = process.env.SESSION_SECRET;
     if (!s) {
