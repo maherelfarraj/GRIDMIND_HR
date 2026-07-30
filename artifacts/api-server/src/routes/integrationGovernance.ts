@@ -8,6 +8,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { testLdapConnection, type AdapterResult } from "../lib/ldap-adapter.js";
 import { testSmtpConnection } from "../lib/smtp-adapter.js";
 import { testDeviceConnection } from "../lib/device-adapter.js";
+import { runHealthChecksOnce } from "../lib/health-monitor.js";
 
 const router = Router();
 
@@ -152,6 +153,9 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
       lastTestLatencyMs: latencyMs,
       lastTestSimulated: simulated,
       status: success ? "active" : "error",
+      // A manual test participates in the health-failure streak: success
+      // clears it, failure extends it (same semantics as the scheduled check).
+      consecutiveFailures: success ? 0 : profile.consecutiveFailures + 1,
       updatedAt: new Date(),
     }).where(eq(integrationConnectionProfilesTable.id, id));
 
@@ -166,6 +170,16 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
     });
 
     res.json({ success, message, latencyMs, simulated, testedAt: testedAt.toISOString() });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /integration-governance/health-checks/run — manually trigger one
+// health-monitor sweep (same logic the background scheduler runs every minute).
+router.post("/integration-governance/health-checks/run", async (req, res): Promise<void> => {
+  try {
+    // force=true ignores the per-profile interval (checks every monitored profile now)
+    const result = await runHealthChecksOnce({ force: req.body?.force === true });
+    res.json(result);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
