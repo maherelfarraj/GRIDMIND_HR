@@ -78,6 +78,16 @@ Phase 2 seed is at `artifacts/api-server/src/lib/seed-phase2.ts`. Run via: `npx 
 DB is seeded with fictional data: 10 departments, 6 roles, 15 employees, 6 system users, 8 attendance devices, 13 documents, 10 approvals, attendance records for 2026-07-27/28/29, 8 security alerts, 15 audit log entries, 20 device-employee mappings, 6 attendance corrections, 8 shifts, 195 roster entries, 3 overtime rules, 164 punch events.
 
 
+## Orval hook options require queryKey
+Passing `{ query: { enabled: ... } }` to generated query hooks fails typecheck (this Orval version's UseQueryOptions requires queryKey). Omit the options arg instead of using `enabled`.
+
+
+## Approval-style endpoints: atomic claim + conditional deduction in one transaction
+Any approve/decide endpoint must (1) claim the row with a conditional update (`WHERE status='pending'`, fail on 0 rows), (2) deduct quotas with a single atomic conditional SQL update (`SET used = used + n WHERE remaining >= n`), and (3) run all side effects in one `db.transaction`. Creation-time validation alone is insufficient — pending requests reserve nothing, and read-then-write balance updates race under concurrency.
+
+**Why:** Concurrent approvals can otherwise overdraw entitlements or double-process a request.
+**How to apply:** Applies to leave decisions and any future approval/quota flows (overtime, corrections, payroll adjustments).
+
 ## Payroll module (Phase 3)
 - Canonical payroll implementation came from the leave-management branch: `salary_grades` (pct-based allowances, org type), `payroll_periods`, `payroll_runs` (per employee × period), `payroll_run_lines`, `pay_components`, `public_holidays`; routes salaryGrades/payComponents/payrollPeriods/payrollRuns; pages /payroll, /payroll/payslip/:id, /payroll/grades, /payroll/components.
 - A parallel simpler payroll engine (payroll_entries + routes/payroll.ts + seed-payroll.ts) was dropped at merge time in favor of the leave-integrated one — do not reintroduce it.
