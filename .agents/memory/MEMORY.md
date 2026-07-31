@@ -2,4 +2,5 @@
 - [API integration testing conventions](api-testing.md) — vitest suite runs against the live seeded DB; fixtures must be self-cleaning, files run sequentially.
 - [DB package staleness & schema drift](db-dist-staleness.md) — after schema edits, rebuild lib/db dist and drizzle-push, or typechecks/queries fail confusingly.
 - [Auto-merge corruption in hot files](merge-corruption.md) — rebases silently corrupt contended files (main may be broken too); typecheck after every merge, rewrite wholesale from intent + tests to recover.
+- [Persisting in-memory security state](persistent-throttle.md) — write-through needs per-key serialized writes + awaited hydration gate; fire-and-forget races fail review.
 - [Real backup & restore testing](backup-restore.md) — managed PG allows CREATE/DROP DATABASE; restore tests use scratch DBs, with drift tolerance on append-only tables.

@@ -8,7 +8,7 @@ import {
   PASSWORD_REQUIREMENTS_EN,
   PASSWORD_REQUIREMENTS_AR,
 } from "@workspace/api-zod";
-import { isLockedOut, recordFailure, recordSuccess, LOCKOUT_MS } from "../lib/loginThrottle";
+import { isLockedOut, recordFailure, recordSuccess, LOCKOUT_MS, loginThrottleReady } from "../lib/loginThrottle";
 
 const router = Router();
 
@@ -72,6 +72,10 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   // Brute-force protection: temporary lockout after repeated failures for
   // the same account or source IP. Checked before any credential work so a
   // locked-out attacker learns nothing about the account.
+  // Wait for persisted lockout state to be hydrated (a no-op after the
+  // first request), so lockouts apply from the very first attempt after a
+  // server restart.
+  await loginThrottleReady;
   const lock = isLockedOut(username, ip);
   if (lock.locked) {
     const retryAfterSeconds = Math.ceil(lock.retryAfterMs / 1000);

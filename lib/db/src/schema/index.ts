@@ -93,3 +93,4 @@ export * from "./configPackages";
 export * from "./pilotControl";
 export * from "./uatScripts";
 export * from "./securityTests";
+export * from "./loginThrottle";
