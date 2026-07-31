@@ -24,12 +24,12 @@ args = "schema-drift"
 name = "schema-drift"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd artifacts/api-server && npx vitest run src/__tests__/schema-drift.test.ts"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/api-server && npx vitest run src/__tests__/schema-drift.test.ts src/__tests__/openapi-drift.test.ts"
 
 [agent]
 stack = "PNPM_WORKSPACE"
