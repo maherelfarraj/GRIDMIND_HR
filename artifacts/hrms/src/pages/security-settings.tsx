@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useListDualAuthRequests, useCreateDualAuthRequest, useApproveDualAuthRequest, useRejectDualAuthRequest,
   useListBreakGlassAccess, useRequestBreakGlassAccess, useRevokeBreakGlassAccess,
+  useListPrivilegedSessions, useReviewPrivilegedSession,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -436,14 +437,167 @@ function BreakGlassTab() {
   );
 }
 
+// ─── Tab 3: Privileged Session Review ────────────────────────────────────────
+function outcomeBadge(o: string | null | undefined) {
+  const cfg: Record<string,string> = {
+    justified: 'bg-green-100 text-green-700',
+    unjustified: 'bg-red-100 text-red-700',
+    under_investigation: 'bg-yellow-100 text-yellow-700',
+  };
+  if (!o) return <Badge className="text-xs border-transparent bg-gray-100 text-gray-500">{'—'}</Badge>;
+  return <Badge className={cn('text-xs border-transparent capitalize', cfg[o] ?? 'bg-gray-100 text-gray-600')}>{o.replace(/_/g,' ')}</Badge>;
+}
+
+function ReviewModal({ open, onClose, sessionId }: { open: boolean; onClose: () => void; sessionId: number | null }) {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [outcome, setOutcome] = useState('justified');
+  const [notes, setNotes] = useState('');
+
+  const reviewMutation = useReviewPrivilegedSession({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['listPrivilegedSessions'] });
+        onClose();
+        setOutcome('justified'); setNotes('');
+        toast({ title: t('Session reviewed','تمت مراجعة الجلسة') });
+      },
+      onError: (err: any) => toast({ title: t('Error','خطأ'), description: err?.message, variant:'destructive' }),
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>{t('Review Privileged Session','مراجعة الجلسة المميزة')}</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-2">
+          <p className="text-xs text-gray-500">{t('The review is recorded under your signed-in account.','تُسجل المراجعة باسم حسابك المسجل.')}</p>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-500">{t('Outcome','النتيجة')}</label>
+            <select value={outcome} onChange={e => setOutcome(e.target.value)}
+              className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-3 text-sm">
+              <option value="justified">{t('Justified','مبرر')}</option>
+              <option value="unjustified">{t('Unjustified','غير مبرر')}</option>
+              <option value="under_investigation">{t('Under Investigation','قيد التحقيق')}</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-500">{t('Notes','ملاحظات')}</label>
+            <Textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('Optional notes...','ملاحظات اختيارية...')} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>{t('Cancel','إلغاء')}</Button>
+          <Button disabled={reviewMutation.isPending || !sessionId}
+            onClick={() => reviewMutation.mutate({ id: sessionId!, data: { outcome, notes: notes || null } } as any)}>
+            {reviewMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {t('Mark Reviewed','وضع علامة تمت المراجعة')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SessionReviewTab() {
+  const { t } = useLanguage();
+  const [reviewId, setReviewId] = useState<number | null>(null);
+  const [showReviewed, setShowReviewed] = useState(false);
+
+  const { data: sessions, isLoading } = useListPrivilegedSessions();
+  const all = sessions ?? [];
+  const pending = all.filter((s: any) => !s.reviewedAt);
+  const reviewed = all.filter((s: any) => s.reviewedAt);
+
+  const renderTable = (rows: any[], withAction: boolean) => (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('User','المستخدم')}</TableHead>
+            <TableHead>{t('Grant','التصريح')}</TableHead>
+            <TableHead>{t('Started','بدأت')}</TableHead>
+            <TableHead>{t('Ended','انتهت')}</TableHead>
+            <TableHead>{t('Outcome','النتيجة')}</TableHead>
+            {withAction && <TableHead></TableHead>}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((s: any) => (
+            <TableRow key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <TableCell className="text-sm font-medium">{s.userName ?? s.userId}</TableCell>
+              <TableCell className="font-mono text-xs">#{s.breakGlassAccessId}</TableCell>
+              <TableCell className="text-xs">{fmtDate(s.startedAt)}</TableCell>
+              <TableCell className="text-xs">{s.endedAt ? `${fmtDate(s.endedAt)} (${s.endReason ?? ''})` : t('Open until','مفتوحة حتى') + ' ' + fmtDate(s.scheduledEndAt)}</TableCell>
+              <TableCell>{outcomeBadge(s.reviewOutcome)}</TableCell>
+              {withAction && (
+                <TableCell>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReviewId(s.id)}>
+                    {t('Review','مراجعة')}
+                  </Button>
+                </TableCell>
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <Alert className="border-indigo-400/40 bg-indigo-50 dark:bg-indigo-950/20">
+        <Info className="h-4 w-4 text-indigo-600" />
+        <AlertDescription className="text-indigo-700 dark:text-indigo-400">
+          {t('Every break-glass activation records a privileged session. Security officers must review each elevated-access window post-hoc.','كل تفعيل لوصول الطوارئ يسجل جلسة مميزة. يجب على ضباط الأمن مراجعة كل نافذة وصول مرتفع لاحقاً.')}
+        </AlertDescription>
+      </Alert>
+
+      <Card className="rounded-xl shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">{t('Awaiting Review','بانتظار المراجعة')} ({pending.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-4 space-y-2">{[...Array(3)].map((_,i) => <Skeleton key={i} className="h-10" />)}</div>
+          ) : pending.length === 0 ? (
+            <div className="p-6 text-center text-gray-400 text-sm">{t('No sessions awaiting review','لا توجد جلسات بانتظار المراجعة')}</div>
+          ) : renderTable(pending, true)}
+        </CardContent>
+      </Card>
+
+      <div>
+        <button onClick={() => setShowReviewed(!showReviewed)}
+          className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+          {showReviewed ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          {t('Reviewed Sessions','الجلسات المراجعة')} ({reviewed.length})
+        </button>
+        {showReviewed && (
+          <Card className="rounded-xl shadow-sm mt-2">
+            <CardContent className="p-0">
+              {reviewed.length === 0 ? (
+                <div className="p-6 text-center text-gray-400 text-sm">{t('No reviewed sessions yet','لا توجد جلسات مراجعة بعد')}</div>
+              ) : renderTable(reviewed, false)}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      <ReviewModal open={reviewId !== null} onClose={() => setReviewId(null)} sessionId={reviewId} />
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function SecuritySettings() {
   const { t } = useLanguage();
-  const [tab, setTab] = useState<'dualauth'|'breakglass'>('dualauth');
+  const [tab, setTab] = useState<'dualauth'|'breakglass'|'sessions'>('dualauth');
 
   const tabs = [
     { key: 'dualauth' as const, label: t('Dual Authorization','التفويض المزدوج') },
     { key: 'breakglass' as const, label: t('Break-Glass Access','وصول الطوارئ') },
+    { key: 'sessions' as const, label: t('Session Review','مراجعة الجلسات') },
   ];
 
   return (
@@ -467,6 +621,7 @@ export default function SecuritySettings() {
 
         {tab === 'dualauth' && <DualAuthTab />}
         {tab === 'breakglass' && <BreakGlassTab />}
+        {tab === 'sessions' && <SessionReviewTab />}
       </div>
     </AnimatedPage>
   );

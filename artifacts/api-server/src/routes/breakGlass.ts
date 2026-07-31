@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, breakGlassAccessTable, systemUsersTable, auditLogsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, breakGlassAccessTable, privilegedSessionsTable, systemUsersTable, auditLogsTable } from "@workspace/db";
+import { eq, and, isNull } from "drizzle-orm";
 import { getActorUserId } from "../middleware/requireAuth.js";
 
 const router = Router();
@@ -54,7 +54,27 @@ router.post("/break-glass", async (req, res): Promise<void> => {
     })
     .returning();
 
+  // Every break-glass activation opens a recorded privileged session so the
+  // elevated window can be reviewed post-hoc.
+  const [session] = await db
+    .insert(privilegedSessionsTable)
+    .values({
+      userId: newRecord.userId,
+      breakGlassAccessId: newRecord.id,
+      startedAt: newRecord.accessGrantedAt,
+      scheduledEndAt: newRecord.expiresAt,
+    })
+    .returning();
+
   // Log to audit
+  await db.insert(auditLogsTable).values({
+    actorUserId: getActorUserId(req),
+    action: "privileged_session.opened",
+    entityType: "privileged_session",
+    entityId: session.id,
+    entityLabel: resourceType,
+    changesJson: JSON.stringify({ breakGlassAccessId: newRecord.id, userId: newRecord.userId }),
+  });
   await db.insert(auditLogsTable).values({
     actorUserId: getActorUserId(req),
     action: "break_glass.granted",
@@ -91,6 +111,27 @@ router.post("/break-glass/:id/revoke", async (req, res): Promise<void> => {
   if (!row) {
     res.status(404).json({ error: "Break-glass access record not found" });
     return;
+  }
+
+  // Close the privileged session opened by this grant (if still open).
+  const closedSessions = await db
+    .update(privilegedSessionsTable)
+    .set({ endedAt: new Date(), endReason: "revoked" })
+    .where(and(
+      eq(privilegedSessionsTable.breakGlassAccessId, id),
+      isNull(privilegedSessionsTable.endedAt),
+    ))
+    .returning();
+
+  for (const s of closedSessions) {
+    await db.insert(auditLogsTable).values({
+      actorUserId: getActorUserId(req),
+      action: "privileged_session.closed",
+      entityType: "privileged_session",
+      entityId: s.id,
+      entityLabel: row.resourceType,
+      changesJson: JSON.stringify({ endReason: "revoked", breakGlassAccessId: id }),
+    });
   }
 
   // Log to audit

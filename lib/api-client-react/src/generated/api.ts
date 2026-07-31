@@ -304,6 +304,7 @@ import type {
   ListPayComponentsParams,
   ListPayrollPeriodsParams,
   ListPayrollRunsParams,
+  ListPrivilegedSessionsParams,
   ListProbationRecords200,
   ListProbationRecordsParams,
   ListPromotionRecommendations200,
@@ -372,6 +373,8 @@ import type {
   PostReportBuilderConfigsIdRunBody,
   PostScheduledExportsBody,
   PostScheduledExportsIdRunNow202,
+  PrivilegedSession,
+  PrivilegedSessionReview,
   ProbationRecord,
   ProbationRecordInput,
   PromotionRecommendation,
@@ -13405,6 +13408,162 @@ export const useRevokeBreakGlassAccess = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRevokeBreakGlassAccessMutationOptions(options));
+    }
+
+export const getListPrivilegedSessionsUrl = (params?: ListPrivilegedSessionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/privileged-sessions?${stringifiedParams}` : `/api/privileged-sessions`
+}
+
+/**
+ * @summary List recorded elevated-access sessions (review queue; security officers/auditors only)
+ */
+export const listPrivilegedSessions = async (params?: ListPrivilegedSessionsParams, options?: Parameters<typeof customFetch>[1]): Promise<PrivilegedSession[]> => {
+
+  return customFetch<PrivilegedSession[]>(getListPrivilegedSessionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPrivilegedSessionsQueryKey = (params?: ListPrivilegedSessionsParams,) => {
+    return [
+    `/api/privileged-sessions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPrivilegedSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listPrivilegedSessions>>, TError = ErrorType<unknown>>(params?: ListPrivilegedSessionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPrivilegedSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPrivilegedSessionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPrivilegedSessions>>> = ({ signal }) => listPrivilegedSessions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPrivilegedSessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPrivilegedSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listPrivilegedSessions>>>
+export type ListPrivilegedSessionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List recorded elevated-access sessions (review queue; security officers/auditors only)
+ */
+
+export function useListPrivilegedSessions<TData = Awaited<ReturnType<typeof listPrivilegedSessions>>, TError = ErrorType<unknown>>(
+ params?: ListPrivilegedSessionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPrivilegedSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPrivilegedSessionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReviewPrivilegedSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/privileged-sessions/${id}/review`
+}
+
+/**
+ * @summary Mark a privileged session as reviewed
+ */
+export const reviewPrivilegedSession = async (id: number,
+    privilegedSessionReview: PrivilegedSessionReview, options?: Parameters<typeof customFetch>[1]): Promise<PrivilegedSession> => {
+
+  return customFetch<PrivilegedSession>(getReviewPrivilegedSessionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(privilegedSessionReview)
+  }
+);}
+
+
+
+
+
+export const getReviewPrivilegedSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewPrivilegedSession>>, TError,{id: number;data: BodyType<PrivilegedSessionReview>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewPrivilegedSession>>, TError,{id: number;data: BodyType<PrivilegedSessionReview>}, TContext> => {
+
+const mutationKey = ['reviewPrivilegedSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewPrivilegedSession>>, {id: number;data: BodyType<PrivilegedSessionReview>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reviewPrivilegedSession(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewPrivilegedSessionMutationResult = NonNullable<Awaited<ReturnType<typeof reviewPrivilegedSession>>>
+    export type ReviewPrivilegedSessionMutationBody = BodyType<PrivilegedSessionReview>
+    export type ReviewPrivilegedSessionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Mark a privileged session as reviewed
+ */
+export const useReviewPrivilegedSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewPrivilegedSession>>, TError,{id: number;data: BodyType<PrivilegedSessionReview>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewPrivilegedSession>>,
+        TError,
+        {id: number;data: BodyType<PrivilegedSessionReview>},
+        TContext
+      > => {
+      return useMutation(getReviewPrivilegedSessionMutationOptions(options));
     }
 
 export const getListBackupRecordsUrl = (params?: ListBackupRecordsParams,) => {

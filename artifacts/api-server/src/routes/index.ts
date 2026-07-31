@@ -68,6 +68,7 @@ import {
 import { successionPoolsRouter, successionCandidatesRouter, developmentPlansRouter, developmentActivitiesRouter } from "./succession.js";
 import { employeeRequestsRouter, announcementsRouter, approvalDelegationsRouter } from "./selfService.js";
 import { gatewayMachineRouter, gatewayAdminRouter } from "./attendanceGateway.js";
+import privilegedSessionsRouter from "./privilegedSessions";
 
 const router: IRouter = Router();
 
@@ -132,6 +133,7 @@ router.use(mobilizationStatusesRouter);
 router.use(chainOfCommandRouter);
 router.use(dualAuthRouter);
 router.use(breakGlassRouter);
+router.use(privilegedSessionsRouter);
 router.use(adminBackupRouter);
 router.use(adminBranchesRouter);
 router.use(adminLicenseRouter);

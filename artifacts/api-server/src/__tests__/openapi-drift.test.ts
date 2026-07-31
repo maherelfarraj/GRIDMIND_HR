@@ -45,10 +45,10 @@ const SCHEMA_NAME_OVERRIDES: Record<string, string | null> = {
   leave_requests: "LeaveRequestDetail",
   mobilization_statuses: "MobilizationStatus",
   sync_queue: "SyncQueueEntry",
-  // privileged_sessions: removed 2026-07-31 — the table was dead schema
-  // (no route or library ever read/wrote it) and was dropped from
-  // lib/db/src/schema and the live DB. If privileged-session monitoring is
-  // built for real, add the table back together with its routes and schema.
+  // privileged_sessions: rebuilt 2026-07-31 with a real end-to-end flow
+  // (break-glass activation opens a session, revocation closes it, security
+  // officers review via /privileged-sessions). Maps by convention to
+  // "PrivilegedSession".
   employee_onboarding: "EmployeeOnboarding",
   installation_readiness: "InstallationReadiness",
   connection_health_log: "ConnectionHealthLog",
@@ -71,7 +71,9 @@ const SCHEMA_NAME_OVERRIDES: Record<string, string | null> = {
  * computed, joined or convenience fields the API adds when serializing.
  * Key: OpenAPI schema name.
  */
-const ALLOWED_EXTRA_PROPERTIES: Record<string, string[]> = {};
+const ALLOWED_EXTRA_PROPERTIES: Record<string, string[]> = {
+  PrivilegedSession: ["userName"], // joined from system_users when serializing
+};
 
 /**
  * Drizzle columns an OpenAPI schema may legitimately omit — sensitive or
@@ -259,9 +261,21 @@ export function parseBaselineSource(src: string): {
 // failing the tests until the spec (or schema) is fixed.
 if (process.env.UPDATE_OPENAPI_DRIFT_BASELINE === "1") {
   const extra: Record<string, string[]> = {};
-  const missing: Record<string, string[]> = {};
-  for (const m of matched) {
-    const d = computeDrift(m, ALLOWED_EXTRA_PROPERTIES, ALLOWED_MISSING_COLUMNS);
+      const missing = m.tsKeys.filter((k) => !props.has(k) && !allowed.has(k));
+      if (missing.length) {
+        problems.push(`${m.schemaName} (table ${m.sqlName}): ${missing.join(", ")}`);
+      }
+    }
+    expect(
+      problems,
+      `Drizzle columns absent from the OpenAPI schema — clients cannot see these fields. Add them to the spec, or if the API intentionally never returns them (secrets, internals), add them to ALLOWED_MISSING_COLUMNS in this test:\n  - ${problems.join("\n  - ")}`,
+    ).toEqual([]);
+  });
+});
+
+describe("drift ratchet self-tests", () => {
+  it("flags a newly introduced spec property that has no column", () => {
+      const d = computeDrift(m, ALLOWED_EXTRA_PROPERTIES, ALLOWED_MISSING_COLUMNS);
     if (d.extra.length) extra[m.schemaName] = d.extra;
     if (d.missing.length) missing[m.schemaName] = d.missing;
   }
@@ -330,8 +344,8 @@ describe("OpenAPI ↔ drizzle schema drift", () => {
     const problems: string[] = [];
     for (const m of matched) {
       const allowed = new Set([
-        ...(ALLOWED_EXTRA_PROPERTIES[m.schemaName] ?? []),
-        ...(KNOWN_EXTRA_PROPERTIES[m.schemaName] ?? []),
+        ...(ALLOWED_MISSING_COLUMNS[m.schemaName] ?? []),
+        ...(KNOWN_MISSING_PROPERTIES[m.schemaName] ?? []),
       ]);
       const cols = new Set(m.tsKeys);
       const extras = m.properties.filter((p) => !cols.has(p) && !allowed.has(p));
@@ -367,39 +381,20 @@ describe("OpenAPI ↔ drizzle schema drift", () => {
 
 describe("drift ratchet self-tests", () => {
   it("flags a newly introduced spec property that has no column", () => {
-    const d = computeDrift(
-      {
-        schemaName: "Synthetic",
-        tsKeys: ["id", "name"],
-        properties: ["id", "name", "bogusField"],
-      },
-      {},
-      {},
-    );
+      const d = computeDrift(m, ALLOWED_EXTRA_PROPERTIES, ALLOWED_MISSING_COLUMNS);
     expect(d.extra).toEqual(["bogusField"]);
     expect(d.missing).toEqual([]);
   });
 
   it("flags a newly added column that the spec omits", () => {
-    const d = computeDrift(
-      {
-        schemaName: "Synthetic",
-        tsKeys: ["id", "name", "newColumn"],
-        properties: ["id", "name"],
-      },
-      {},
-      {},
-    );
+      const d = computeDrift(m, ALLOWED_EXTRA_PROPERTIES, ALLOWED_MISSING_COLUMNS);
     expect(d.extra).toEqual([]);
     expect(d.missing).toEqual(["newColumn"]);
   });
 
   it("regeneration cannot absorb new drift into the baseline (shrink-only)", () => {
-    const previous = { Employee: ["oldKnownDrift"] };
-    const current = {
-      Employee: ["oldKnownDrift", "brandNewDrift"], // new field on known schema
-      Notification: ["driftOnCleanSchema"], // drift on a previously clean schema
-    };
+    const previous = { Employee: ["fixedDrift", "stillDrifted"] };
+    const current = { Employee: ["stillDrifted"] };
     expect(shrinkBaseline(current, previous)).toEqual({
       Employee: ["oldKnownDrift"],
     });

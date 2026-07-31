@@ -15,6 +15,8 @@ Update (Jul 2026): the stale-dist rule applies to ALL composite lib packages, no
 Update (Jul 2026): `pnpm run push` in lib/db now prompts to DROP the live `session` table (managed by connect-pg-simple, outside drizzle) and dies without a TTY. For additive column changes, apply `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` via psql instead, and let the schema-drift test confirm parity. Also: orval codegen emits zod-v4-only `zod.looseObject(` under zod v3 — the codegen script's postprocess now rewrites it to `zod.object(`.
 Update (Jul 2026): the api-spec codegen script rewrites `lib/api-zod/src/index.ts` wholesale; it must list every hand-written export (e.g. `./password`) or codegen silently drops them and downstream builds fail with "has no exported member". Also: `openapi.yaml` is hand-written and can drift badly from live routes — when generated types look wrong, diff the schema block against the actual route handlers/drizzle tables, not just the client.
 
+Update (Jul 2026): "removed" tables may survive in the live DB — schema-code removals don't drop the physical table. Before recreating a table under an old name, `\d` it first; a leftover with the old column shape will silently shadow the new definition (CREATE TABLE IF NOT EXISTS skips creation).
+
 ## drizzle-kit push vs the session table
 **Rule:** never run drizzle-kit push with `--force`; for additive drift apply a targeted `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` via psql, then re-run the schema-drift test.
 **Why:** push proposes DROPPING the live `session` table (owned by connect-pg-simple, not declared in Drizzle), which would wipe all active sessions.

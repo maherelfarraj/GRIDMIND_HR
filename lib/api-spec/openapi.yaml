@@ -3192,6 +3192,42 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/BreakGlassAccess' }
 
+  # ── Privileged Sessions (break-glass review) ───────────────────────────────
+  /privileged-sessions:
+    get:
+      operationId: listPrivilegedSessions
+      tags: [security]
+      summary: List recorded elevated-access sessions (review queue; security officers/auditors only)
+      parameters:
+        - { name: userId, in: query, schema: { type: number } }
+        - { name: reviewed, in: query, schema: { type: boolean } }
+        - { name: breakGlassAccessId, in: query, schema: { type: number } }
+      responses:
+        '200':
+          description: Privileged sessions
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/PrivilegedSession' } }
+
+  /privileged-sessions/{id}/review:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    post:
+      operationId: reviewPrivilegedSession
+      tags: [security]
+      summary: Mark a privileged session as reviewed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PrivilegedSessionReview' }
+      responses:
+        '200':
+          description: Reviewed session
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PrivilegedSession' }
+
   # ── Admin — Backup Records ─────────────────────────────────────────────────
   /admin/backup-records:
     get:
@@ -10713,6 +10749,32 @@ components:
         emergencyCode: { type: ["string", "null"] }
         ttlMinutes: { type: number }
       required: [userId, resourceType, justification]
+
+    PrivilegedSession:
+      type: object
+      properties:
+        id: { type: number }
+        userId: { type: number }
+        breakGlassAccessId: { type: number }
+        startedAt: { type: string }
+        scheduledEndAt: { type: string }
+        endedAt: { type: ["string", "null"] }
+        endReason: { type: ["string", "null"] }
+        reviewedAt: { type: ["string", "null"] }
+        reviewedByUserId: { type: ["number", "null"] }
+        reviewOutcome: { type: ["string", "null"], enum: ["justified", "unjustified", "under_investigation", null] }
+        reviewNotes: { type: ["string", "null"] }
+        createdAt: { type: string }
+        userName: { type: ["string", "null"] }
+      required: [id, userId, breakGlassAccessId, startedAt, scheduledEndAt, createdAt]
+
+    PrivilegedSessionReview:
+      type: object
+      description: Reviewer identity is derived from the authenticated session, never the body.
+      properties:
+        outcome: { type: string, enum: ["justified", "unjustified", "under_investigation"] }
+        notes: { type: ["string", "null"] }
+      required: [outcome]
 
     BackupRecord:
       type: object

@@ -2135,6 +2135,50 @@ export interface BreakGlassRequest {
   ttlMinutes?: number;
 }
 
+/**
+ * @nullable
+ */
+export type PrivilegedSessionReviewOutcome = typeof PrivilegedSessionReviewOutcome[keyof typeof PrivilegedSessionReviewOutcome] | null;
+
+
+export const PrivilegedSessionReviewOutcome = {
+  justified: 'justified',
+  unjustified: 'unjustified',
+  under_investigation: 'under_investigation',
+} as const;
+
+export interface PrivilegedSession {
+  id: number;
+  userId: number;
+  breakGlassAccessId: number;
+  startedAt: string;
+  scheduledEndAt: string;
+  /** @nullable */
+  endedAt?: string | null;
+  /** @nullable */
+  endReason?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  /** @nullable */
+  reviewedByUserId?: number | null;
+  /** @nullable */
+  reviewOutcome?: PrivilegedSessionReviewOutcome;
+  /** @nullable */
+  reviewNotes?: string | null;
+  createdAt: string;
+  /** @nullable */
+  userName?: string | null;
+}
+
+/**
+ * Reviewer identity is derived from the authenticated session, never the body.
+ */
+export interface PrivilegedSessionReview {
+  outcome: PrivilegedSessionReviewOutcome;
+  /** @nullable */
+  notes?: string | null;
+}
+
 export interface BackupRecord {
   id: number;
   backupType: string;
@@ -5824,6 +5868,12 @@ export type RevokeBreakGlassAccessBody = {
   reason?: string;
 };
 
+export type ListPrivilegedSessionsParams = {
+userId?: number;
+reviewed?: boolean;
+breakGlassAccessId?: number;
+};
+
 export type ListBackupRecordsParams = {
 status?: string;
 backupType?: string;
@@ -6821,4 +6871,3 @@ export type UpdateAiPermissionBody = {
   isAllowed?: boolean;
   featureType?: string;
 };
-

@@ -40,6 +40,7 @@ export * from "./mobilizationStatuses";
 export * from "./chainOfCommand";
 export * from "./dualAuthRequests";
 export * from "./breakGlassAccess";
+export * from "./privilegedSessions";
 export * from "./branchServers";
 export * from "./syncQueue";
 export * from "./backupRecords";

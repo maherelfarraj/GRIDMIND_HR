@@ -1342,7 +1342,6 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
-
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1357,7 +1356,6 @@ export const SetUserPasswordResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
-
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -5357,6 +5355,62 @@ export const RevokeBreakGlassAccessResponse = zod.object({
   "reviewOutcome": zod.string().nullish(),
   "notificationSent": zod.boolean(),
   "createdAt": zod.string().optional(),
+  "userName": zod.string().nullish()
+})
+
+
+/**
+ * @summary List recorded elevated-access sessions (review queue; security officers/auditors only)
+ */
+export const ListPrivilegedSessionsQueryParams = zod.object({
+  "userId": zod.coerce.number().optional(),
+  "reviewed": zod.coerce.boolean().optional(),
+  "breakGlassAccessId": zod.coerce.number().optional()
+})
+
+export const ListPrivilegedSessionsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "breakGlassAccessId": zod.number(),
+  "startedAt": zod.string(),
+  "scheduledEndAt": zod.string(),
+  "endedAt": zod.string().nullish(),
+  "endReason": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "reviewedByUserId": zod.number().nullish(),
+  "reviewOutcome": zod.union([zod.literal('justified'),zod.literal('unjustified'),zod.literal('under_investigation'),zod.literal(null)]).nullish(),
+  "reviewNotes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "userName": zod.string().nullish()
+})
+export const ListPrivilegedSessionsResponse = zod.array(ListPrivilegedSessionsResponseItem)
+
+
+/**
+ * @summary Mark a privileged session as reviewed
+ */
+export const ReviewPrivilegedSessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReviewPrivilegedSessionBody = zod.object({
+  "outcome": zod.enum(['justified', 'unjustified', 'under_investigation']),
+  "notes": zod.string().nullish()
+}).describe('Reviewer identity is derived from the authenticated session, never the body.')
+
+export const ReviewPrivilegedSessionResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "breakGlassAccessId": zod.number(),
+  "startedAt": zod.string(),
+  "scheduledEndAt": zod.string(),
+  "endedAt": zod.string().nullish(),
+  "endReason": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "reviewedByUserId": zod.number().nullish(),
+  "reviewOutcome": zod.union([zod.literal('justified'),zod.literal('unjustified'),zod.literal('under_investigation'),zod.literal(null)]).nullish(),
+  "reviewNotes": zod.string().nullish(),
+  "createdAt": zod.string(),
   "userName": zod.string().nullish()
 })
 
@@ -13104,5 +13158,4 @@ export const UpdateAiPermissionResponse = zod.object({
   "grantedByUserId": zod.number().nullish(),
   "grantedAt": zod.string()
 })
-
 
