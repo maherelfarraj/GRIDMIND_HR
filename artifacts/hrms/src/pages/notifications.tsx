@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/use-auth';
+import { apiFetch } from '@/lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import {
   useListNotifications,
@@ -32,8 +34,130 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   Bell, Info, AlertTriangle, AlertOctagon, X,
-  Plus, CheckCheck, Clock, ExternalLink,
+  Plus, CheckCheck, Clock, ExternalLink, ShieldAlert,
 } from 'lucide-react';
+
+// ── Security Alert Channel (admin) ───────────────────────────────────────────
+
+const SECURITY_ALERT_CHANNELS = ['in_app', 'email', 'both'] as const;
+type SecurityAlertChannel = (typeof SECURITY_ALERT_CHANNELS)[number];
+
+/** Normalize any stored/returned value to a valid channel; default "both". */
+export function normalizeSecurityAlertChannel(value: unknown): SecurityAlertChannel {
+  return SECURITY_ALERT_CHANNELS.includes(value as SecurityAlertChannel)
+    ? (value as SecurityAlertChannel)
+    : 'both';
+}
+
+function SecurityAlertPreferences() {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id;
+
+  const prefsKey = ['/api/notification-preferences', userId];
+  const { data: prefs, isLoading } = useQuery({
+    queryKey: prefsKey,
+    enabled: !!userId,
+    queryFn: async () => {
+      const res = await apiFetch(`/api/notification-preferences?userId=${userId}`);
+      if (!res.ok) throw new Error('Failed to load preferences');
+      return res.json();
+    },
+  });
+
+  const channel = normalizeSecurityAlertChannel(prefs?.securityAlertChannel);
+
+  const saveMut = useMutation({
+    mutationFn: async (next: SecurityAlertChannel) => {
+      const res = await apiFetch(`/api/notification-preferences/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ securityAlertChannel: next }),
+      });
+      if (!res.ok) throw new Error('Failed to save preference');
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: prefsKey });
+      toast({ title: t('Security alert channel updated', 'تم تحديث قناة تنبيهات الأمان') });
+    },
+    onError: (e: any) => {
+      toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
+    },
+  });
+
+  const options: { value: SecurityAlertChannel; labelEn: string; labelAr: string; descEn: string; descAr: string }[] = [
+    { value: 'in_app', labelEn: 'In-app only', labelAr: 'داخل التطبيق فقط',
+      descEn: 'Alerts appear only in the notification inbox.', descAr: 'تظهر التنبيهات في صندوق الإشعارات فقط.' },
+    { value: 'email', labelEn: 'Email only', labelAr: 'البريد الإلكتروني فقط',
+      descEn: 'Alerts are sent to your email address.', descAr: 'تُرسل التنبيهات إلى بريدك الإلكتروني.' },
+    { value: 'both', labelEn: 'Both', labelAr: 'كلاهما',
+      descEn: 'Alerts are delivered in-app and by email.', descAr: 'تُسلَّم التنبيهات داخل التطبيق وعبر البريد.' },
+  ];
+
+  return (
+    <Card className="bg-slate-800 border-slate-700 max-w-2xl">
+      <CardContent className="p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="w-5 h-5 text-amber-400" />
+          <h3 className="text-white font-semibold">{t('Security Alert Delivery', 'تسليم تنبيهات الأمان')}</h3>
+        </div>
+        <p className="text-slate-400 text-sm">
+          {t('Choose how you receive security alerts such as account lockout notices.',
+             'اختر كيفية استلام تنبيهات الأمان مثل إشعارات قفل الحساب.')}
+        </p>
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-14 w-full bg-slate-700" />
+            <Skeleton className="h-14 w-full bg-slate-700" />
+            <Skeleton className="h-14 w-full bg-slate-700" />
+          </div>
+        ) : (
+          <div role="radiogroup" aria-label={t('Security alert channel', 'قناة تنبيهات الأمان')} className="space-y-2">
+            {options.map((opt) => {
+              const selected = channel === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  disabled={saveMut.isPending}
+                  onClick={() => { if (!selected) saveMut.mutate(opt.value); }}
+                  className={cn(
+                    'w-full text-left rounded-lg border p-3 transition-colors flex items-start gap-3',
+                    selected
+                      ? 'border-amber-500 bg-amber-500/10'
+                      : 'border-slate-700 bg-slate-900/40 hover:border-slate-500',
+                    saveMut.isPending && 'opacity-60 cursor-wait'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'mt-1 w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center',
+                      selected ? 'border-amber-500' : 'border-slate-500'
+                    )}
+                  >
+                    {selected && <span className="w-2 h-2 rounded-full bg-amber-500" />}
+                  </span>
+                  <span>
+                    <span className="block text-white text-sm font-medium">{t(opt.labelEn, opt.labelAr)}</span>
+                    <span className="block text-slate-400 text-xs">{t(opt.descEn, opt.descAr)}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {saveMut.isPending && (
+          <p className="text-slate-400 text-xs">{t('Saving…', 'جاري الحفظ…')}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -491,6 +615,8 @@ function NewEscalationRuleDialog({ open, onClose }: { open: boolean; onClose: ()
 
 export default function Notifications() {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const isAdmin = user ? user.roleId <= 2 : false;
   const { data: notifs } = useListNotifications(undefined as any);
   const unread = (notifs ?? []).filter(n => !(n as any).isRead).length;
 
@@ -527,6 +653,12 @@ export default function Notifications() {
               <Clock className="w-4 h-4 mr-1" />
               {t('Escalation Rules', 'قواعد التصعيد')}
             </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="preferences" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
+                <ShieldAlert className="w-4 h-4 mr-1" />
+                {t('Preferences', 'التفضيلات')}
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="inbox" className="mt-4">
@@ -535,6 +667,11 @@ export default function Notifications() {
           <TabsContent value="escalation" className="mt-4">
             <EscalationRulesTab />
           </TabsContent>
+          {isAdmin && (
+            <TabsContent value="preferences" className="mt-4">
+              <SecurityAlertPreferences />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </AnimatedPage>
