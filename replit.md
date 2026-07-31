@@ -50,4 +50,4 @@ Seeded with fictional data:
 
 ## Pilot auth password provisioning
 - Demo accounts (admin, fatima.zahrani, omar.ghamdi, aisha.otaibi) have bcrypt password hashes stored in the DB; admins can set/reset any password from the System Users page.
-- Optional re-provisioning at server boot is strictly opt-in: set `SEED_DEMO_PASSWORDS=true` and `DEMO_PILOT_PASSWORD=<value>` at runtime (never committed); it never runs when NODE_ENV=production and never overwrites an existing hash.
+- Optional re-provisioning at server boot is strictly opt-in: set `SEED_DEMO_PASSWORDS=true` and `DEMO_PILOT_PASSWORD=<value>` at runtime (never committed); it never overwrites an existing hash. In production it never provisions a known demo password: NULL-hash demo accounts get a random one-time password written to an operator-only 0600 handoff file (path via `ONE_TIME_PASSWORD_DIR`, default `.credentials/`; never logged) with must_change_password=true, and accounts still using the demo password are flagged to rotate at next login.

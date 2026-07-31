@@ -23,23 +23,44 @@ if (Number.isNaN(port) || port <= 0) {
 // Schema must be in place before we accept any traffic.
 await runStartupMigrations();
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
+async function main() {
+  if (process.env.NODE_ENV === "production") {
+    // Fail-closed: production credential hardening (random one-time
+    // passwords + forced rotation of legacy demo credentials) must fully
+    // succeed BEFORE the server accepts any traffic. If it fails — e.g.
+    // the operator handoff file cannot be written — startup aborts and
+    // the listener is never opened.
+    try {
+      await seedDemoPasswords();
+    } catch (err) {
+      logger.error({ err }, "Production credential hardening failed — aborting startup; the listener was not opened");
+      process.exit(1);
+    }
   }
 
-  logger.info({ port }, "Server listening");
-  startHealthMonitor();
-  startGatewaySilenceMonitor();
-  seedDemoPasswords().catch((err) => {
-    logger.error({ err }, "Failed to provision demo password hashes");
+  app.listen(port, (err) => {
+    if (err) {
+      logger.error({ err }, "Error listening on port");
+      process.exit(1);
+    }
+
+    logger.info({ port }, "Server listening");
+    startHealthMonitor();
+    startGatewaySilenceMonitor();
+    if (process.env.NODE_ENV !== "production") {
+      // Dev/demo provisioning is best-effort and non-blocking.
+      seedDemoPasswords().catch((err) => {
+        logger.error({ err }, "Failed to provision demo password hashes");
+      });
+    }
+    rotateLegacyGatewayKeys()
+      .then((rotated) => {
+        if (rotated > 0) logger.info({ rotated }, "Rotated legacy gateway signing keys into vault envelopes");
+      })
+      .catch((err) => {
+        logger.error({ err }, "Failed to rotate legacy gateway signing keys");
+      });
   });
-  rotateLegacyGatewayKeys()
-    .then((rotated) => {
-      if (rotated > 0) logger.info({ rotated }, "Rotated legacy gateway signing keys into vault envelopes");
-    })
-    .catch((err) => {
-      logger.error({ err }, "Failed to rotate legacy gateway signing keys");
-    });
-});
+}
+
+await main();
