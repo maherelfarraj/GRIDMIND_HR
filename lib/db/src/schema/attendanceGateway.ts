@@ -43,6 +43,11 @@ export const gatewayRegistrationsTable = pgTable("gateway_registrations", {
   adapterConnStatus: varchar("adapter_conn_status", { length: 20 }),
   adapterConnMessage: text("adapter_conn_message"),
   adapterConnTestedAt: timestamp("adapter_conn_tested_at"),
+  // Device↔gateway clock skew measured by the gateway at testConnection()
+  // time (distinct from clockDriftMs = gateway↔server drift). A skewed
+  // device clock silently mis-stamps every punch, so it gets its own alert.
+  deviceClockSkewMs: bigint("device_clock_skew_ms", { mode: "number" }),
+  deviceClockSkewAlert: boolean("device_clock_skew_alert").notNull().default(false),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

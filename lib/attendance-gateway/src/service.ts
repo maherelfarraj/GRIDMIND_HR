@@ -3,7 +3,7 @@ import { promises as fs } from "fs";
 import { dirname } from "path";
 import { EncryptedQueue } from "./queue.js";
 import { HrClient } from "./hrClient.js";
-import type { DeviceAdapter, GatewayPunch } from "./types.js";
+import type { AdapterTestResult, DeviceAdapter, GatewayPunch } from "./types.js";
 
 /**
  * GatewayService — the core offline-first pipeline:
@@ -28,16 +28,27 @@ export class GatewayService {
   readonly baseBackoffMs: number;
 
   readonly maxBackoffMs: number;
+  /** Skew above this logs a structured warning + flags the heartbeat (default 60s). */
+  readonly clockSkewWarnMs: number;
+  /** Skew above this hard limit blocks poll() entirely (default 5 min). */
+  readonly clockSkewMaxMs: number;
 
   constructor(
     private readonly queue: EncryptedQueue,
     private readonly hr: HrClient,
     private readonly adapter: DeviceAdapter,
-    opts?: { maxAttempts?: number; baseBackoffMs?: number; maxBackoffMs?: number; cursorPath?: string },
+    opts?: {
+      maxAttempts?: number; baseBackoffMs?: number; maxBackoffMs?: number; cursorPath?: string;
+      clockSkewWarnMs?: number; clockSkewMaxMs?: number;
+    },
   ) {
     this.maxAttempts = opts?.maxAttempts ?? 10;
     this.baseBackoffMs = opts?.baseBackoffMs ?? 30_000;
     this.maxBackoffMs = opts?.maxBackoffMs ?? 15 * 60_000;
+    this.clockSkewWarnMs = opts?.clockSkewWarnMs ?? 60_000;
+    // The hard limit can never sit below the warning threshold — a config
+    // like warn=120s/max=60s would block without ever having warned.
+    this.clockSkewMaxMs = Math.max(opts?.clockSkewMaxMs ?? 300_000, this.clockSkewWarnMs);
     this.cursorPath = opts?.cursorPath ?? null;
   }
 
@@ -50,6 +61,10 @@ export class GatewayService {
   lastFlushAt: Date | null = null;
 
   lastError: string | null = null;
+  /** Last measured device clock skew (ms); null when unknown/not measured. */
+  lastClockSkewMs: number | null = null;
+  /** Non-null while polling is blocked because skew exceeds the hard limit. */
+  private clockSkewBlockReason: string | null = null;
 
   /** Restore the persisted adapter cursor (call once at startup). */
   async init(): Promise<void> {
@@ -85,6 +100,7 @@ export class GatewayService {
    * UID dedupe absorbs any duplicates — no punch is ever lost.
    */
   async pollOnce(): Promise<{ queued: number; batchUuid: string | null }> {
+    if (this.clockSkewBlockReason) throw new Error(this.clockSkewBlockReason);
     const { punches, nextCursor } = await this.adapter.poll(this.cursor);
     this.lastPollAt = new Date();
     if (punches.length === 0) {
@@ -105,22 +121,78 @@ export class GatewayService {
    * testConnection() result (UNREACHABLE / AUTH_FAILED / NOT_CONFIGURED).
    */
   async tick(): Promise<{ pollError: string | null; heartbeatError: string | null }> {
+    // testConnection() runs FIRST so the device clock-skew gate applies to
+    // this tick's poll (not the next one). The same result feeds the
+    // heartbeat below — no second connection round-trip.
+    let test: AdapterTestResult | null = null;
+    try {
+      test = await this.adapter.testConnection();
+    } catch (e) {
+      // Defensive: adapters return structured failures rather than throwing.
+      this.lastError = e instanceof Error ? e.message : String(e);
+    }
+    const heartbeatTest = test ? this.evaluateClockSkew(test) : null;
+
     let pollError: string | null = null;
     try {
       await this.pollOnce();
-      await this.flush();
     } catch (e) {
       pollError = e instanceof Error ? e.message : String(e);
       this.lastError = pollError;
     }
+    // Flush regardless: previously spooled (pre-skew) batches are still valid.
+    try {
+      await this.flush();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.lastError = msg;
+      pollError = pollError ?? msg;
+    }
+
     let heartbeatError: string | null = null;
     try {
-      await this.hr.heartbeat(await this.adapter.testConnection());
+      await this.hr.heartbeat(heartbeatTest ?? await this.adapter.testConnection());
     } catch (e) {
       heartbeatError = e instanceof Error ? e.message : String(e);
       this.lastError = heartbeatError;
     }
     return { pollError, heartbeatError };
+  }
+
+  /**
+   * Device clock-skew enforcement (runbook validation checklist item 1, made
+   * continuous): devices report local time with no auto time-sync, so a
+   * drifting device clock silently skews every punch timestamp.
+   *
+   *   skew > clockSkewWarnMs → structured warning log + flagged heartbeat
+   *   skew > clockSkewMaxMs  → poll() blocked until the device clock is fixed
+   *
+   * Returns the (possibly annotated) test result to send as the heartbeat.
+   */
+  private evaluateClockSkew(test: AdapterTestResult): AdapterTestResult {
+    const skew = test.ok && typeof test.clockSkewMs === "number" ? test.clockSkewMs : null;
+    this.lastClockSkewMs = skew;
+    if (skew === null || skew <= this.clockSkewWarnMs) {
+      this.clockSkewBlockReason = null;
+      return test;
+    }
+    const blocked = skew > this.clockSkewMaxMs;
+    const warning = blocked
+      ? `Device clock skew ${skew}ms exceeds hard limit ${this.clockSkewMaxMs}ms — punch polling is BLOCKED until the device clock is corrected (sync the device time, then re-test the connection)`
+      : `Device clock skew ${skew}ms exceeds warning threshold ${this.clockSkewWarnMs}ms — fix the device clock before punch timestamps drift further`;
+    console.warn(JSON.stringify({
+      level: "warn",
+      event: "device_clock_skew",
+      adapterType: this.adapter.type,
+      clockSkewMs: skew,
+      warnThresholdMs: this.clockSkewWarnMs,
+      hardLimitMs: this.clockSkewMaxMs,
+      pollBlocked: blocked,
+      message: warning,
+    }));
+    this.clockSkewBlockReason = blocked ? warning : null;
+    if (blocked) this.lastError = warning;
+    return { ...test, message: `${test.message} — ${warning}` };
   }
 
   /** Queue an ad-hoc batch (e.g. parsed from a CSV upload). */
@@ -241,6 +313,8 @@ export class GatewayService {
       lastPollAt: this.lastPollAt?.toISOString() ?? null,
       lastFlushAt: this.lastFlushAt?.toISOString() ?? null,
       lastError: this.lastError,
+      clockSkewMs: typeof test.clockSkewMs === "number" ? test.clockSkewMs : this.lastClockSkewMs,
+      clockSkewBlocked: this.clockSkewBlockReason !== null,
     };
   }
 

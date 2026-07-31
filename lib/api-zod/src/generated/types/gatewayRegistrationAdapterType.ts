@@ -12,6 +12,8 @@ export type GatewayRegistrationAdapterType = typeof GatewayRegistrationAdapterTy
 export const GatewayRegistrationAdapterType = {
   ZKTECO: 'ZKTECO',
   SUPREMA: 'SUPREMA',
+  ZKTECO_NATIVE: 'ZKTECO_NATIVE',
+  SUPREMA_NATIVE: 'SUPREMA_NATIVE',
   GENERIC_REST: 'GENERIC_REST',
   CSV: 'CSV',
   SIMULATOR: 'SIMULATOR',

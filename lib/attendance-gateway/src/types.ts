@@ -32,6 +32,12 @@ export interface AdapterTestResult {
   /** True when the adapter cannot run without a vendor SDK / licensed driver. */
   requiresVendorSdk?: boolean;
   deviceTimeMs?: number;
+  /**
+   * |deviceTimeMs - gateway Date.now()| computed at testConnection() time.
+   * Only present when the device wall clock was actually read (never a
+   * fallback value) — absence means "skew unknown", not "skew zero".
+   */
+  clockSkewMs?: number;
 }
 
 /** Whether a native vendor SDK is installed on this gateway host, and its version if known. */

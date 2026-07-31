@@ -94,6 +94,13 @@ describe("ZktecoNativeAdapter — testConnection", () => {
     expect(r.ok).toBe(false);
     expect(r.status).toBe("UNREACHABLE");
   });
+
+  it("reports clockSkewMs = |deviceTimeMs - now|", async () => {
+    const adapter = new ZktecoNativeAdapter(ZK_CFG, mockZkFactory([], { deviceTimeMs: Date.now() + 120_000 }));
+    const r = await adapter.testConnection();
+    expect(r.clockSkewMs).toBeGreaterThanOrEqual(119_000);
+    expect(r.clockSkewMs).toBeLessThanOrEqual(121_000);
+  });
 });
 
 describe("ZktecoNativeAdapter — poll with mock client", () => {
@@ -440,6 +447,20 @@ describe("SupremaNativeAdapter — mock SDK (testConnection)", () => {
     const r = await adapter.testConnection();
     expect(r.ok).toBe(false);
     expect(r.status).toBe("UNREACHABLE");
+  });
+
+  it("reports clockSkewMs when the device clock is readable", async () => {
+    const sdk = mockSupremaSDK([], "DEV-T", { deviceTimeMs: Date.now() - 90_000 });
+    const r = await new SupremaNativeAdapter(SUPREMA_CFG, sdk).testConnection();
+    expect(r.clockSkewMs).toBeGreaterThanOrEqual(89_000);
+    expect(r.clockSkewMs).toBeLessThanOrEqual(91_000);
+  });
+
+  it("omits clockSkewMs when getDeviceTimeMs is unsupported (no fake-zero skew)", async () => {
+    const sdk = { ...mockSupremaSDK([], "DEV-U"), getDeviceTimeMs: () => Promise.reject(new Error("unsupported")) };
+    const r = await new SupremaNativeAdapter(SUPREMA_CFG, sdk).testConnection();
+    expect(r.ok).toBe(true);
+    expect(r.clockSkewMs).toBeUndefined();
   });
 });
 

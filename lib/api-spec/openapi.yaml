@@ -9382,7 +9382,7 @@ components:
         name: { type: string }
         nameAr: { type: [ "string", "null" ] }
         deviceId: { type: [ "number", "null" ] }
-        adapterType: { type: string, enum: [ ZKTECO, SUPREMA, GENERIC_REST, CSV, SIMULATOR ] }
+        adapterType: { type: string, enum: [ ZKTECO, SUPREMA, ZKTECO_NATIVE, SUPREMA_NATIVE, GENERIC_REST, CSV, SIMULATOR ] }
         status: { type: string, enum: [ ACTIVE, REVOKED ] }
         registeredByUserId: { type: number }
         lastSeenAt: { type: [ "string", "null" ] }
@@ -9394,6 +9394,8 @@ components:
           enum: [ REACHABLE, AUTH_FAILED, UNREACHABLE, NOT_CONFIGURED, null ]
         adapterConnMessage: { type: [ "string", "null" ] }
         adapterConnTestedAt: { type: [ "string", "null" ] }
+        deviceClockSkewMs: { type: [ "number", "null" ] }
+        deviceClockSkewAlert: { type: boolean }
         notes: { type: [ "string", "null" ] }
         createdAt: { type: string }
         updatedAt: { type: string }

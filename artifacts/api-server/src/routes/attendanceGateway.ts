@@ -37,6 +37,7 @@ import {
 const SIGNATURE_WINDOW_MS = 5 * 60 * 1000;
 const DRIFT_ALERT_MS = 2 * 60 * 1000;
 
+const DEVICE_CLOCK_SKEW_ALERT_MS = 60 * 1000;
 const sha256 = (data: string | Buffer): string => createHash("sha256").update(data).digest("hex");
 
 interface GatewayRequest extends Request {
@@ -147,7 +148,7 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
   const { deviceTimeMs, adapterStatus, connectionTest } = req.body as {
     deviceTimeMs?: number;
     adapterStatus?: string;
-    connectionTest?: { ok?: boolean; status?: string; message?: string };
+    connectionTest?: { ok?: boolean; status?: string; message?: string; clockSkewMs?: number };
   };
   const drift = await recordDrift(reg, deviceTimeMs);
   const VALID_CONN_STATUSES = new Set(["REACHABLE", "AUTH_FAILED", "UNREACHABLE", "NOT_CONFIGURED"]);
@@ -159,6 +160,14 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
       ? (connectionTest.ok ? "REACHABLE" : "UNREACHABLE")
       : undefined;
   const connMessage = connectionTest?.message ?? adapterStatus;
+  // Device↔gateway clock skew measured by the gateway adapter (distinct from
+  // clockDriftMs = gateway↔server drift). Only accept finite non-negative
+  // values; absence means "not measured", so the stored value is untouched.
+  const rawSkew = connectionTest?.clockSkewMs;
+  const deviceSkewMs = typeof rawSkew === "number" && Number.isFinite(rawSkew) && rawSkew >= 0
+    ? Math.round(rawSkew)
+    : undefined;
+  const deviceSkewAlert = deviceSkewMs !== undefined ? deviceSkewMs > DEVICE_CLOCK_SKEW_ALERT_MS : undefined;
   await db
     .update(gatewayRegistrationsTable)
     .set({
@@ -171,9 +180,19 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
             adapterConnTestedAt: new Date(),
           }
         : {}),
+      ...(deviceSkewMs !== undefined
+        ? { deviceClockSkewMs: deviceSkewMs, deviceClockSkewAlert: deviceSkewAlert }
+        : {}),
     })
     .where(eq(gatewayRegistrationsTable.id, reg.id));
-  res.json({ ok: true, serverTimeMs: Date.now(), clockDriftMs: drift, driftAlert: drift !== null && Math.abs(drift) > DRIFT_ALERT_MS });
+  res.json({
+    ok: true,
+    serverTimeMs: Date.now(),
+    clockDriftMs: drift,
+    driftAlert: drift !== null && Math.abs(drift) > DRIFT_ALERT_MS,
+    deviceClockSkewMs: deviceSkewMs ?? null,
+    deviceClockSkewAlert: deviceSkewAlert ?? false,
+  });
 });
 
 // POST /gateway/punches — signed batch ingestion with dedupe + materialization

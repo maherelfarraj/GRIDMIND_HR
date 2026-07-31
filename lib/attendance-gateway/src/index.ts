@@ -26,6 +26,8 @@ import { buildLocalApi } from "./localApi.js";
  *   SUPREMA_API_URL/SUPREMA_LOGIN_ID/SUPREMA_PASSWORD for SUPREMA (BioStar 2 server)
  *   GATEWAY_QUEUE_DIR   spool directory (default ./gateway-queue)
  *   POLL_INTERVAL_MS    device poll cadence (default 60000)
+ *   CLOCK_SKEW_WARN_MS  device clock skew warning threshold (default 60000)
+ *   CLOCK_SKEW_MAX_MS   device clock skew hard limit — blocks polling (default 300000)
  *   PORT                local admin/status HTTP port
  */
 function requiredEnv(name: string): string {
@@ -34,6 +36,16 @@ function requiredEnv(name: string): string {
   return v;
 }
 
+/** Parse an optional env var as a finite non-negative integer; fail loudly on garbage. */
+function optionalPositiveIntEnv(name: string): number | undefined {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return undefined;
+  const v = Number(raw);
+  if (!Number.isFinite(v) || !Number.isInteger(v) || v < 0) {
+    throw new Error(`${name} must be a non-negative integer (got "${raw}")`);
+  }
+  return v;
+}
 function buildAdapter(): DeviceAdapter {
   const kind = (process.env.GATEWAY_ADAPTER ?? "SIMULATOR").toUpperCase();
   switch (kind) {
@@ -64,7 +76,11 @@ async function main(): Promise<void> {
     signingKey: deriveSigningKey(requiredEnv("GATEWAY_SECRET")),
   });
   const queueDir = process.env.GATEWAY_QUEUE_DIR ?? "./gateway-queue";
-  const service = new GatewayService(queue, hr, adapter, { cursorPath: `${queueDir}/device-cursor.json` });
+  const service = new GatewayService(queue, hr, adapter, {
+    cursorPath: `${queueDir}/device-cursor.json`,
+    clockSkewWarnMs: optionalPositiveIntEnv("CLOCK_SKEW_WARN_MS"),
+    clockSkewMaxMs: optionalPositiveIntEnv("CLOCK_SKEW_MAX_MS"),
+  });
   await service.init();
 
   const pollIntervalMs = parseInt(process.env.POLL_INTERVAL_MS ?? "60000", 10);

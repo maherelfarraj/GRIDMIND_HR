@@ -73,7 +73,7 @@ describe("privileged session recording", () => {
 
     // audit trail
     const audits = await db.select().from(auditLogsTable).where(and(
-      eq(auditLogsTable.action, "privileged_session.reviewed"),
+      eq(auditLogsTable.action, "privileged_session.opened"),
       eq(auditLogsTable.entityId, session.id),
     ));
     expect(audits.length).toBe(1);
@@ -92,38 +92,45 @@ describe("privileged session recording", () => {
     expect(closed.endReason).toBe("revoked");
 
     const audits = await db.select().from(auditLogsTable).where(and(
-      eq(auditLogsTable.action, "privileged_session.reviewed"),
+      eq(auditLogsTable.action, "privileged_session.closed"),
       eq(auditLogsTable.entityId, session.id),
     ));
+    expect(audits.length).toBe(1);
+  });
+});
+
+describe("privileged session authorization", () => {
+  it("PILOT_AUTH: unauthenticated requests get 401, no data and no admin fallback", async () => {
     const prev = process.env.PILOT_AUTH;
     process.env.PILOT_AUTH = "true";
     try {
-    const list = await auditor.get("/api/privileged-sessions");
-    expect(list.status).toBe(200);
+      const list = await request(app).get("/api/privileged-sessions");
+      expect(list.status).toBe(401);
+      expect(Array.isArray(list.body)).toBe(false);
 
-    const review = await auditor.post(`/api/privileged-sessions/${session.id}/review`)
-      .send({ outcome: "justified" });
-    expect(review.status).toBe(403);
+      const review = await request(app).post("/api/privileged-sessions/1/review")
+        .send({ outcome: "justified" });
+      expect(review.status).toBe(401);
+    } finally {
+      if (prev === undefined) delete process.env.PILOT_AUTH;
+      else process.env.PILOT_AUTH = prev;
+    }
   });
 
-  it("reviewer identity comes from the session — body spoofing is ignored", async () => {
+  it("rejects list and review for a non-security role (HR Clerk)", async () => {
     const { session } = await activateBreakGlass();
-
-    const past = new Date(Date.now() - 60_000);
     const clerk = await loginAs("hassan.qahtani");
 
-    const list = await auditor.get("/api/privileged-sessions");
-    expect(list.status).toBe(200);
+    const list = await clerk.get("/api/privileged-sessions");
+    expect(list.status).toBe(403);
 
-    const review = await auditor.post(`/api/privileged-sessions/${session.id}/review`)
+    const review = await clerk.post(`/api/privileged-sessions/${session.id}/review`)
       .send({ outcome: "justified" });
     expect(review.status).toBe(403);
   });
 
-  it("reviewer identity comes from the session — body spoofing is ignored", async () => {
+  it("read-only auditor can list but cannot decide outcomes", async () => {
     const { session } = await activateBreakGlass();
-
-    const past = new Date(Date.now() - 60_000);
     const auditor = await loginAs("auditor1");
 
     const list = await auditor.get("/api/privileged-sessions");
@@ -136,11 +143,10 @@ describe("privileged session recording", () => {
 
   it("reviewer identity comes from the session — body spoofing is ignored", async () => {
     const { session } = await activateBreakGlass();
+    const officer = await loginAs("aisha.otaibi"); // Security Officer, userId=4
 
-    const past = new Date(Date.now() - 60_000);
-    const officer = await loginAs("aisha.otaibi");
-
-    const ok = await auditor.get(`/api/privileged-sessions/${session.id}/activity`);
+    const ok = await officer.post(`/api/privileged-sessions/${session.id}/review`)
+      .send({ outcome: "justified", notes: "TEST review", reviewedByUserId: 999 });
     expect(ok.status).toBe(200);
     expect(ok.body.reviewedByUserId).toBe(4); // session user, not the spoofed body value
 
@@ -149,12 +155,13 @@ describe("privileged session recording", () => {
       eq(auditLogsTable.entityId, session.id),
     ));
     expect(audits.length).toBe(1);
+    expect(audits[0].actorUserId).toBe(4);
   });
+});
 
-  it("activity endpoint returns the holder's audit actions inside the window only", async () => {
+describe("privileged session review", () => {
+  it("lists sessions and filters by reviewed status", async () => {
     const { session } = await activateBreakGlass();
-
-    const past = new Date(Date.now() - 60_000);
     const officer = await loginAs("aisha.otaibi");
 
     const unreviewed = await officer.get("/api/privileged-sessions?reviewed=false");
@@ -162,9 +169,6 @@ describe("privileged session recording", () => {
     expect(unreviewed.body.some((s: any) => s.id === session.id)).toBe(true);
     // enriched with the user's name
     const mine = unreviewed.body.find((s: any) => s.id === session.id);
-
-    const [row] = await db.select().from(privilegedSessionsTable)
-      .where(eq(privilegedSessionsTable.id, session.id));
     expect(mine).toHaveProperty("userName");
 
     const reviewed = await officer.get("/api/privileged-sessions?reviewed=true");
@@ -173,18 +177,17 @@ describe("privileged session recording", () => {
 
   it("marks a session reviewed exactly once, with a valid outcome", async () => {
     const { session } = await activateBreakGlass();
-
-    const past = new Date(Date.now() - 60_000);
     const officer = await loginAs("aisha.otaibi");
 
     // outcome required + validated
-    const missing = await auditor.get("/api/privileged-sessions/999999999/activity");
+    const missing = await officer.post(`/api/privileged-sessions/${session.id}/review`).send({});
     expect(missing.status).toBe(400);
     const bad = await officer.post(`/api/privileged-sessions/${session.id}/review`)
       .send({ outcome: "nonsense" });
     expect(bad.status).toBe(400);
 
-    const ok = await auditor.get(`/api/privileged-sessions/${session.id}/activity`);
+    const ok = await officer.post(`/api/privileged-sessions/${session.id}/review`)
+      .send({ outcome: "justified", notes: "TEST review" });
     expect(ok.status).toBe(200);
     expect(ok.body.reviewOutcome).toBe("justified");
     expect(ok.body.reviewedAt).toBeTruthy();
@@ -206,10 +209,8 @@ describe("privileged session recording", () => {
     expect(audits.length).toBe(1);
   });
 
-  it("activity endpoint returns the holder's audit actions inside the window only", async () => {
+  it("concurrent reviews: exactly one succeeds, the other gets 409", async () => {
     const { session } = await activateBreakGlass();
-
-    const past = new Date(Date.now() - 60_000);
     const officer = await loginAs("aisha.otaibi");
 
     const [a, b] = await Promise.all([
@@ -229,8 +230,6 @@ describe("privileged session recording", () => {
 
   it("activity endpoint returns the holder's audit actions inside the window only", async () => {
     const { session } = await activateBreakGlass();
-
-    const past = new Date(Date.now() - 60_000);
     const officer = await loginAs("aisha.otaibi");
 
     const started = new Date(session.startedAt);
@@ -250,8 +249,7 @@ describe("privileged session recording", () => {
     ]).returning();
 
     try {
-    const res = await officer.post("/api/privileged-sessions/999999999/review")
-      .send({ outcome: "justified" });
+      const res = await officer.get(`/api/privileged-sessions/${session.id}/activity`);
       expect(res.status).toBe(200);
       const actions = res.body.map((a: any) => a.action);
       expect(actions).toContain("TEST.activity.inside");
@@ -264,8 +262,6 @@ describe("privileged session recording", () => {
 
   it("activity endpoint is role-guarded and 404s for unknown sessions", async () => {
     const { session } = await activateBreakGlass();
-
-    const past = new Date(Date.now() - 60_000);
 
     const clerk = await loginAs("hassan.qahtani");
     const forbidden = await clerk.get(`/api/privileged-sessions/${session.id}/activity`);
@@ -284,5 +280,48 @@ describe("privileged session recording", () => {
     const res = await officer.post("/api/privileged-sessions/999999999/review")
       .send({ outcome: "justified" });
     expect(res.status).toBe(404);
+  });
+});
+
+describe("expired session sweep", () => {
+  it("listing the review queue auto-closes sessions past their scheduled end", async () => {
+    const { session } = await activateBreakGlass();
+
+    // Backdate the scheduled end so the session is expired but still open.
+    const past = new Date(Date.now() - 60_000);
+    await db.update(privilegedSessionsTable)
+      .set({ scheduledEndAt: past })
+      .where(eq(privilegedSessionsTable.id, session.id));
+
+    const officer = await loginAs("aisha.otaibi");
+    const list = await officer.get("/api/privileged-sessions");
+    expect(list.status).toBe(200);
+
+    const [closed] = await db.select().from(privilegedSessionsTable)
+      .where(eq(privilegedSessionsTable.id, session.id));
+    expect(closed.endedAt).not.toBeNull();
+    expect(closed.endReason).toBe("expired");
+    // endedAt is backdated to the scheduled lapse, not the sweep time
+    expect(new Date(closed.endedAt!).getTime()).toBe(past.getTime());
+
+    // atomic audit entry for the closure
+    const audits = await db.select().from(auditLogsTable).where(and(
+      eq(auditLogsTable.action, "privileged_session.closed"),
+      eq(auditLogsTable.entityId, session.id),
+    ));
+    expect(audits.length).toBe(1);
+  });
+
+  it("does not touch open sessions still inside their window", async () => {
+    const { session } = await activateBreakGlass();
+
+    const officer = await loginAs("aisha.otaibi");
+    const list = await officer.get("/api/privileged-sessions");
+    expect(list.status).toBe(200);
+
+    const [row] = await db.select().from(privilegedSessionsTable)
+      .where(eq(privilegedSessionsTable.id, session.id));
+    expect(row.endedAt).toBeNull();
+    expect(row.endReason).toBeNull();
   });
 });

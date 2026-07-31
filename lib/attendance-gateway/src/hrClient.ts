@@ -37,7 +37,14 @@ export class HrClient {
       // Legacy free-text field kept for older HR cores.
       adapterStatus: structured ? structured.message : connectionTest,
       connectionTest: structured
-        ? { ok: structured.ok, status: structured.status, message: structured.message }
+        ? {
+            ok: structured.ok,
+            status: structured.status,
+            message: structured.message,
+            // Device clock skew measured at testConnection() time, so the
+            // HR core admin screen can surface a drifting device clock.
+            clockSkewMs: structured.clockSkewMs,
+          }
         : undefined,
     });
   }

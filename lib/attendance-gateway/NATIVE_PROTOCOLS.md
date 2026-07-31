@@ -97,7 +97,13 @@ Rules a native adapter MUST follow:
    device clock skew vs gateway host < 60s. No SSH needed: the local
    `GET /status` endpoint surfaces `sdk_present`, `sdk_version`,
    `last_test_connection`, and `clock_skew_ms` (plus a `clock_skew_warning`
-   field when skew exceeds 60s).
+   field when skew exceeds 60s). This is also enforced continuously at
+   runtime: adapters report `clockSkewMs` from every successful
+   `testConnection()`, the gateway logs a structured `device_clock_skew`
+   warning and flags the heartbeat when skew exceeds `CLOCK_SKEW_WARN_MS`
+   (default 60s), and blocks `poll()` entirely when it exceeds
+   `CLOCK_SKEW_MAX_MS` (default 5 min) until the device clock is
+   corrected — so a drifting clock can never silently skew punch records.
 2. Physical punch on the device appears in the HR core with the correct
    employee mapping, event type, and timestamp within one poll interval.
 3. Same-second double punch: both events arrive (no cursor loss).

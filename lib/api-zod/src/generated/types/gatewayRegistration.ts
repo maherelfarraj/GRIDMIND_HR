@@ -36,6 +36,9 @@ export interface GatewayRegistration {
   /** @nullable */
   adapterConnTestedAt?: string | null;
   /** @nullable */
+  deviceClockSkewMs?: number | null;
+  deviceClockSkewAlert?: boolean;
+  /** @nullable */
   notes?: string | null;
   createdAt?: string;
   updatedAt?: string;

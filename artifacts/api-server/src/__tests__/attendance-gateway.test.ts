@@ -202,6 +202,53 @@ describe("heartbeat + clock drift", () => {
     expect(reg.adapterConnMessage).toBe("middleware reachable");
   });
 
+  it("persists device clock skew from the heartbeat and flags skew above 60s", async () => {
+    const res = await postSigned("/api/gateway/heartbeat", {
+      deviceTimeMs: Date.now(),
+      connectionTest: { ok: true, status: "REACHABLE", message: "device reachable", clockSkewMs: 125_000 },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.deviceClockSkewMs).toBe(125_000);
+    expect(res.body.deviceClockSkewAlert).toBe(true);
+    const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(reg.deviceClockSkewMs).toBe(125_000);
+    expect(reg.deviceClockSkewAlert).toBe(true);
+
+    // Healthy skew clears the alert
+    const ok = await postSigned("/api/gateway/heartbeat", {
+      deviceTimeMs: Date.now(),
+      connectionTest: { ok: true, status: "REACHABLE", message: "device reachable", clockSkewMs: 3_000 },
+    });
+    expect(ok.status).toBe(200);
+    const [reg2] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(reg2.deviceClockSkewMs).toBe(3_000);
+    expect(reg2.deviceClockSkewAlert).toBe(false);
+  });
+
+  it("ignores invalid clockSkewMs values and keeps the stored skew when unmeasured", async () => {
+    for (const bad of [-5, Number.NaN, "huge", null]) {
+      const res = await postSigned("/api/gateway/heartbeat", {
+        deviceTimeMs: Date.now(),
+        connectionTest: { ok: true, status: "REACHABLE", message: "ok", clockSkewMs: bad },
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.deviceClockSkewMs).toBeNull();
+    }
+    const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    // last valid measurement (3s from the previous test) is retained, not clobbered
+    expect(reg.deviceClockSkewMs).toBe(3_000);
+    expect(reg.deviceClockSkewAlert).toBe(false);
+  });
+
+  it("exposes device clock skew through the admin registrations listing", async () => {
+    const res = await admin.get("/api/gateway/registrations");
+    expect(res.status).toBe(200);
+    const mine = (res.body as Array<Record<string, unknown>>).find((r) => r.id === registrationId);
+    expect(mine).toBeTruthy();
+    expect(mine!.deviceClockSkewMs).toBe(3_000);
+    expect(mine!.deviceClockSkewAlert).toBe(false);
+  });
+
   it("exposes connection health through the admin registrations listing", async () => {
     const res = await admin.get("/api/gateway/registrations");
     expect(res.status).toBe(200);

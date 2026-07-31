@@ -269,14 +269,21 @@ export class SupremaNativeAdapter implements DeviceAdapter {
       const result = await this.withDevice(async (handle, deviceId) => {
         const sdk = this.sdk();
         let deviceTimeMs = Date.now();
-        try { deviceTimeMs = await sdk.getDeviceTimeMs(handle); } catch { /* optional */ }
-        return { deviceId, deviceTimeMs };
+        let deviceTimeRead = false;
+        try {
+          deviceTimeMs = await sdk.getDeviceTimeMs(handle);
+          deviceTimeRead = true;
+        } catch { /* optional on some firmware */ }
+        return { deviceId, deviceTimeMs, deviceTimeRead };
       });
       return {
         ok: true,
         status: "REACHABLE",
         message: `Suprema device reachable (ID: ${result.deviceId})`,
         deviceTimeMs: result.deviceTimeMs,
+        // Only report skew when the device clock was actually read — the
+        // Date.now() fallback would always yield a meaningless ~0 skew.
+        ...(result.deviceTimeRead ? { clockSkewMs: Math.abs(result.deviceTimeMs - Date.now()) } : {}),
       };
     } catch (e) {
       const msg = errMsg(e);

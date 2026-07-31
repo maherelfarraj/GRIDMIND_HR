@@ -23,12 +23,14 @@ interface GatewayRegistration {
   name: string;
   nameAr: string | null;
   deviceId: number | null;
-  adapterType: 'ZKTECO' | 'SUPREMA' | 'GENERIC_REST' | 'CSV' | 'SIMULATOR';
+  adapterType: 'ZKTECO' | 'SUPREMA' | 'ZKTECO_NATIVE' | 'SUPREMA_NATIVE' | 'GENERIC_REST' | 'CSV' | 'SIMULATOR';
   status: 'ACTIVE' | 'REVOKED';
   lastSeenAt: string | null;
   lastHeartbeatAt: string | null;
   clockDriftMs: number | null;
   driftAlert: boolean;
+  deviceClockSkewMs: number | null;
+  deviceClockSkewAlert: boolean;
   adapterConnStatus: 'REACHABLE' | 'AUTH_FAILED' | 'UNREACHABLE' | 'NOT_CONFIGURED' | null;
   adapterConnMessage: string | null;
   adapterConnTestedAt: string | null;
@@ -58,7 +60,7 @@ interface CreateRegistrationPayload {
   name: string;
   nameAr?: string;
   deviceId?: number;
-  adapterType: 'ZKTECO' | 'SUPREMA' | 'GENERIC_REST' | 'CSV' | 'SIMULATOR';
+  adapterType: 'ZKTECO' | 'SUPREMA' | 'ZKTECO_NATIVE' | 'SUPREMA_NATIVE' | 'GENERIC_REST' | 'CSV' | 'SIMULATOR';
   notes?: string;
 }
 
@@ -395,6 +397,7 @@ export default function AttendanceGateway() {
                 <TableHead>{t('Health', 'الصحة')}</TableHead>
                 <TableHead>{t('Connection', 'الاتصال')}</TableHead>
                 <TableHead>{t('Clock Drift', 'انحراف الساعة')}</TableHead>
+                <TableHead>{t('Device Clock', 'ساعة الجهاز')}</TableHead>
                 <TableHead>{t('Created', 'تم الإنشاء')}</TableHead>
                 <TableHead className="text-center">{t('Actions', 'إجراءات')}</TableHead>
               </TableRow>
@@ -409,13 +412,14 @@ export default function AttendanceGateway() {
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-20 mx-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : !registrations || registrations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                     <Server className="w-8 h-8 mx-auto mb-3 opacity-20" />
                     {t('No gateway registrations found.', 'لا توجد تسجيلات بوابات.')}
                   </TableCell>
@@ -465,6 +469,23 @@ export default function AttendanceGateway() {
                         </div>
                       ) : reg.clockDriftMs != null ? (
                         <span className="text-xs text-muted-foreground">{Math.abs(reg.clockDriftMs)}ms</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {reg.deviceClockSkewAlert ? (
+                        <div
+                          className="flex items-center gap-1 text-rose-500"
+                          title={t('Device clock skew exceeds 60s — fix the device clock', 'انحراف ساعة الجهاز يتجاوز 60 ثانية — يجب ضبط ساعة الجهاز')}
+                        >
+                          <AlertTriangle className="w-3 h-3" />
+                          <span className="text-xs font-semibold">
+                            {reg.deviceClockSkewMs != null ? `${Math.round(reg.deviceClockSkewMs / 1000)}s` : '-'}
+                          </span>
+                        </div>
+                      ) : reg.deviceClockSkewMs != null ? (
+                        <span className="text-xs text-muted-foreground">{(reg.deviceClockSkewMs / 1000).toFixed(1)}s</span>
                       ) : (
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
@@ -638,6 +659,8 @@ export default function AttendanceGateway() {
                   <SelectItem value="SIMULATOR">SIMULATOR</SelectItem>
                   <SelectItem value="ZKTECO">ZKTECO (ZKBioTime middleware)</SelectItem>
                   <SelectItem value="SUPREMA">SUPREMA (BioStar 2 middleware)</SelectItem>
+                  <SelectItem value="ZKTECO_NATIVE">ZKTECO_NATIVE (on-site PUSH protocol)</SelectItem>
+                  <SelectItem value="SUPREMA_NATIVE">SUPREMA_NATIVE (on-site BioStar SDK)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -185,11 +185,15 @@ export class ZktecoNativeAdapter implements DeviceAdapter {
       // withClient() handles connect + handshake; the callback receives the
       // handshake result directly — no second handshake is issued.
       const { deviceTimeMs } = await this.withClient(async (_client, hs) => hs);
+      // Clock-skew check: devices report local time with no auto time-sync,
+      // so a drifting device clock silently skews every punch timestamp.
+      const clockSkewMs = Math.abs(deviceTimeMs - Date.now());
       return {
         ok: true,
         status: "REACHABLE",
         message: `ZKTeco device reachable (${this.config.deviceHost}:${this.config.devicePort})`,
         deviceTimeMs,
+        clockSkewMs,
       };
     } catch (e) {
       const msg = errMsg(e);
