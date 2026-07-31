@@ -786,6 +786,24 @@ export interface DeviceHealth {
   integrationNote: string;
 }
 
+export interface DeviceCommand {
+  id: number;
+  deviceId: number;
+  registrationId: number;
+  command: string;
+  status: string;
+  /** @nullable */
+  requestedByUserId?: number | null;
+  /** @nullable */
+  resultMessage?: string | null;
+  /** @nullable */
+  deliveredAt?: string | null;
+  /** @nullable */
+  acknowledgedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Shift {
   id: number;
   nameEn: string;

@@ -10,6 +10,9 @@ description: Design decisions for the HMAC gateway API, credential handling, and
 - Raw body must be captured via express.json `verify` hook — re-serializing JSON breaks signatures.
 - Machine endpoints mount BEFORE the session gate; admin endpoints that mint machine credentials require a real session UNCONDITIONALLY, even in demo mode (PILOT_AUTH off) where normal routes stay open. Review flagged this; don't regress.
 
+## Remote device commands
+- Commands (RESTART) queue PENDING per device+registration; the heartbeat delivers them via a single atomic `UPDATE ... RETURNING` (PENDING→DELIVERED) so each command reaches exactly one heartbeat response; acks come over a signed machine endpoint and only the owning registration can ack, only from DELIVERED. Stale PENDING/DELIVERED commands expire on read (15 min TTL) so the queue can't wedge; adapters without a reboot call ack FAILED with an explanatory message instead of dropping the command.
+
 ## Data-integrity rules
 - attendance_records has unique (employee_id, date); punch materialization must be a single atomic INSERT..ON CONFLICT with LEAST/GREATEST on "HH:MM" strings — select-then-write races create duplicate daily rows.
 - Punch dedupe: per-event sha256 dedupe key + unique index + onConflictDoNothing; batch UUID replay returns the stored result (idempotent).

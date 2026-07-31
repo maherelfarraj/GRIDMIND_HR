@@ -120,6 +120,7 @@ import type {
   DevelopmentActivityInput,
   DevelopmentPlan,
   DevelopmentPlanInput,
+  DeviceCommand,
   DeviceHealth,
   DisciplinaryRecord,
   DisciplinaryRecordInput,
@@ -3684,6 +3685,154 @@ export function useGetDeviceHealth<TData = Awaited<ReturnType<typeof getDeviceHe
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetDeviceHealthQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRestartDeviceUrl = (id: number,) => {
+
+
+
+
+  return `/api/devices/${id}/restart`
+}
+
+/**
+ * @summary Queue a restart command for the device's attendance gateway
+ */
+export const restartDevice = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<DeviceCommand> => {
+
+  return customFetch<DeviceCommand>(getRestartDeviceUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRestartDeviceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restartDevice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof restartDevice>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['restartDevice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof restartDevice>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  restartDevice(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RestartDeviceMutationResult = NonNullable<Awaited<ReturnType<typeof restartDevice>>>
+
+    export type RestartDeviceMutationError = ErrorType<void>
+
+    /**
+ * @summary Queue a restart command for the device's attendance gateway
+ */
+export const useRestartDevice = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restartDevice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof restartDevice>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRestartDeviceMutationOptions(options));
+    }
+
+export const getListDeviceCommandsUrl = (id: number,) => {
+
+
+
+
+  return `/api/devices/${id}/commands`
+}
+
+/**
+ * @summary List recent remote commands for a device
+ */
+export const listDeviceCommands = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<DeviceCommand[]> => {
+
+  return customFetch<DeviceCommand[]>(getListDeviceCommandsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDeviceCommandsQueryKey = (id: number,) => {
+    return [
+    `/api/devices/${id}/commands`
+    ] as const;
+    }
+
+
+export const getListDeviceCommandsQueryOptions = <TData = Awaited<ReturnType<typeof listDeviceCommands>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeviceCommands>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDeviceCommandsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDeviceCommands>>> = ({ signal }) => listDeviceCommands(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDeviceCommands>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDeviceCommandsQueryResult = NonNullable<Awaited<ReturnType<typeof listDeviceCommands>>>
+export type ListDeviceCommandsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List recent remote commands for a device
+ */
+
+export function useListDeviceCommands<TData = Awaited<ReturnType<typeof listDeviceCommands>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeviceCommands>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDeviceCommandsQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

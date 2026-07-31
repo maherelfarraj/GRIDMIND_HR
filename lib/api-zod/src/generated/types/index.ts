@@ -123,6 +123,7 @@ export * from './developmentActivity';
 export * from './developmentActivityInput';
 export * from './developmentPlan';
 export * from './developmentPlanInput';
+export * from './deviceCommand';
 export * from './deviceEmployeeMapping';
 export * from './deviceHealth';
 export * from './disciplinaryRecord';

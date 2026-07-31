@@ -1165,6 +1165,51 @@ export const GetDeviceHealthResponse = zod.object({
 
 
 /**
+ * @summary Queue a restart command for the device's attendance gateway
+ */
+export const RestartDeviceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RestartDeviceResponse = zod.object({
+  "id": zod.number(),
+  "deviceId": zod.number(),
+  "registrationId": zod.number(),
+  "command": zod.string(),
+  "status": zod.string(),
+  "requestedByUserId": zod.number().nullish(),
+  "resultMessage": zod.string().nullish(),
+  "deliveredAt": zod.string().nullish(),
+  "acknowledgedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List recent remote commands for a device
+ */
+export const ListDeviceCommandsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListDeviceCommandsResponseItem = zod.object({
+  "id": zod.number(),
+  "deviceId": zod.number(),
+  "registrationId": zod.number(),
+  "command": zod.string(),
+  "status": zod.string(),
+  "requestedByUserId": zod.number().nullish(),
+  "resultMessage": zod.string().nullish(),
+  "deliveredAt": zod.string().nullish(),
+  "acknowledgedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListDeviceCommandsResponse = zod.array(ListDeviceCommandsResponseItem)
+
+
+/**
  * @summary List security alerts
  */
 export const ListAlertsQueryParams = zod.object({

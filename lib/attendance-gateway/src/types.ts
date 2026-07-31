@@ -58,6 +58,19 @@ export interface DeviceAdapter {
   sdkInfo?(): AdapterSdkInfo;
   /** Pull new punches since the given watermark (ISO time or device cursor). */
   poll(sinceCursor: string | null): Promise<{ punches: GatewayPunch[]; nextCursor: string | null }>;
+  /**
+   * Remotely restart the physical device (optional). Adapters whose vendor
+   * protocol has no reboot call may omit this; the service then FAILs the
+   * command ack with an explanatory message instead of dropping it.
+   */
+  restartDevice?(): Promise<{ ok: boolean; message: string }>;
+}
+
+/** A remote command delivered by the HR core in a heartbeat response. */
+export interface DeliveredCommand {
+  id: number;
+  deviceId: number;
+  command: string; // currently RESTART
 }
 
 export interface QueuedBatch {

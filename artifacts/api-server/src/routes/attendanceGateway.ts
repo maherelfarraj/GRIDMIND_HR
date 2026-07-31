@@ -8,8 +8,10 @@ import {
   deviceEmployeeMappingsTable,
   employeesTable,
   auditLogsTable,
+  deviceCommandsTable,
 } from "@workspace/db";
-import { and, eq, desc, inArray } from "drizzle-orm";
+import { and, eq, desc, gte, inArray, lt } from "drizzle-orm";
+import { DEVICE_COMMAND_TTL_MS } from "./devices.js";
 import { materializePunch } from "../lib/attendanceMaterializer.js";
 import { processGatewayWarningTransitions, GATEWAY_SILENCE_THRESHOLD_MS } from "../lib/gatewayDeviceAlerts.js";
 import {
@@ -215,8 +217,32 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
     adapterConnStatus: connStatus,
     adapterConnMessage: typeof connMessage === "string" ? connMessage : undefined,
   });
+  // Deliver queued device commands (e.g. RESTART) with this heartbeat.
+  // Stale commands are expired FIRST so a reboot queued long ago can never
+  // fire unexpectedly when a gateway comes back online; then marking
+  // PENDING → DELIVERED and returning the rows in one atomic UPDATE means a
+  // fresh command is handed to exactly one heartbeat response.
+  const commandCutoff = new Date(Date.now() - DEVICE_COMMAND_TTL_MS);
+  await db
+    .update(deviceCommandsTable)
+    .set({ status: "EXPIRED", resultMessage: "Not delivered within the delivery window", updatedAt: new Date() })
+    .where(and(
+      eq(deviceCommandsTable.registrationId, reg.id),
+      eq(deviceCommandsTable.status, "PENDING"),
+      lt(deviceCommandsTable.createdAt, commandCutoff),
+    ));
+  const deliveredCommands = await db
+    .update(deviceCommandsTable)
+    .set({ status: "DELIVERED", deliveredAt: new Date(), updatedAt: new Date() })
+    .where(and(
+      eq(deviceCommandsTable.registrationId, reg.id),
+      eq(deviceCommandsTable.status, "PENDING"),
+      gte(deviceCommandsTable.createdAt, commandCutoff),
+    ))
+    .returning({ id: deviceCommandsTable.id, deviceId: deviceCommandsTable.deviceId, command: deviceCommandsTable.command });
   res.json({
     ok: true,
+    commands: deliveredCommands,
     serverTimeMs: Date.now(),
     clockDriftMs: drift,
     driftAlert: drift !== null && Math.abs(drift) > DRIFT_ALERT_MS,
@@ -379,6 +405,52 @@ gatewayMachineRouter.post("/gateway/punches", verifyGatewaySignature, async (req
   });
 
   res.status(201).json({ ok: true, batchId: batch.id, inserted, duplicates, unmapped, errors, clockDriftMs: drift });
+});
+
+// POST /gateway/commands/ack — gateway reports command outcomes
+gatewayMachineRouter.post("/gateway/commands/ack", verifyGatewaySignature, async (req: GatewayRequest, res): Promise<void> => {
+  const reg = req.gatewayRegistration!;
+  const { acks } = req.body as { acks?: Array<{ commandId: number; ok: boolean; message?: string }> };
+  if (!Array.isArray(acks) || acks.length === 0) {
+    res.status(400).json({ error: "acks[] required" });
+    return;
+  }
+  const results: Array<{ commandId: number; status: string }> = [];
+  for (const ack of acks) {
+    if (!Number.isFinite(ack.commandId) || typeof ack.ok !== "boolean") {
+      results.push({ commandId: ack.commandId, status: "INVALID" });
+      continue;
+    }
+    // A gateway may only ack commands that were delivered to it.
+    const [updated] = await db
+      .update(deviceCommandsTable)
+      .set({
+        status: ack.ok ? "ACKNOWLEDGED" : "FAILED",
+        acknowledgedAt: new Date(),
+        resultMessage: typeof ack.message === "string" ? ack.message.slice(0, 2000) : null,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(deviceCommandsTable.id, ack.commandId),
+        eq(deviceCommandsTable.registrationId, reg.id),
+        eq(deviceCommandsTable.status, "DELIVERED"),
+      ))
+      .returning();
+    if (!updated) {
+      results.push({ commandId: ack.commandId, status: "NOT_FOUND" });
+      continue;
+    }
+    results.push({ commandId: ack.commandId, status: updated.status });
+    await db.insert(auditLogsTable).values({
+      action: "device_command_ack",
+      entityType: "device_command",
+      entityId: updated.id,
+      entityLabel: updated.command,
+      actorUserId: null,
+      changesJson: JSON.stringify({ registrationId: reg.id, deviceId: updated.deviceId, ok: ack.ok, message: updated.resultMessage }),
+    });
+  }
+  res.json({ ok: true, results });
 });
 
 // POST /gateway/reconcile — gateway reports what it believes it sent

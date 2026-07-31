@@ -8,16 +8,19 @@ import {
   useGetDeviceHealth,
   useCreateDevice,
   useUpdateDevice,
+  useRestartDevice,
+  useListDeviceCommands,
   getListDevicesQueryKey,
   getGetDeviceQueryKey,
   getGetDeviceHealthQueryKey,
+  getListDeviceCommandsQueryKey,
   type AttendanceDeviceInput,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Cpu, Wifi, WifiOff, AlertCircle, Plus, Settings, Clock, CheckCircle, XCircle, Activity } from 'lucide-react';
+import { Cpu, Wifi, WifiOff, AlertCircle, Plus, Settings, Clock, CheckCircle, XCircle, Activity, RotateCcw, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { useLocation } from 'wouter';
@@ -134,6 +137,41 @@ export default function Devices() {
       enabled: !!selectedId, 
       queryKey: getGetDeviceQueryKey(selectedId || 0) 
     } 
+  });
+
+  // Recent remote commands for the selected device — polls faster while a
+  // restart is in flight so the pending → acknowledged transition shows live.
+  const { data: deviceCommands } = useListDeviceCommands(selectedId || 0, {
+    query: {
+      enabled: !!selectedId,
+      queryKey: getListDeviceCommandsQueryKey(selectedId || 0),
+      refetchInterval: (query) =>
+        query.state.data?.some(c => c.status === 'PENDING' || c.status === 'DELIVERED') ? 4000 : false,
+    },
+  });
+  const latestRestart = deviceCommands?.find(c => c.command === 'RESTART');
+  const restartInFlight = latestRestart?.status === 'PENDING' || latestRestart?.status === 'DELIVERED';
+
+  const restartDevice = useRestartDevice({
+    mutation: {
+      onSuccess: (_data, vars) => {
+        queryClient.invalidateQueries({ queryKey: getListDeviceCommandsQueryKey(vars.id) });
+        toast({
+          title: t('Restart queued', 'تمت جدولة إعادة التشغيل'),
+          description: t('The site gateway will deliver the restart on its next check-in.', 'ستوصل بوابة الموقع أمر إعادة التشغيل عند التحقق التالي.'),
+        });
+      },
+      onError: (error: unknown) => {
+        const status = (error as { status?: number })?.status;
+        toast({
+          variant: 'destructive',
+          title: t('Restart not queued', 'لم تتم جدولة إعادة التشغيل'),
+          description: status === 409
+            ? t('No active gateway is registered for this device, or a restart is already pending.', 'لا توجد بوابة نشطة مسجلة لهذا الجهاز، أو توجد إعادة تشغيل معلقة بالفعل.')
+            : t('Could not queue the restart. Please try again.', 'تعذر جدولة إعادة التشغيل. حاول مرة أخرى.'),
+        });
+      },
+    },
   });
 
   const { data: deviceHealth } = useGetDeviceHealth(selectedId || 0, { 
@@ -368,6 +406,24 @@ export default function Devices() {
                       <Settings className="w-4 h-4 me-2" />
                       {t('Edit', 'تحرير')}
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      data-testid="button-restart-device"
+                      disabled={restartDevice.isPending || restartInFlight}
+                      onClick={() => restartDevice.mutate({ id: deviceDetail.id })}
+                    >
+                      {restartInFlight ? (
+                        <Loader2 className="w-4 h-4 me-2 animate-spin" />
+                      ) : (
+                        <RotateCcw className="w-4 h-4 me-2" />
+                      )}
+                      {restartInFlight
+                        ? latestRestart?.status === 'DELIVERED'
+                          ? t('Restarting…', 'جارٍ إعادة التشغيل…')
+                          : t('Restart pending', 'إعادة التشغيل معلقة')
+                        : t('Restart', 'إعادة تشغيل')}
+                    </Button>
                     {deviceDetail.status === 'offline' ? (
                       <Button
                         variant="outline"
@@ -393,6 +449,35 @@ export default function Devices() {
                     )}
                   </div>
                 </div>
+
+                {/* Restart command feedback */}
+                {latestRestart && (
+                  <div
+                    className={`flex items-center gap-2 text-sm rounded-md border p-3 ${
+                      latestRestart.status === 'ACKNOWLEDGED'
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : latestRestart.status === 'FAILED' || latestRestart.status === 'EXPIRED'
+                          ? 'border-destructive/40 bg-destructive/5'
+                          : 'border-border bg-muted/40'
+                    }`}
+                    data-testid="text-restart-status"
+                  >
+                    {latestRestart.status === 'ACKNOWLEDGED' ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                    ) : latestRestart.status === 'FAILED' || latestRestart.status === 'EXPIRED' ? (
+                      <XCircle className="w-4 h-4 text-destructive shrink-0" />
+                    ) : (
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    )}
+                    <span>
+                      {latestRestart.status === 'PENDING' && t('Restart queued — waiting for the site gateway to pick it up.', 'إعادة التشغيل في قائمة الانتظار — بانتظار استلام بوابة الموقع.')}
+                      {latestRestart.status === 'DELIVERED' && t('Restart delivered to the gateway — waiting for confirmation.', 'تم تسليم إعادة التشغيل إلى البوابة — بانتظار التأكيد.')}
+                      {latestRestart.status === 'ACKNOWLEDGED' && t('Restart confirmed by the gateway', 'تم تأكيد إعادة التشغيل من البوابة') + (latestRestart.acknowledgedAt ? ` — ${new Date(latestRestart.acknowledgedAt).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US')}` : '')}
+                      {latestRestart.status === 'FAILED' && (t('Restart failed', 'فشلت إعادة التشغيل') + (latestRestart.resultMessage ? `: ${latestRestart.resultMessage}` : ''))}
+                      {latestRestart.status === 'EXPIRED' && t('Restart expired — the gateway never picked it up. Check the site gateway and try again.', 'انتهت صلاحية إعادة التشغيل — لم تستلمها البوابة. تحقق من بوابة الموقع وحاول مجددًا.')}
+                    </span>
+                  </div>
+                )}
 
                 {/* Specs Grid */}
                 <div>

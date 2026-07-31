@@ -252,6 +252,35 @@ export class ZktecoAdapter implements DeviceAdapter {
     }
   }
 
+  /**
+   * Reboot the terminal through the ZKBioTime middleware terminal API:
+   * look up the registered terminal, then POST its reboot action.
+   */
+  async restartDevice(): Promise<{ ok: boolean; message: string }> {
+    if (!this.config) {
+      return { ok: false, message: this.notConfiguredMessage() };
+    }
+    try {
+      const listRes = await this.authedGet(`${this.config.baseUrl}/iclock/api/terminals/?page_size=1`);
+      if (!listRes.ok) return { ok: false, message: `ZKBioTime terminals lookup failed: ${listRes.status}` };
+      const body = (await listRes.json()) as { data?: Array<{ id?: number; sn?: string; alias?: string }> };
+      const terminal = body.data?.[0];
+      if (!terminal || terminal.id === undefined) {
+        return { ok: false, message: "ZKBioTime reports no registered terminal to reboot" };
+      }
+      const token = this.token ?? (await this.login());
+      const res = await this.fetchImpl(`${this.config.baseUrl}/iclock/api/terminals/${terminal.id}/reboot/`, {
+        method: "POST",
+        headers: { authorization: `Token ${token}`, "content-type": "application/json" },
+      });
+      return res.ok
+        ? { ok: true, message: `Reboot issued to terminal ${terminal.alias ?? terminal.sn ?? terminal.id} via ZKBioTime (${res.status})` }
+        : { ok: false, message: `ZKBioTime reboot returned ${res.status}` };
+    } catch (e) {
+      return { ok: false, message: `ZKBioTime reboot failed: ${errMsg(e)}` };
+    }
+  }
+
   async poll(sinceCursor: string | null): Promise<{ punches: GatewayPunch[]; nextCursor: string | null }> {
     if (!this.config) {
       throw new Error(`ZKTeco adapter not operational: middleware not configured and vendor SDK not installed. ${this.notConfiguredMessage()}`);
@@ -434,6 +463,39 @@ export class SupremaAdapter implements DeviceAdapter {
         status: /auth|401|403/i.test(msg) ? "AUTH_FAILED" : "UNREACHABLE",
         message: /auth|401|403/i.test(msg) ? `BioStar 2 authentication failed: ${msg}` : `BioStar 2 server unreachable: ${msg}`,
       };
+    }
+  }
+
+  /**
+   * Reboot the terminal through the BioStar 2 server device API:
+   * look up the registered device, then POST its reboot action.
+   */
+  async restartDevice(): Promise<{ ok: boolean; message: string }> {
+    if (!this.config) {
+      return { ok: false, message: this.notConfiguredMessage() };
+    }
+    try {
+      const cfg = this.config;
+      const doFetch = async (path: string, init: RequestInit, session: string): Promise<Response> =>
+        this.fetchImpl(`${cfg.baseUrl}${path}`, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), "bs-session-id": session } });
+      let session = this.sessionId ?? (await this.login());
+      let listRes = await doFetch("/api/devices", { method: "GET" }, session);
+      if (listRes.status === 401) {
+        session = await this.login();
+        listRes = await doFetch("/api/devices", { method: "GET" }, session);
+      }
+      if (!listRes.ok) return { ok: false, message: `BioStar 2 device lookup failed: ${listRes.status}` };
+      const body = (await listRes.json()) as { DeviceCollection?: { rows?: Array<{ id?: number | string; name?: string }> } };
+      const device = body.DeviceCollection?.rows?.[0];
+      if (!device || device.id === undefined) {
+        return { ok: false, message: "BioStar 2 reports no registered device to reboot" };
+      }
+      const res = await doFetch(`/api/devices/${device.id}/reboot`, { method: "POST" }, session);
+      return res.ok
+        ? { ok: true, message: `Reboot issued to device ${device.name ?? device.id} via BioStar 2 (${res.status})` }
+        : { ok: false, message: `BioStar 2 reboot returned ${res.status}` };
+    } catch (e) {
+      return { ok: false, message: `BioStar 2 reboot failed: ${errMsg(e)}` };
     }
   }
 

@@ -102,6 +102,9 @@ export interface SupremaDeviceSDK {
    * `limit` caps the batch size (use ≤ 1000 to bound memory).
    */
   getLogEntriesSince(handle: unknown, sinceId: number, limit: number): Promise<SupremaLogEntry[]>;
+
+  /** Reboot the device. Optional — older SDK bindings may not expose it. */
+  reboot?(handle: unknown): Promise<void>;
 }
 
 /** Module name for the BioStar 2 Device SDK binding. */
@@ -295,6 +298,30 @@ export class SupremaNativeAdapter implements DeviceAdapter {
           ? `Suprema device authentication failed: ${msg}`
           : `Suprema device unreachable at ${this.config.deviceHost}:${this.config.devicePort} — ${msg}`,
       };
+    }
+  }
+
+  /** Reboot the device through the BioStar 2 Device SDK. */
+  async restartDevice(): Promise<{ ok: boolean; message: string }> {
+    if (!this.config) {
+      return { ok: false, message: "Suprema native adapter is not configured (SUPREMA_DEVICE_HOST unset) — cannot reboot" };
+    }
+    let sdk: SupremaDeviceSDK;
+    try {
+      sdk = this.sdk();
+    } catch (e) {
+      return { ok: false, message: errMsg(e) };
+    }
+    if (!sdk.reboot) {
+      return { ok: false, message: "Installed BioStar 2 Device SDK binding does not expose reboot() — upgrade the SDK module to enable remote restart" };
+    }
+    try {
+      return await this.withDevice(async (handle, deviceId) => {
+        await sdk.reboot!(handle);
+        return { ok: true, message: `Reboot issued to Suprema device ${deviceId} via Device SDK` };
+      });
+    } catch (e) {
+      return { ok: false, message: `Suprema device reboot failed: ${errMsg(e)}` };
     }
   }
 

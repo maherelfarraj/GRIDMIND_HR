@@ -18,6 +18,10 @@ export class SimulatorAdapter implements DeviceAdapter {
     return { ok: true, status: "REACHABLE", message: "Simulator ready", deviceTimeMs: this.now().getTime() };
   }
 
+  async restartDevice(): Promise<{ ok: boolean; message: string }> {
+    return { ok: true, message: "Simulated device restarted" };
+  }
+
   async poll(_sinceCursor: string | null): Promise<{ punches: GatewayPunch[]; nextCursor: string | null }> {
     const t = this.now();
     const punches: GatewayPunch[] = this.deviceUserIds.flatMap((uid) => [

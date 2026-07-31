@@ -4,6 +4,7 @@ import { startHealthMonitor } from "./lib/health-monitor";
 import { startGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
 import { seedDemoPasswords } from "./lib/seed-passwords";
 import { rotateLegacyGatewayKeys } from "./routes/attendanceGateway";
+import { runStartupMigrations } from "./lib/startupMigrations";
 
 const rawPort = process.env["PORT"];
 
@@ -18,6 +19,9 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+// Schema must be in place before we accept any traffic.
+await runStartupMigrations();
 
 app.listen(port, (err) => {
   if (err) {

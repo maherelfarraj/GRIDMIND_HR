@@ -120,6 +120,8 @@ export interface ZkClientLike {
   connect(): Promise<void>;
   handshake(): Promise<{ deviceTimeMs: number }>;
   getAttendances(): Promise<ZkRawRecord[]>;
+  /** Reboot the terminal (CMD_RESTART). Optional for older client fakes. */
+  restart?(): Promise<void>;
   disconnect(): Promise<void>;
 }
 
@@ -205,6 +207,24 @@ export class ZktecoNativeAdapter implements DeviceAdapter {
           ? `ZKTeco device authentication failed: ${msg}`
           : `ZKTeco device unreachable at ${this.config.deviceHost}:${this.config.devicePort} — ${msg}`,
       };
+    }
+  }
+
+  /** Reboot the terminal over the native binary protocol (CMD_RESTART). */
+  async restartDevice(): Promise<{ ok: boolean; message: string }> {
+    if (!this.config) {
+      return { ok: false, message: "ZKTeco native adapter is not configured (ZKTECO_DEVICE_HOST unset) — cannot reboot" };
+    }
+    try {
+      return await this.withClient(async (client) => {
+        if (!client.restart) {
+          return { ok: false, message: "ZKTeco protocol client does not support CMD_RESTART" };
+        }
+        await client.restart();
+        return { ok: true, message: `Reboot (CMD_RESTART) issued to ZKTeco terminal at ${this.config!.deviceHost}` };
+      });
+    } catch (e) {
+      return { ok: false, message: `ZKTeco native reboot failed: ${e instanceof Error ? e.message : String(e)}` };
     }
   }
 

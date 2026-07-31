@@ -156,15 +156,44 @@ export class GatewayService {
     let heartbeatError: string | null = null;
     try {
       const t = heartbeatTest ?? await this.adapter.testConnection();
-      await this.hr.heartbeat(t, {
+      const { body } = await this.hr.heartbeat(t, {
         sdk: this.resolveSdkInfo(t),
         deviceClockSkewMs: GatewayService.computeClockSkewMs(t),
       });
+      if (Array.isArray(body.commands) && body.commands.length > 0) {
+        await this.executeCommands(body.commands);
+      }
     } catch (e) {
       heartbeatError = e instanceof Error ? e.message : String(e);
       this.lastError = heartbeatError;
     }
     return { pollError, heartbeatError };
+  }
+
+  /**
+   * Execute remote commands delivered in a heartbeat response and ack every
+   * outcome — including failures and unsupported operations — so the HR core
+   * never waits on a command that can't run here.
+   */
+  private async executeCommands(commands: Array<{ id: number; command: string }>): Promise<void> {
+    const acks: Array<{ commandId: number; ok: boolean; message?: string }> = [];
+    for (const cmd of commands) {
+      if (cmd.command !== "RESTART") {
+        acks.push({ commandId: cmd.id, ok: false, message: `Unsupported command: ${cmd.command}` });
+        continue;
+      }
+      if (!this.adapter.restartDevice) {
+        acks.push({ commandId: cmd.id, ok: false, message: `Adapter ${this.adapter.type} does not support remote restart` });
+        continue;
+      }
+      try {
+        const result = await this.adapter.restartDevice();
+        acks.push({ commandId: cmd.id, ok: result.ok, message: result.message });
+      } catch (e) {
+        acks.push({ commandId: cmd.id, ok: false, message: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    if (acks.length > 0) await this.hr.ackCommands(acks);
   }
 
   /**

@@ -882,6 +882,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/DeviceHealth"
 
+  /devices/{id}/restart:
+    post:
+      operationId: restartDevice
+      tags: [ devices ]
+      summary: Queue a restart command for the device's attendance gateway
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "201":
+          description: Restart command queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceCommand"
+        "409":
+          description: No active gateway for this device, or a restart is already pending
+
+  /devices/{id}/commands:
+    get:
+      operationId: listDeviceCommands
+      tags: [ devices ]
+      summary: List recent remote commands for a device
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Recent device commands
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceCommand"
+
   # ─── Security Alerts ─────────────────────────────────────────
   /alerts:
     get:
@@ -10201,6 +10243,22 @@ components:
         - recordsToday
         - errorLog
         - integrationNote
+
+    DeviceCommand:
+      type: object
+      properties:
+        id: { type: number }
+        deviceId: { type: number }
+        registrationId: { type: number }
+        command: { type: string }
+        status: { type: string }
+        requestedByUserId: { type: [ "integer", "null" ] }
+        resultMessage: { type: [ "string", "null" ] }
+        deliveredAt: { type: [ "string", "null" ] }
+        acknowledgedAt: { type: [ "string", "null" ] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [ id, deviceId, registrationId, command, status, createdAt, updatedAt ]
 
     # ── Shifts ─────────────────────────────────────────────
     Shift:

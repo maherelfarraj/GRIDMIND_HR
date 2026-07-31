@@ -37,6 +37,7 @@ export const TCP_PREFIX = Buffer.from([0x50, 0x50, 0x82, 0x7d]);
 
 export const CMD_CONNECT      = 1000;
 export const CMD_EXIT         = 1001;
+export const CMD_RESTART      = 1004; // reboot the terminal
 export const CMD_AUTH         = 1102;
 export const CMD_ACK_OK       = 2000;
 export const CMD_DATA_WRRQ    = 1503; // request bulk data
@@ -355,6 +356,11 @@ export class ZkTcpClient {
    *     per chunk (specifying offset + size), receive the chunk in CMD_DATA,
    *     and repeat until all bytes are collected; then free with CMD_FREE_DATA.
    */
+  /** Reboot the terminal (CMD_RESTART). The device drops the connection after acking. */
+  async restart(): Promise<void> {
+    await this.sendCommand(CMD_RESTART, Buffer.alloc(0));
+  }
+
   async getAttendances(): Promise<ZkRawRecord[]> {
     const reply = await this.sendCommand(CMD_DATA_WRRQ, REQUEST_ATTENDANCE);
     const cmdId = decodeCmdId(reply);

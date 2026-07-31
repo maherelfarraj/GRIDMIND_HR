@@ -1,5 +1,5 @@
 import { buildSignedHeaders } from "./signing.js";
-import type { AdapterSdkInfo, AdapterTestResult, GatewayPunch } from "./types.js";
+import type { AdapterSdkInfo, AdapterTestResult, DeliveredCommand, GatewayPunch } from "./types.js";
 
 /**
  * Signed HTTP client for the HR core. All requests carry HMAC headers; the
@@ -35,7 +35,7 @@ export class HrClient {
     health?: { sdk?: AdapterSdkInfo; deviceClockSkewMs?: number | null },
   ) {
     const structured = typeof connectionTest === "object" && connectionTest !== null ? connectionTest : undefined;
-    return this.post<{ ok: boolean; clockDriftMs: number | null; driftAlert: boolean }>("/gateway/heartbeat", {
+    return this.post<{ ok: boolean; clockDriftMs: number | null; driftAlert: boolean; commands?: DeliveredCommand[] }>("/gateway/heartbeat", {
       deviceTimeMs: Date.now(),
       // Legacy free-text field kept for older HR cores.
       adapterStatus: structured ? structured.message : connectionTest,
@@ -61,6 +61,11 @@ export class HrClient {
       "/gateway/punches",
       { batchUuid, deviceTimeMs: Date.now(), events: punches },
     );
+  }
+
+  /** Report the outcome of remote commands delivered via heartbeat. */
+  async ackCommands(acks: Array<{ commandId: number; ok: boolean; message?: string }>) {
+    return this.post<{ ok: boolean; results: Array<{ commandId: number; status: string }> }>("/gateway/commands/ack", { acks });
   }
 
   async reconcile(batches: Array<{ batchUuid: string; eventCount: number }>) {

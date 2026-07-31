@@ -86,5 +86,27 @@ export const punchImportBatchesTable = pgTable(
   (t) => [uniqueIndex("uq_punch_import_batches_uuid").on(t.batchUuid)],
 );
 
+/**
+ * Device commands — remote operations (currently RESTART) queued by an HR
+ * operator for a physical attendance device. The site's gateway picks pending
+ * commands up in its next heartbeat response (PENDING → DELIVERED) and then
+ * reports the outcome over the signed ack endpoint (→ ACKNOWLEDGED | FAILED).
+ * Commands that are never delivered/acked expire so the queue can't wedge.
+ */
+export const deviceCommandsTable = pgTable("device_commands", {
+  id: serial("id").primaryKey(),
+  deviceId: integer("device_id").notNull().references(() => attendanceDevicesTable.id),
+  registrationId: integer("registration_id").notNull().references(() => gatewayRegistrationsTable.id),
+  command: varchar("command", { length: 30 }).notNull().default("RESTART"), // RESTART
+  status: varchar("status", { length: 20 }).notNull().default("PENDING"), // PENDING | DELIVERED | ACKNOWLEDGED | FAILED | EXPIRED
+  requestedByUserId: integer("requested_by_user_id").references(() => systemUsersTable.id),
+  resultMessage: text("result_message"),
+  deliveredAt: timestamp("delivered_at"),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export type GatewayRegistration = typeof gatewayRegistrationsTable.$inferSelect;
+export type DeviceCommand = typeof deviceCommandsTable.$inferSelect;
 export type PunchImportBatch = typeof punchImportBatchesTable.$inferSelect;

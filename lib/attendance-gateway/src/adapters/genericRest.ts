@@ -57,6 +57,18 @@ export class GenericRestAdapter implements DeviceAdapter {
     }
   }
 
+  /** POST {baseUrl}/restart — device/middleware reboots the terminal. */
+  async restartDevice(): Promise<{ ok: boolean; message: string }> {
+    try {
+      const res = await this.fetchImpl(`${this.baseUrl}/restart`, { method: "POST", headers: this.headers() });
+      return res.ok
+        ? { ok: true, message: `Device restart accepted (${res.status})` }
+        : { ok: false, message: `Device restart endpoint returned ${res.status}` };
+    } catch (e) {
+      return { ok: false, message: `Device restart request failed: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+
   async poll(sinceCursor: string | null): Promise<{ punches: GatewayPunch[]; nextCursor: string | null }> {
     const url = new URL(`${this.baseUrl}/punches`);
     if (sinceCursor) url.searchParams.set("since", sinceCursor);

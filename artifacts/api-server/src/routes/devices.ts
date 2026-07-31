@@ -1,13 +1,15 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import {
   db,
   attendanceDevicesTable,
   departmentsTable,
   punchEventsTable,
   punchImportBatchesTable,
+  deviceCommandsTable,
   gatewayRegistrationsTable,
+  auditLogsTable,
 } from "@workspace/db";
-import { and, eq, gte, sql, desc, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { CreateDeviceBody, UpdateDeviceBody } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { GATEWAY_SILENCE_THRESHOLD_MS } from "../lib/gatewayDeviceAlerts.js";
@@ -20,6 +22,9 @@ router.use("/devices", requireAuth);
 
 // Window (days) used for the activity-based uptime proxy and error log scan.
 const UPTIME_WINDOW_DAYS = 7;
+
+/** A queued command not delivered/acked within this window is expired. */
+export const DEVICE_COMMAND_TTL_MS = 15 * 60 * 1000;
 
 function parseId(raw: string | string[]): number {
   return parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
@@ -37,6 +42,28 @@ async function buildDeviceResponse(d: typeof attendanceDevicesTable.$inferSelect
     lastSyncAt: d.lastSyncAt ? d.lastSyncAt.toISOString() : null,
     createdAt: d.createdAt.toISOString(),
   };
+}
+
+function serializeCommand(c: typeof deviceCommandsTable.$inferSelect) {
+  return {
+    ...c,
+    deliveredAt: c.deliveredAt ? c.deliveredAt.toISOString() : null,
+    acknowledgedAt: c.acknowledgedAt ? c.acknowledgedAt.toISOString() : null,
+    createdAt: c.createdAt.toISOString(),
+    updatedAt: c.updatedAt.toISOString(),
+  };
+}
+
+/** Expire stale PENDING/DELIVERED commands for a device so the queue can't wedge. */
+async function expireStaleCommands(deviceId: number): Promise<void> {
+  await db
+    .update(deviceCommandsTable)
+    .set({ status: "EXPIRED", resultMessage: "Not acknowledged within the delivery window", updatedAt: new Date() })
+    .where(and(
+      eq(deviceCommandsTable.deviceId, deviceId),
+      inArray(deviceCommandsTable.status, ["PENDING", "DELIVERED"]),
+      lt(deviceCommandsTable.createdAt, new Date(Date.now() - DEVICE_COMMAND_TTL_MS)),
+    ));
 }
 
 router.get("/devices", async (req, res): Promise<void> => {
@@ -196,6 +223,95 @@ router.get("/devices/:id/health", async (req, res): Promise<void> => {
       ? `Health derived from gateway "${reg.name}" (${reg.adapterType}): heartbeats, punch batches and connection tests over the last ${UPTIME_WINDOW_DAYS} days.`
       : `No gateway registration is bound to this device — health is derived only from stored sync timestamps and punch records. Protocol: ${device.integrationProtocol}.`,
   });
+});
+
+// Remote restart is a real operational command on physical hardware, so it
+// requires an authenticated session UNCONDITIONALLY — even in demo mode
+// (PILOT_AUTH off) where ordinary business routes stay open. Same posture as
+// gateway-registration administration.
+function requireDeviceCommandSession(req: Request, res: Response, next: NextFunction): void {
+  const session = req.session as { userId?: number } | undefined;
+  if (!session?.userId) {
+    res.status(401).json({
+      error: "Authentication required for device commands",
+      errorAr: "المصادقة مطلوبة لأوامر الأجهزة",
+    });
+    return;
+  }
+  next();
+}
+router.use("/devices/:id/restart", requireDeviceCommandSession);
+router.use("/devices/:id/commands", requireDeviceCommandSession);
+
+// POST /devices/:id/restart — queue a RESTART command for the device's gateway.
+// The gateway picks it up in its next heartbeat and acks the outcome.
+router.post("/devices/:id/restart", async (req, res): Promise<void> => {
+  const id = parseId(req.params.id);
+  const [device] = await db.select().from(attendanceDevicesTable).where(eq(attendanceDevicesTable.id, id));
+  if (!device) { res.status(404).json({ error: "Not found" }); return; }
+
+  // A restart can only be delivered through an ACTIVE gateway bound to this device.
+  const [reg] = await db
+    .select()
+    .from(gatewayRegistrationsTable)
+    .where(and(eq(gatewayRegistrationsTable.deviceId, id), eq(gatewayRegistrationsTable.status, "ACTIVE")))
+    .orderBy(desc(gatewayRegistrationsTable.createdAt))
+    .limit(1);
+  if (!reg) {
+    res.status(409).json({
+      error: "No active attendance gateway is registered for this device — remote restart is not possible",
+      errorAr: "لا توجد بوابة حضور نشطة مسجلة لهذا الجهاز — إعادة التشغيل عن بُعد غير ممكنة",
+    });
+    return;
+  }
+
+  await expireStaleCommands(id);
+  const [inFlight] = await db
+    .select({ id: deviceCommandsTable.id })
+    .from(deviceCommandsTable)
+    .where(and(
+      eq(deviceCommandsTable.deviceId, id),
+      eq(deviceCommandsTable.command, "RESTART"),
+      inArray(deviceCommandsTable.status, ["PENDING", "DELIVERED"]),
+    ))
+    .limit(1);
+  if (inFlight) {
+    res.status(409).json({
+      error: "A restart is already pending for this device",
+      errorAr: "توجد إعادة تشغيل معلقة بالفعل لهذا الجهاز",
+    });
+    return;
+  }
+
+  const session = req.session as { userId?: number } | undefined;
+  const [command] = await db
+    .insert(deviceCommandsTable)
+    .values({ deviceId: id, registrationId: reg.id, command: "RESTART", requestedByUserId: session?.userId ?? null })
+    .returning();
+  await db.insert(auditLogsTable).values({
+    action: "device_restart_requested",
+    entityType: "attendance_device",
+    entityId: id,
+    entityLabel: device.name,
+    actorUserId: session?.userId ?? null,
+    changesJson: JSON.stringify({ commandId: command.id, registrationId: reg.id }),
+  });
+  res.status(201).json(serializeCommand(command));
+});
+
+// GET /devices/:id/commands — recent commands (restart feedback for the UI)
+router.get("/devices/:id/commands", async (req, res): Promise<void> => {
+  const id = parseId(req.params.id);
+  const [device] = await db.select({ id: attendanceDevicesTable.id }).from(attendanceDevicesTable).where(eq(attendanceDevicesTable.id, id));
+  if (!device) { res.status(404).json({ error: "Not found" }); return; }
+  await expireStaleCommands(id);
+  const rows = await db
+    .select()
+    .from(deviceCommandsTable)
+    .where(eq(deviceCommandsTable.deviceId, id))
+    .orderBy(desc(deviceCommandsTable.createdAt))
+    .limit(10);
+  res.json(rows.map(serializeCommand));
 });
 
 export default router;
