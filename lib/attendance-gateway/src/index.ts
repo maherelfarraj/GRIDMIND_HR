@@ -7,6 +7,8 @@ import { SimulatorAdapter } from "./adapters/simulator.js";
 import { GenericRestAdapter } from "./adapters/genericRest.js";
 import { CsvAdapter } from "./adapters/csv.js";
 import { ZktecoAdapter, SupremaAdapter, zktecoConfigFromEnv, supremaConfigFromEnv } from "./adapters/vendorStubs.js";
+import { ZktecoNativeAdapter, zktecoNativeConfigFromEnv } from "./adapters/zktecoNative.js";
+import { SupremaNativeAdapter, supremaNativeConfigFromEnv } from "./adapters/supremaNative.js";
 import type { DeviceAdapter } from "./types.js";
 
 /**
@@ -18,7 +20,7 @@ import type { DeviceAdapter } from "./types.js";
  *   GATEWAY_SECRET      one-time secret shown at registration
  *   GATEWAY_QUEUE_KEY   local encryption key for the punch spool
  * Optional:
- *   GATEWAY_ADAPTER     SIMULATOR | GENERIC_REST | CSV | ZKTECO | SUPREMA
+ *   GATEWAY_ADAPTER     SIMULATOR | GENERIC_REST | CSV | ZKTECO | SUPREMA | ZKTECO_NATIVE | SUPREMA_NATIVE
  *   DEVICE_API_URL/KEY  for GENERIC_REST
  *   ZKTECO_API_URL/ZKTECO_USERNAME/ZKTECO_PASSWORD    for ZKTECO (ZKBioTime/BioTime middleware)
  *   SUPREMA_API_URL/SUPREMA_LOGIN_ID/SUPREMA_PASSWORD for SUPREMA (BioStar 2 server)
@@ -43,6 +45,10 @@ function buildAdapter(): DeviceAdapter {
       return new ZktecoAdapter(zktecoConfigFromEnv());
     case "SUPREMA":
       return new SupremaAdapter(supremaConfigFromEnv());
+    case "ZKTECO_NATIVE":
+      return new ZktecoNativeAdapter(zktecoNativeConfigFromEnv());
+    case "SUPREMA_NATIVE":
+      return new SupremaNativeAdapter(supremaNativeConfigFromEnv());
     default:
       return new SimulatorAdapter();
   }

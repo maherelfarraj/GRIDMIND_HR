@@ -386,7 +386,7 @@ gatewayAdminRouter.post("/gateway/registrations", async (req, res): Promise<void
     res.status(400).json({ error: "name required" });
     return;
   }
-  const VALID_ADAPTERS = ["ZKTECO", "SUPREMA", "GENERIC_REST", "CSV", "SIMULATOR"];
+  const VALID_ADAPTERS = ["ZKTECO", "SUPREMA", "ZKTECO_NATIVE", "SUPREMA_NATIVE", "GENERIC_REST", "CSV", "SIMULATOR"];
   if (adapterType && !VALID_ADAPTERS.includes(adapterType)) {
     res.status(400).json({ error: `adapterType must be one of ${VALID_ADAPTERS.join(", ")}` });
     return;

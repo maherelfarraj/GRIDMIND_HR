@@ -35,7 +35,7 @@ export interface AdapterTestResult {
 }
 
 export interface DeviceAdapter {
-  readonly type: "ZKTECO" | "SUPREMA" | "GENERIC_REST" | "CSV" | "SIMULATOR";
+  readonly type: "ZKTECO" | "SUPREMA" | "ZKTECO_NATIVE" | "SUPREMA_NATIVE" | "GENERIC_REST" | "CSV" | "SIMULATOR";
   /** Verify connectivity to the physical device / data source. */
   testConnection(): Promise<AdapterTestResult>;
   /** Pull new punches since the given watermark (ISO time or device cursor). */
