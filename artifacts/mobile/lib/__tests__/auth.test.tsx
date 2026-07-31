@@ -97,6 +97,93 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function make200Response(url: string, payload: unknown) {
+  const response = {
+    status: 200,
+    ok: true,
+    statusText: 'OK',
+    url,
+    headers: new Headers({ 'content-type': 'application/json' }),
+    // Non-null body: customFetch treats `body === null` as an empty response.
+    body: {},
+    text: async () => JSON.stringify(payload),
+    clone() {
+      return this;
+    },
+  };
+  return response as unknown as Response;
+}
+
+async function renderSignedOut() {
+  asyncStorageMock.getItem.mockResolvedValue(null);
+  render(
+    <AuthProvider>
+      <Probe />
+    </AuthProvider>,
+  );
+  await waitFor(() => {
+    expect(latestAuth?.isLoading).toBe(false);
+  });
+}
+
+describe('AuthProvider login', () => {
+  it('stores the returned user under the session key and exposes it', async () => {
+    await renderSignedOut();
+    expect(latestAuth?.user).toBeNull();
+
+    const authUser = { id: 'u2', username: 'asmith', role: 'employee' };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        make200Response(String(input), authUser),
+      ),
+    );
+
+    await act(async () => {
+      await latestAuth!.login('asmith', 'correct-password');
+    });
+
+    await waitFor(() => {
+      expect(latestAuth?.user).toMatchObject(authUser);
+    });
+    expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
+      'hrms-mobile-session',
+      JSON.stringify(authUser),
+    );
+  });
+
+  it('does not persist anything when login fails with bad credentials', async () => {
+    await renderSignedOut();
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => make401Response('https://api.example.com/auth/login')),
+    );
+
+    await act(async () => {
+      await expect(latestAuth!.login('asmith', 'wrong')).rejects.toBeInstanceOf(
+        ApiError,
+      );
+    });
+
+    expect(latestAuth?.user).toBeNull();
+    expect(asyncStorageMock.setItem).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthProvider logout', () => {
+  it('clears the user state and removes the stored session', async () => {
+    await renderSignedIn();
+
+    await act(async () => {
+      await latestAuth!.logout();
+    });
+
+    expect(latestAuth?.user).toBeNull();
+    expect(asyncStorageMock.removeItem).toHaveBeenCalledWith('hrms-mobile-session');
+  });
+});
+
 describe('AuthProvider 401 session-expiry handling', () => {
   it('clears the stored session and user on a 401 from a non-auth endpoint', async () => {
     await renderSignedIn();
