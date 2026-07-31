@@ -2,8 +2,13 @@ import { Router } from "express";
 import { db, attendanceDevicesTable, departmentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateDeviceBody, UpdateDeviceBody } from "@workspace/api-zod";
+import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
+
+// Device inventory and health data must never be readable without a session.
+// The global auth gate only covers mutating methods, so guard GETs here too.
+router.use("/devices", requireAuth);
 
 function parseId(raw: string | string[]): number {
   return parseInt(Array.isArray(raw) ? raw[0] : raw, 10);

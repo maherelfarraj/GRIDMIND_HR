@@ -1,8 +1,13 @@
 import { Router } from "express";
 import { db, deviceEmployeeMappingsTable, attendanceDevicesTable, employeesTable, systemUsersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
+
+// Employee-to-device enrollment data must never be readable without a session.
+// The global auth gate only covers mutating methods, so guard GETs here too.
+router.use(["/device-mappings", "/devices"], requireAuth);
 
 async function enrichMapping(m: typeof deviceEmployeeMappingsTable.$inferSelect) {
   const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, m.employeeId));
