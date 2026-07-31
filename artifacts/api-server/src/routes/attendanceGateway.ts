@@ -212,6 +212,8 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
     deviceClockSkewAlert:
       deviceSkewAlert !== undefined ? deviceSkewAlert : deviceClockSkewMs === null ? false : undefined,
     deviceClockSkewMs: deviceSkewMs ?? null,
+    adapterConnStatus: connStatus,
+    adapterConnMessage: typeof connMessage === "string" ? connMessage : undefined,
   });
   res.json({
     ok: true,

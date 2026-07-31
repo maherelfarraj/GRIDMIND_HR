@@ -17,10 +17,20 @@ import {
   auditLogsTable,
 } from "@workspace/db";
 import app from "../app";
-import { GATEWAY_SDK_ALERT_TYPE, GATEWAY_SKEW_ALERT_TYPE } from "../lib/gatewayDeviceAlerts";
+import {
+  GATEWAY_SDK_ALERT_TYPE,
+  GATEWAY_SKEW_ALERT_TYPE,
+  GATEWAY_AUTH_FAILED_ALERT_TYPE,
+  GATEWAY_UNREACHABLE_ALERT_TYPE,
+} from "../lib/gatewayDeviceAlerts";
 
 const sha256 = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
-const ALERT_TYPES = [GATEWAY_SDK_ALERT_TYPE, GATEWAY_SKEW_ALERT_TYPE];
+const ALERT_TYPES = [
+  GATEWAY_SDK_ALERT_TYPE,
+  GATEWAY_SKEW_ALERT_TYPE,
+  GATEWAY_AUTH_FAILED_ALERT_TYPE,
+  GATEWAY_UNREACHABLE_ALERT_TYPE,
+];
 
 let registrationId: number;
 let signingKey: string;
@@ -176,5 +186,72 @@ describe("device clock skew transitions", () => {
     expect(res.status).toBe(200);
     rows = await alertRows(GATEWAY_SKEW_ALERT_TYPE);
     expect(rows.every((r) => r.isDismissed)).toBe(true);
+  });
+});
+
+describe("adapter connection-status transitions", () => {
+  it("notifies once when the device rejects the gateway's login", async () => {
+    // Healthy baseline — no alert.
+    let res = await postHeartbeat({ connectionTest: { status: "REACHABLE", ok: true } });
+    expect(res.status).toBe(200);
+    expect(await alertRows(GATEWAY_AUTH_FAILED_ALERT_TYPE)).toHaveLength(0);
+
+    res = await postHeartbeat({ connectionTest: { status: "AUTH_FAILED", message: "bad credentials" } });
+    expect(res.status).toBe(200);
+    const rows = await alertRows(GATEWAY_AUTH_FAILED_ALERT_TYPE);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => r.severity === "urgent" && !r.isDismissed)).toBe(true);
+    expect(rows[0].titleEn).toContain("rejected login");
+    expect(rows[0].bodyEn).toContain("bad credentials");
+
+    // Repeats in the same state must not re-notify.
+    for (let i = 0; i < 3; i++) {
+      await postHeartbeat({ connectionTest: { status: "AUTH_FAILED" } });
+    }
+    expect((await alertRows(GATEWAY_AUTH_FAILED_ALERT_TYPE)).length).toBe(rows.length);
+  });
+
+  it("auto-resolves the auth alert when the device becomes reachable again", async () => {
+    const res = await postHeartbeat({ connectionTest: { status: "REACHABLE", ok: true } });
+    expect(res.status).toBe(200);
+    const rows = await alertRows(GATEWAY_AUTH_FAILED_ALERT_TYPE);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => r.isDismissed && r.dismissedAt !== null)).toBe(true);
+  });
+
+  it("notifies once when the device is unreachable, incl. ok:false fallback", async () => {
+    // Legacy gateway shape: ok:false without a status string → UNREACHABLE.
+    const res = await postHeartbeat({ connectionTest: { ok: false, message: "timeout after 5s" } });
+    expect(res.status).toBe(200);
+    const rows = await alertRows(GATEWAY_UNREACHABLE_ALERT_TYPE);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => !r.isDismissed)).toBe(true);
+    expect(rows[0].titleEn).toContain("unreachable");
+    expect(rows[0].bodyEn).toContain("timeout after 5s");
+
+    // Repeat unreachable heartbeats do not re-notify.
+    await postHeartbeat({ connectionTest: { status: "UNREACHABLE" } });
+    expect((await alertRows(GATEWAY_UNREACHABLE_ALERT_TYPE)).length).toBe(rows.length);
+  });
+
+  it("switching from UNREACHABLE to AUTH_FAILED resolves the old alert and raises the new one", async () => {
+    const res = await postHeartbeat({ connectionTest: { status: "AUTH_FAILED" } });
+    expect(res.status).toBe(200);
+    const unreachable = await alertRows(GATEWAY_UNREACHABLE_ALERT_TYPE);
+    expect(unreachable.every((r) => r.isDismissed)).toBe(true);
+    const auth = await alertRows(GATEWAY_AUTH_FAILED_ALERT_TYPE);
+    expect(auth.some((r) => !r.isDismissed)).toBe(true);
+  });
+
+  it("heartbeats without a connection test neither notify nor resolve", async () => {
+    const before = await alertRows(GATEWAY_AUTH_FAILED_ALERT_TYPE);
+    const res = await postHeartbeat({});
+    expect(res.status).toBe(200);
+    const after = await alertRows(GATEWAY_AUTH_FAILED_ALERT_TYPE);
+    expect(after.length).toBe(before.length);
+    expect(after.some((r) => !r.isDismissed)).toBe(true);
+    // Recover to clean state.
+    await postHeartbeat({ connectionTest: { status: "REACHABLE" } });
+    expect((await alertRows(GATEWAY_AUTH_FAILED_ALERT_TYPE)).every((r) => r.isDismissed)).toBe(true);
   });
 });

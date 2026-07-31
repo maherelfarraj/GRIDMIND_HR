@@ -19,6 +19,16 @@ import { logger } from "./logger.js";
 
 export const GATEWAY_SDK_ALERT_TYPE = "gateway_sdk_missing";
 export const GATEWAY_SKEW_ALERT_TYPE = "gateway_clock_skew";
+export const GATEWAY_AUTH_FAILED_ALERT_TYPE = "gateway_device_auth_failed";
+export const GATEWAY_UNREACHABLE_ALERT_TYPE = "gateway_device_unreachable";
+
+/** Connection-test statuses that raise an admin alert. */
+const CONN_ALERT_STATUSES = ["AUTH_FAILED", "UNREACHABLE"] as const;
+type ConnAlertStatus = (typeof CONN_ALERT_STATUSES)[number];
+const CONN_ALERT_TYPE_BY_STATUS: Record<ConnAlertStatus, string> = {
+  AUTH_FAILED: GATEWAY_AUTH_FAILED_ALERT_TYPE,
+  UNREACHABLE: GATEWAY_UNREACHABLE_ALERT_TYPE,
+};
 
 interface PrevState {
   id: number;
@@ -26,6 +36,7 @@ interface PrevState {
   nameAr: string | null;
   sdkPresent: boolean | null;
   deviceClockSkewAlert: boolean;
+  adapterConnStatus: string | null;
 }
 
 interface NextState {
@@ -35,6 +46,10 @@ interface NextState {
   deviceClockSkewAlert?: boolean;
   /** Measured skew in ms (for the notification body). */
   deviceClockSkewMs?: number | null;
+  /** New adapter connection-test status, if the heartbeat reported one. */
+  adapterConnStatus?: string;
+  /** Connection-test message (for the notification body). */
+  adapterConnMessage?: string;
 }
 
 /** Active system users whose role name contains "admin" (System Administrator, HR Admin, ...). */
@@ -132,6 +147,40 @@ export async function processGatewayWarningTransitions(prev: PrevState, next: Ne
         );
       } else if (!next.deviceClockSkewAlert && prev.deviceClockSkewAlert) {
         await resolveAlerts(prev.id, [GATEWAY_SKEW_ALERT_TYPE]);
+      }
+    }
+
+    // Adapter connection-test transitions (only when this heartbeat reported
+    // a structured status). Entering AUTH_FAILED or UNREACHABLE notifies once;
+    // any change away from a failing status resolves that status's alerts, and
+    // a return to REACHABLE resolves everything.
+    if (typeof next.adapterConnStatus === "string" && next.adapterConnStatus !== prev.adapterConnStatus) {
+      // Resolve alerts for failing statuses we just left.
+      const cleared = CONN_ALERT_STATUSES
+        .filter((s) => s !== next.adapterConnStatus)
+        .map((s) => CONN_ALERT_TYPE_BY_STATUS[s]);
+      if (cleared.length) {
+        await resolveAlerts(prev.id, cleared);
+      }
+      const detail = next.adapterConnMessage ? ` Gateway reported: ${next.adapterConnMessage.slice(0, 300)}` : "";
+      if (next.adapterConnStatus === "AUTH_FAILED") {
+        await raiseAlert(
+          prev,
+          GATEWAY_AUTH_FAILED_ALERT_TYPE,
+          `Gateway "${prev.name}": device rejected login`,
+          `البوابة "${nameAr}": رفض الجهاز تسجيل الدخول`,
+          `The biometric device behind gateway "${prev.name}" rejected the gateway's login credentials. Punches are NOT being collected until the device credentials are corrected.${detail}`,
+          `رفض الجهاز خلف البوابة "${nameAr}" بيانات اعتماد تسجيل الدخول الخاصة بالبوابة. لن يتم جمع البصمات حتى يتم تصحيح بيانات اعتماد الجهاز.`,
+        );
+      } else if (next.adapterConnStatus === "UNREACHABLE") {
+        await raiseAlert(
+          prev,
+          GATEWAY_UNREACHABLE_ALERT_TYPE,
+          `Gateway "${prev.name}": device unreachable`,
+          `البوابة "${nameAr}": تعذر الوصول إلى الجهاز`,
+          `The biometric device behind gateway "${prev.name}" could not be reached. Punches are NOT being collected until connectivity is restored.${detail}`,
+          `تعذر الوصول إلى الجهاز خلف البوابة "${nameAr}". لن يتم جمع البصمات حتى تتم استعادة الاتصال.`,
+        );
       }
     }
   } catch (e) {
