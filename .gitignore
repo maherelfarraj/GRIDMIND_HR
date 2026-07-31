@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# generated one-time password handoff files (operator-only, never commit)
+.credentials/
+one-time-passwords-*.json
