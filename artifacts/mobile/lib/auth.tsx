@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loginUser } from '@workspace/api-client-react';
+import { loginUser, setUnauthorizedHandler } from '@workspace/api-client-react';
 import type { AuthUser } from '@workspace/api-client-react';
 
 const STORAGE_KEY = 'hrms-mobile-session';
@@ -24,6 +24,23 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Any 401 from the API (outside credential-check endpoints) means the
+  // server session is gone — clear the stored profile so the navigation
+  // guards return the user to the sign-in screen instead of rendering
+  // broken screens with failing reads.
+  useEffect(() => {
+    setUnauthorizedHandler((response) => {
+      const url = response.url ?? '';
+      // Login / password-change 401s are credential errors, not expiry.
+      if (url.includes('/auth/login') || url.includes('/auth/change-password')) {
+        return;
+      }
+      setUser(null);
+      AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
