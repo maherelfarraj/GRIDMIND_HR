@@ -23,7 +23,6 @@ export const GATEWAY_SKEW_ALERT_TYPE = "gateway_clock_skew";
 export const GATEWAY_SILENT_ALERT_TYPE = "gateway_silent";
 export const GATEWAY_AUTH_FAILED_ALERT_TYPE = "gateway_device_auth_failed";
 export const GATEWAY_UNREACHABLE_ALERT_TYPE = "gateway_device_unreachable";
-
 /** Connection-test statuses that raise an admin alert. */
 const CONN_ALERT_STATUSES = ["AUTH_FAILED", "UNREACHABLE"] as const;
 type ConnAlertStatus = (typeof CONN_ALERT_STATUSES)[number];
