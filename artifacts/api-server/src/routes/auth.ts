@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-zod";
 import { isLockedOut, recordFailure, recordSuccess, LOCKOUT_MS, loginThrottleReady } from "../lib/loginThrottle";
 import { sendSmtpMail } from "../lib/smtp-adapter.js";
+import { recordSecurityEmailOutcome } from "../lib/email-alert-status.js";
 
 const router = Router();
 
@@ -70,13 +71,24 @@ async function notifyAdminsOfLockout(username: string, ip: string, scope: string
           `Time: ${new Date().toISOString()}\n\n` +
           `Review the audit trail and consider resetting the password or disabling the account.`,
       })
-        .then((result) => {
+        .then(async (result) => {
           if (!result.success) {
             console.error("Failed to send lockout alert email:", result.message);
           }
+          // Surface delivery failures in-app (deduped per outage window) so
+          // admins know security emails are being dropped — server logs alone
+          // are not enough. Success closes the outage window.
+          await recordSecurityEmailOutcome(
+            { success: result.success, message: result.message },
+            `account lockout alert for "${username}"`,
+          );
         })
-        .catch((err) => {
+        .catch(async (err) => {
           console.error("Failed to send lockout alert email:", err);
+          await recordSecurityEmailOutcome(
+            { success: false, message: err?.message ?? String(err) },
+            `account lockout alert for "${username}"`,
+          );
         });
     }
   } catch (err) {
