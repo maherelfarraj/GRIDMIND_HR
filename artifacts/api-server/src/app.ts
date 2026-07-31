@@ -7,6 +7,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { pool as pgPool } from "@workspace/db";
 import { assertAuthModeSafe, isAuthEnforced } from "./lib/authMode";
+import { UnauthenticatedActorError } from "./middleware/requireAuth";
 
 // Refuses to start in production with auth disabled; loud warning elsewhere.
 assertAuthModeSafe();
@@ -89,5 +90,17 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// Global error handler: map unauthenticated-actor errors to 401, others to 500.
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err instanceof UnauthenticatedActorError) {
+    res.status(401).json({ error: err.message, code: err.code });
+    return;
+  }
+  console.error("Unhandled error:", err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 export default app;

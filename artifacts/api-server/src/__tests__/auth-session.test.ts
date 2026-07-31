@@ -158,11 +158,24 @@ describe("Mutating routes without session (PILOT_AUTH=false)", () => {
 });
 
 describe("requireAuth middleware unit behavior", () => {
-  it("getActorUserId returns 1 as fallback when no session", async () => {
-    // Verify by making a request that uses getActorUserId internally
-    // We can check this indirectly by confirming the endpoint still works
-    const res = await request(app).get("/api/employees");
-    expect(res.status).toBe(200);
+  it("getActorUserId falls back to 1 only in demo mode, throws when auth enforced", async () => {
+    const { getActorUserId, UnauthenticatedActorError } = await import("../middleware/requireAuth.js");
+    const fakeReq = { session: undefined } as any;
+    const prev = process.env.PILOT_AUTH;
+    try {
+      // Auth enforced (default): anonymous actor throws instead of becoming user 1
+      process.env.PILOT_AUTH = "true";
+      expect(() => getActorUserId(fakeReq)).toThrow(UnauthenticatedActorError);
+      // Demo mode: convenience fallback to seeded admin
+      process.env.PILOT_AUTH = "false";
+      expect(getActorUserId(fakeReq)).toBe(1);
+      // With a session, the session user id always wins
+      process.env.PILOT_AUTH = "true";
+      expect(getActorUserId({ session: { userId: 42 } } as any)).toBe(42);
+    } finally {
+      if (prev === undefined) delete process.env.PILOT_AUTH;
+      else process.env.PILOT_AUTH = prev;
+    }
   });
 
   // Note: PILOT_AUTH=true enforcement test is intentionally skipped here
