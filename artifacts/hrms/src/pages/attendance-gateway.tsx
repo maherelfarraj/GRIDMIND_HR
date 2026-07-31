@@ -191,15 +191,18 @@ export default function AttendanceGateway() {
   };
 
   const getAdapterBadge = (adapter: string) => {
-    const requiresSDK = adapter === 'ZKTECO' || adapter === 'SUPREMA';
-    if (requiresSDK) {
+    const middlewareLabel =
+      adapter === 'ZKTECO' ? t('via ZKBioTime', 'عبر ZKBioTime')
+      : adapter === 'SUPREMA' ? t('via BioStar 2', 'عبر BioStar 2')
+      : null;
+    if (middlewareLabel) {
       return (
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs">
             {adapter}
           </Badge>
-          <Badge variant="secondary" className="text-xs bg-amber-500/10 text-amber-500 border-amber-500/20">
-            {t('SDK Required', 'يتطلب SDK')}
+          <Badge variant="secondary" className="text-xs bg-sky-500/10 text-sky-500 border-sky-500/20">
+            {middlewareLabel}
           </Badge>
         </div>
       );
@@ -259,7 +262,10 @@ export default function AttendanceGateway() {
               {t('Adapter Types', 'أنواع المحولات')}
             </p>
             <p className="text-muted-foreground">
-              {t('ZKTECO and SUPREMA adapters require a licensed vendor SDK and physical device (not yet operational). GENERIC_REST, CSV, and SIMULATOR are fully operational.', 'تتطلب محولات ZKTECO و SUPREMA SDK مرخص من البائع وجهاز فعلي (غير تشغيلي بعد). GENERIC_REST و CSV و SIMULATOR تعمل بالكامل.')}
+              {t(
+                'ZKTECO connects through the ZKBioTime/BioTime middleware REST API (set ZKTECO_API_URL, ZKTECO_USERNAME, ZKTECO_PASSWORD on the gateway host). SUPREMA connects through the BioStar 2 server REST API (set SUPREMA_API_URL, SUPREMA_LOGIN_ID, SUPREMA_PASSWORD). GENERIC_REST, CSV, and SIMULATOR are also fully operational. Native device protocols (ZKTeco PUSH, BioStar SDK) remain an optional on-site path requiring the licensed vendor SDK and physical hardware.',
+                'يتصل ZKTECO عبر واجهة REST لوسيط ZKBioTime/BioTime (اضبط ZKTECO_API_URL و ZKTECO_USERNAME و ZKTECO_PASSWORD على مضيف البوابة). يتصل SUPREMA عبر واجهة REST لخادم BioStar 2 (اضبط SUPREMA_API_URL و SUPREMA_LOGIN_ID و SUPREMA_PASSWORD). كما تعمل GENERIC_REST و CSV و SIMULATOR بالكامل. تبقى بروتوكولات الأجهزة الأصلية مسارًا اختياريًا في الموقع يتطلب SDK مرخصًا وأجهزة فعلية.'
+              )}
             </p>
           </div>
         </CardContent>
@@ -519,8 +525,8 @@ export default function AttendanceGateway() {
                   <SelectItem value="GENERIC_REST">GENERIC_REST</SelectItem>
                   <SelectItem value="CSV">CSV</SelectItem>
                   <SelectItem value="SIMULATOR">SIMULATOR</SelectItem>
-                  <SelectItem value="ZKTECO">ZKTECO (SDK Required)</SelectItem>
-                  <SelectItem value="SUPREMA">SUPREMA (SDK Required)</SelectItem>
+                  <SelectItem value="ZKTECO">ZKTECO (ZKBioTime middleware)</SelectItem>
+                  <SelectItem value="SUPREMA">SUPREMA (BioStar 2 middleware)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

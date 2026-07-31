@@ -1,4 +1,6 @@
 import { randomUUID } from "crypto";
+import { promises as fs } from "fs";
+import { dirname } from "path";
 import { EncryptedQueue } from "./queue.js";
 import { HrClient } from "./hrClient.js";
 import type { DeviceAdapter, GatewayPunch } from "./types.js";
@@ -29,26 +31,63 @@ export class GatewayService {
     private readonly queue: EncryptedQueue,
     private readonly hr: HrClient,
     private readonly adapter: DeviceAdapter,
-    opts?: { maxAttempts?: number; baseBackoffMs?: number; maxBackoffMs?: number },
+    opts?: { maxAttempts?: number; baseBackoffMs?: number; maxBackoffMs?: number; cursorPath?: string },
   ) {
     this.maxAttempts = opts?.maxAttempts ?? 10;
     this.baseBackoffMs = opts?.baseBackoffMs ?? 30_000;
     this.maxBackoffMs = opts?.maxBackoffMs ?? 15 * 60_000;
+    this.cursorPath = opts?.cursorPath ?? null;
   }
 
+  private readonly cursorPath: string | null;
   private cursor: string | null = null;
   lastPollAt: Date | null = null;
   lastFlushAt: Date | null = null;
   lastError: string | null = null;
 
-  /** Poll the device adapter and spool everything into the encrypted queue. */
+  /** Restore the persisted adapter cursor (call once at startup). */
+  async init(): Promise<void> {
+    if (!this.cursorPath) return;
+    try {
+      const raw = await fs.readFile(this.cursorPath, "utf8");
+      const parsed = JSON.parse(raw) as { cursor?: string | null };
+      this.cursor = parsed.cursor ?? null;
+    } catch {
+      this.cursor = null; // first run / no cursor yet
+    }
+  }
+
+  /**
+   * Atomically persist the cursor (write temp file, then rename). The
+   * in-memory cursor advances only AFTER persistence succeeds — if the write
+   * or rename fails, the old cursor is retained and the next poll replays.
+   */
+  private async commitCursor(next: string | null): Promise<void> {
+    if (this.cursorPath) {
+      await fs.mkdir(dirname(this.cursorPath), { recursive: true });
+      const tmp = `${this.cursorPath}.tmp`;
+      await fs.writeFile(tmp, JSON.stringify({ cursor: next }), "utf8");
+      await fs.rename(tmp, this.cursorPath);
+    }
+    this.cursor = next;
+  }
+
+  /**
+   * Poll the device adapter and spool everything into the encrypted queue.
+   * The cursor is committed only AFTER the batch is durably enqueued: if the
+   * enqueue fails, the next poll replays from the old cursor and server-side
+   * UID dedupe absorbs any duplicates — no punch is ever lost.
+   */
   async pollOnce(): Promise<{ queued: number; batchUuid: string | null }> {
     const { punches, nextCursor } = await this.adapter.poll(this.cursor);
-    this.cursor = nextCursor;
     this.lastPollAt = new Date();
-    if (punches.length === 0) return { queued: 0, batchUuid: null };
+    if (punches.length === 0) {
+      await this.commitCursor(nextCursor);
+      return { queued: 0, batchUuid: null };
+    }
     const batchUuid = randomUUID();
     await this.queue.enqueue({ batchUuid, createdAtMs: Date.now(), attempts: 0, punches });
+    await this.commitCursor(nextCursor);
     return { queued: punches.length, batchUuid };
   }
 

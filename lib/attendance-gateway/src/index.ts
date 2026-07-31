@@ -6,7 +6,7 @@ import { deriveSigningKey } from "./signing.js";
 import { SimulatorAdapter } from "./adapters/simulator.js";
 import { GenericRestAdapter } from "./adapters/genericRest.js";
 import { CsvAdapter } from "./adapters/csv.js";
-import { ZktecoAdapter, SupremaAdapter } from "./adapters/vendorStubs.js";
+import { ZktecoAdapter, SupremaAdapter, zktecoConfigFromEnv, supremaConfigFromEnv } from "./adapters/vendorStubs.js";
 import type { DeviceAdapter } from "./types.js";
 
 /**
@@ -20,6 +20,8 @@ import type { DeviceAdapter } from "./types.js";
  * Optional:
  *   GATEWAY_ADAPTER     SIMULATOR | GENERIC_REST | CSV | ZKTECO | SUPREMA
  *   DEVICE_API_URL/KEY  for GENERIC_REST
+ *   ZKTECO_API_URL/ZKTECO_USERNAME/ZKTECO_PASSWORD    for ZKTECO (ZKBioTime/BioTime middleware)
+ *   SUPREMA_API_URL/SUPREMA_LOGIN_ID/SUPREMA_PASSWORD for SUPREMA (BioStar 2 server)
  *   GATEWAY_QUEUE_DIR   spool directory (default ./gateway-queue)
  *   POLL_INTERVAL_MS    device poll cadence (default 60000)
  *   PORT                local admin/status HTTP port
@@ -38,9 +40,9 @@ function buildAdapter(): DeviceAdapter {
     case "CSV":
       return new CsvAdapter();
     case "ZKTECO":
-      return new ZktecoAdapter();
+      return new ZktecoAdapter(zktecoConfigFromEnv());
     case "SUPREMA":
-      return new SupremaAdapter();
+      return new SupremaAdapter(supremaConfigFromEnv());
     default:
       return new SimulatorAdapter();
   }
@@ -55,7 +57,9 @@ async function main(): Promise<void> {
     gatewayId: parseInt(requiredEnv("GATEWAY_ID"), 10),
     signingKey: deriveSigningKey(requiredEnv("GATEWAY_SECRET")),
   });
-  const service = new GatewayService(queue, hr, adapter);
+  const queueDir = process.env.GATEWAY_QUEUE_DIR ?? "./gateway-queue";
+  const service = new GatewayService(queue, hr, adapter, { cursorPath: `${queueDir}/device-cursor.json` });
+  await service.init();
 
   const pollIntervalMs = parseInt(process.env.POLL_INTERVAL_MS ?? "60000", 10);
   const tick = async (): Promise<void> => {

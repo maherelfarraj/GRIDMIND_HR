@@ -74,7 +74,7 @@ const MODULE_NOTES: ModuleNote[] = [
   { key: 'authorization',     nameEn: 'Authorization',       nameAr: 'التفويض',                    status: 'BLOCKED',     score: 15, note: 'No role checks on any endpoint; PILOT_AUTH=false' },
   { key: 'payroll',           nameEn: 'Payroll',             nameAr: 'الرواتب',                    status: 'VERIFIED',    score: 92, note: 'Real salary calculation from DB grades; 3-tier OT from punch events' },
   { key: 'leave',             nameEn: 'Leave Management',    nameAr: 'إدارة الإجازات',              status: 'VERIFIED',    score: 90, note: 'Real DB queries; balance checked on approval' },
-  { key: 'attendance',        nameEn: 'Attendance',          nameAr: 'الحضور',                     status: 'PARTIAL',     score: 80, note: 'Attendance Gateway live: HMAC-signed ingestion, encrypted offline queue, dedupe, drift detection, attendance materialization — 17 E2E tests. ZKTeco/Suprema still need vendor SDK on real hardware' },
+  { key: 'attendance',        nameEn: 'Attendance',          nameAr: 'الحضور',                     status: 'PARTIAL',     score: 90, note: 'Attendance Gateway live: HMAC-signed ingestion, encrypted offline queue, dedupe, drift detection, attendance materialization — E2E tested. ZKTeco (ZKBioTime) and Suprema (BioStar 2) connect via vendor middleware REST APIs' },
   { key: 'documents',         nameEn: 'Documents',           nameAr: 'المستندات',                  status: 'PARTIAL',     score: 55, note: 'CRUD implemented; file storage is DB blob, not object store' },
   { key: 'recruitment',       nameEn: 'Recruitment',         nameAr: 'التوظيف',                    status: 'PARTIAL',     score: 50, note: 'Full lifecycle schema; automated scoring not implemented' },
   { key: 'performance',       nameEn: 'Performance',         nameAr: 'الأداء',                     status: 'PARTIAL',     score: 45, note: 'Goals and appraisals schema; calibration logic placeholder' },
@@ -113,7 +113,7 @@ interface StaticBlocker {
 const STATIC_BLOCKERS: StaticBlocker[] = [
   { severity: 'CRITICAL', text: 'No authentication middleware — all endpoints unauthenticated' },
   { severity: 'CRITICAL', text: 'Keycloak SSO not configured — SSO integration gate fails' },
-  { severity: 'HIGH', text: 'ZKTeco/Suprema adapters require licensed vendor SDK + physical device; REST/CSV/simulator paths fully operational via Attendance Gateway' },
+  { severity: 'MEDIUM', text: 'ZKTeco/Suprema devices connect via their vendor middleware REST APIs (ZKBioTime, BioStar 2); native SDK protocols remain optional and need on-site hardware' },
   { severity: 'HIGH',     text: 'Input validation missing on ~15 route files (payroll, leave, attendance use raw destructuring)' },
   { severity: 'HIGH',     text: 'Cross-org data isolation pending (Task #43 in progress)' },
   { severity: 'HIGH',     text: 'Config package signing key not rotatable independently of SESSION_SECRET' },
@@ -142,12 +142,6 @@ const KNOWN_BLOCKERS: KnownBlocker[] = [
     code: 'AUTH',
     description: 'No session authentication middleware. PILOT_AUTH=false on all routes.',
     resolution: 'Wire express-session + set PILOT_AUTH=true before production.',
-    taskExists: false,
-  },
-  {
-    code: 'BIOMETRIC',
-    description: 'Attendance Gateway implemented (signed ingestion, encrypted offline queue, dedupe, reconciliation, CSV/REST/simulator adapters; 17 E2E tests). Remaining: ZKTeco PUSH and Suprema BioStar adapters need the licensed vendor SDK and a physical device on-site.',
-    resolution: 'Install vendor SDK on the gateway host at deployment; wire the ZKTECO/SUPREMA adapter stubs to it. No HR-core changes needed.',
     taskExists: false,
   },
 ];
@@ -233,8 +227,8 @@ export default function ReadinessPage() {
           {!summary.isReadyForGoLive && (
             <p className="text-slate-400 text-sm mt-2">
               {t(
-                'Authentication middleware and biometric device integration must be implemented before any production deployment.',
-                'يجب تطبيق وسيط المصادقة وتكامل أجهزة القياس الحيوي قبل أي نشر إنتاجي.'
+                'Authentication middleware must be implemented before any production deployment.',
+                'يجب تطبيق وسيط المصادقة قبل أي نشر إنتاجي.'
               )}
             </p>
           )}
