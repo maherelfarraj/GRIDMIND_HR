@@ -34,10 +34,22 @@ export interface AdapterTestResult {
   deviceTimeMs?: number;
 }
 
+/** Whether a native vendor SDK is installed on this gateway host, and its version if known. */
+export interface AdapterSdkInfo {
+  present: boolean;
+  version: string | null;
+}
+
 export interface DeviceAdapter {
   readonly type: "ZKTECO" | "SUPREMA" | "ZKTECO_NATIVE" | "SUPREMA_NATIVE" | "GENERIC_REST" | "CSV" | "SIMULATOR";
   /** Verify connectivity to the physical device / data source. */
   testConnection(): Promise<AdapterTestResult>;
+  /**
+   * Report native SDK availability (optional). Adapters that need no vendor
+   * SDK may omit this; the service then infers presence from
+   * `testConnection().requiresVendorSdk`.
+   */
+  sdkInfo?(): AdapterSdkInfo;
   /** Pull new punches since the given watermark (ISO time or device cursor). */
   poll(sinceCursor: string | null): Promise<{ punches: GatewayPunch[]; nextCursor: string | null }>;
 }

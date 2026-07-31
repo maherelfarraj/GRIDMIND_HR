@@ -20,7 +20,7 @@
  * Raw biometric templates never leave the device layer.
  */
 
-import type { DeviceAdapter, GatewayPunch, AdapterTestResult, PunchEventType } from "../types.js";
+import type { DeviceAdapter, GatewayPunch, AdapterTestResult, AdapterSdkInfo, PunchEventType } from "../types.js";
 import { sanitizeRaw } from "./genericRest.js";
 import { ZkTcpClient, type ZkRawRecord, type ZkClientOptions } from "./zktecoProtocol.js";
 
@@ -159,6 +159,15 @@ export class ZktecoNativeAdapter implements DeviceAdapter {
     } finally {
       try { await client.disconnect(); } catch { /* best-effort */ }
     }
+  }
+
+  /**
+   * The ZKTeco native path speaks the binary protocol directly over Node's
+   * built-in `net` module — no vendor SDK install is required, so the "SDK"
+   * is always present. Version is null because there is no external module.
+   */
+  sdkInfo(): AdapterSdkInfo {
+    return { present: true, version: null };
   }
 
   async testConnection(): Promise<AdapterTestResult> {

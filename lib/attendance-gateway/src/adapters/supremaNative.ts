@@ -27,7 +27,7 @@
  */
 
 import { createRequire } from "module";
-import type { DeviceAdapter, GatewayPunch, AdapterTestResult, PunchEventType } from "../types.js";
+import type { DeviceAdapter, GatewayPunch, AdapterTestResult, AdapterSdkInfo, PunchEventType } from "../types.js";
 import { sanitizeRaw } from "./genericRest.js";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -231,6 +231,20 @@ export class SupremaNativeAdapter implements DeviceAdapter {
       return await fn(handle, deviceId);
     } finally {
       try { await sdk.disconnect(handle); } catch { /* best-effort */ }
+    }
+  }
+
+  /**
+   * Report whether the BioStar 2 Device SDK binding is installed on this
+   * gateway host, plus its version when the module exposes one.
+   */
+  sdkInfo(): AdapterSdkInfo {
+    try {
+      const sdk = this.sdk() as SupremaDeviceSDK & { version?: unknown };
+      const version = typeof sdk.version === "string" ? sdk.version : null;
+      return { present: true, version };
+    } catch {
+      return { present: false, version: null };
     }
   }
 

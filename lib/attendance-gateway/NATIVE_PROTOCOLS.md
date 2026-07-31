@@ -94,7 +94,10 @@ Rules a native adapter MUST follow:
 ## Validation checklist (must all pass before go-live)
 
 1. `testConnection()` returns `ok: true` with a plausible `deviceTimeMs`;
-   device clock skew vs gateway host < 60s.
+   device clock skew vs gateway host < 60s. No SSH needed: the local
+   `GET /status` endpoint surfaces `sdk_present`, `sdk_version`,
+   `last_test_connection`, and `clock_skew_ms` (plus a `clock_skew_warning`
+   field when skew exceeds 60s).
 2. Physical punch on the device appears in the HR core with the correct
    employee mapping, event type, and timestamp within one poll interval.
 3. Same-second double punch: both events arrive (no cursor loss).

@@ -185,14 +185,41 @@ export class GatewayService {
     return this.hr.reconcile(known);
   }
 
+  /** Clock skew beyond this (either direction) breaches runbook validation checklist item 1. */
+  static readonly CLOCK_SKEW_WARN_MS = 60_000;
+
   async status() {
     const pending = await this.queue.pending();
     const test = await this.adapter.testConnection();
+    // sdk_present: adapters expose sdkInfo() when they load a native vendor
+    // SDK; otherwise infer from the connection test (an adapter that flags
+    // requiresVendorSdk on failure is telling us the SDK layer is missing).
+    const sdk = this.adapter.sdkInfo?.() ?? { present: !(test.requiresVendorSdk ?? false), version: null };
+    const deviceTimeMs = test.deviceTimeMs ?? null;
+    const clockSkewMs = deviceTimeMs === null ? null : deviceTimeMs - Date.now();
+    const skewExceeded = clockSkewMs !== null && Math.abs(clockSkewMs) > GatewayService.CLOCK_SKEW_WARN_MS;
     return {
       adapterType: this.adapter.type,
       adapterOk: test.ok,
       adapterMessage: test.message,
       requiresVendorSdk: test.requiresVendorSdk ?? false,
+      sdk_present: sdk.present,
+      sdk_version: sdk.version,
+      last_test_connection: {
+        ok: test.ok,
+        status: test.status,
+        requiresVendorSdk: test.requiresVendorSdk ?? false,
+        message: test.message,
+        deviceTimeMs,
+      },
+      clock_skew_ms: clockSkewMs,
+      ...(skewExceeded
+        ? {
+            clock_skew_warning:
+              `Device clock skew is ${Math.round(Math.abs(clockSkewMs!) / 1000)}s (limit 60s). ` +
+              "Fix the device clock before go-live — see NATIVE_PROTOCOLS.md validation checklist item 1.",
+          }
+        : {}),
       pendingBatches: pending.length,
       lastPollAt: this.lastPollAt?.toISOString() ?? null,
       lastFlushAt: this.lastFlushAt?.toISOString() ?? null,
