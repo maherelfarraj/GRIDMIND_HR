@@ -5,4 +5,5 @@
 - [Persisting in-memory security state](persistent-throttle.md) — write-through needs per-key serialized writes + awaited hydration gate; fire-and-forget races fail review.
 - [OpenAPI ↔ drizzle drift guard](openapi-drift-guard.md) — convention matching + shrink-only baseline; never grow the baseline, fix the spec.
 - [Attendance gateway auth & pipeline](gateway-machine-auth.md) — HMAC scheme, unconditional admin auth, atomic materialization, encrypted queue backoff rules; biometric vendors integrate via their middleware REST APIs — native SDK paths need on-site hardware, never this env.
+- [Auth-mode fail-closed convention](auth-mode.md) — auth on by default; only PILOT_AUTH="false" disables (dev-only), read at request time; prod refuses to start when disabled.
 - [Real backup & restore testing](backup-restore.md) — managed PG allows CREATE/DROP DATABASE; restore tests use scratch DBs, with drift tolerance on append-only tables.

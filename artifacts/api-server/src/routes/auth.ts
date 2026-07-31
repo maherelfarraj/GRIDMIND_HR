@@ -12,9 +12,9 @@ import { isLockedOut, recordFailure, recordSuccess, LOCKOUT_MS, loginThrottleRea
 import { sendSmtpMail } from "../lib/smtp-adapter.js";
 import { recordSecurityEmailOutcome } from "../lib/email-alert-status.js";
 
-const router = Router();
+import { isAuthEnforced } from "../lib/authMode.js";
 
-const PILOT_AUTH = process.env.PILOT_AUTH === "true";
+const router = Router();
 
 // Notify all active admins the moment a lockout fires so they can react to
 // an active brute-force attempt in real time. Best-effort: failures are
@@ -196,7 +196,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   // Password check — PILOT_AUTH mode is fail-closed: a password AND a stored
   // hash are both required, and the bcrypt comparison must succeed.
-  if (PILOT_AUTH) {
+  if (isAuthEnforced()) {
     const { password } = req.body;
     const userWithHash = user as typeof user & { passwordHash?: string | null };
     if (!password || !userWithHash.passwordHash) {
@@ -314,7 +314,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     req.session.destroy(() => {});
   }
 
-  if (!PILOT_AUTH) {
+  if (!isAuthEnforced()) {
     // Demo fallback: return first active user
     const [user] = await db.select().from(systemUsersTable)
       .where(eq(systemUsersTable.isActive, true));

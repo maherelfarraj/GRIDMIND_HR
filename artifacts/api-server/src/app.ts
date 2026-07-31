@@ -6,6 +6,10 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { pool as pgPool } from "@workspace/db";
+import { assertAuthModeSafe, isAuthEnforced } from "./lib/authMode";
+
+// Refuses to start in production with auth disabled; loud warning elsewhere.
+assertAuthModeSafe();
 
 const app: Express = express();
 
@@ -58,8 +62,8 @@ app.use(session({
   secret: (() => {
     const s = process.env.SESSION_SECRET;
     if (!s) {
-      if (process.env.PILOT_AUTH === "true" || process.env.NODE_ENV === "production") {
-        throw new Error("SESSION_SECRET must be set when PILOT_AUTH or production mode is enabled");
+      if (isAuthEnforced() || process.env.NODE_ENV === "production") {
+        throw new Error("SESSION_SECRET must be set when auth is enforced or in production mode");
       }
       return "dev-only-insecure-secret";
     }

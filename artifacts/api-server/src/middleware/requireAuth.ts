@@ -1,9 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
-
-const PILOT_AUTH = process.env.PILOT_AUTH === "true";
+import { isAuthEnforced } from "../lib/authMode.js";
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (!PILOT_AUTH) { next(); return; }
+  if (!isAuthEnforced()) { next(); return; }
   if (req.session?.userId) { next(); return; }
   res.status(401).json({ error: "Authentication required", code: "UNAUTHENTICATED" });
 }

@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { db, privilegedSessionsTable, systemUsersTable, rolesTable, auditLogsTable } from "@workspace/db";
 import { eq, and, isNull, isNotNull, desc, gte, lte, sql } from "drizzle-orm";
 import { getActorUserId } from "../middleware/requireAuth.js";
+import { isAuthEnforced } from "../lib/authMode.js";
 
 const router = Router();
 
@@ -24,7 +25,7 @@ async function requireSecurityOfficer(req: AuthedRequest, res: Response, next: N
   // Outside demo mode, never let the userId=1 fallback stand in for a real
   // session — these records disclose who held elevated access and why.
   // (Read at request time so tests can exercise the PILOT_AUTH path.)
-  if (process.env.PILOT_AUTH === "true" && !req.session?.userId) {
+  if (isAuthEnforced() && !req.session?.userId) {
     res.status(401).json({ error: "Authentication required", code: "UNAUTHENTICATED" });
     return;
   }

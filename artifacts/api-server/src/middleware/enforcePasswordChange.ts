@@ -1,8 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { db, systemUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-
-const PILOT_AUTH = process.env.PILOT_AUTH === "true";
+import { isAuthEnforced } from "../lib/authMode.js";
 
 /**
  * Blocks all business endpoints for sessions whose user still has
@@ -16,7 +15,7 @@ export async function enforcePasswordChange(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  if (!PILOT_AUTH || !req.session?.userId) { next(); return; }
+  if (!isAuthEnforced() || !req.session?.userId) { next(); return; }
 
   const [user] = await db.select({ mustChangePassword: systemUsersTable.mustChangePassword })
     .from(systemUsersTable)
