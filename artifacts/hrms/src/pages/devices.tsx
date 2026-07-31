@@ -2,14 +2,46 @@ import { apiFetch } from '@/lib/api';
 import { fetchGatewayRegistrations, selectOfflineGateways, type GatewayRegistration } from '@/lib/gateways';
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { useListDevices, useGetDevice, useGetDeviceHealth, getGetDeviceQueryKey, getGetDeviceHealthQueryKey } from '@workspace/api-client-react';
+import {
+  useListDevices,
+  useGetDevice,
+  useGetDeviceHealth,
+  useCreateDevice,
+  useUpdateDevice,
+  getListDevicesQueryKey,
+  getGetDeviceQueryKey,
+  getGetDeviceHealthQueryKey,
+  type AttendanceDeviceInput,
+} from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Cpu, Wifi, WifiOff, AlertCircle, Plus, Settings, Activity, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Cpu, Wifi, WifiOff, AlertCircle, Plus, Settings, Clock, CheckCircle, XCircle, Activity } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { useLocation } from 'wouter';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface DeviceMapping {
   deviceId: number;
@@ -18,15 +50,72 @@ interface DeviceMapping {
   isActive: boolean;
 }
 
+const emptyDeviceForm: AttendanceDeviceInput = {
+  name: '',
+  serialNumber: '',
+  model: '',
+  vendor: '',
+  type: 'fingerprint',
+  ipAddress: '',
+  location: '',
+  locationAr: '',
+  status: 'offline',
+  firmwareVersion: '',
+  integrationProtocol: 'TCP/IP',
+};
+
 export default function Devices() {
   const { t, lang } = useLanguage();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: devices, isLoading } = useListDevices();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [mappings, setMappings] = useState<DeviceMapping[]>([]);
   const [loadingMappings, setLoadingMappings] = useState(false);
   const [gateways, setGateways] = useState<GatewayRegistration[] | null>(null);
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [confirmStatusOpen, setConfirmStatusOpen] = useState(false);
+  const [registerForm, setRegisterForm] = useState<AttendanceDeviceInput>(emptyDeviceForm);
+  const [editForm, setEditForm] = useState({ name: '', ipAddress: '', location: '', locationAr: '', firmwareVersion: '', notes: '' });
+
+  const invalidateDevices = (id?: number) => {
+    queryClient.invalidateQueries({ queryKey: getListDevicesQueryKey() });
+    if (id) {
+      queryClient.invalidateQueries({ queryKey: getGetDeviceQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: getGetDeviceHealthQueryKey(id) });
+    }
+  };
+
+  const createDevice = useCreateDevice({
+    mutation: {
+      onSuccess: () => {
+        invalidateDevices();
+        setRegisterOpen(false);
+        setRegisterForm(emptyDeviceForm);
+        toast({ title: t('Device registered', 'تم تسجيل الجهاز'), description: t('The device was added to the fleet.', 'تمت إضافة الجهاز إلى الأسطول.') });
+      },
+      onError: () => {
+        toast({ variant: 'destructive', title: t('Registration failed', 'فشل التسجيل'), description: t('Could not register the device. Check the fields and try again.', 'تعذر تسجيل الجهاز. تحقق من الحقول وحاول مرة أخرى.') });
+      },
+    },
+  });
+
+  const updateDevice = useUpdateDevice({
+    mutation: {
+      onSuccess: (_data, vars) => {
+        invalidateDevices(vars.id);
+        setEditOpen(false);
+        setConfirmStatusOpen(false);
+        toast({ title: t('Device updated', 'تم تحديث الجهاز') });
+      },
+      onError: () => {
+        toast({ variant: 'destructive', title: t('Update failed', 'فشل التحديث'), description: t('Could not update the device. Please try again.', 'تعذر تحديث الجهاز. حاول مرة أخرى.') });
+      },
+    },
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +182,7 @@ export default function Devices() {
             {t('Manage attendance hardware and SDK integrations.', 'إدارة أجهزة الحضور وتكامل أدوات التطوير.')}
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setRegisterOpen(true)} data-testid="button-register-device">
           <Plus className="w-4 h-4 me-2" />
           {t('Register Device', 'تسجيل جهاز')}
         </Button>
@@ -260,17 +349,48 @@ export default function Devices() {
                     <p className="text-sm text-muted-foreground">{lang === 'en' ? deviceDetail.location : deviceDetail.locationAr}</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      data-testid="button-edit-device"
+                      onClick={() => {
+                        setEditForm({
+                          name: deviceDetail.name,
+                          ipAddress: deviceDetail.ipAddress ?? '',
+                          location: deviceDetail.location,
+                          locationAr: deviceDetail.locationAr,
+                          firmwareVersion: deviceDetail.firmwareVersion ?? '',
+                          notes: deviceDetail.notes ?? '',
+                        });
+                        setEditOpen(true);
+                      }}
+                    >
                       <Settings className="w-4 h-4 me-2" />
                       {t('Edit', 'تحرير')}
                     </Button>
-                    <Button variant="outline" size="sm">
-                      <Activity className="w-4 h-4 me-2" />
-                      {t('Restart', 'إعادة تشغيل')}
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-destructive">
-                      {t('Deactivate', 'إلغاء التنشيط')}
-                    </Button>
+                    {deviceDetail.status === 'offline' ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid="button-activate-device"
+                        disabled={updateDevice.isPending}
+                        onClick={() => updateDevice.mutate({ id: deviceDetail.id, data: { status: 'online' } })}
+                      >
+                        <Wifi className="w-4 h-4 me-2" />
+                        {t('Mark Online', 'تعيين كمتصل')}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive"
+                        data-testid="button-deactivate-device"
+                        disabled={updateDevice.isPending}
+                        onClick={() => setConfirmStatusOpen(true)}
+                      >
+                        {t('Deactivate', 'إلغاء التنشيط')}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -472,6 +592,165 @@ export default function Devices() {
           )}
         </CardContent>
       </Card>
+
+      {/* Register Device Dialog */}
+      <Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t('Register Device', 'تسجيل جهاز')}</DialogTitle>
+            <DialogDescription>
+              {t('Add a new biometric attendance device to the fleet.', 'أضف جهاز حضور بصمة جديدًا إلى الأسطول.')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5 col-span-2">
+              <Label>{t('Name', 'الاسم')} *</Label>
+              <Input value={registerForm.name} onChange={e => setRegisterForm(f => ({ ...f, name: e.target.value }))} data-testid="input-device-name" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('Vendor', 'الشركة المصنعة')} *</Label>
+              <Input value={registerForm.vendor} onChange={e => setRegisterForm(f => ({ ...f, vendor: e.target.value }))} data-testid="input-device-vendor" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('Model', 'الموديل')} *</Label>
+              <Input value={registerForm.model} onChange={e => setRegisterForm(f => ({ ...f, model: e.target.value }))} data-testid="input-device-model" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('Serial Number', 'الرقم التسلسلي')} *</Label>
+              <Input value={registerForm.serialNumber} onChange={e => setRegisterForm(f => ({ ...f, serialNumber: e.target.value }))} data-testid="input-device-serial" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('IP Address', 'عنوان IP')}</Label>
+              <Input value={registerForm.ipAddress ?? ''} onChange={e => setRegisterForm(f => ({ ...f, ipAddress: e.target.value }))} data-testid="input-device-ip" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('Location (English)', 'الموقع (إنجليزي)')} *</Label>
+              <Input value={registerForm.location} onChange={e => setRegisterForm(f => ({ ...f, location: e.target.value }))} data-testid="input-device-location" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('Location (Arabic)', 'الموقع (عربي)')} *</Label>
+              <Input dir="rtl" value={registerForm.locationAr} onChange={e => setRegisterForm(f => ({ ...f, locationAr: e.target.value }))} data-testid="input-device-location-ar" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('Integration Protocol', 'بروتوكول التكامل')} *</Label>
+              <Input value={registerForm.integrationProtocol} onChange={e => setRegisterForm(f => ({ ...f, integrationProtocol: e.target.value }))} data-testid="input-device-protocol" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('Firmware Version', 'إصدار البرنامج الثابت')}</Label>
+              <Input value={registerForm.firmwareVersion ?? ''} onChange={e => setRegisterForm(f => ({ ...f, firmwareVersion: e.target.value }))} data-testid="input-device-firmware" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegisterOpen(false)}>{t('Cancel', 'إلغاء')}</Button>
+            <Button
+              data-testid="button-submit-register"
+              disabled={
+                createDevice.isPending ||
+                !registerForm.name.trim() ||
+                !registerForm.vendor.trim() ||
+                !registerForm.model.trim() ||
+                !registerForm.serialNumber.trim() ||
+                !registerForm.location.trim() ||
+                !registerForm.locationAr.trim() ||
+                !registerForm.integrationProtocol.trim()
+              }
+              onClick={() => createDevice.mutate({
+                data: {
+                  ...registerForm,
+                  ipAddress: registerForm.ipAddress?.trim() ? registerForm.ipAddress.trim() : null,
+                  firmwareVersion: registerForm.firmwareVersion?.trim() ? registerForm.firmwareVersion.trim() : null,
+                },
+              })}
+            >
+              {createDevice.isPending ? t('Registering…', 'جارٍ التسجيل…') : t('Register', 'تسجيل')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Device Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t('Edit Device', 'تحرير الجهاز')}</DialogTitle>
+            <DialogDescription>
+              {t('Update the device configuration.', 'تحديث إعدادات الجهاز.')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5 col-span-2">
+              <Label>{t('Name', 'الاسم')} *</Label>
+              <Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} data-testid="input-edit-name" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('IP Address', 'عنوان IP')}</Label>
+              <Input value={editForm.ipAddress} onChange={e => setEditForm(f => ({ ...f, ipAddress: e.target.value }))} data-testid="input-edit-ip" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('Firmware Version', 'إصدار البرنامج الثابت')}</Label>
+              <Input value={editForm.firmwareVersion} onChange={e => setEditForm(f => ({ ...f, firmwareVersion: e.target.value }))} data-testid="input-edit-firmware" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('Location (English)', 'الموقع (إنجليزي)')} *</Label>
+              <Input value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} data-testid="input-edit-location" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('Location (Arabic)', 'الموقع (عربي)')} *</Label>
+              <Input dir="rtl" value={editForm.locationAr} onChange={e => setEditForm(f => ({ ...f, locationAr: e.target.value }))} data-testid="input-edit-location-ar" />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label>{t('Notes', 'ملاحظات')}</Label>
+              <Input value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} data-testid="input-edit-notes" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{t('Cancel', 'إلغاء')}</Button>
+            <Button
+              data-testid="button-submit-edit"
+              disabled={updateDevice.isPending || !selectedId || !editForm.name.trim() || !editForm.location.trim() || !editForm.locationAr.trim()}
+              onClick={() => selectedId && updateDevice.mutate({
+                id: selectedId,
+                data: {
+                  name: editForm.name.trim(),
+                  ipAddress: editForm.ipAddress.trim() ? editForm.ipAddress.trim() : null,
+                  location: editForm.location.trim(),
+                  locationAr: editForm.locationAr.trim(),
+                  firmwareVersion: editForm.firmwareVersion.trim() ? editForm.firmwareVersion.trim() : null,
+                  notes: editForm.notes.trim() ? editForm.notes.trim() : null,
+                },
+              })}
+            >
+              {updateDevice.isPending ? t('Saving…', 'جارٍ الحفظ…') : t('Save Changes', 'حفظ التغييرات')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deactivate Confirmation */}
+      <AlertDialog open={confirmStatusOpen} onOpenChange={setConfirmStatusOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Deactivate this device?', 'إلغاء تنشيط هذا الجهاز؟')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                'The device will be marked offline in the system and will no longer be counted as an active attendance terminal. You can mark it online again at any time.',
+                'سيتم تعيين الجهاز كغير متصل في النظام ولن يُحتسب كجهاز حضور نشط. يمكنك تعيينه كمتصل مرة أخرى في أي وقت.'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('Cancel', 'إلغاء')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-deactivate"
+              disabled={updateDevice.isPending}
+              onClick={() => selectedId && updateDevice.mutate({ id: selectedId, data: { status: 'offline' } })}
+            >
+              {t('Deactivate', 'إلغاء التنشيط')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AnimatedPage>
   );
 }
