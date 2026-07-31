@@ -1,5 +1,5 @@
-import { and, eq, ilike, inArray } from "drizzle-orm";
-import { db, notificationsTable, systemUsersTable, rolesTable } from "@workspace/db";
+import { and, eq, gte, ilike, inArray } from "drizzle-orm";
+import { db, gatewayRegistrationsTable, notificationsTable, systemUsersTable, rolesTable } from "@workspace/db";
 import { logger } from "./logger.js";
 
 /**
@@ -19,6 +19,8 @@ import { logger } from "./logger.js";
 
 export const GATEWAY_SDK_ALERT_TYPE = "gateway_sdk_missing";
 export const GATEWAY_SKEW_ALERT_TYPE = "gateway_clock_skew";
+
+export const GATEWAY_SILENT_ALERT_TYPE = "gateway_silent";
 export const GATEWAY_AUTH_FAILED_ALERT_TYPE = "gateway_device_auth_failed";
 export const GATEWAY_UNREACHABLE_ALERT_TYPE = "gateway_device_unreachable";
 
@@ -115,6 +117,10 @@ export async function processGatewayWarningTransitions(prev: PrevState, next: Ne
   try {
     const nameAr = prev.nameAr ?? prev.name;
 
+    // Any heartbeat means the gateway is no longer silent — auto-resolve an
+    // open silence alert immediately (single UPDATE; no-op when none open).
+    await resolveAlerts(prev.id, [GATEWAY_SILENT_ALERT_TYPE]);
+
     // SDK presence transitions (only when this heartbeat reported the field).
     if (typeof next.sdkPresent === "boolean") {
       if (next.sdkPresent === false && prev.sdkPresent !== false) {
@@ -186,4 +192,166 @@ export async function processGatewayWarningTransitions(prev: PrevState, next: Ne
   } catch (e) {
     logger.error({ err: e, registrationId: prev.id }, "Failed to process gateway warning transitions");
   }
+}
+
+/**
+ * Silent-gateway sweep.
+ *
+ * Heartbeat-driven alerts can never fire for a gateway that stopped talking
+ * altogether (power loss, network outage, crashed service). A periodic sweep
+ * flags ACTIVE registrations whose lastHeartbeatAt is older than the
+ * threshold. One notification per outage: a stale registration only raises a
+ * new alert when it has no open (undismissed) silence alert; resumed
+ * heartbeats auto-resolve it (both in processGatewayWarningTransitions and,
+ * as a backstop, here for fresh registrations).
+ */
+
+export const GATEWAY_SILENCE_THRESHOLD_MS = Math.max(
+  60_000,
+  Number(process.env["GATEWAY_SILENCE_THRESHOLD_MINUTES"] || 10) * 60_000 || 10 * 60_000,
+);
+
+export function stopGatewaySilenceMonitor(): void {
+  if (silenceTimer) { clearInterval(silenceTimer); silenceTimer = null; }
+}
+
+async function hasOpenSilenceAlert(registrationId: number): Promise<boolean> {
+  const rows = await db
+    .select({ id: notificationsTable.id })
+    .from(notificationsTable)
+    .where(
+      and(
+        eq(notificationsTable.notificationType, GATEWAY_SILENT_ALERT_TYPE),
+        eq(notificationsTable.entityType, "gateway_registration"),
+        eq(notificationsTable.entityId, registrationId),
+        eq(notificationsTable.isDismissed, false),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+export interface GatewaySilenceSweepResult {
+  checked: number;
+  silent: number;
+  alertsRaised: number;
+  resolved: number;
+}
+
+/**
+ * "One alert per outage" must survive an admin dismissing the notification
+ * while the gateway is still silent — dismissal is an acknowledgement, not a
+ * recovery. The outage itself is identified by its baseline (the last
+ * heartbeat / contact before the silence): any silence notification created
+ * AFTER that baseline — dismissed or not — belongs to the current outage, so
+ * the sweep must not raise another. A resumed heartbeat advances the
+ * baseline past all existing notifications, which is what allows the NEXT
+ * outage to alert again.
+ */
+async function hasAlertForCurrentOutage(registrationId: number, outageBaseline: Date): Promise<boolean> {
+  const rows = await db
+    .select({ id: notificationsTable.id })
+    .from(notificationsTable)
+    .where(
+      and(
+        eq(notificationsTable.notificationType, GATEWAY_SILENT_ALERT_TYPE),
+        eq(notificationsTable.entityType, "gateway_registration"),
+        eq(notificationsTable.entityId, registrationId),
+        gte(notificationsTable.createdAt, outageBaseline),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
+ * Runs one silence sweep. Exported separately from the scheduler so it can be
+ * tested directly. Never throws for a single registration — one bad row must
+ * not stall the sweep.
+ */
+export async function runGatewaySilenceSweepOnce(
+  options: { thresholdMs?: number; now?: Date } = {},
+): Promise<GatewaySilenceSweepResult> {
+  const thresholdMs = options.thresholdMs ?? GATEWAY_SILENCE_THRESHOLD_MS;
+  const now = options.now ?? new Date();
+  const result: GatewaySilenceSweepResult = { checked: 0, silent: 0, alertsRaised: 0, resolved: 0 };
+
+  const regs = await db
+    .select({
+      id: gatewayRegistrationsTable.id,
+      name: gatewayRegistrationsTable.name,
+      nameAr: gatewayRegistrationsTable.nameAr,
+      lastHeartbeatAt: gatewayRegistrationsTable.lastHeartbeatAt,
+      lastSeenAt: gatewayRegistrationsTable.lastSeenAt,
+      createdAt: gatewayRegistrationsTable.createdAt,
+    })
+    .from(gatewayRegistrationsTable)
+    .where(eq(gatewayRegistrationsTable.status, "ACTIVE"));
+
+  for (const reg of regs) {
+    result.checked += 1;
+    try {
+      // A registration that never heartbeated yet is measured from its last
+      // contact of any kind, falling back to creation time — so a gateway
+      // that was registered but never came online is also caught.
+      const baseline = reg.lastHeartbeatAt ?? reg.lastSeenAt ?? reg.createdAt;
+      const silent = now.getTime() - new Date(baseline).getTime() >= thresholdMs;
+      if (silent) {
+        result.silent += 1;
+        if (!(await hasAlertForCurrentOutage(reg.id, new Date(baseline)))) {
+          const nameAr = reg.nameAr ?? reg.name;
+          const minutes = Math.max(1, Math.round((now.getTime() - new Date(baseline).getTime()) / 60_000));
+          const lastEn = reg.lastHeartbeatAt
+            ? `Its last heartbeat was ~${minutes} minutes ago.`
+            : "It has never sent a heartbeat since registration.";
+          await raiseAlert(
+            { id: reg.id, name: reg.name, nameAr: reg.nameAr, sdkPresent: null, deviceClockSkewAlert: false, adapterConnStatus: null },
+            GATEWAY_SILENT_ALERT_TYPE,
+            `Gateway "${reg.name}": no heartbeat received`,
+            `البوابة "${nameAr}": لم يتم استلام نبضات`,
+            `The attendance gateway "${reg.name}" has stopped sending heartbeats (power loss, network outage, or crashed service). ${lastEn} Punch collection is interrupted until it reconnects.`,
+            `توقفت بوابة الحضور "${nameAr}" عن إرسال النبضات (انقطاع كهرباء أو شبكة أو تعطل الخدمة). جمع البصمات متوقف حتى إعادة الاتصال.`,
+          );
+          result.alertsRaised += 1;
+        }
+      } else if (await hasOpenSilenceAlert(reg.id)) {
+        // Backstop: heartbeats resumed but the heartbeat-path resolution was
+        // missed (e.g. it errored) — resolve here.
+        await resolveAlerts(reg.id, [GATEWAY_SILENT_ALERT_TYPE]);
+        result.resolved += 1;
+      }
+    } catch (e) {
+      logger.error({ err: e, registrationId: reg.id }, "Gateway silence sweep failed for registration");
+    }
+  }
+
+  return result;
+}
+
+const SILENCE_SWEEP_INTERVAL_MS = 60_000;
+
+let silenceSweeping = false;
+
+let silenceTimer: NodeJS.Timeout | null = null;
+
+/** Starts the background silent-gateway scheduler. Called from index.ts (not from tests). */
+export function startGatewaySilenceMonitor(): void {
+  if (silenceTimer) return;
+  silenceTimer = setInterval(() => {
+    if (silenceSweeping) return; // never overlap sweeps
+    silenceSweeping = true;
+    runGatewaySilenceSweepOnce()
+      .then((r) => {
+        if (r.alertsRaised > 0 || r.resolved > 0) {
+          logger.info(r, "Gateway silence sweep completed");
+        }
+      })
+      .catch((err) => logger.error({ err }, "Gateway silence sweep failed"))
+      .finally(() => { silenceSweeping = false; });
+  }, SILENCE_SWEEP_INTERVAL_MS);
+  silenceTimer.unref?.();
+  logger.info(
+    { sweepIntervalMs: SILENCE_SWEEP_INTERVAL_MS, thresholdMs: GATEWAY_SILENCE_THRESHOLD_MS },
+    "Gateway silence monitor started",
+  );
 }

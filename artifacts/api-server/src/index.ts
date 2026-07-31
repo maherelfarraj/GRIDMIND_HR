@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startHealthMonitor } from "./lib/health-monitor";
+import { startGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
 import { seedDemoPasswords } from "./lib/seed-passwords";
 import { rotateLegacyGatewayKeys } from "./routes/attendanceGateway";
 
@@ -26,6 +27,7 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startHealthMonitor();
+  startGatewaySilenceMonitor();
   seedDemoPasswords().catch((err) => {
     logger.error({ err }, "Failed to provision demo password hashes");
   });
