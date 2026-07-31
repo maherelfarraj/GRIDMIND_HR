@@ -291,6 +291,35 @@ describe("heartbeat + clock drift", () => {
     expect(mine!.sdkVersion).toBe("2.9.1");
     expect(mine!.deviceClockSkewMs).toBe(95_000);
   });
+
+  it("exposes a server-computed online/offline (silent) verdict in the registrations listing", async () => {
+    // Fresh heartbeat → not silent.
+    const beat = await postSigned("/api/gateway/heartbeat", { deviceTimeMs: Date.now() });
+    expect(beat.status).toBe(200);
+    let res = await admin.get("/api/gateway/registrations");
+    expect(res.status).toBe(200);
+    let mine = (res.body as Array<Record<string, unknown>>).find((r) => r.id === registrationId)!;
+    expect(mine.silent).toBe(false);
+    expect(typeof mine.silenceThresholdMs).toBe("number");
+
+    // Backdate the last contact beyond the threshold → silent.
+    const threshold = mine.silenceThresholdMs as number;
+    const stale = new Date(Date.now() - threshold - 60_000);
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ lastHeartbeatAt: stale, lastSeenAt: stale })
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+    res = await admin.get("/api/gateway/registrations");
+    mine = (res.body as Array<Record<string, unknown>>).find((r) => r.id === registrationId)!;
+    expect(mine.silent).toBe(true);
+
+    // A resumed heartbeat clears the verdict again.
+    const resume = await postSigned("/api/gateway/heartbeat", { deviceTimeMs: Date.now() });
+    expect(resume.status).toBe(200);
+    res = await admin.get("/api/gateway/registrations");
+    mine = (res.body as Array<Record<string, unknown>>).find((r) => r.id === registrationId)!;
+    expect(mine.silent).toBe(false);
+  });
 });
 
 describe("signed punch ingestion", () => {

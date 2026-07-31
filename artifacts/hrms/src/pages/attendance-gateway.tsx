@@ -38,6 +38,9 @@ interface GatewayRegistration {
   sdkVersion: string | null;
   notes: string | null;
   createdAt: string;
+  /** Server-computed: ACTIVE but no heartbeat within the silence threshold. */
+  silent?: boolean;
+  silenceThresholdMs?: number;
 }
 
 interface ImportBatch {
@@ -98,6 +101,8 @@ export default function AttendanceGateway() {
   const { data: registrations, isLoading: loadingRegistrations } = useQuery<GatewayRegistration[]>({
     queryKey: ['gateway-registrations'],
     queryFn: () => apiFetch('/api/gateway/registrations', { credentials: 'include' }).then(r => r.json()),
+    // Keep online/offline badges current without relying on notifications.
+    refetchInterval: 60_000,
   });
 
   const { data: batches, isLoading: loadingBatches } = useQuery<ImportBatch[]>({
@@ -185,6 +190,46 @@ export default function AttendanceGateway() {
       title: t('Copied', 'تم النسخ'),
       description: t('Secret copied to clipboard', 'تم نسخ السر إلى الحافظة'),
     });
+  };
+
+  // Fallback threshold if the API doesn't send one (matches server default).
+  const DEFAULT_SILENCE_THRESHOLD_MS = 15 * 60_000;
+
+  /** Online/offline verdict from lastHeartbeatAt vs the silence threshold —
+   * computed client-side so it stays correct between refetches, with the
+   * server-computed `silent` flag as the source for the threshold. */
+  const isGatewaySilent = (reg: GatewayRegistration): boolean => {
+    if (reg.status !== 'ACTIVE') return false;
+    const thresholdMs = reg.silenceThresholdMs ?? DEFAULT_SILENCE_THRESHOLD_MS;
+    const lastContact = reg.lastHeartbeatAt ?? reg.lastSeenAt ?? reg.createdAt;
+    if (!lastContact) return reg.silent ?? true;
+    return Date.now() - new Date(lastContact).getTime() > thresholdMs;
+  };
+
+  const getOnlineBadge = (reg: GatewayRegistration) => {
+    if (reg.status !== 'ACTIVE') return null;
+    if (isGatewaySilent(reg)) {
+      const thresholdMin = Math.round((reg.silenceThresholdMs ?? DEFAULT_SILENCE_THRESHOLD_MS) / 60_000);
+      return (
+        <Badge
+          variant="outline"
+          className="text-xs gap-1 bg-rose-500/10 text-rose-500 border-rose-500/20"
+          title={t(
+            `No heartbeat for over ${thresholdMin} minutes — the gateway appears offline.`,
+            `لا توجد نبضات منذ أكثر من ${thresholdMin} دقيقة — يبدو أن البوابة غير متصلة.`
+          )}
+        >
+          <XCircle className="w-3 h-3" />
+          {t('Offline', 'غير متصل')}
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="text-xs gap-1 bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+        <CheckCircle className="w-3 h-3" />
+        {t('Online', 'متصل')}
+      </Badge>
+    );
   };
 
   const getHealthIcon = (reg: GatewayRegistration) => {
@@ -499,9 +544,12 @@ export default function AttendanceGateway() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getHealthIcon(reg)}
-                        <span className="text-sm">{getHealthText(reg)}</span>
+                      <div className="space-y-1">
+                        {getOnlineBadge(reg)}
+                        <div className="flex items-center gap-2">
+                          {getHealthIcon(reg)}
+                          <span className="text-sm">{getHealthText(reg)}</span>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>

@@ -11,7 +11,7 @@ import {
 } from "@workspace/db";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { materializePunch } from "../lib/attendanceMaterializer.js";
-import { processGatewayWarningTransitions } from "../lib/gatewayDeviceAlerts.js";
+import { processGatewayWarningTransitions, GATEWAY_SILENCE_THRESHOLD_MS } from "../lib/gatewayDeviceAlerts.js";
 import {
   protectSigningKey,
   recoverSigningKey,
@@ -480,9 +480,20 @@ gatewayAdminRouter.post("/gateway/registrations", async (req, res): Promise<void
 });
 
 // GET /gateway/registrations
+// Each row carries a server-computed `silent` flag (ACTIVE + no heartbeat
+// within the silence threshold) plus the threshold itself, so the admin UI
+// shows the same online/offline verdict the notification sweep uses.
 gatewayAdminRouter.get("/gateway/registrations", async (_req, res): Promise<void> => {
   const rows = await db.select().from(gatewayRegistrationsTable).orderBy(desc(gatewayRegistrationsTable.createdAt));
-  res.json(rows.map((r) => ({ ...r, secretHash: undefined })));
+  const now = Date.now();
+  res.json(
+    rows.map((r) => {
+      const lastContact = r.lastHeartbeatAt ?? r.lastSeenAt ?? r.createdAt;
+      const silent =
+        r.status === "ACTIVE" && (!lastContact || now - new Date(lastContact).getTime() > GATEWAY_SILENCE_THRESHOLD_MS);
+      return { ...r, secretHash: undefined, silent, silenceThresholdMs: GATEWAY_SILENCE_THRESHOLD_MS };
+    }),
+  );
 });
 
 // POST /gateway/registrations/:id/revoke
