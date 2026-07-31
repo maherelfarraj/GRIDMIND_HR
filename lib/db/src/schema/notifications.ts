@@ -50,6 +50,10 @@ export const notificationPreferencesTable = pgTable("notification_preferences", 
   preferredLanguage: varchar("preferred_language", { length: 2 }).notNull().default("en"),
   // Dashboard alert frequency: "realtime" | "hourly" | "daily"
   dashboardFrequency: varchar("dashboard_frequency", { length: 20 }).notNull().default("realtime"),
+  // Delivery channel for security alerts (e.g. lockout notices):
+  // "in_app" | "email" | "both". Default "both" preserves the original
+  // always-notify-everywhere behavior.
+  securityAlertChannel: varchar("security_alert_channel", { length: 10 }).notNull().default("both"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

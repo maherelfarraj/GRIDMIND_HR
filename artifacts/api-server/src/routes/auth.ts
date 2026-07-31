@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db, systemUsersTable, rolesTable, auditLogsTable, notificationsTable } from "@workspace/db";
+import { db, systemUsersTable, rolesTable, auditLogsTable, notificationsTable, notificationPreferencesTable } from "@workspace/db";
 import { and, eq, ilike } from "drizzle-orm";
 import {
   ChangeMyPasswordBody,
@@ -21,12 +21,26 @@ const PILOT_AUTH = process.env.PILOT_AUTH === "true";
 async function notifyAdminsOfLockout(username: string, ip: string, scope: string): Promise<void> {
   try {
     const admins = await db
-      .select({ id: systemUsersTable.id, email: systemUsersTable.email })
+      .select({
+        id: systemUsersTable.id,
+        email: systemUsersTable.email,
+        securityAlertChannel: notificationPreferencesTable.securityAlertChannel,
+      })
       .from(systemUsersTable)
       .innerJoin(rolesTable, eq(systemUsersTable.roleId, rolesTable.id))
+      .leftJoin(notificationPreferencesTable, eq(notificationPreferencesTable.userId, systemUsersTable.id))
       .where(and(eq(systemUsersTable.isActive, true), ilike(rolesTable.nameEn, "%admin%")));
     if (admins.length === 0) return;
-    await db.insert(notificationsTable).values(admins.map(({ id }) => ({
+
+    // Per-admin channel preference for security alerts: "in_app" | "email" |
+    // "both". Admins without a preference row — or with an unrecognized
+    // value — default to "both", preserving the original behavior.
+    const channelFor = (pref: string | null): "in_app" | "email" | "both" =>
+      pref === "in_app" || pref === "email" ? pref : "both";
+    const inAppAdmins = admins.filter((a) => channelFor(a.securityAlertChannel) !== "email");
+    const emailAdmins = admins.filter((a) => channelFor(a.securityAlertChannel) !== "in_app");
+
+    if (inAppAdmins.length > 0) await db.insert(notificationsTable).values(inAppAdmins.map(({ id }) => ({
       recipientUserId: id,
       notificationType: "security_alert",
       titleEn: `Account lockout: ${username}`,
@@ -43,7 +57,7 @@ async function notifyAdminsOfLockout(username: string, ip: string, scope: string
     // Also email the alert so it isn't missed when no admin is logged in.
     // Fire-and-forget: SMTP latency or failure must never delay or block
     // the login response; failures are logged only.
-    const recipients = admins.map((a) => a.email).filter((e): e is string => !!e);
+    const recipients = emailAdmins.map((a) => a.email).filter((e): e is string => !!e);
     if (recipients.length > 0) {
       void sendSmtpMail({
         to: recipients,

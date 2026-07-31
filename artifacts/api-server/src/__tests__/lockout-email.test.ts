@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vites
 import request from "supertest";
 import bcrypt from "bcryptjs";
 import { and, eq, inArray, like } from "drizzle-orm";
-import { db, systemUsersTable, auditLogsTable, notificationsTable, rolesTable } from "@workspace/db";
+import { db, systemUsersTable, auditLogsTable, notificationsTable, notificationPreferencesTable, rolesTable } from "@workspace/db";
 import type { Express } from "express";
 
 const sendSmtpMail = vi.fn(async () => ({
@@ -73,6 +73,7 @@ afterAll(async () => {
   vi.unstubAllEnvs();
   vi.resetModules();
   for (const id of userIds) {
+    await db.delete(notificationPreferencesTable).where(eq(notificationPreferencesTable.userId, id)).catch(() => {});
     await db.delete(systemUsersTable).where(eq(systemUsersTable.id, id)).catch(() => {});
   }
   await db.delete(auditLogsTable).where(and(
@@ -130,6 +131,51 @@ describe("lockout admin alert emails", () => {
     expect((await loginAttempt(USERNAME, PASSWORD)).status).toBe(429);
     await new Promise((r) => setTimeout(r, 50));
     expect(sendSmtpMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("respects per-admin security alert channel preference", async () => {
+    const [adminRole] = await db.select().from(rolesTable)
+      .where(like(rolesTable.nameEn, "%dmin%"));
+    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+
+    // Two extra admins: one email-only, one in-app-only.
+    const emailOnlyAddr = `lockmail-emailonly-${SUFFIX}@test.example`;
+    const inAppOnlyAddr = `lockmail-inapponly-${SUFFIX}@test.example`;
+    const [emailOnly] = await db.insert(systemUsersTable).values({
+      username: `lockmail-emailonly-${SUFFIX}`, email: emailOnlyAddr,
+      fullNameEn: "Email Only Admin", fullNameAr: "مشرف",
+      roleId: adminRole.id, isActive: true, passwordHash,
+    }).returning();
+    const [inAppOnly] = await db.insert(systemUsersTable).values({
+      username: `lockmail-inapponly-${SUFFIX}`, email: inAppOnlyAddr,
+      fullNameEn: "InApp Only Admin", fullNameAr: "مشرف",
+      roleId: adminRole.id, isActive: true, passwordHash,
+    }).returning();
+    userIds.push(emailOnly.id, inAppOnly.id);
+    await db.insert(notificationPreferencesTable).values([
+      { userId: emailOnly.id, securityAlertChannel: "email" },
+      { userId: inAppOnly.id, securityAlertChannel: "in_app" },
+    ]);
+
+    await exhaustFailures(USERNAME);
+    await waitForSend();
+
+    expect(sendSmtpMail).toHaveBeenCalledTimes(1);
+    const [opts] = sendSmtpMail.mock.calls[0] as unknown as [{ to: string[] }];
+    // Default (no pref row) admin and email-only admin get the email…
+    expect(opts.to).toContain(ADMIN_EMAIL);
+    expect(opts.to).toContain(emailOnlyAddr);
+    // …but the in-app-only admin does not.
+    expect(opts.to).not.toContain(inAppOnlyAddr);
+
+    // In-app notifications go to the in-app-only admin but not the email-only one.
+    const rows = await db.select().from(notificationsTable).where(and(
+      eq(notificationsTable.notificationType, "security_alert"),
+      like(notificationsTable.titleEn, `%${USERNAME}%`),
+    ));
+    const recipientIds = rows.map((r) => r.recipientUserId);
+    expect(recipientIds).toContain(inAppOnly.id);
+    expect(recipientIds).not.toContain(emailOnly.id);
   });
 
   it("a failing email send never blocks or breaks the login response", async () => {
