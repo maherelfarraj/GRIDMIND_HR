@@ -150,6 +150,32 @@ describe("ZKTeco adapter (ZKBioTime middleware configured)", () => {
     expect(second.punches).toHaveLength(0);
   });
 
+  it("reports middleware clock skew from the HTTP Date header", async () => {
+    const skewedDate = new Date(Date.now() + 10 * 60_000).toUTCString(); // middleware clock 10 min ahead
+    const fetchImpl = mockFetch([
+      { match: (u) => u.includes("/api-token-auth/"), respond: () => json({ token: "tok-1" }) },
+      {
+        match: (u) => u.includes("/iclock/api/transactions/"),
+        respond: () => json({ data: [], next: null }, { headers: { "content-type": "application/json", date: skewedDate } }),
+      },
+    ]);
+    const adapter = new ZktecoAdapter(cfg, fetchImpl);
+    const test = await adapter.testConnection();
+    expect(test.ok).toBe(true);
+    expect(test.clockSkewMs).toBeGreaterThan(9 * 60_000);
+    expect(test.clockSkewMs).toBeLessThan(11 * 60_000);
+    expect(typeof test.deviceTimeMs).toBe("number");
+  });
+
+  it("says clock skew cannot be verified when the middleware sends no Date header", async () => {
+    const adapter = new ZktecoAdapter(cfg, zkServer([])); // mock responses carry no Date header
+    const test = await adapter.testConnection();
+    expect(test.ok).toBe(true);
+    expect(test.clockSkewMs).toBeUndefined();
+    expect(test.message).toMatch(/clock skew could not be verified/i);
+    expect(test.message).toMatch(/check the middleware\/device clock manually/i);
+  });
+
   it("re-authenticates once when the token expires", async () => {
     let tokenGen = 0;
     let validToken = "";
@@ -247,6 +273,31 @@ describe("Suprema adapter (BioStar 2 server configured)", () => {
 
     const third = await adapter.poll(second.nextCursor);
     expect(third.punches).toHaveLength(0);
+  });
+
+  it("reports middleware clock skew from the HTTP Date header", async () => {
+    const skewedDate = new Date(Date.now() - 6 * 60_000).toUTCString(); // BioStar server 6 min behind
+    const fetchImpl = mockFetch([
+      { match: (u) => u.endsWith("/api/login"), respond: () => new Response("{}", { status: 200, headers: { "bs-session-id": "sess-1" } }) },
+      {
+        match: (u) => u.endsWith("/api/events/search"),
+        respond: () => json({ EventCollection: { rows: [] } }, { headers: { "content-type": "application/json", date: skewedDate } }),
+      },
+    ]);
+    const adapter = new SupremaAdapter(cfg, fetchImpl);
+    const test = await adapter.testConnection();
+    expect(test.ok).toBe(true);
+    expect(test.clockSkewMs).toBeGreaterThan(5 * 60_000);
+    expect(test.clockSkewMs).toBeLessThan(7 * 60_000);
+    expect(typeof test.deviceTimeMs).toBe("number");
+  });
+
+  it("says clock skew cannot be verified when the server sends no Date header", async () => {
+    const adapter = new SupremaAdapter(cfg, bsServer([])); // mock responses carry no Date header
+    const test = await adapter.testConnection();
+    expect(test.ok).toBe(true);
+    expect(test.clockSkewMs).toBeUndefined();
+    expect(test.message).toMatch(/clock skew could not be verified/i);
   });
 
   it("drains a backlog beyond the per-poll page cap (>10,000 rows) via the persisted continuation", async () => {

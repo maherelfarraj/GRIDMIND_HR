@@ -43,6 +43,31 @@ function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+/**
+ * Clock-skew measurement over the middleware REST path.
+ *
+ * Neither ZKBioTime nor BioStar 2 exposes a dedicated "server time" endpoint
+ * on the APIs we poll, but both are ordinary HTTP servers: the standard
+ * `Date` response header carries the middleware server's wall clock (the
+ * same clock that stamps/serves punch data). We compare it against the
+ * gateway clock at response time. The header is second-granular, so ±1s of
+ * noise is inherent — negligible against the 60s warn / 5min block
+ * thresholds enforced by GatewayService.evaluateClockSkew().
+ *
+ * Returns null when the header is missing or unparseable — skew is then
+ * UNKNOWN (never reported as zero) and the caller must say so.
+ */
+function skewFromResponse(res: Response): { deviceTimeMs: number; clockSkewMs: number } | null {
+  const header = res.headers.get("date");
+  if (!header) return null;
+  const serverMs = new Date(header).getTime();
+  if (Number.isNaN(serverMs)) return null;
+  return { deviceTimeMs: serverMs, clockSkewMs: Math.abs(serverMs - Date.now()) };
+}
+
+const SKEW_UNVERIFIED_NOTE =
+  "clock skew could not be verified (no Date header from the middleware server) — check the middleware/device clock manually";
+
 /** Parse vendor timestamps ("YYYY-MM-DD HH:MM:SS" or ISO) to ISO 8601, or null. */
 function toIso(value: unknown): string | null {
   if (typeof value !== "string" || !value) return null;
@@ -196,9 +221,23 @@ export class ZktecoAdapter implements DeviceAdapter {
     }
     try {
       const res = await this.authedGet(`${this.config.baseUrl}/iclock/api/transactions/?page_size=1`);
-      return res.ok
-        ? { ok: true, status: "REACHABLE", message: `ZKBioTime middleware reachable (${res.status})`, deviceTimeMs: Date.now() }
-        : {
+      if (res.ok) {
+        const skew = skewFromResponse(res);
+        return skew
+          ? {
+              ok: true,
+              status: "REACHABLE",
+              message: `ZKBioTime middleware reachable (${res.status})`,
+              deviceTimeMs: skew.deviceTimeMs,
+              clockSkewMs: skew.clockSkewMs,
+            }
+          : {
+              ok: true,
+              status: "REACHABLE",
+              message: `ZKBioTime middleware reachable (${res.status}) — ${SKEW_UNVERIFIED_NOTE}`,
+            };
+      }
+      return {
             ok: false,
             status: res.status === 401 || res.status === 403 ? "AUTH_FAILED" : "UNREACHABLE",
             message: `ZKBioTime transactions endpoint returned ${res.status}`,
@@ -332,6 +371,15 @@ export class SupremaAdapter implements DeviceAdapter {
   }
 
   private async searchEvents(sinceIso: string | null, limit: number, offset = 0): Promise<Array<Record<string, unknown>>> {
+    return (await this.searchEventsRaw(sinceIso, limit, offset)).rows;
+  }
+
+  /** Like searchEvents, but also surfaces the HTTP response (for the Date-header clock check). */
+  private async searchEventsRaw(
+    sinceIso: string | null,
+    limit: number,
+    offset = 0,
+  ): Promise<{ rows: Array<Record<string, unknown>>; res: Response }> {
     const cfg = this.config!;
     const query = {
       Query: {
@@ -356,7 +404,7 @@ export class SupremaAdapter implements DeviceAdapter {
     if (res.status === 401) res = await doSearch(await this.login());
     if (!res.ok) throw new Error(`BioStar 2 events/search failed: ${res.status}`);
     const body = (await res.json()) as { EventCollection?: { rows?: Array<Record<string, unknown>> } };
-    return body.EventCollection?.rows ?? [];
+    return { rows: body.EventCollection?.rows ?? [], res };
   }
 
   async testConnection(): Promise<AdapterTestResult> {
@@ -364,8 +412,21 @@ export class SupremaAdapter implements DeviceAdapter {
       return { ok: false, status: "NOT_CONFIGURED", requiresVendorSdk: true, message: this.notConfiguredMessage() };
     }
     try {
-      await this.searchEvents(null, 1);
-      return { ok: true, status: "REACHABLE", message: "BioStar 2 server reachable", deviceTimeMs: Date.now() };
+      const { res } = await this.searchEventsRaw(null, 1);
+      const skew = skewFromResponse(res);
+      return skew
+        ? {
+            ok: true,
+            status: "REACHABLE",
+            message: "BioStar 2 server reachable",
+            deviceTimeMs: skew.deviceTimeMs,
+            clockSkewMs: skew.clockSkewMs,
+          }
+        : {
+            ok: true,
+            status: "REACHABLE",
+            message: `BioStar 2 server reachable — ${SKEW_UNVERIFIED_NOTE}`,
+          };
     } catch (e) {
       const msg = errMsg(e);
       return {
