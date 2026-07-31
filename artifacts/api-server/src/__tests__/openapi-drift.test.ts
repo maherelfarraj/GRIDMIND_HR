@@ -42,11 +42,10 @@ const SCHEMA_NAME_OVERRIDES: Record<string, string | null> = {
   leave_requests: "LeaveRequestDetail",
   mobilization_statuses: "MobilizationStatus",
   sync_queue: "SyncQueueEntry",
-  // Audited 2026-07-31: no API route reads or serves this table (grep for
-  // privilegedSessionsTable across artifacts/api-server/src finds no usage
-  // outside the schema). Re-audit before keeping this opted out if a route
-  // starts serving it.
-  privileged_sessions: null,
+  // privileged_sessions: removed 2026-07-31 — the table was dead schema
+  // (no route or library ever read/wrote it) and was dropped from
+  // lib/db/src/schema and the live DB. If privileged-session monitoring is
+  // built for real, add the table back together with its routes and schema.
   employee_onboarding: "EmployeeOnboarding",
   installation_readiness: "InstallationReadiness",
   connection_health_log: "ConnectionHealthLog",
