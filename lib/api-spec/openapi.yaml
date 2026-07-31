@@ -8609,6 +8609,757 @@ paths:
               schema: { $ref: '#/components/schemas/AiPermission' }
 
 
+  # ─── Organizations (multi-org admin) ─────────────────────────
+  /organizations:
+    get:
+      operationId: listOrganizations
+      tags: [organizations]
+      summary: List organizations with branding
+      responses:
+        "200":
+          description: Organizations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: "#/components/schemas/Organization"
+                    - type: object
+                      properties:
+                        branding:
+                          oneOf:
+                            - $ref: "#/components/schemas/OrganizationBranding"
+                            - type: "null"
+                      required: [branding]
+    post:
+      operationId: createOrganization
+      tags: [organizations]
+      summary: Create an organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nameEn: { type: string }
+                nameAr: { type: string }
+                orgCode: { type: string }
+                orgType: { type: ["string", "null"] }
+                registrationNumber: { type: ["string", "null"] }
+                countryCode: { type: ["string", "null"] }
+                primaryContactEmail: { type: ["string", "null"] }
+              required: [nameEn, nameAr, orgCode]
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+
+  /organizations/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getOrganization
+      tags: [organizations]
+      summary: Get organization detail with branding, locale and stats
+      responses:
+        "200":
+          description: Organization detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Organization"
+                  - type: object
+                    properties:
+                      branding:
+                        oneOf:
+                          - $ref: "#/components/schemas/OrganizationBranding"
+                          - type: "null"
+                      locale:
+                        oneOf:
+                          - $ref: "#/components/schemas/PolicyLocale"
+                          - type: "null"
+                      stats:
+                        type: object
+                        properties:
+                          employeeCount: { type: integer }
+                        required: [employeeCount]
+                    required: [branding, locale, stats]
+        "404":
+          description: Not found
+    patch:
+      operationId: updateOrganization
+      tags: [organizations]
+      summary: Update an organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nameEn: { type: ["string", "null"] }
+                nameAr: { type: ["string", "null"] }
+                orgType: { type: ["string", "null"] }
+                registrationNumber: { type: ["string", "null"] }
+                countryCode: { type: ["string", "null"] }
+                primaryContactEmail: { type: ["string", "null"] }
+                status: { type: ["string", "null"] }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+    delete:
+      operationId: archiveOrganization
+      tags: [organizations]
+      summary: Archive (soft-delete) an organization
+      responses:
+        "200":
+          description: Archived organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+
+  /organizations/{id}/activate:
+    post:
+      operationId: activateOrganization
+      tags: [organizations]
+      summary: Activate an onboarding organization
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Activated organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+
+  /organizations/{id}/employees-count:
+    get:
+      operationId: getOrganizationEmployeesCount
+      tags: [organizations]
+      summary: Get employee count for an organization
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Employee count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orgId: { type: integer }
+                  count: { type: integer }
+                required: [orgId, count]
+
+  # ─── Config Packages ─────────────────────────────────────────
+  /config-packages:
+    get:
+      operationId: listConfigPackages
+      tags: [configPackages]
+      summary: List config packages
+      parameters:
+        - in: query
+          name: status
+          schema: { type: ["string", "null"] }
+        - in: query
+          name: packageType
+          schema: { type: ["string", "null"] }
+      responses:
+        "200":
+          description: Config packages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConfigPackage"
+    post:
+      operationId: createConfigPackage
+      tags: [configPackages]
+      summary: Create a config package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                packageName: { type: string }
+                packageType: { type: string }
+                version: { type: string }
+                sourceEnvironment: { type: string }
+                targetEnvironment: { type: string }
+                descriptionEn: { type: ["string", "null"] }
+                payloadJson: { type: ["string", "null"] }
+                policyAreasJson: { type: ["string", "null"] }
+              required: [packageName, packageType, version, sourceEnvironment, targetEnvironment]
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigPackage"
+
+  /config-packages/import:
+    post:
+      operationId: importConfigPackage
+      tags: [configPackages]
+      summary: Import a signed config package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                packageJson: {}
+              required: [packageJson]
+      responses:
+        "201":
+          description: Imported package
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigPackage"
+        "400":
+          description: Signature verification failed or invalid payload
+
+  /config-packages/{id}:
+    get:
+      operationId: getConfigPackage
+      tags: [configPackages]
+      summary: Get a config package with items
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Config package
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ConfigPackage"
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ConfigPackageItem"
+                    required: [items]
+        "404":
+          description: Not found
+
+  /config-packages/{id}/sign:
+    post:
+      operationId: signConfigPackage
+      tags: [configPackages]
+      summary: Sign a config package
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Signed package
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigPackage"
+
+  /config-packages/{id}/export:
+    post:
+      operationId: exportConfigPackage
+      tags: [configPackages]
+      summary: Export a config package with items
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Exported package
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ConfigPackage"
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ConfigPackageItem"
+                    required: [items]
+
+  /config-packages/{id}/apply:
+    post:
+      operationId: applyConfigPackage
+      tags: [configPackages]
+      summary: Apply an imported config package
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: ["string", "null"] }
+      responses:
+        "200":
+          description: Apply result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  package:
+                    $ref: "#/components/schemas/ConfigPackage"
+                  itemsApplied: { type: integer }
+                required: [package, itemsApplied]
+
+  /config-packages/{id}/reject:
+    post:
+      operationId: rejectConfigPackage
+      tags: [configPackages]
+      summary: Reject a config package
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: ["string", "null"] }
+      responses:
+        "200":
+          description: Rejected package
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigPackage"
+
+  /config-packages/{id}/preview-impact:
+    get:
+      operationId: previewConfigPackageImpact
+      tags: [configPackages]
+      summary: Preview the impact of applying a config package
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Impact preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  packageId: { type: integer }
+                  packageName: { type: string }
+                  itemCount: { type: integer }
+                  policyAreas:
+                    type: array
+                    items: { type: string }
+                  affectedEntityTypes:
+                    type: array
+                    items: { type: string }
+                  warnings:
+                    type: array
+                    items: { type: string }
+                  estimatedApplyTimeSeconds: { type: integer }
+                required: [packageId, packageName, itemCount, policyAreas, affectedEntityTypes, warnings, estimatedApplyTimeSeconds]
+
+  # ─── Environment Snapshots ───────────────────────────────────
+  /environment-snapshots:
+    get:
+      operationId: listEnvironmentSnapshots
+      tags: [configPackages]
+      summary: List environment snapshots
+      parameters:
+        - in: query
+          name: environment
+          schema: { type: ["string", "null"] }
+        - in: query
+          name: orgId
+          schema: { type: ["integer", "null"] }
+      responses:
+        "200":
+          description: Snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EnvironmentSnapshot"
+    post:
+      operationId: createEnvironmentSnapshot
+      tags: [configPackages]
+      summary: Capture an environment snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                snapshotName: { type: string }
+                environment: { type: string }
+                scope: { type: string }
+                snapshotJson: { type: ["string", "null"] }
+                notes: { type: ["string", "null"] }
+              required: [snapshotName, environment, scope]
+      responses:
+        "201":
+          description: Created snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentSnapshot"
+
+  /environment-snapshots/compare:
+    post:
+      operationId: compareEnvironmentSnapshots
+      tags: [configPackages]
+      summary: Compare two environment snapshots
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                snapshotIdA: { type: integer }
+                snapshotIdB: { type: integer }
+              required: [snapshotIdA, snapshotIdB]
+      responses:
+        "200":
+          description: Comparison result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshotA:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      name: { type: string }
+                      capturedAt: { type: string }
+                    required: [id, name, capturedAt]
+                  snapshotB:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      name: { type: string }
+                      capturedAt: { type: string }
+                    required: [id, name, capturedAt]
+                  diffCount: { type: integer }
+                  diffs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field: { type: string }
+                        snapshotA: {}
+                        snapshotB: {}
+                      required: [field]
+                required: [snapshotA, snapshotB, diffCount, diffs]
+
+  /environment-snapshots/{id}:
+    get:
+      operationId: getEnvironmentSnapshot
+      tags: [configPackages]
+      summary: Get an environment snapshot
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentSnapshot"
+
+  /environment-snapshots/{id}/pin:
+    post:
+      operationId: pinEnvironmentSnapshot
+      tags: [configPackages]
+      summary: Pin an environment snapshot
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Pinned snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentSnapshot"
+
+  # ─── Data Import ─────────────────────────────────────────────
+  /imports:
+    get:
+      operationId: listImportJobs
+      tags: [dataImport]
+      summary: List data import jobs
+      parameters:
+        - in: query
+          name: type
+          schema: { type: ["string", "null"] }
+      responses:
+        "200":
+          description: Import jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DataImportJob"
+    post:
+      operationId: createImportJob
+      tags: [dataImport]
+      summary: Create an import job and validate its rows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                importType: { type: string }
+                fileFormat: { type: ["string", "null"] }
+                originalFilename: { type: ["string", "null"] }
+                rowsJson:
+                  type: array
+                  items: {}
+                columnMappingJson: {}
+              required: [importType, rowsJson]
+      responses:
+        "201":
+          description: Created job with validated rows
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/DataImportJob"
+                  - type: object
+                    properties:
+                      validatedRows:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            rowNumber: { type: integer }
+                            status: { type: string }
+                            rawDataJson: { type: ["string", "null"] }
+                            mappedDataJson: { type: ["string", "null"] }
+                            errorsJson: { type: ["string", "null"] }
+                            isDuplicate: { type: boolean }
+                          required: [rowNumber, status, isDuplicate]
+                    required: [validatedRows]
+
+  /imports/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getImportJob
+      tags: [dataImport]
+      summary: Get an import job with row stats
+      responses:
+        "200":
+          description: Import job
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/DataImportJob"
+                  - type: object
+                    properties:
+                      rowStats:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            status: { type: string }
+                            count: { type: integer }
+                          required: [status, count]
+                    required: [rowStats]
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteImportJob
+      tags: [dataImport]
+      summary: Delete an import job and its rows
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                required: [deleted]
+
+  /imports/{id}/rows:
+    get:
+      operationId: listImportJobRows
+      tags: [dataImport]
+      summary: List rows of an import job (paginated)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+        - in: query
+          name: status
+          schema: { type: ["string", "null"] }
+        - in: query
+          name: page
+          schema: { type: ["integer", "null"] }
+        - in: query
+          name: pageSize
+          schema: { type: ["integer", "null"] }
+      responses:
+        "200":
+          description: Paginated rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page: { type: integer }
+                  pageSize: { type: integer }
+                  total: { type: integer }
+                  rows:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DataImportRow"
+                required: [page, pageSize, total, rows]
+
+  /imports/{id}/confirm-preview:
+    post:
+      operationId: confirmImportPreview
+      tags: [dataImport]
+      summary: Confirm the validation preview of an import job
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Updated job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataImportJob"
+
+  /imports/{id}/execute:
+    post:
+      operationId: executeImportJob
+      tags: [dataImport]
+      summary: Execute a confirmed import job
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Executed job
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/DataImportJob"
+                  - type: object
+                    properties:
+                      imported: { type: integer }
+                    required: [imported]
+
+  /imports/{id}/rollback:
+    post:
+      operationId: rollbackImportJob
+      tags: [dataImport]
+      summary: Roll back an executed import job
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Rolled-back job
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/DataImportJob"
+                  - type: object
+                    properties:
+                      rolledBack: { type: integer }
+                    required: [rolledBack]
+
+  /import-mapping-templates:
+    get:
+      operationId: listImportMappingTemplates
+      tags: [dataImport]
+      summary: List import mapping templates
+      parameters:
+        - in: query
+          name: type
+          schema: { type: ["string", "null"] }
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ImportMappingTemplate"
+    post:
+      operationId: createImportMappingTemplate
+      tags: [dataImport]
+      summary: Save an import mapping template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                importType: { type: string }
+                columnMappingJson: {}
+                isDefault: { type: ["boolean", "null"] }
+              required: [name, importType, columnMappingJson]
+      responses:
+        "201":
+          description: Created template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportMappingTemplate"
+
+  /import-mapping-templates/{id}:
+    delete:
+      operationId: deleteImportMappingTemplate
+      tags: [dataImport]
+      summary: Delete an import mapping template
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                required: [deleted]
+
 components:
   schemas:
     # ── Attendance Gateway (device integration) ────────────────────────────

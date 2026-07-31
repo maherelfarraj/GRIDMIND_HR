@@ -1342,6 +1342,7 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
+
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1356,6 +1357,7 @@ export const SetUserPasswordResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
+
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -13158,4 +13160,1162 @@ export const UpdateAiPermissionResponse = zod.object({
   "grantedByUserId": zod.number().nullish(),
   "grantedAt": zod.string()
 })
+
+
+/**
+ * @summary List organizations with branding
+ */
+export const ListOrganizationsResponseItem = zod.object({
+  "id": zod.number(),
+  "orgType": zod.string(),
+  "orgCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.string(),
+  "parentOrgId": zod.number().nullish(),
+  "primaryContactNameEn": zod.string().nullish(),
+  "primaryContactNameAr": zod.string().nullish(),
+  "primaryContactEmail": zod.string().nullish(),
+  "primaryContactPhone": zod.string().nullish(),
+  "headquartersCity": zod.string().nullish(),
+  "countryCode": zod.string(),
+  "isDefault": zod.boolean(),
+  "activatedAt": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "branding": zod.union([zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "displayNameEn": zod.string().nullish(),
+  "displayNameAr": zod.string().nullish(),
+  "taglineEn": zod.string().nullish(),
+  "taglineAr": zod.string().nullish(),
+  "primaryColor": zod.string(),
+  "accentColor": zod.string().nullish(),
+  "defaultTheme": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "faviconUrl": zod.string().nullish(),
+  "footerTextEn": zod.string().nullish(),
+  "footerTextAr": zod.string().nullish(),
+  "loginMessageEn": zod.string().nullish(),
+  "loginMessageAr": zod.string().nullish(),
+  "customCssSnippet": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "updatedByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}),zod.null()])
+}))
+export const ListOrganizationsResponse = zod.array(ListOrganizationsResponseItem)
+
+
+/**
+ * @summary Create an organization
+ */
+export const CreateOrganizationBody = zod.object({
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "orgCode": zod.string(),
+  "orgType": zod.string().nullish(),
+  "registrationNumber": zod.string().nullish(),
+  "countryCode": zod.string().nullish(),
+  "primaryContactEmail": zod.string().nullish()
+})
+
+export const CreateOrganizationResponse = zod.object({
+  "id": zod.number(),
+  "orgType": zod.string(),
+  "orgCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.string(),
+  "parentOrgId": zod.number().nullish(),
+  "primaryContactNameEn": zod.string().nullish(),
+  "primaryContactNameAr": zod.string().nullish(),
+  "primaryContactEmail": zod.string().nullish(),
+  "primaryContactPhone": zod.string().nullish(),
+  "headquartersCity": zod.string().nullish(),
+  "countryCode": zod.string(),
+  "isDefault": zod.boolean(),
+  "activatedAt": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get organization detail with branding, locale and stats
+ */
+export const GetOrganizationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetOrganizationResponse = zod.object({
+  "id": zod.number(),
+  "orgType": zod.string(),
+  "orgCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.string(),
+  "parentOrgId": zod.number().nullish(),
+  "primaryContactNameEn": zod.string().nullish(),
+  "primaryContactNameAr": zod.string().nullish(),
+  "primaryContactEmail": zod.string().nullish(),
+  "primaryContactPhone": zod.string().nullish(),
+  "headquartersCity": zod.string().nullish(),
+  "countryCode": zod.string(),
+  "isDefault": zod.boolean(),
+  "activatedAt": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "branding": zod.union([zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "displayNameEn": zod.string().nullish(),
+  "displayNameAr": zod.string().nullish(),
+  "taglineEn": zod.string().nullish(),
+  "taglineAr": zod.string().nullish(),
+  "primaryColor": zod.string(),
+  "accentColor": zod.string().nullish(),
+  "defaultTheme": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "faviconUrl": zod.string().nullish(),
+  "footerTextEn": zod.string().nullish(),
+  "footerTextAr": zod.string().nullish(),
+  "loginMessageEn": zod.string().nullish(),
+  "loginMessageAr": zod.string().nullish(),
+  "customCssSnippet": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "updatedByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}),zod.null()]),
+  "locale": zod.union([zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "defaultLanguage": zod.string(),
+  "timezone": zod.string(),
+  "calendarType": zod.string(),
+  "showHijriDates": zod.boolean(),
+  "currencyCode": zod.string(),
+  "currencySymbolEn": zod.string().nullish(),
+  "currencySymbolAr": zod.string().nullish(),
+  "dateFormat": zod.string(),
+  "timeFormat": zod.string(),
+  "numeralStyle": zod.string(),
+  "thousandsSeparator": zod.string().nullish(),
+  "decimalSeparator": zod.string().nullish(),
+  "updatedByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}),zod.null()]),
+  "stats": zod.object({
+  "employeeCount": zod.number()
+})
+}))
+
+
+/**
+ * @summary Update an organization
+ */
+export const UpdateOrganizationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateOrganizationBody = zod.object({
+  "nameEn": zod.string().nullish(),
+  "nameAr": zod.string().nullish(),
+  "orgType": zod.string().nullish(),
+  "registrationNumber": zod.string().nullish(),
+  "countryCode": zod.string().nullish(),
+  "primaryContactEmail": zod.string().nullish(),
+  "status": zod.string().nullish()
+})
+
+export const UpdateOrganizationResponse = zod.object({
+  "id": zod.number(),
+  "orgType": zod.string(),
+  "orgCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.string(),
+  "parentOrgId": zod.number().nullish(),
+  "primaryContactNameEn": zod.string().nullish(),
+  "primaryContactNameAr": zod.string().nullish(),
+  "primaryContactEmail": zod.string().nullish(),
+  "primaryContactPhone": zod.string().nullish(),
+  "headquartersCity": zod.string().nullish(),
+  "countryCode": zod.string(),
+  "isDefault": zod.boolean(),
+  "activatedAt": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Archive (soft-delete) an organization
+ */
+export const ArchiveOrganizationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ArchiveOrganizationResponse = zod.object({
+  "id": zod.number(),
+  "orgType": zod.string(),
+  "orgCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.string(),
+  "parentOrgId": zod.number().nullish(),
+  "primaryContactNameEn": zod.string().nullish(),
+  "primaryContactNameAr": zod.string().nullish(),
+  "primaryContactEmail": zod.string().nullish(),
+  "primaryContactPhone": zod.string().nullish(),
+  "headquartersCity": zod.string().nullish(),
+  "countryCode": zod.string(),
+  "isDefault": zod.boolean(),
+  "activatedAt": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Activate an onboarding organization
+ */
+export const ActivateOrganizationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ActivateOrganizationResponse = zod.object({
+  "id": zod.number(),
+  "orgType": zod.string(),
+  "orgCode": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "shortNameEn": zod.string().nullish(),
+  "shortNameAr": zod.string().nullish(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.string(),
+  "parentOrgId": zod.number().nullish(),
+  "primaryContactNameEn": zod.string().nullish(),
+  "primaryContactNameAr": zod.string().nullish(),
+  "primaryContactEmail": zod.string().nullish(),
+  "primaryContactPhone": zod.string().nullish(),
+  "headquartersCity": zod.string().nullish(),
+  "countryCode": zod.string(),
+  "isDefault": zod.boolean(),
+  "activatedAt": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get employee count for an organization
+ */
+export const GetOrganizationEmployeesCountParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetOrganizationEmployeesCountResponse = zod.object({
+  "orgId": zod.number(),
+  "count": zod.number()
+})
+
+
+/**
+ * @summary List config packages
+ */
+export const ListConfigPackagesQueryParams = zod.object({
+  "status": zod.coerce.string().nullish(),
+  "packageType": zod.coerce.string().nullish()
+})
+
+export const ListConfigPackagesResponseItem = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "packageType": zod.string(),
+  "status": zod.string(),
+  "version": zod.string(),
+  "sourceEnvironment": zod.string(),
+  "targetEnvironment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "policyAreasJson": zod.string(),
+  "payloadJson": zod.string().nullish(),
+  "payloadChecksum": zod.string().nullish(),
+  "signature": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "signedByUserId": zod.number().nullish(),
+  "exportedAt": zod.string().nullish(),
+  "exportedByUserId": zod.number().nullish(),
+  "importedAt": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "appliedByUserId": zod.number().nullish(),
+  "rejectedAt": zod.string().nullish(),
+  "rejectedByUserId": zod.number().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "changeRequestId": zod.number().nullish(),
+  "isRollbackPackage": zod.boolean(),
+  "rollbackOfPackageId": zod.number().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListConfigPackagesResponse = zod.array(ListConfigPackagesResponseItem)
+
+
+/**
+ * @summary Create a config package
+ */
+export const CreateConfigPackageBody = zod.object({
+  "packageName": zod.string(),
+  "packageType": zod.string(),
+  "version": zod.string(),
+  "sourceEnvironment": zod.string(),
+  "targetEnvironment": zod.string(),
+  "descriptionEn": zod.string().nullish(),
+  "payloadJson": zod.string().nullish(),
+  "policyAreasJson": zod.string().nullish()
+})
+
+export const CreateConfigPackageResponse = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "packageType": zod.string(),
+  "status": zod.string(),
+  "version": zod.string(),
+  "sourceEnvironment": zod.string(),
+  "targetEnvironment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "policyAreasJson": zod.string(),
+  "payloadJson": zod.string().nullish(),
+  "payloadChecksum": zod.string().nullish(),
+  "signature": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "signedByUserId": zod.number().nullish(),
+  "exportedAt": zod.string().nullish(),
+  "exportedByUserId": zod.number().nullish(),
+  "importedAt": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "appliedByUserId": zod.number().nullish(),
+  "rejectedAt": zod.string().nullish(),
+  "rejectedByUserId": zod.number().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "changeRequestId": zod.number().nullish(),
+  "isRollbackPackage": zod.boolean(),
+  "rollbackOfPackageId": zod.number().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Import a signed config package
+ */
+export const ImportConfigPackageBody = zod.object({
+  "packageJson": zod.unknown()
+})
+
+export const ImportConfigPackageResponse = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "packageType": zod.string(),
+  "status": zod.string(),
+  "version": zod.string(),
+  "sourceEnvironment": zod.string(),
+  "targetEnvironment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "policyAreasJson": zod.string(),
+  "payloadJson": zod.string().nullish(),
+  "payloadChecksum": zod.string().nullish(),
+  "signature": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "signedByUserId": zod.number().nullish(),
+  "exportedAt": zod.string().nullish(),
+  "exportedByUserId": zod.number().nullish(),
+  "importedAt": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "appliedByUserId": zod.number().nullish(),
+  "rejectedAt": zod.string().nullish(),
+  "rejectedByUserId": zod.number().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "changeRequestId": zod.number().nullish(),
+  "isRollbackPackage": zod.boolean(),
+  "rollbackOfPackageId": zod.number().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get a config package with items
+ */
+export const GetConfigPackageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetConfigPackageResponse = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "packageType": zod.string(),
+  "status": zod.string(),
+  "version": zod.string(),
+  "sourceEnvironment": zod.string(),
+  "targetEnvironment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "policyAreasJson": zod.string(),
+  "payloadJson": zod.string().nullish(),
+  "payloadChecksum": zod.string().nullish(),
+  "signature": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "signedByUserId": zod.number().nullish(),
+  "exportedAt": zod.string().nullish(),
+  "exportedByUserId": zod.number().nullish(),
+  "importedAt": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "appliedByUserId": zod.number().nullish(),
+  "rejectedAt": zod.string().nullish(),
+  "rejectedByUserId": zod.number().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "changeRequestId": zod.number().nullish(),
+  "isRollbackPackage": zod.boolean(),
+  "rollbackOfPackageId": zod.number().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "packageId": zod.number(),
+  "policyArea": zod.string(),
+  "entityType": zod.string(),
+  "entityId": zod.number().nullish(),
+  "entityLabel": zod.string().nullish(),
+  "changeType": zod.string(),
+  "beforeJson": zod.string().nullish(),
+  "afterJson": zod.string().nullish(),
+  "applyStatus": zod.string(),
+  "applyError": zod.string().nullish(),
+  "createdAt": zod.string()
+}))
+}))
+
+
+/**
+ * @summary Sign a config package
+ */
+export const SignConfigPackageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SignConfigPackageResponse = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "packageType": zod.string(),
+  "status": zod.string(),
+  "version": zod.string(),
+  "sourceEnvironment": zod.string(),
+  "targetEnvironment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "policyAreasJson": zod.string(),
+  "payloadJson": zod.string().nullish(),
+  "payloadChecksum": zod.string().nullish(),
+  "signature": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "signedByUserId": zod.number().nullish(),
+  "exportedAt": zod.string().nullish(),
+  "exportedByUserId": zod.number().nullish(),
+  "importedAt": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "appliedByUserId": zod.number().nullish(),
+  "rejectedAt": zod.string().nullish(),
+  "rejectedByUserId": zod.number().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "changeRequestId": zod.number().nullish(),
+  "isRollbackPackage": zod.boolean(),
+  "rollbackOfPackageId": zod.number().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Export a config package with items
+ */
+export const ExportConfigPackageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ExportConfigPackageResponse = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "packageType": zod.string(),
+  "status": zod.string(),
+  "version": zod.string(),
+  "sourceEnvironment": zod.string(),
+  "targetEnvironment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "policyAreasJson": zod.string(),
+  "payloadJson": zod.string().nullish(),
+  "payloadChecksum": zod.string().nullish(),
+  "signature": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "signedByUserId": zod.number().nullish(),
+  "exportedAt": zod.string().nullish(),
+  "exportedByUserId": zod.number().nullish(),
+  "importedAt": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "appliedByUserId": zod.number().nullish(),
+  "rejectedAt": zod.string().nullish(),
+  "rejectedByUserId": zod.number().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "changeRequestId": zod.number().nullish(),
+  "isRollbackPackage": zod.boolean(),
+  "rollbackOfPackageId": zod.number().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "packageId": zod.number(),
+  "policyArea": zod.string(),
+  "entityType": zod.string(),
+  "entityId": zod.number().nullish(),
+  "entityLabel": zod.string().nullish(),
+  "changeType": zod.string(),
+  "beforeJson": zod.string().nullish(),
+  "afterJson": zod.string().nullish(),
+  "applyStatus": zod.string(),
+  "applyError": zod.string().nullish(),
+  "createdAt": zod.string()
+}))
+}))
+
+
+/**
+ * @summary Apply an imported config package
+ */
+export const ApplyConfigPackageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApplyConfigPackageBody = zod.object({
+  "reason": zod.string().nullish()
+})
+
+export const ApplyConfigPackageResponse = zod.object({
+  "package": zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "packageType": zod.string(),
+  "status": zod.string(),
+  "version": zod.string(),
+  "sourceEnvironment": zod.string(),
+  "targetEnvironment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "policyAreasJson": zod.string(),
+  "payloadJson": zod.string().nullish(),
+  "payloadChecksum": zod.string().nullish(),
+  "signature": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "signedByUserId": zod.number().nullish(),
+  "exportedAt": zod.string().nullish(),
+  "exportedByUserId": zod.number().nullish(),
+  "importedAt": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "appliedByUserId": zod.number().nullish(),
+  "rejectedAt": zod.string().nullish(),
+  "rejectedByUserId": zod.number().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "changeRequestId": zod.number().nullish(),
+  "isRollbackPackage": zod.boolean(),
+  "rollbackOfPackageId": zod.number().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}),
+  "itemsApplied": zod.number()
+})
+
+
+/**
+ * @summary Reject a config package
+ */
+export const RejectConfigPackageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectConfigPackageBody = zod.object({
+  "reason": zod.string().nullish()
+})
+
+export const RejectConfigPackageResponse = zod.object({
+  "id": zod.number(),
+  "packageName": zod.string(),
+  "packageType": zod.string(),
+  "status": zod.string(),
+  "version": zod.string(),
+  "sourceEnvironment": zod.string(),
+  "targetEnvironment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "policyAreasJson": zod.string(),
+  "payloadJson": zod.string().nullish(),
+  "payloadChecksum": zod.string().nullish(),
+  "signature": zod.string().nullish(),
+  "signedAt": zod.string().nullish(),
+  "signedByUserId": zod.number().nullish(),
+  "exportedAt": zod.string().nullish(),
+  "exportedByUserId": zod.number().nullish(),
+  "importedAt": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "appliedByUserId": zod.number().nullish(),
+  "rejectedAt": zod.string().nullish(),
+  "rejectedByUserId": zod.number().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "changeRequestId": zod.number().nullish(),
+  "isRollbackPackage": zod.boolean(),
+  "rollbackOfPackageId": zod.number().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Preview the impact of applying a config package
+ */
+export const PreviewConfigPackageImpactParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PreviewConfigPackageImpactResponse = zod.object({
+  "packageId": zod.number(),
+  "packageName": zod.string(),
+  "itemCount": zod.number(),
+  "policyAreas": zod.array(zod.string()),
+  "affectedEntityTypes": zod.array(zod.string()),
+  "warnings": zod.array(zod.string()),
+  "estimatedApplyTimeSeconds": zod.number()
+})
+
+
+/**
+ * @summary List environment snapshots
+ */
+export const ListEnvironmentSnapshotsQueryParams = zod.object({
+  "environment": zod.coerce.string().nullish(),
+  "orgId": zod.coerce.number().int().nullish()
+})
+
+export const ListEnvironmentSnapshotsResponseItem = zod.object({
+  "id": zod.number(),
+  "environment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "snapshotName": zod.string(),
+  "scope": zod.string(),
+  "snapshotJson": zod.string().nullish(),
+  "checksum": zod.string().nullish(),
+  "itemCount": zod.number(),
+  "capturedByUserId": zod.number().nullish(),
+  "capturedAt": zod.string(),
+  "isPinned": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListEnvironmentSnapshotsResponse = zod.array(ListEnvironmentSnapshotsResponseItem)
+
+
+/**
+ * @summary Capture an environment snapshot
+ */
+export const CreateEnvironmentSnapshotBody = zod.object({
+  "snapshotName": zod.string(),
+  "environment": zod.string(),
+  "scope": zod.string(),
+  "snapshotJson": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateEnvironmentSnapshotResponse = zod.object({
+  "id": zod.number(),
+  "environment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "snapshotName": zod.string(),
+  "scope": zod.string(),
+  "snapshotJson": zod.string().nullish(),
+  "checksum": zod.string().nullish(),
+  "itemCount": zod.number(),
+  "capturedByUserId": zod.number().nullish(),
+  "capturedAt": zod.string(),
+  "isPinned": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Compare two environment snapshots
+ */
+export const CompareEnvironmentSnapshotsBody = zod.object({
+  "snapshotIdA": zod.number(),
+  "snapshotIdB": zod.number()
+})
+
+export const CompareEnvironmentSnapshotsResponse = zod.object({
+  "snapshotA": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "capturedAt": zod.string()
+}),
+  "snapshotB": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "capturedAt": zod.string()
+}),
+  "diffCount": zod.number(),
+  "diffs": zod.array(zod.object({
+  "field": zod.string(),
+  "snapshotA": zod.unknown().optional(),
+  "snapshotB": zod.unknown().optional()
+}))
+})
+
+
+/**
+ * @summary Get an environment snapshot
+ */
+export const GetEnvironmentSnapshotParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEnvironmentSnapshotResponse = zod.object({
+  "id": zod.number(),
+  "environment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "snapshotName": zod.string(),
+  "scope": zod.string(),
+  "snapshotJson": zod.string().nullish(),
+  "checksum": zod.string().nullish(),
+  "itemCount": zod.number(),
+  "capturedByUserId": zod.number().nullish(),
+  "capturedAt": zod.string(),
+  "isPinned": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Pin an environment snapshot
+ */
+export const PinEnvironmentSnapshotParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PinEnvironmentSnapshotResponse = zod.object({
+  "id": zod.number(),
+  "environment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "snapshotName": zod.string(),
+  "scope": zod.string(),
+  "snapshotJson": zod.string().nullish(),
+  "checksum": zod.string().nullish(),
+  "itemCount": zod.number(),
+  "capturedByUserId": zod.number().nullish(),
+  "capturedAt": zod.string(),
+  "isPinned": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary List data import jobs
+ */
+export const ListImportJobsQueryParams = zod.object({
+  "type": zod.coerce.string().nullish()
+})
+
+export const ListImportJobsResponseItem = zod.object({
+  "id": zod.number(),
+  "importType": zod.string(),
+  "status": zod.string(),
+  "originalFilename": zod.string().nullish(),
+  "fileFormat": zod.string(),
+  "columnMappingJson": zod.string().nullish(),
+  "mappingTemplateName": zod.string().nullish(),
+  "totalRows": zod.number(),
+  "validRows": zod.number(),
+  "errorRows": zod.number(),
+  "duplicateRows": zod.number(),
+  "importedRows": zod.number(),
+  "rolledBackRows": zod.number(),
+  "previewConfirmed": zod.boolean(),
+  "previewConfirmedAt": zod.string().nullish(),
+  "isRollbackable": zod.boolean(),
+  "rolledBackAt": zod.string().nullish(),
+  "rolledBackByUserId": zod.number().nullish(),
+  "errorSummary": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "startedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListImportJobsResponse = zod.array(ListImportJobsResponseItem)
+
+
+/**
+ * @summary Create an import job and validate its rows
+ */
+export const CreateImportJobBody = zod.object({
+  "importType": zod.string(),
+  "fileFormat": zod.string().nullish(),
+  "originalFilename": zod.string().nullish(),
+  "rowsJson": zod.array(zod.unknown()),
+  "columnMappingJson": zod.unknown().optional()
+})
+
+export const CreateImportJobResponse = zod.object({
+  "id": zod.number(),
+  "importType": zod.string(),
+  "status": zod.string(),
+  "originalFilename": zod.string().nullish(),
+  "fileFormat": zod.string(),
+  "columnMappingJson": zod.string().nullish(),
+  "mappingTemplateName": zod.string().nullish(),
+  "totalRows": zod.number(),
+  "validRows": zod.number(),
+  "errorRows": zod.number(),
+  "duplicateRows": zod.number(),
+  "importedRows": zod.number(),
+  "rolledBackRows": zod.number(),
+  "previewConfirmed": zod.boolean(),
+  "previewConfirmedAt": zod.string().nullish(),
+  "isRollbackable": zod.boolean(),
+  "rolledBackAt": zod.string().nullish(),
+  "rolledBackByUserId": zod.number().nullish(),
+  "errorSummary": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "startedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "validatedRows": zod.array(zod.object({
+  "rowNumber": zod.number(),
+  "status": zod.string(),
+  "rawDataJson": zod.string().nullish(),
+  "mappedDataJson": zod.string().nullish(),
+  "errorsJson": zod.string().nullish(),
+  "isDuplicate": zod.boolean()
+}))
+}))
+
+
+/**
+ * @summary Get an import job with row stats
+ */
+export const GetImportJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetImportJobResponse = zod.object({
+  "id": zod.number(),
+  "importType": zod.string(),
+  "status": zod.string(),
+  "originalFilename": zod.string().nullish(),
+  "fileFormat": zod.string(),
+  "columnMappingJson": zod.string().nullish(),
+  "mappingTemplateName": zod.string().nullish(),
+  "totalRows": zod.number(),
+  "validRows": zod.number(),
+  "errorRows": zod.number(),
+  "duplicateRows": zod.number(),
+  "importedRows": zod.number(),
+  "rolledBackRows": zod.number(),
+  "previewConfirmed": zod.boolean(),
+  "previewConfirmedAt": zod.string().nullish(),
+  "isRollbackable": zod.boolean(),
+  "rolledBackAt": zod.string().nullish(),
+  "rolledBackByUserId": zod.number().nullish(),
+  "errorSummary": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "startedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "rowStats": zod.array(zod.object({
+  "status": zod.string(),
+  "count": zod.number()
+}))
+}))
+
+
+/**
+ * @summary Delete an import job and its rows
+ */
+export const DeleteImportJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteImportJobResponse = zod.object({
+  "deleted": zod.boolean()
+})
+
+
+/**
+ * @summary List rows of an import job (paginated)
+ */
+export const ListImportJobRowsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListImportJobRowsQueryParams = zod.object({
+  "status": zod.coerce.string().nullish(),
+  "page": zod.coerce.number().int().nullish(),
+  "pageSize": zod.coerce.number().int().nullish()
+})
+
+export const ListImportJobRowsResponse = zod.object({
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "importJobId": zod.number(),
+  "rowNumber": zod.number(),
+  "status": zod.string(),
+  "rawDataJson": zod.string().nullish(),
+  "mappedDataJson": zod.string().nullish(),
+  "errorsJson": zod.string().nullish(),
+  "createdEntityId": zod.number().nullish(),
+  "createdEntityType": zod.string().nullish(),
+  "isDuplicate": zod.boolean(),
+  "duplicateOfId": zod.number().nullish(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Confirm the validation preview of an import job
+ */
+export const ConfirmImportPreviewParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ConfirmImportPreviewResponse = zod.object({
+  "id": zod.number(),
+  "importType": zod.string(),
+  "status": zod.string(),
+  "originalFilename": zod.string().nullish(),
+  "fileFormat": zod.string(),
+  "columnMappingJson": zod.string().nullish(),
+  "mappingTemplateName": zod.string().nullish(),
+  "totalRows": zod.number(),
+  "validRows": zod.number(),
+  "errorRows": zod.number(),
+  "duplicateRows": zod.number(),
+  "importedRows": zod.number(),
+  "rolledBackRows": zod.number(),
+  "previewConfirmed": zod.boolean(),
+  "previewConfirmedAt": zod.string().nullish(),
+  "isRollbackable": zod.boolean(),
+  "rolledBackAt": zod.string().nullish(),
+  "rolledBackByUserId": zod.number().nullish(),
+  "errorSummary": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "startedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Execute a confirmed import job
+ */
+export const ExecuteImportJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ExecuteImportJobResponse = zod.object({
+  "id": zod.number(),
+  "importType": zod.string(),
+  "status": zod.string(),
+  "originalFilename": zod.string().nullish(),
+  "fileFormat": zod.string(),
+  "columnMappingJson": zod.string().nullish(),
+  "mappingTemplateName": zod.string().nullish(),
+  "totalRows": zod.number(),
+  "validRows": zod.number(),
+  "errorRows": zod.number(),
+  "duplicateRows": zod.number(),
+  "importedRows": zod.number(),
+  "rolledBackRows": zod.number(),
+  "previewConfirmed": zod.boolean(),
+  "previewConfirmedAt": zod.string().nullish(),
+  "isRollbackable": zod.boolean(),
+  "rolledBackAt": zod.string().nullish(),
+  "rolledBackByUserId": zod.number().nullish(),
+  "errorSummary": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "startedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "imported": zod.number()
+}))
+
+
+/**
+ * @summary Roll back an executed import job
+ */
+export const RollbackImportJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RollbackImportJobResponse = zod.object({
+  "id": zod.number(),
+  "importType": zod.string(),
+  "status": zod.string(),
+  "originalFilename": zod.string().nullish(),
+  "fileFormat": zod.string(),
+  "columnMappingJson": zod.string().nullish(),
+  "mappingTemplateName": zod.string().nullish(),
+  "totalRows": zod.number(),
+  "validRows": zod.number(),
+  "errorRows": zod.number(),
+  "duplicateRows": zod.number(),
+  "importedRows": zod.number(),
+  "rolledBackRows": zod.number(),
+  "previewConfirmed": zod.boolean(),
+  "previewConfirmedAt": zod.string().nullish(),
+  "isRollbackable": zod.boolean(),
+  "rolledBackAt": zod.string().nullish(),
+  "rolledBackByUserId": zod.number().nullish(),
+  "errorSummary": zod.string().nullish(),
+  "importedByUserId": zod.number().nullish(),
+  "startedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "rolledBack": zod.number()
+}))
+
+
+/**
+ * @summary List import mapping templates
+ */
+export const ListImportMappingTemplatesQueryParams = zod.object({
+  "type": zod.coerce.string().nullish()
+})
+
+export const ListImportMappingTemplatesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "importType": zod.string(),
+  "columnMappingJson": zod.string(),
+  "createdByUserId": zod.number().nullish(),
+  "isDefault": zod.boolean(),
+  "usageCount": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListImportMappingTemplatesResponse = zod.array(ListImportMappingTemplatesResponseItem)
+
+
+/**
+ * @summary Save an import mapping template
+ */
+export const CreateImportMappingTemplateBody = zod.object({
+  "name": zod.string(),
+  "importType": zod.string(),
+  "columnMappingJson": zod.unknown(),
+  "isDefault": zod.boolean().nullish()
+})
+
+export const CreateImportMappingTemplateResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "importType": zod.string(),
+  "columnMappingJson": zod.string(),
+  "createdByUserId": zod.number().nullish(),
+  "isDefault": zod.boolean(),
+  "usageCount": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete an import mapping template
+ */
+export const DeleteImportMappingTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteImportMappingTemplateResponse = zod.object({
+  "deleted": zod.boolean()
+})
+
 

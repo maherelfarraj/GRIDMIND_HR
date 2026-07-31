@@ -1,5 +1,10 @@
-import { apiFetch } from '@/lib/api';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useListOrganizations, useCreateOrganization, useActivateOrganization,
+  useArchiveOrganization, getListOrganizationsQueryKey,
+} from '@workspace/api-client-react';
+import type { ListOrganizations200Item } from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -26,6 +31,8 @@ import {
 import { Building2, Plus, Eye, Archive, CheckCircle, Globe, Palette, GitBranch } from 'lucide-react';
 import { Link } from 'wouter';
 
+type Org = ListOrganizations200Item;
+
 function orgTypeBadge(type: string) {
   const map: Record<string, string> = {
     company: 'bg-blue-900/40 text-blue-300 border-blue-700',
@@ -47,7 +54,7 @@ function statusBadge(status: string) {
 function AddOrgDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const createMut = useCreateOrganization();
   const [form, setForm] = useState({
     orgCode: '', nameEn: '', nameAr: '', orgType: '', registrationNumber: '',
     countryCode: '', primaryContactEmail: '',
@@ -60,22 +67,24 @@ function AddOrgDialog({ open, onClose, onSaved }: { open: boolean; onClose: () =
       toast({ title: t('Required fields missing', 'حقول مطلوبة مفقودة'), variant: 'destructive' });
       return;
     }
-    setSaving(true);
     try {
-      const res = await apiFetch('/api/organizations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+      await createMut.mutateAsync({
+        data: {
+          orgCode: form.orgCode,
+          nameEn: form.nameEn,
+          nameAr: form.nameAr || form.nameEn,
+          orgType: form.orgType || null,
+          registrationNumber: form.registrationNumber || null,
+          countryCode: form.countryCode || null,
+          primaryContactEmail: form.primaryContactEmail || null,
+        },
       });
-      if (!res.ok) throw new Error();
       toast({ title: t('Organization created', 'تم إنشاء المؤسسة') });
       onSaved();
       onClose();
       setForm({ orgCode: '', nameEn: '', nameAr: '', orgType: '', registrationNumber: '', countryCode: '', primaryContactEmail: '' });
     } catch {
       toast({ title: t('Error saving', 'خطأ في الحفظ'), variant: 'destructive' });
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -106,8 +115,8 @@ function AddOrgDialog({ open, onClose, onSaved }: { open: boolean; onClose: () =
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
-            {saving ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}
+          <Button onClick={handleSave} disabled={createMut.isPending} className="bg-blue-600 hover:bg-blue-700">
+            {createMut.isPending ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -115,9 +124,8 @@ function AddOrgDialog({ open, onClose, onSaved }: { open: boolean; onClose: () =
   );
 }
 
-function OrgDetailDrawer({ org, onClose }: { org: any; onClose: () => void }) {
+function OrgDetailDrawer({ org, onClose }: { org: Org; onClose: () => void }) {
   const { t } = useLanguage();
-  if (!org) return null;
   return (
     <div className="fixed inset-0 z-50 flex" onClick={onClose}>
       <div className="flex-1 bg-black/50" />
@@ -135,7 +143,6 @@ function OrgDetailDrawer({ org, onClose }: { org: any; onClose: () => void }) {
             <div className="flex justify-between"><span className="text-slate-400">{t('Country', 'البلد')}</span><span className="text-white">{org.countryCode || '—'}</span></div>
             <div className="flex justify-between"><span className="text-slate-400">{t('Registration', 'التسجيل')}</span><span className="text-white font-mono">{org.registrationNumber || '—'}</span></div>
             <div className="flex justify-between"><span className="text-slate-400">{t('Contact Email', 'البريد الإلكتروني')}</span><span className="text-white text-xs">{org.primaryContactEmail || '—'}</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">{t('Employees', 'الموظفون')}</span><span className="text-white">{org.employeeCount ?? 0}</span></div>
           </CardContent>
         </Card>
         <Separator className="bg-slate-700" />
@@ -153,34 +160,23 @@ function OrgDetailDrawer({ org, onClose }: { org: any; onClose: () => void }) {
 export default function Organizations() {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [orgs, setOrgs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
+  const { data: orgs = [], isLoading, error } = useListOrganizations();
+  const activateMut = useActivateOrganization();
+  const archiveMut = useArchiveOrganization();
   const [addOpen, setAddOpen] = useState(false);
-  const [detailOrg, setDetailOrg] = useState<any>(null);
-  const [archiveTarget, setArchiveTarget] = useState<any>(null);
+  const [detailOrg, setDetailOrg] = useState<Org | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<Org | null>(null);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await apiFetch('/api/organizations');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setOrgs(Array.isArray(data) ? data : (data.organizations ?? []));
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+  function refresh() {
+    queryClient.invalidateQueries({ queryKey: getListOrganizationsQueryKey() });
   }
 
-  useEffect(() => { load(); }, []);
-
-  async function handleActivate(org: any) {
+  async function handleActivate(org: Org) {
     try {
-      await apiFetch(`/api/organizations/${org.id}/activate`, { method: 'POST' });
+      await activateMut.mutateAsync({ id: org.id });
       toast({ title: t('Organization activated', 'تم تفعيل المؤسسة') });
-      load();
+      refresh();
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
     }
@@ -189,10 +185,10 @@ export default function Organizations() {
   async function handleArchive() {
     if (!archiveTarget) return;
     try {
-      await apiFetch(`/api/organizations/${archiveTarget.id}/archive`, { method: 'POST' });
+      await archiveMut.mutateAsync({ id: archiveTarget.id });
       toast({ title: t('Organization archived', 'تم أرشفة المؤسسة') });
       setArchiveTarget(null);
-      load();
+      refresh();
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
     }
@@ -214,16 +210,16 @@ export default function Organizations() {
           </Button>
         </div>
 
-        {error && (
+        {error != null && (
           <Card className="bg-red-900/30 border-red-700">
-            <CardContent className="p-4 text-red-300 text-sm">{t('Failed to load organizations', 'فشل تحميل المؤسسات')}: {error}</CardContent>
+            <CardContent className="p-4 text-red-300 text-sm">{t('Failed to load organizations', 'فشل تحميل المؤسسات')}</CardContent>
           </Card>
         )}
 
         <Card className="bg-slate-800 border-slate-700">
           <CardHeader><CardTitle className="text-white text-base">{t('All Organizations', 'جميع المؤسسات')}</CardTitle></CardHeader>
           <CardContent className="p-0">
-            {loading ? (
+            {isLoading ? (
               <div className="p-4 space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 bg-slate-700" />)}</div>
             ) : (
               <Table>
@@ -234,13 +230,12 @@ export default function Organizations() {
                     <TableHead className="text-slate-300">{t('Name (AR)', 'الاسم (عربي)')}</TableHead>
                     <TableHead className="text-slate-300">{t('Type', 'النوع')}</TableHead>
                     <TableHead className="text-slate-300">{t('Status', 'الحالة')}</TableHead>
-                    <TableHead className="text-slate-300 text-right">{t('Employees', 'الموظفون')}</TableHead>
                     <TableHead className="text-slate-300">{t('Actions', 'الإجراءات')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {orgs.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center text-slate-400 py-8">{t('No organizations found', 'لا توجد مؤسسات')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center text-slate-400 py-8">{t('No organizations found', 'لا توجد مؤسسات')}</TableCell></TableRow>
                   ) : orgs.map(org => (
                     <TableRow key={org.id} className="border-slate-700 hover:bg-slate-700/30">
                       <TableCell className="font-mono text-slate-300 text-sm">{org.orgCode}</TableCell>
@@ -248,7 +243,6 @@ export default function Organizations() {
                       <TableCell className="text-slate-300" dir="rtl">{org.nameAr || '—'}</TableCell>
                       <TableCell><Badge variant="outline" className={orgTypeBadge(org.orgType)}>{org.orgType}</Badge></TableCell>
                       <TableCell><Badge variant="outline" className={statusBadge(org.status)}>{org.status}</Badge></TableCell>
-                      <TableCell className="text-right text-slate-300">{org.employeeCount ?? 0}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Button size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300 h-7 px-2" onClick={() => setDetailOrg(org)}>
@@ -259,7 +253,7 @@ export default function Organizations() {
                               <CheckCircle className="w-3.5 h-3.5 me-1" />{t('Activate', 'تفعيل')}
                             </Button>
                           )}
-                          {org.status !== 'archived' && (
+                          {org.status !== 'archived' && !org.isDefault && (
                             <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 h-7 px-2" onClick={() => setArchiveTarget(org)}>
                               <Archive className="w-3.5 h-3.5 me-1" />{t('Archive', 'أرشفة')}
                             </Button>
@@ -274,7 +268,7 @@ export default function Organizations() {
           </CardContent>
         </Card>
 
-        <AddOrgDialog open={addOpen} onClose={() => setAddOpen(false)} onSaved={load} />
+        <AddOrgDialog open={addOpen} onClose={() => setAddOpen(false)} onSaved={refresh} />
 
         {detailOrg && <OrgDetailDrawer org={detailOrg} onClose={() => setDetailOrg(null)} />}
 

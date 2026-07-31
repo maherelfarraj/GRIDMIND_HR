@@ -1,5 +1,15 @@
-import { apiFetch } from '@/lib/api';
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useListConfigPackages, useCreateConfigPackage, useImportConfigPackage,
+  useSignConfigPackage, useExportConfigPackage, useApplyConfigPackage,
+  useListEnvironmentSnapshots, useCreateEnvironmentSnapshot,
+  useCompareEnvironmentSnapshots, usePinEnvironmentSnapshot,
+  getListConfigPackagesQueryKey, getListEnvironmentSnapshotsQueryKey,
+} from '@workspace/api-client-react';
+import type {
+  ConfigPackage, EnvironmentSnapshot, CompareEnvironmentSnapshots200,
+} from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -17,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Package, AlertTriangle, Pin, Camera, ArrowRight } from 'lucide-react';
 
-function fmtDate(s: string | null) {
+function fmtDate(s: string | null | undefined) {
   if (!s) return '—';
   return new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
@@ -46,18 +56,24 @@ function envBadge(env: string) {
 function CreatePackageDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ packageName: '', packageType: 'full', version: '1.0.0', sourceEnv: 'staging', targetEnv: 'production', description: '' });
+  const createMut = useCreateConfigPackage();
+  const [form, setForm] = useState({ packageName: '', packageType: 'full', version: '1.0.0', sourceEnvironment: 'staging', targetEnvironment: 'production', descriptionEn: '' });
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
   async function handleSave() {
-    setSaving(true);
     try {
-      const res = await apiFetch('/api/config-packages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      if (!res.ok) throw new Error();
+      await createMut.mutateAsync({
+        data: {
+          packageName: form.packageName,
+          packageType: form.packageType,
+          version: form.version,
+          sourceEnvironment: form.sourceEnvironment,
+          targetEnvironment: form.targetEnvironment,
+          descriptionEn: form.descriptionEn || null,
+        },
+      });
       toast({ title: t('Package created', 'تم إنشاء الحزمة') });
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setSaving(false); }
   }
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -71,12 +87,12 @@ function CreatePackageDialog({ open, onClose, onSaved }: { open: boolean; onClos
               <Select value={form.packageType} onValueChange={v => set('packageType', v)}>
                 <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
-                  {['full','delta','rollback'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  {['full','delta','rollback'].map(pt => <SelectItem key={pt} value={pt}>{pt}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div><Label>{t('Source Env', 'بيئة المصدر')}</Label>
-              <Select value={form.sourceEnv} onValueChange={v => set('sourceEnv', v)}>
+              <Select value={form.sourceEnvironment} onValueChange={v => set('sourceEnvironment', v)}>
                 <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
                   {['development','staging','production'].map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
@@ -84,7 +100,7 @@ function CreatePackageDialog({ open, onClose, onSaved }: { open: boolean; onClos
               </Select>
             </div>
             <div><Label>{t('Target Env', 'بيئة الهدف')}</Label>
-              <Select value={form.targetEnv} onValueChange={v => set('targetEnv', v)}>
+              <Select value={form.targetEnvironment} onValueChange={v => set('targetEnvironment', v)}>
                 <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
                   {['development','staging','production'].map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
@@ -92,29 +108,34 @@ function CreatePackageDialog({ open, onClose, onSaved }: { open: boolean; onClos
               </Select>
             </div>
           </div>
-          <div><Label>{t('Description', 'الوصف')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={form.description} onChange={e => set('description', e.target.value)} /></div>
+          <div><Label>{t('Description', 'الوصف')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={form.descriptionEn} onChange={e => set('descriptionEn', e.target.value)} /></div>
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">{saving ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
+          <Button onClick={handleSave} disabled={createMut.isPending} className="bg-blue-600 hover:bg-blue-700">{createMut.isPending ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function ImpactPreviewDialog({ open, onClose, pkg, onApply }: { open: boolean; onClose: () => void; pkg: any; onApply: (reason: string) => void }) {
+function ImpactPreviewDialog({ open, onClose, pkg, onApply }: { open: boolean; onClose: () => void; pkg: ConfigPackage | null; onApply: (reason: string) => void }) {
   const { t } = useLanguage();
   const [reason, setReason] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   if (!pkg) return null;
+  let impactPretty: string | null = null;
+  if (pkg.impactPreviewJson) {
+    try { impactPretty = JSON.stringify(JSON.parse(pkg.impactPreviewJson), null, 2); }
+    catch { impactPretty = pkg.impactPreviewJson; }
+  }
   return (
     <>
       <Dialog open={open && !confirmOpen} onOpenChange={v => !v && onClose()}>
         <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-2xl">
           <DialogHeader><DialogTitle>{t('Impact Preview', 'معاينة التأثير')} — {pkg.packageName}</DialogTitle></DialogHeader>
           <pre className="bg-slate-900 border border-slate-700 rounded p-3 text-xs font-mono text-slate-300 overflow-auto max-h-64">
-            {pkg.impactPreviewJson ? JSON.stringify(pkg.impactPreviewJson, null, 2) : t('No impact data available', 'لا تتوفر بيانات التأثير')}
+            {impactPretty ?? t('No impact data available', 'لا تتوفر بيانات التأثير')}
           </pre>
           <div><Label>{t('Apply Reason', 'سبب التطبيق')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={reason} onChange={e => setReason(e.target.value)} /></div>
           <DialogFooter>
@@ -142,18 +163,15 @@ function ImpactPreviewDialog({ open, onClose, pkg, onApply }: { open: boolean; o
 function CaptureSnapshotDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const createMut = useCreateEnvironmentSnapshot();
   const [form, setForm] = useState({ snapshotName: '', environment: 'staging', scope: 'full' });
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
   async function handleSave() {
-    setSaving(true);
     try {
-      const res = await apiFetch('/api/config-snapshots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      if (!res.ok) throw new Error();
+      await createMut.mutateAsync({ data: form });
       toast({ title: t('Snapshot captured', 'تم التقاط اللقطة') });
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setSaving(false); }
   }
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -182,7 +200,7 @@ function CaptureSnapshotDialog({ open, onClose, onSaved }: { open: boolean; onCl
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">{saving ? t('Capturing…', 'جاري الالتقاط…') : t('Capture', 'التقاط')}</Button>
+          <Button onClick={handleSave} disabled={createMut.isPending} className="bg-blue-600 hover:bg-blue-700">{createMut.isPending ? t('Capturing…', 'جاري الالتقاط…') : t('Capture', 'التقاط')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -192,87 +210,82 @@ function CaptureSnapshotDialog({ open, onClose, onSaved }: { open: boolean; onCl
 export default function ConfigPackages() {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [packages, setPackages] = useState<any[]>([]);
-  const [snapshots, setSnapshots] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: packages = [], isLoading: pkgsLoading } = useListConfigPackages();
+  const { data: snapshots = [], isLoading: snapsLoading } = useListEnvironmentSnapshots();
+  const loading = pkgsLoading || snapsLoading;
+  const signMut = useSignConfigPackage();
+  const exportMut = useExportConfigPackage();
+  const applyMut = useApplyConfigPackage();
+  const importMut = useImportConfigPackage();
+  const compareMut = useCompareEnvironmentSnapshots();
+  const pinMut = usePinEnvironmentSnapshot();
   const [createOpen, setCreateOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
-  const [importLoading, setImportLoading] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
-  const [impactPkg, setImpactPkg] = useState<any>(null);
+  const [impactPkg, setImpactPkg] = useState<ConfigPackage | null>(null);
   const [compareA, setCompareA] = useState('');
   const [compareB, setCompareB] = useState('');
-  const [compareResult, setCompareResult] = useState<any>(null);
+  const [compareResult, setCompareResult] = useState<CompareEnvironmentSnapshots200 | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [pkgs, snaps] = await Promise.allSettled([
-        apiFetch('/api/config-packages').then(r => r.json()),
-        apiFetch('/api/config-snapshots').then(r => r.json()),
-      ]);
-      setPackages(pkgs.status === 'fulfilled' && Array.isArray(pkgs.value) ? pkgs.value : []);
-      setSnapshots(snaps.status === 'fulfilled' && Array.isArray(snaps.value) ? snaps.value : []);
-    } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  function refreshPackages() { queryClient.invalidateQueries({ queryKey: getListConfigPackagesQueryKey() }); }
+  function refreshSnapshots() { queryClient.invalidateQueries({ queryKey: getListEnvironmentSnapshotsQueryKey() }); }
 
   async function signPackage(id: number) {
     try {
-      await apiFetch(`/api/config-packages/${id}/sign`, { method: 'POST' });
+      await signMut.mutateAsync({ id });
       toast({ title: t('Package signed', 'تم توقيع الحزمة') });
-      load();
+      refreshPackages();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
   async function exportPackage(id: number, name: string) {
     try {
-      const res = await apiFetch(`/api/config-packages/${id}/export`, { method: 'POST' });
-      const data = await res.json();
+      const data = await exportMut.mutateAsync({ id });
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = `${name}.json`; a.click();
       URL.revokeObjectURL(url);
       toast({ title: t('Package exported', 'تم تصدير الحزمة') });
+      refreshPackages();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
   async function applyPackage(id: number, reason: string) {
     try {
-      await apiFetch(`/api/config-packages/${id}/apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
+      await applyMut.mutateAsync({ id, data: { reason: reason || null } });
       toast({ title: t('Package applied', 'تم تطبيق الحزمة') });
       setImpactPkg(null);
-      load();
+      refreshPackages();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
   async function importPackage() {
     if (!importJson.trim()) return;
-    setImportLoading(true);
+    let pkg: unknown;
+    try { pkg = JSON.parse(importJson); }
+    catch { toast({ title: t('Invalid JSON', 'JSON غير صالح'), variant: 'destructive' }); return; }
     try {
-      const res = await apiFetch('/api/config-packages/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: importJson });
-      if (!res.ok) throw new Error();
+      await importMut.mutateAsync({ data: { packageJson: pkg } });
       toast({ title: t('Package imported', 'تم استيراد الحزمة') });
       setImportJson('');
-      load();
+      refreshPackages();
     } catch { toast({ title: t('Import failed', 'فشل الاستيراد'), variant: 'destructive' }); }
-    finally { setImportLoading(false); }
   }
 
   async function compareSnapshots() {
     if (!compareA || !compareB) return;
     try {
-      const res = await apiFetch('/api/config-snapshots/compare', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ snapshotAId: compareA, snapshotBId: compareB }) });
-      setCompareResult(await res.json());
+      const result = await compareMut.mutateAsync({ data: { snapshotIdA: parseInt(compareA), snapshotIdB: parseInt(compareB) } });
+      setCompareResult(result);
     } catch { toast({ title: t('Compare failed', 'فشلت المقارنة'), variant: 'destructive' }); }
   }
 
-  async function togglePin(id: number, pinned: boolean) {
+  async function pinSnapshot(id: number) {
     try {
-      await apiFetch(`/api/config-snapshots/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isPinned: !pinned }) });
-      load();
+      await pinMut.mutateAsync({ id });
+      refreshSnapshots();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
@@ -329,9 +342,9 @@ export default function ConfigPackages() {
                             <TableCell><Badge variant="outline" className={`text-xs ${pkgStatusBadge(p.status)}`}>{p.status}</Badge></TableCell>
                             <TableCell>
                               <div className="flex items-center gap-1 text-xs text-slate-400">
-                                <Badge variant="outline" className={`text-xs ${envBadge(p.sourceEnv)}`}>{p.sourceEnv}</Badge>
+                                <Badge variant="outline" className={`text-xs ${envBadge(p.sourceEnvironment)}`}>{p.sourceEnvironment}</Badge>
                                 <ArrowRight className="w-3 h-3" />
-                                <Badge variant="outline" className={`text-xs ${envBadge(p.targetEnv)}`}>{p.targetEnv}</Badge>
+                                <Badge variant="outline" className={`text-xs ${envBadge(p.targetEnvironment)}`}>{p.targetEnvironment}</Badge>
                               </div>
                             </TableCell>
                             <TableCell className="text-slate-400 text-sm">{fmtDate(p.createdAt)}</TableCell>
@@ -353,8 +366,8 @@ export default function ConfigPackages() {
               <CardHeader><CardTitle className="text-white text-sm">{t('Import Package (paste JSON or upload)', 'استيراد حزمة (الصق JSON أو ارفع ملفًا)')}</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <Textarea className="bg-slate-700 border-slate-600 font-mono text-xs h-32 resize-none" value={importJson} onChange={e => setImportJson(e.target.value)} placeholder='{"packageName": "...", ...}' />
-                <Button onClick={importPackage} disabled={importLoading || !importJson.trim()} className="bg-indigo-600 hover:bg-indigo-700">
-                  {importLoading ? t('Importing…', 'جاري الاستيراد…') : t('Import', 'استيراد')}
+                <Button onClick={importPackage} disabled={importMut.isPending || !importJson.trim()} className="bg-indigo-600 hover:bg-indigo-700">
+                  {importMut.isPending ? t('Importing…', 'جاري الاستيراد…') : t('Import', 'استيراد')}
                 </Button>
               </CardContent>
             </Card>
@@ -368,17 +381,17 @@ export default function ConfigPackages() {
                 <Select value={compareA} onValueChange={setCompareA}>
                   <SelectTrigger className="w-40 bg-slate-700 border-slate-600 text-white text-sm h-8"><SelectValue placeholder={t('Snapshot A', 'لقطة أ')} /></SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700">
-                    {snapshots.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.snapshotName}</SelectItem>)}
+                    {snapshots.map((s: EnvironmentSnapshot) => <SelectItem key={s.id} value={String(s.id)}>{s.snapshotName}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <ArrowRight className="w-4 h-4 text-slate-400" />
                 <Select value={compareB} onValueChange={setCompareB}>
                   <SelectTrigger className="w-40 bg-slate-700 border-slate-600 text-white text-sm h-8"><SelectValue placeholder={t('Snapshot B', 'لقطة ب')} /></SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700">
-                    {snapshots.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.snapshotName}</SelectItem>)}
+                    {snapshots.map((s: EnvironmentSnapshot) => <SelectItem key={s.id} value={String(s.id)}>{s.snapshotName}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 h-8" onClick={compareSnapshots}>{t('Compare', 'مقارنة')}</Button>
+                <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 h-8" onClick={compareSnapshots} disabled={compareMut.isPending}>{t('Compare', 'مقارنة')}</Button>
               </div>
               <Button onClick={() => setCaptureOpen(true)} className="bg-blue-600 hover:bg-blue-700 gap-2 h-8 text-sm"><Camera className="w-4 h-4" />{t('Capture Snapshot', 'التقاط لقطة')}</Button>
             </div>
@@ -407,7 +420,7 @@ export default function ConfigPackages() {
                     </TableRow></TableHeader>
                     <TableBody>
                       {snapshots.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-400 py-8">{t('No snapshots', 'لا توجد لقطات')}</TableCell></TableRow>
-                      : snapshots.map(s => (
+                      : snapshots.map((s: EnvironmentSnapshot) => (
                         <TableRow key={s.id} className="border-slate-700 hover:bg-slate-700/30">
                           <TableCell className="text-white font-medium">{s.snapshotName}</TableCell>
                           <TableCell><Badge variant="outline" className={`text-xs ${envBadge(s.environment)}`}>{s.environment}</Badge></TableCell>
@@ -416,9 +429,11 @@ export default function ConfigPackages() {
                           <TableCell className="text-slate-300 text-sm">{fmtDate(s.capturedAt)}</TableCell>
                           <TableCell>{s.isPinned ? <Badge variant="outline" className="text-xs bg-amber-900/40 text-amber-300 border-amber-700">{t('Pinned','مثبت')}</Badge> : <span className="text-slate-500 text-xs">—</span>}</TableCell>
                           <TableCell>
-                            <Button size="sm" variant="ghost" className="text-slate-400 hover:text-slate-300 h-7 px-2 text-xs" onClick={() => togglePin(s.id, s.isPinned)}>
-                              <Pin className="w-3 h-3 me-1" />{s.isPinned ? t('Unpin', 'إلغاء التثبيت') : t('Pin', 'تثبيت')}
-                            </Button>
+                            {!s.isPinned && (
+                              <Button size="sm" variant="ghost" className="text-slate-400 hover:text-slate-300 h-7 px-2 text-xs" onClick={() => pinSnapshot(s.id)}>
+                                <Pin className="w-3 h-3 me-1" />{t('Pin', 'تثبيت')}
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -437,19 +452,17 @@ export default function ConfigPackages() {
                   <Table>
                     <TableHeader><TableRow className="border-slate-700 bg-slate-700/50">
                       <TableHead className="text-slate-300">{t('Package Name', 'اسم الحزمة')}</TableHead>
-                      <TableHead className="text-slate-300">{t('Rolled Back From', 'تراجع من')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Rollback Of', 'تراجع عن')}</TableHead>
                       <TableHead className="text-slate-300">{t('Reason', 'السبب')}</TableHead>
-                      <TableHead className="text-slate-300">{t('Applied By', 'طُبِّق بواسطة')}</TableHead>
                       <TableHead className="text-slate-300">{t('Applied', 'مُطبَّق')}</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {rollbackPackages.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-slate-400 py-8">{t('No rollback history', 'لا يوجد سجل تراجع')}</TableCell></TableRow>
+                      {rollbackPackages.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center text-slate-400 py-8">{t('No rollback history', 'لا يوجد سجل تراجع')}</TableCell></TableRow>
                       : rollbackPackages.map(p => (
                         <TableRow key={p.id} className="border-slate-700 hover:bg-slate-700/30">
                           <TableCell className="text-white font-medium">{p.packageName}</TableCell>
-                          <TableCell className="text-slate-300 text-sm">{p.rollbackFromVersion ?? '—'}</TableCell>
-                          <TableCell className="text-slate-400 text-sm max-w-48 truncate">{p.description ?? '—'}</TableCell>
-                          <TableCell className="text-slate-300 text-sm">{p.appliedBy ?? '—'}</TableCell>
+                          <TableCell className="text-slate-300 text-sm">{p.rollbackOfPackageId != null ? `#${p.rollbackOfPackageId}` : '—'}</TableCell>
+                          <TableCell className="text-slate-400 text-sm max-w-48 truncate">{p.descriptionEn ?? '—'}</TableCell>
                           <TableCell className="text-slate-300 text-sm">{fmtDate(p.appliedAt)}</TableCell>
                         </TableRow>
                       ))}
@@ -461,9 +474,9 @@ export default function ConfigPackages() {
           </TabsContent>
         </Tabs>
 
-        <CreatePackageDialog open={createOpen} onClose={() => setCreateOpen(false)} onSaved={load} />
-        <CaptureSnapshotDialog open={captureOpen} onClose={() => setCaptureOpen(false)} onSaved={load} />
-        <ImpactPreviewDialog open={!!impactPkg} onClose={() => setImpactPkg(null)} pkg={impactPkg} onApply={reason => impactPkg && applyPackage(impactPkg.id, reason)} />
+        <CreatePackageDialog open={createOpen} onClose={() => setCreateOpen(false)} onSaved={refreshPackages} />
+        <CaptureSnapshotDialog open={captureOpen} onClose={() => setCaptureOpen(false)} onSaved={refreshSnapshots} />
+        <ImpactPreviewDialog open={!!impactPkg} onClose={() => setImpactPkg(null)} pkg={impactPkg} onApply={(reason) => impactPkg && applyPackage(impactPkg.id, reason)} />
       </div>
     </AnimatedPage>
   );

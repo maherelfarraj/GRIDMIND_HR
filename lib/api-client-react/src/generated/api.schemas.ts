@@ -6871,3 +6871,262 @@ export type UpdateAiPermissionBody = {
   isAllowed?: boolean;
   featureType?: string;
 };
+
+export type ListOrganizations200Item = Organization & ({
+  branding: OrganizationBranding | null;
+});
+
+export type CreateOrganizationBody = {
+  nameEn: string;
+  nameAr: string;
+  orgCode: string;
+  /** @nullable */
+  orgType?: string | null;
+  /** @nullable */
+  registrationNumber?: string | null;
+  /** @nullable */
+  countryCode?: string | null;
+  /** @nullable */
+  primaryContactEmail?: string | null;
+};
+
+export type GetOrganization200Stats = {
+  employeeCount: number;
+};
+
+export type GetOrganization200 = Organization & ({
+  branding: OrganizationBranding | null;
+  locale: PolicyLocale | null;
+  stats: GetOrganization200Stats;
+});
+
+export type UpdateOrganizationBody = {
+  /** @nullable */
+  nameEn?: string | null;
+  /** @nullable */
+  nameAr?: string | null;
+  /** @nullable */
+  orgType?: string | null;
+  /** @nullable */
+  registrationNumber?: string | null;
+  /** @nullable */
+  countryCode?: string | null;
+  /** @nullable */
+  primaryContactEmail?: string | null;
+  /** @nullable */
+  status?: string | null;
+};
+
+export type GetOrganizationEmployeesCount200 = {
+  orgId: number;
+  count: number;
+};
+
+export type ListConfigPackagesParams = {
+/**
+ * @nullable
+ */
+status?: string | null;
+/**
+ * @nullable
+ */
+packageType?: string | null;
+};
+
+export type CreateConfigPackageBody = {
+  packageName: string;
+  packageType: string;
+  version: string;
+  sourceEnvironment: string;
+  targetEnvironment: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  payloadJson?: string | null;
+  /** @nullable */
+  policyAreasJson?: string | null;
+};
+
+export type ImportConfigPackageBody = {
+  packageJson: unknown;
+};
+
+export type GetConfigPackage200 = ConfigPackage & {
+  items: ConfigPackageItem[];
+};
+
+export type ExportConfigPackage200 = ConfigPackage & {
+  items: ConfigPackageItem[];
+};
+
+export type ApplyConfigPackageBody = {
+  /** @nullable */
+  reason?: string | null;
+};
+
+export type ApplyConfigPackage200 = {
+  package: ConfigPackage;
+  itemsApplied: number;
+};
+
+export type RejectConfigPackageBody = {
+  /** @nullable */
+  reason?: string | null;
+};
+
+export type PreviewConfigPackageImpact200 = {
+  packageId: number;
+  packageName: string;
+  itemCount: number;
+  policyAreas: string[];
+  affectedEntityTypes: string[];
+  warnings: string[];
+  estimatedApplyTimeSeconds: number;
+};
+
+export type ListEnvironmentSnapshotsParams = {
+/**
+ * @nullable
+ */
+environment?: string | null;
+/**
+ * @nullable
+ */
+orgId?: number | null;
+};
+
+export type CreateEnvironmentSnapshotBody = {
+  snapshotName: string;
+  environment: string;
+  scope: string;
+  /** @nullable */
+  snapshotJson?: string | null;
+  /** @nullable */
+  notes?: string | null;
+};
+
+export type CompareEnvironmentSnapshotsBody = {
+  snapshotIdA: number;
+  snapshotIdB: number;
+};
+
+export type CompareEnvironmentSnapshots200SnapshotA = {
+  id: number;
+  name: string;
+  capturedAt: string;
+};
+
+export type CompareEnvironmentSnapshots200SnapshotB = {
+  id: number;
+  name: string;
+  capturedAt: string;
+};
+
+export type CompareEnvironmentSnapshots200DiffsItem = {
+  field: string;
+  snapshotA?: unknown;
+  snapshotB?: unknown;
+};
+
+export type CompareEnvironmentSnapshots200 = {
+  snapshotA: CompareEnvironmentSnapshots200SnapshotA;
+  snapshotB: CompareEnvironmentSnapshots200SnapshotB;
+  diffCount: number;
+  diffs: CompareEnvironmentSnapshots200DiffsItem[];
+};
+
+export type ListImportJobsParams = {
+/**
+ * @nullable
+ */
+type?: string | null;
+};
+
+export type CreateImportJobBody = {
+  importType: string;
+  /** @nullable */
+  fileFormat?: string | null;
+  /** @nullable */
+  originalFilename?: string | null;
+  rowsJson: unknown[];
+  columnMappingJson?: unknown;
+};
+
+export type CreateImportJob201ValidatedRowsItem = {
+  rowNumber: number;
+  status: string;
+  /** @nullable */
+  rawDataJson?: string | null;
+  /** @nullable */
+  mappedDataJson?: string | null;
+  /** @nullable */
+  errorsJson?: string | null;
+  isDuplicate: boolean;
+};
+
+export type CreateImportJob201 = DataImportJob & {
+  validatedRows: CreateImportJob201ValidatedRowsItem[];
+};
+
+export type GetImportJob200RowStatsItem = {
+  status: string;
+  count: number;
+};
+
+export type GetImportJob200 = DataImportJob & {
+  rowStats: GetImportJob200RowStatsItem[];
+};
+
+export type DeleteImportJob200 = {
+  deleted: boolean;
+};
+
+export type ListImportJobRowsParams = {
+/**
+ * @nullable
+ */
+status?: string | null;
+/**
+ * @nullable
+ */
+page?: number | null;
+/**
+ * @nullable
+ */
+pageSize?: number | null;
+};
+
+export type ListImportJobRows200 = {
+  page: number;
+  pageSize: number;
+  total: number;
+  rows: DataImportRow[];
+};
+
+export type ExecuteImportJob200 = DataImportJob & {
+  imported: number;
+};
+
+export type RollbackImportJob200 = DataImportJob & {
+  rolledBack: number;
+};
+
+export type ListImportMappingTemplatesParams = {
+/**
+ * @nullable
+ */
+type?: string | null;
+};
+
+export type CreateImportMappingTemplateBody = {
+  name: string;
+  importType: string;
+  columnMappingJson: unknown;
+  /** @nullable */
+  isDefault?: boolean | null;
+};
+
+export type DeleteImportMappingTemplate200 = {
+  deleted: boolean;
+};
+
