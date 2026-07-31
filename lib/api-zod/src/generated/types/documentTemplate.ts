@@ -8,15 +8,25 @@
 
 export interface DocumentTemplate {
   id: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
   templateType: string;
-  contentBody: string;
-  variables?: string[];
-  language: string;
   isActive: boolean;
-  createdBy: number;
   createdAt: string;
   updatedAt: string;
+  code?: string;
+  nameEn?: string;
+  nameAr?: string;
+  bodyHtml?: string;
+  /** @nullable */
+  bodyHtmlAr?: string | null;
+  /** @nullable */
+  mergeFieldsJson?: string | null;
+  /** @nullable */
+  headerImagePath?: string | null;
+  /** @nullable */
+  footerText?: string | null;
+  /** @nullable */
+  footerTextAr?: string | null;
+  /** @nullable */
+  categoryId?: number | null;
+  organizationType?: string;
 }

@@ -9,17 +9,29 @@
 export interface TrainingSession {
   id: number;
   courseId: number;
-  sessionName: string;
   startDate: string;
   endDate: string;
   /** @nullable */
   location?: string | null;
-  /** @nullable */
-  trainer?: string | null;
   status: string;
   enrolledCount: number;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  sessionCode?: string;
+  /** @nullable */
+  startTime?: string | null;
+  /** @nullable */
+  endTime?: string | null;
+  /** @nullable */
+  dutyStationId?: number | null;
+  /** @nullable */
+  trainerName?: string | null;
+  /** @nullable */
+  trainerEmployeeId?: number | null;
+  maxParticipants?: number;
+  attendedCount?: number;
+  /** @nullable */
+  passingScore?: number | null;
 }

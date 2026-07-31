@@ -8,7 +8,7 @@
 import type { PayrollRunLine } from './payrollRunLine';
 import type { PayrollRunSummary } from './payrollRunSummary';
 
-export type PayrollRunDetail = PayrollRunSummary & {
+export type PayrollRunDetail = PayrollRunSummary & ({
   jobTitleAr?: string;
   nationalId?: string;
   periodNameEn?: string;
@@ -23,4 +23,8 @@ export type PayrollRunDetail = PayrollRunSummary & {
   leaveDeductionAmount?: string;
   totalEarnings?: string;
   lines?: PayrollRunLine[];
-};
+  /** @nullable */
+  salaryGradeId?: number | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+});

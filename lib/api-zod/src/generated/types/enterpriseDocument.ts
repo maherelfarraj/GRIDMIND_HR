@@ -8,9 +8,6 @@
 
 export interface EnterpriseDocument {
   id: number;
-  title: string;
-  /** @nullable */
-  description?: string | null;
   /** @nullable */
   categoryId?: number | null;
   /** @nullable */
@@ -18,18 +15,44 @@ export interface EnterpriseDocument {
   classificationLevel: string;
   status: string;
   scope: string;
-  /** @nullable */
-  storagePath?: string | null;
-  /** @nullable */
-  fileSize?: number | null;
-  /** @nullable */
-  mimeType?: string | null;
   isOnLegalHold: boolean;
   /** @nullable */
   legalHoldReason?: string | null;
   /** @nullable */
   expiresAt?: string | null;
-  createdBy: number;
   createdAt: string;
   updatedAt: string;
+  documentNumber?: string;
+  /** @nullable */
+  orgUnitId?: number | null;
+  titleEn?: string;
+  /** @nullable */
+  titleAr?: string | null;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  currentVersionId?: number | null;
+  currentVersionNumber?: string;
+  /** @nullable */
+  issuedAt?: string | null;
+  /** @nullable */
+  expiryAlertSentAt?: Date | null;
+  /** @nullable */
+  legalHoldPlacedAt?: Date | null;
+  /** @nullable */
+  legalHoldPlacedByUserId?: number | null;
+  /** @nullable */
+  allowDownloadOverride?: boolean | null;
+  /** @nullable */
+  allowPrintOverride?: boolean | null;
+  /** @nullable */
+  watermarkOverride?: string | null;
+  /** @nullable */
+  retentionExpiresAt?: string | null;
+  requiresAcknowledgement?: boolean;
+  acknowledgedCount?: number;
+  /** @nullable */
+  tagsJson?: string | null;
+  /** @nullable */
+  uploadedByUserId?: number | null;
 }

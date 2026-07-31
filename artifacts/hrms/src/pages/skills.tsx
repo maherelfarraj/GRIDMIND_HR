@@ -185,8 +185,8 @@ export default function Skills() {
                         </div>
                       </div>
                       <ProficiencyBar level={skill.proficiencyLevel} />
-                      {skill.yearsExperience != null && (
-                        <p className="text-xs text-muted-foreground">{skill.yearsExperience} {t('years exp.', 'سنوات خبرة')}</p>
+                      {skill.lastAssessedAt != null && (
+                        <p className="text-xs text-muted-foreground">{t('Last assessed', 'آخر تقييم')}: {new Date(skill.lastAssessedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                       )}
                     </CardContent>
                   </Card>

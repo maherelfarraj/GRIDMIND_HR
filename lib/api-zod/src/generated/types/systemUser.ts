@@ -24,4 +24,5 @@ export interface SystemUser {
   avatarUrl?: string | null;
   preferredLanguage: string;
   createdAt: string;
+  mustChangePassword?: boolean;
 }

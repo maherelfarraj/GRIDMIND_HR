@@ -23,4 +23,5 @@ export interface LeaveApprovalStep {
   decidedAt?: string | null;
   /** @nullable */
   delegatedToEmployeeId?: number | null;
+  createdAt?: Date;
 }

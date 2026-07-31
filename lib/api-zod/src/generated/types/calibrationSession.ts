@@ -12,11 +12,12 @@ export interface CalibrationSession {
   /** @nullable */
   departmentId?: number | null;
   sessionDate: string;
-  /** @nullable */
-  facilitatorId?: number | null;
   status: string;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
-  updatedAt: string;
+  /** @nullable */
+  facilitatorUserId?: number | null;
+  /** @nullable */
+  attendeesJson?: string | null;
 }

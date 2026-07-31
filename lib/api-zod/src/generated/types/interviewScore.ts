@@ -9,8 +9,6 @@
 export interface InterviewScore {
   id: number;
   applicationId: number;
-  interviewerId: number;
-  interviewDate: string;
   /** @nullable */
   overallScore?: number | null;
   /** @nullable */
@@ -21,8 +19,30 @@ export interface InterviewScore {
   cultureFitScore?: number | null;
   /** @nullable */
   recommendation?: string | null;
-  /** @nullable */
-  notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  interviewerEmployeeId?: number;
+  roundNumber?: number;
+  roundType?: string;
+  /** @nullable */
+  scheduledAt?: Date | null;
+  /** @nullable */
+  conductedAt?: Date | null;
+  status?: string;
+  /** @nullable */
+  durationMinutes?: number | null;
+  /** @nullable */
+  leadershipScore?: number | null;
+  /** @nullable */
+  strengthsNotes?: string | null;
+  /** @nullable */
+  concernsNotes?: string | null;
+  /** @nullable */
+  generalNotes?: string | null;
+  isSubmitted?: boolean;
+  /** @nullable */
+  submittedAt?: Date | null;
+  /** @nullable */
+  meetingLocation?: string | null;
+  interviewMode?: string;
 }

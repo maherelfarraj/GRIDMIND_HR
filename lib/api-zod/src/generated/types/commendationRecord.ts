@@ -9,13 +9,22 @@
 export interface CommendationRecord {
   id: number;
   employeeId: number;
-  commendationDate: string;
-  commendationType: string;
-  description: string;
-  /** @nullable */
-  issuedBy?: number | null;
-  /** @nullable */
-  notes?: string | null;
   createdAt: string;
-  updatedAt: string;
+  awardType?: string;
+  titleEn?: string;
+  /** @nullable */
+  titleAr?: string | null;
+  /** @nullable */
+  descriptionEn?: string | null;
+  awardDate?: string;
+  /** @nullable */
+  nominatedByEmployeeId?: number | null;
+  /** @nullable */
+  approvedByEmployeeId?: number | null;
+  /** @nullable */
+  approvedAt?: Date | null;
+  promotionPoints?: number;
+  /** @nullable */
+  documentId?: number | null;
+  isPublic?: boolean;
 }

@@ -10,14 +10,19 @@ export interface CourseNomination {
   id: number;
   sessionId: number;
   employeeId: number;
-  /** @nullable */
-  nominatedBy?: number | null;
   status: string;
-  nominatedAt: string;
   /** @nullable */
   approvedAt?: string | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  nominationSource?: string;
+  /** @nullable */
+  nominatedByEmployeeId?: number | null;
+  /** @nullable */
+  approvedByUserId?: number | null;
+  /** @nullable */
+  rejectionReason?: string | null;
+  isMandatory?: boolean;
 }

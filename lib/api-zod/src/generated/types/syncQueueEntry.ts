@@ -34,4 +34,8 @@ export interface SyncQueueEntry {
   /** @nullable */
   resolvedAt?: string | null;
   createdAt?: string;
+  maxRetries?: number;
+  /** @nullable */
+  resolvedByUserId?: number | null;
+  updatedAt?: Date;
 }

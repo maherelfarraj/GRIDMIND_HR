@@ -80,7 +80,7 @@ function PoolPanel({ pool }: { pool: any }) {
                     <th className="pb-2">{t('Employee', 'الموظف')}</th>
                     <th className="pb-2">{t('Readiness', 'الاستعداد')}</th>
                     <th className="pb-2">{t('Score', 'الدرجة')}</th>
-                    <th className="pb-2">{t('Target', 'الهدف')}</th>
+                    <th className="pb-2">{t('Performance', 'الأداء')}</th>
                     <th className="pb-2">{t('Status', 'الحالة')}</th>
                   </tr>
                 </thead>
@@ -89,10 +89,14 @@ function PoolPanel({ pool }: { pool: any }) {
                     <tr key={c.id} className="border-b last:border-0">
                       <td className="py-2">#{c.employeeId}</td>
                       <td className="py-2"><ReadinessBadge level={c.readinessLevel} /></td>
-                      <td className="py-2"><TalentStars score={c.assessmentScore} /></td>
-                      <td className="py-2 text-xs text-muted-foreground">{fmtDate(c.targetDate)}</td>
+                      <td className="py-2"><TalentStars score={c.talentScore} /></td>
+                      <td className="py-2 text-xs text-muted-foreground">{c.performanceRating ?? '—'}</td>
                       <td className="py-2">
-                        <Badge variant="outline" className="capitalize text-xs">{c.status}</Badge>
+                        <Badge variant="outline" className={cn('capitalize text-xs',
+                          c.isActive ? 'border-emerald-400 text-emerald-600' : 'border-gray-400 text-gray-500'
+                        )}>
+                          {c.isActive ? t('Active', 'نشط') : t('Inactive', 'غير نشط')}
+                        </Badge>
                       </td>
                     </tr>
                   ))}
@@ -149,7 +153,7 @@ function DevPlanPanel({ plan }: { plan: any }) {
                       'bg-muted-foreground'
                 )} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{a.activityName}</p>
+                  <p className="text-sm font-medium truncate">{a.titleEn}</p>
                   {a.activityType && <p className="text-xs text-muted-foreground capitalize">{a.activityType}</p>}
                 </div>
                 <div className="text-right flex-shrink-0">

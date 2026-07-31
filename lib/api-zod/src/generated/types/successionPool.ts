@@ -8,12 +8,21 @@
 
 export interface SuccessionPool {
   id: number;
-  name: string;
-  /** @nullable */
-  targetPositionId?: number | null;
-  /** @nullable */
-  description?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  nameEn?: string;
+  nameAr?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  targetJobTitleEn?: string | null;
+  /** @nullable */
+  targetGradeCode?: string | null;
+  /** @nullable */
+  targetRankCode?: string | null;
+  poolType?: string;
+  organizationType?: string;
+  /** @nullable */
+  ownedByEmployeeId?: number | null;
 }

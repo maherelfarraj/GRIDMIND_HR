@@ -10,25 +10,52 @@ export interface AppraisalRecord {
   id: number;
   cycleId: number;
   employeeId: number;
-  /** @nullable */
-  reviewerId?: number | null;
   status: string;
-  /** @nullable */
-  selfRating?: number | null;
-  /** @nullable */
-  managerRating?: number | null;
   /** @nullable */
   finalRating?: number | null;
   /** @nullable */
-  selfComments?: string | null;
-  /** @nullable */
   managerComments?: string | null;
-  /** @nullable */
-  hrComments?: string | null;
-  /** @nullable */
-  submittedAt?: string | null;
-  /** @nullable */
-  completedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  reviewerEmployeeId?: number | null;
+  /** @nullable */
+  selfGoalsScore?: string | null;
+  /** @nullable */
+  selfCompetencyScore?: string | null;
+  /** @nullable */
+  selfOverallScore?: string | null;
+  /** @nullable */
+  selfStrengths?: string | null;
+  /** @nullable */
+  selfDevelopmentAreas?: string | null;
+  /** @nullable */
+  selfSubmittedAt?: Date | null;
+  /** @nullable */
+  managerGoalsScore?: string | null;
+  /** @nullable */
+  managerCompetencyScore?: string | null;
+  /** @nullable */
+  managerOverallScore?: string | null;
+  /** @nullable */
+  managerStrengths?: string | null;
+  /** @nullable */
+  managerDevelopmentAreas?: string | null;
+  /** @nullable */
+  managerSubmittedAt?: Date | null;
+  /** @nullable */
+  calibratedScore?: string | null;
+  /** @nullable */
+  calibrationNotes?: string | null;
+  /** @nullable */
+  calibratedAt?: Date | null;
+  /** @nullable */
+  calibratedByUserId?: number | null;
+  /** @nullable */
+  sharedWithEmployeeAt?: Date | null;
+  /** @nullable */
+  employeeAcknowledgedAt?: Date | null;
+  /** @nullable */
+  employeeResponse?: string | null;
+  promotionRecommended?: boolean;
 }

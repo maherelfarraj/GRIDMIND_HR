@@ -13,4 +13,14 @@ export interface DocumentAcknowledgement {
   acknowledgedAt: string;
   /** @nullable */
   ipAddress?: string | null;
+  status?: string;
+  /** @nullable */
+  declinedAt?: Date | null;
+  /** @nullable */
+  declineReason?: string | null;
+  /** @nullable */
+  deadlineDate?: string | null;
+  /** @nullable */
+  reminderSentAt?: Date | null;
+  createdAt?: Date;
 }

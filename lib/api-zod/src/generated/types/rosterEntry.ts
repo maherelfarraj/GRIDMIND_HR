@@ -43,4 +43,8 @@ export interface RosterEntry {
   shiftEndTime?: string | null;
   /** @nullable */
   shiftColor?: string | null;
+  /** @nullable */
+  createdByUserId?: number | null;
+  createdAt?: Date;
+  updatedAt?: Date;
 }

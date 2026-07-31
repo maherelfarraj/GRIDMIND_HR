@@ -10,9 +10,10 @@ export interface SavedReportFilter {
   id: number;
   reportDefinitionId: number;
   userId: number;
-  filterName: string;
   filtersJson: string;
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
+  nameEn?: string;
+  isShared?: boolean;
 }

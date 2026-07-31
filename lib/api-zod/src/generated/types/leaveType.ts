@@ -30,4 +30,5 @@ export interface LeaveType {
   isActive: boolean;
   color: string;
   createdAt: string;
+  updatedAt?: Date;
 }

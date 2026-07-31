@@ -5,15 +5,21 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
-import type { OnboardingTemplateItem } from './onboardingTemplateItem';
 
 export interface OnboardingTemplate {
   id: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
   isActive: boolean;
-  items?: OnboardingTemplateItem[];
   createdAt: string;
   updatedAt: string;
+  nameEn?: string;
+  nameAr?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  targetEmploymentType?: string;
+  organizationType?: string;
+  /** @nullable */
+  departmentId?: number | null;
+  totalTasks?: number;
+  estimatedDays?: number;
+  isDefault?: boolean;
 }

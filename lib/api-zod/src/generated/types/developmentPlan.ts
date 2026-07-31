@@ -9,9 +9,6 @@
 export interface DevelopmentPlan {
   id: number;
   employeeId: number;
-  title: string;
-  /** @nullable */
-  description?: string | null;
   startDate: string;
   /** @nullable */
   endDate?: string | null;
@@ -19,4 +16,18 @@ export interface DevelopmentPlan {
   completionPercentage: number;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  cycleId?: number | null;
+  /** @nullable */
+  successionCandidateId?: number | null;
+  nameEn?: string;
+  /** @nullable */
+  targetCompetencies?: string | null;
+  /** @nullable */
+  approvedByEmployeeId?: number | null;
+  /** @nullable */
+  approvedAt?: Date | null;
+  completionPct?: number;
+  /** @nullable */
+  notes?: string | null;
 }

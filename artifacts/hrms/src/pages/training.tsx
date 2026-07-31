@@ -192,7 +192,7 @@ export default function Training() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">{t('All Programs', 'جميع البرامج')}</SelectItem>
-                  {programs.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+                  {programs.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nameEn}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Badge variant="outline">{filteredSessions.length} {t('sessions', 'جلسات')}</Badge>
@@ -209,7 +209,7 @@ export default function Training() {
                     <Card key={session.id}>
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between">
-                          <CardTitle className="text-base">{session.sessionName}</CardTitle>
+                          <CardTitle className="text-base">{session.sessionCode}</CardTitle>
                           <Badge variant="outline" className={cn('capitalize text-xs shrink-0 ml-2',
                             session.status === 'active' ? 'border-emerald-400 text-emerald-600' :
                               session.status === 'completed' ? 'border-gray-400 text-gray-500' :
@@ -223,7 +223,7 @@ export default function Training() {
                         <div className="text-xs text-muted-foreground space-y-1">
                           <div className="flex justify-between"><span>{t('Dates', 'التواريخ')}</span><span>{fmtDate(session.startDate)} → {fmtDate(session.endDate)}</span></div>
                           {session.location && <div className="flex justify-between"><span>{t('Location', 'المكان')}</span><span>{session.location}</span></div>}
-                          {session.trainer && <div className="flex justify-between"><span>{t('Trainer', 'المدرب')}</span><span>{session.trainer}</span></div>}
+                          {session.trainerName && <div className="flex justify-between"><span>{t('Trainer', 'المدرب')}</span><span>{session.trainerName}</span></div>}
                         </div>
                         {/* Enrollment bar */}
                         <div>
@@ -273,7 +273,7 @@ export default function Training() {
                     <TableRow key={n.id}>
                       <TableCell>#{n.sessionId}</TableCell>
                       <TableCell>{getEmpName(n.employeeId)}</TableCell>
-                      <TableCell>{n.nominatedBy ? getEmpName(n.nominatedBy) : '—'}</TableCell>
+                      <TableCell>{n.nominatedByEmployeeId ? getEmpName(n.nominatedByEmployeeId) : '—'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn('capitalize text-xs',
                           n.status === 'approved' ? 'border-emerald-400 text-emerald-600' :
@@ -283,7 +283,7 @@ export default function Training() {
                           {n.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>{fmtDate(n.nominatedAt)}</TableCell>
+                      <TableCell>{fmtDate(n.createdAt)}</TableCell>
                       <TableCell>
                         {n.status === 'pending' && (
                           <div className="flex gap-1">
@@ -327,7 +327,7 @@ export default function Training() {
                     <SelectValue placeholder={t('Select Session', 'اختر الجلسة')} />
                   </SelectTrigger>
                   <SelectContent>
-                    {sessions.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.sessionName}</SelectItem>)}
+                    {sessions.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.sessionCode}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Card>
@@ -337,7 +337,7 @@ export default function Training() {
                         <TableHead>{t('Employee', 'الموظف')}</TableHead>
                         <TableHead>{t('Date', 'التاريخ')}</TableHead>
                         <TableHead>{t('Status', 'الحالة')}</TableHead>
-                        <TableHead>{t('Hours', 'الساعات')}</TableHead>
+                        <TableHead>{t('Attendance %', 'نسبة الحضور')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -346,17 +346,17 @@ export default function Training() {
                       ) : attendance.map(a => (
                         <TableRow key={a.id}>
                           <TableCell>{getEmpName(a.employeeId)}</TableCell>
-                          <TableCell>{fmtDate(a.attendanceDate)}</TableCell>
+                          <TableCell>{fmtDate(a.completedAt)}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn('capitalize text-xs',
-                              a.status === 'present' ? 'border-emerald-400 text-emerald-600' :
-                                a.status === 'absent' ? 'border-red-400 text-red-600' :
+                              a.attendanceStatus === 'present' ? 'border-emerald-400 text-emerald-600' :
+                                a.attendanceStatus === 'absent' ? 'border-red-400 text-red-600' :
                                   'border-amber-400 text-amber-600'
                             )}>
-                              {a.status}
+                              {a.attendanceStatus}
                             </Badge>
                           </TableCell>
-                          <TableCell>{a.hoursAttended ?? '—'}</TableCell>
+                          <TableCell>{a.attendancePct != null ? `${a.attendancePct}%` : '—'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -393,7 +393,7 @@ export default function Training() {
                       ) : certifications.map(c => (
                         <TableRow key={c.id} className={cn(isExpired(c.expiryDate) ? 'bg-red-50/10' : isExpiringSoon(c.expiryDate) ? 'bg-amber-50/10' : '')}>
                           <TableCell>{getEmpName(c.employeeId)}</TableCell>
-                          <TableCell className="font-medium">{c.certName}</TableCell>
+                          <TableCell className="font-medium">{c.certificationName}</TableCell>
                           <TableCell>{c.certType ?? '—'}</TableCell>
                           <TableCell>{c.issuingBody ?? '—'}</TableCell>
                           <TableCell>{fmtDate(c.issuedDate)}</TableCell>

@@ -8,18 +8,27 @@
 
 export interface ReportDefinition {
   id: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
   reportType: string;
   /** @nullable */
-  queryTemplate?: string | null;
-  /** @nullable */
   defaultFiltersJson?: string | null;
-  availableColumns?: string[];
   isSystemReport: boolean;
   isActive: boolean;
-  createdBy: number;
   createdAt: string;
   updatedAt: string;
+  code?: string;
+  nameEn?: string;
+  nameAr?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  outputFormat?: string;
+  querySpecJson?: string;
+  allowedRoles?: string;
+  /** @nullable */
+  maskedFieldsJson?: string | null;
+  supportedExports?: string;
+  supportsArabic?: boolean;
+  supportsEnglish?: boolean;
+  organizationType?: string;
+  /** @nullable */
+  createdByUserId?: number | null;
 }

@@ -9,11 +9,19 @@
 export interface DocumentAccessLog {
   id: number;
   documentId: number;
-  accessedBy: number;
-  accessType: string;
   /** @nullable */
   ipAddress?: string | null;
   /** @nullable */
   userAgent?: string | null;
   accessedAt: string;
+  /** @nullable */
+  versionId?: number | null;
+  userId?: number;
+  /** @nullable */
+  employeeId?: number | null;
+  action?: string;
+  wasWatermarked?: boolean;
+  outcome?: string;
+  /** @nullable */
+  denialReason?: string | null;
 }

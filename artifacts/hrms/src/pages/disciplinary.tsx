@@ -219,9 +219,9 @@ export default function Disciplinary() {
                     <TableHead>{t('Employee', 'الموظف')}</TableHead>
                     <TableHead>{t('Date', 'التاريخ')}</TableHead>
                     <TableHead>{t('Type', 'النوع')}</TableHead>
-                    <TableHead>{t('Severity', 'الخطورة')}</TableHead>
+                    <TableHead>{t('Category', 'الفئة')}</TableHead>
                     <TableHead>{t('Status', 'الحالة')}</TableHead>
-                    <TableHead>{t('Action Taken', 'الإجراء')}</TableHead>
+                    <TableHead>{t('Description', 'الوصف')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -233,16 +233,16 @@ export default function Disciplinary() {
                     <TableRow key={r.id}>
                       <TableCell>#{r.employeeId}</TableCell>
                       <TableCell>{fmtDate(r.incidentDate)}</TableCell>
-                      <TableCell className="capitalize">{r.incidentType}</TableCell>
+                      <TableCell className="capitalize">{r.actionType ?? '—'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={cn('capitalize text-xs', SEVERITY_COLORS[r.severity] ?? '')}>
-                          {r.severity.replace('_', ' ')}
+                        <Badge variant="outline" className={cn('capitalize text-xs', SEVERITY_COLORS[r.category ?? ''] ?? '')}>
+                          {(r.category ?? '—').replace('_', ' ')}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize text-xs">{r.status}</Badge>
                       </TableCell>
-                      <TableCell className="text-xs max-w-48 truncate">{r.actionTaken ?? '—'}</TableCell>
+                      <TableCell className="text-xs max-w-48 truncate">{r.descriptionEn ?? '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -277,9 +277,9 @@ export default function Disciplinary() {
                   ) : commRecords.map(r => (
                     <TableRow key={r.id}>
                       <TableCell>#{r.employeeId}</TableCell>
-                      <TableCell>{fmtDate(r.commendationDate)}</TableCell>
-                      <TableCell className="capitalize">{r.commendationType ?? '—'}</TableCell>
-                      <TableCell className="text-xs max-w-64 truncate">{r.description ?? '—'}</TableCell>
+                      <TableCell>{fmtDate(r.awardDate)}</TableCell>
+                      <TableCell className="capitalize">{r.awardType ?? '—'}</TableCell>
+                      <TableCell className="text-xs max-w-64 truncate">{r.descriptionEn ?? '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -292,8 +292,8 @@ export default function Disciplinary() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t('Employee', 'الموظف')}</TableHead>
-                    <TableHead>{t('Recommended By', 'موصى به من')}</TableHead>
-                    <TableHead>{t('Position ID', 'رقم المنصب')}</TableHead>
+                    <TableHead>{t('Reviewed By', 'روجع بواسطة')}</TableHead>
+                    <TableHead>{t('Recommended Grade', 'الدرجة الموصى بها')}</TableHead>
                     <TableHead>{t('Effective Date', 'تاريخ التفعيل')}</TableHead>
                     <TableHead>{t('Status', 'الحالة')}</TableHead>
                   </TableRow>
@@ -304,8 +304,8 @@ export default function Disciplinary() {
                   ) : promoRecords.map(r => (
                     <TableRow key={r.id}>
                       <TableCell>#{r.employeeId}</TableCell>
-                      <TableCell>#{r.recommendedBy}</TableCell>
-                      <TableCell>{r.recommendedPositionId != null ? `#${r.recommendedPositionId}` : '—'}</TableCell>
+                      <TableCell>{r.reviewedByEmployeeId != null ? `#${r.reviewedByEmployeeId}` : '—'}</TableCell>
+                      <TableCell>{r.recommendedGradeCode ?? '—'}</TableCell>
                       <TableCell>{fmtDate(r.effectiveDate)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn('capitalize text-xs',

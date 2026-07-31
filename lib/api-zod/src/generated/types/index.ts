@@ -187,6 +187,7 @@ export * from './executiveDashboardTopLatecomersItem';
 export * from './exportConfigPackage200';
 export * from './exportJob';
 export * from './gatewayRegistration';
+export * from './gatewayRegistrationAdapterConnStatus';
 export * from './gatewayRegistrationAdapterType';
 export * from './gatewayRegistrationStatus';
 export * from './generateDocumentFromTemplateBody';

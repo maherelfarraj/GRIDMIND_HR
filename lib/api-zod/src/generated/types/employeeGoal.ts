@@ -10,9 +10,6 @@ export interface EmployeeGoal {
   id: number;
   cycleId: number;
   employeeId: number;
-  title: string;
-  /** @nullable */
-  description?: string | null;
   /** @nullable */
   weight?: number | null;
   /** @nullable */
@@ -22,8 +19,28 @@ export interface EmployeeGoal {
   status: string;
   /** @nullable */
   dueDate?: string | null;
-  /** @nullable */
-  completedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  titleEn?: string;
+  /** @nullable */
+  titleAr?: string | null;
+  /** @nullable */
+  descriptionEn?: string | null;
+  goalType?: string;
+  /** @nullable */
+  targetUnit?: string | null;
+  progressStatus?: string;
+  completionPct?: number;
+  /** @nullable */
+  finalScore?: number | null;
+  /** @nullable */
+  managerScore?: number | null;
+  /** @nullable */
+  approvedByEmployeeId?: number | null;
+  /** @nullable */
+  approvedAt?: Date | null;
+  /** @nullable */
+  linkedOrgObjective?: string | null;
+  /** @nullable */
+  notes?: string | null;
 }

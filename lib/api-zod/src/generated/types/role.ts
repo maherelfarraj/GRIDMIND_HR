@@ -16,4 +16,5 @@ export interface Role {
   systemRole: boolean;
   userCount: number;
   createdAt: string;
+  permissionsJson?: string;
 }

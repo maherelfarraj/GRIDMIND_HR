@@ -278,14 +278,14 @@ export default function MyPortal() {
                   ) : requests.map(r => (
                     <TableRow key={r.id}>
                       <TableCell className="capitalize">{r.requestType}</TableCell>
-                      <TableCell className="max-w-48 truncate">{r.subject}</TableCell>
+                      <TableCell className="max-w-48 truncate">{r.titleEn}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn('capitalize text-xs',
-                          r.priority === 'high' ? 'border-red-400 text-red-600' :
-                            r.priority === 'normal' ? 'border-blue-400 text-blue-600' :
+                          r.urgency === 'high' ? 'border-red-400 text-red-600' :
+                            r.urgency === 'normal' ? 'border-blue-400 text-blue-600' :
                               'border-gray-400 text-gray-500'
                         )}>
-                          {r.priority ?? 'normal'}
+                          {r.urgency ?? 'normal'}
                         </Badge>
                       </TableCell>
                       <TableCell>

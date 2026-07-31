@@ -31,4 +31,10 @@ export interface MobilizationStatus {
   employeeNameEn?: string | null;
   /** @nullable */
   employeeNameAr?: string | null;
+  /** @nullable */
+  updatedByUserId?: number | null;
+  /** @nullable */
+  approvedByEmployeeId?: number | null;
+  isActive?: boolean;
+  createdAt?: Date;
 }

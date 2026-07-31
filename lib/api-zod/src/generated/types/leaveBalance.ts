@@ -23,4 +23,5 @@ export interface LeaveBalance {
   leaveTypeNameEn?: string;
   leaveTypeNameAr?: string;
   leaveTypeColor?: string;
+  updatedAt?: Date;
 }

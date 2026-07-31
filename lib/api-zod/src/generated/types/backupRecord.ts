@@ -27,4 +27,15 @@ export interface BackupRecord {
   serverCode: string;
   /** @nullable */
   errorMessage?: string | null;
+  /** @nullable */
+  verifiedByUserId?: number | null;
+  /** @nullable */
+  verificationNotes?: string | null;
+  /** @nullable */
+  restoreTestedAt?: Date | null;
+  /** @nullable */
+  initiatedByUserId?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt?: Date;
 }

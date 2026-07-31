@@ -11,19 +11,30 @@ export interface ReportOutput {
   reportDefinitionId: number;
   generatedByUserId: number;
   status: string;
-  exportFormat: string;
   /** @nullable */
   filtersJson?: string | null;
   /** @nullable */
   storagePath?: string | null;
   /** @nullable */
-  fileSize?: number | null;
-  /** @nullable */
   rowCount?: number | null;
   /** @nullable */
   errorMessage?: string | null;
-  /** @nullable */
-  generatedAt?: string | null;
   createdAt: string;
-  updatedAt: string;
+  /** @nullable */
+  scheduleId?: number | null;
+  /** @nullable */
+  parametersJson?: string | null;
+  outputFormat?: string;
+  language?: string;
+  /** @nullable */
+  fileName?: string | null;
+  /** @nullable */
+  fileSizeBytes?: number | null;
+  /** @nullable */
+  generationStartedAt?: Date | null;
+  /** @nullable */
+  generationCompletedAt?: Date | null;
+  /** @nullable */
+  expiresAt?: Date | null;
+  downloadCount?: number;
 }

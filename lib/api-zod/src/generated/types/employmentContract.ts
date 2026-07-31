@@ -13,15 +13,31 @@ export interface EmploymentContract {
   startDate: string;
   /** @nullable */
   endDate?: string | null;
-  salary: number;
-  currency: string;
   status: string;
-  /** @nullable */
-  documentUrl?: string | null;
   /** @nullable */
   signedAt?: string | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  contractNumber?: string;
+  /** @nullable */
+  applicantId?: number | null;
+  offerId?: number;
+  /** @nullable */
+  probationEndDate?: string | null;
+  /** @nullable */
+  sentAt?: Date | null;
+  signedByApplicant?: boolean;
+  signedByOrg?: boolean;
+  /** @nullable */
+  orgSignatoryEmployeeId?: number | null;
+  /** @nullable */
+  documentId?: number | null;
+  /** @nullable */
+  terminationDate?: string | null;
+  /** @nullable */
+  terminationReason?: string | null;
+  /** @nullable */
+  preparedByUserId?: number | null;
 }

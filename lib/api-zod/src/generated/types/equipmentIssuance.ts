@@ -10,21 +10,30 @@ export interface EquipmentIssuance {
   id: number;
   employeeId: number;
   itemType: string;
-  itemName: string;
   /** @nullable */
   serialNumber?: string | null;
-  issuedDate: string;
   /** @nullable */
   returnDueDate?: string | null;
-  /** @nullable */
-  returnedDate?: string | null;
   status: string;
   /** @nullable */
   condition?: string | null;
   /** @nullable */
-  issuedBy?: number | null;
-  /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  onboardingId?: number | null;
+  itemDescription?: string;
+  /** @nullable */
+  assetTag?: string | null;
+  issuedAt?: Date;
+  /** @nullable */
+  issuedByUserId?: number | null;
+  /** @nullable */
+  returnedAt?: Date | null;
+  /** @nullable */
+  returnedByEmployeeId?: number | null;
+  /** @nullable */
+  receivedByUserId?: number | null;
+  employeeSignature?: boolean;
 }

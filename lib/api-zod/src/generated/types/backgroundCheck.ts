@@ -16,11 +16,29 @@ export interface BackgroundCheck {
   /** @nullable */
   completedAt?: string | null;
   /** @nullable */
-  result?: string | null;
-  /** @nullable */
   provider?: string | null;
-  /** @nullable */
-  notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  applicantId?: number;
+  /** @nullable */
+  referenceNumber?: string | null;
+  /** @nullable */
+  expiryDate?: string | null;
+  /** @nullable */
+  resultSummary?: string | null;
+  /** @nullable */
+  flagNotes?: string | null;
+  /** @nullable */
+  reviewedByUserId?: number | null;
+  /** @nullable */
+  reviewedAt?: Date | null;
+  /** @nullable */
+  reviewNotes?: string | null;
+  isWaived?: boolean;
+  /** @nullable */
+  waivedByUserId?: number | null;
+  /** @nullable */
+  waivedReason?: string | null;
+  /** @nullable */
+  documentId?: number | null;
 }

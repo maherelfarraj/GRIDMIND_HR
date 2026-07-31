@@ -94,8 +94,8 @@ function OnboardingCard({ record }: { record: any }) {
                     : <Circle className="w-4 h-4 text-muted-foreground" />}
                 </button>
                 <div className="flex-1">
-                  <p className={cn('text-sm', task.status === 'completed' && 'line-through text-muted-foreground')}>{task.taskName}</p>
-                  {task.category && <p className="text-xs text-muted-foreground">{task.category}</p>}
+                  <p className={cn('text-sm', task.status === 'completed' && 'line-through text-muted-foreground')}>{task.titleEn ?? '—'}</p>
+                  {task.taskType && <p className="text-xs text-muted-foreground capitalize">{task.taskType.replace('_', ' ')}</p>}
                 </div>
                 {task.dueDate && <p className="text-xs text-muted-foreground">{fmtDate(task.dueDate)}</p>}
               </div>
@@ -155,29 +155,18 @@ export default function Onboarding() {
                   <Card key={tmpl.id}>
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">{tmpl.name}</CardTitle>
+                        <CardTitle className="text-base">{tmpl.nameEn ?? '—'}</CardTitle>
                         <Badge variant="outline" className={cn('text-xs', tmpl.isActive ? 'border-emerald-400 text-emerald-600' : 'border-gray-400 text-gray-500')}>
                           {tmpl.isActive ? t('Active', 'نشط') : t('Inactive', 'غير نشط')}
                         </Badge>
                       </div>
                     </CardHeader>
                     <CardContent>
-                      {tmpl.description && <p className="text-sm text-muted-foreground mb-3">{tmpl.description}</p>}
-                      {tmpl.items && tmpl.items.length > 0 && (
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground mb-2">{t('Items', 'البنود')} ({tmpl.items.length})</p>
-                          {tmpl.items.map(item => (
-                            <div key={item.id} className="flex items-center gap-2 text-sm">
-                              <Clock className="w-3 h-3 text-amber-500 flex-shrink-0" />
-                              <span>{item.taskName}</span>
-                              <span className="ml-auto text-xs text-muted-foreground">
-                                {t('Day', 'اليوم')} {item.daysFromStart}
-                                {item.isRequired && <span className="text-red-500 ml-1">*</span>}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      {tmpl.descriptionEn && <p className="text-sm text-muted-foreground mb-3">{tmpl.descriptionEn}</p>}
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Clock className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                        <span>{t('Tasks', 'المهام')}: {tmpl.totalTasks ?? 0}</span>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}

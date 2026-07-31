@@ -10,18 +10,34 @@ export interface DisciplinaryRecord {
   id: number;
   employeeId: number;
   incidentDate: string;
-  incidentType: string;
-  severity: string;
-  description: string;
-  /** @nullable */
-  actionTaken?: string | null;
   status: string;
-  /** @nullable */
-  issuedBy?: number | null;
-  /** @nullable */
-  acknowledgedAt?: string | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  actionType?: string;
+  actionDate?: string;
+  descriptionEn?: string;
+  /** @nullable */
+  descriptionAr?: string | null;
+  category?: string;
+  /** @nullable */
+  expiryDate?: string | null;
+  issuedByEmployeeId?: number;
+  /** @nullable */
+  hrApprovedByUserId?: number | null;
+  employeeAcknowledged?: boolean;
+  /** @nullable */
+  employeeAcknowledgedAt?: Date | null;
+  /** @nullable */
+  employeeResponse?: string | null;
+  /** @nullable */
+  appealDate?: string | null;
+  /** @nullable */
+  appealOutcome?: string | null;
+  /** @nullable */
+  documentId?: number | null;
+  requiresDualAuth?: boolean;
+  /** @nullable */
+  dualAuthRequestId?: number | null;
 }

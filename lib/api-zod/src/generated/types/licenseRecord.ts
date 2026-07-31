@@ -35,4 +35,7 @@ export interface LicenseRecord {
   /** @nullable */
   daysUntilExpiry?: number | null;
   features?: string[];
+  /** @nullable */
+  validationNotes?: string | null;
+  updatedAt?: Date;
 }

@@ -17,6 +17,12 @@ export interface DocumentVersion {
   mimeType?: string | null;
   /** @nullable */
   changeNotes?: string | null;
-  uploadedBy: number;
   createdAt: string;
+  fileName?: string;
+  /** @nullable */
+  checksum?: string | null;
+  /** @nullable */
+  uploadedByUserId?: number | null;
+  uploadedAt?: Date;
+  isCurrentVersion?: boolean;
 }

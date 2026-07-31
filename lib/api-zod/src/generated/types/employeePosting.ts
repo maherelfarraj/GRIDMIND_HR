@@ -40,4 +40,7 @@ export interface EmployeePosting {
   dutyStationNameEn?: string | null;
   /** @nullable */
   rankNameEn?: string | null;
+  /** @nullable */
+  remarksAr?: string | null;
+  updatedAt?: Date;
 }

@@ -11,13 +11,20 @@ export interface SuccessionCandidate {
   poolId: number;
   employeeId: number;
   readinessLevel: string;
-  /** @nullable */
-  assessmentScore?: number | null;
-  /** @nullable */
-  targetDate?: string | null;
-  status: string;
-  /** @nullable */
-  notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  talentScore?: number;
+  /** @nullable */
+  performanceRating?: string | null;
+  flightRisk?: string;
+  impactIfLost?: string;
+  futureIntent?: string;
+  addedAt?: Date;
+  /** @nullable */
+  addedByUserId?: number | null;
+  /** @nullable */
+  lastReviewedAt?: Date | null;
+  /** @nullable */
+  reviewNotes?: string | null;
+  isActive?: boolean;
 }

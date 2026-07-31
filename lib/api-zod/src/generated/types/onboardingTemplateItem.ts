@@ -9,13 +9,14 @@
 export interface OnboardingTemplateItem {
   id: number;
   templateId: number;
-  taskName: string;
-  /** @nullable */
-  taskDescription?: string | null;
-  /** @nullable */
-  category?: string | null;
-  daysFromStart: number;
   isRequired: boolean;
   sortOrder: number;
   createdAt: string;
+  titleEn?: string;
+  titleAr?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  ownerRole?: string;
+  taskType?: string;
+  dueDayOffset?: number;
 }

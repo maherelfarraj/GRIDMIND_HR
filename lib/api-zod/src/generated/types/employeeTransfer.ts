@@ -33,4 +33,17 @@ export interface EmployeeTransfer {
   fromUnitNameEn?: string | null;
   /** @nullable */
   toUnitNameEn?: string | null;
+  /** @nullable */
+  orderDate?: string | null;
+  /** @nullable */
+  reasonAr?: string | null;
+  /** @nullable */
+  initiatedByUserId?: number | null;
+  /** @nullable */
+  approvedAt?: Date | null;
+  /** @nullable */
+  dualAuthRequestId?: number | null;
+  /** @nullable */
+  remarksEn?: string | null;
+  updatedAt?: Date;
 }

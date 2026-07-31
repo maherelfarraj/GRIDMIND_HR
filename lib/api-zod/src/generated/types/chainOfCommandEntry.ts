@@ -22,4 +22,5 @@ export interface ChainOfCommandEntry {
   employeeNameEn?: string | null;
   /** @nullable */
   supervisorNameEn?: string | null;
+  updatedAt?: Date;
 }

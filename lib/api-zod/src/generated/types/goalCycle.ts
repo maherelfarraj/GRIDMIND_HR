@@ -8,12 +8,18 @@
 
 export interface GoalCycle {
   id: number;
-  name: string;
   startDate: string;
   endDate: string;
   status: string;
-  /** @nullable */
-  description?: string | null;
   createdAt: string;
   updatedAt: string;
+  nameEn?: string;
+  nameAr?: string;
+  cycleType?: string;
+  year?: number;
+  /** @nullable */
+  goalSettingDeadline?: string | null;
+  /** @nullable */
+  midYearReviewDate?: string | null;
+  isActive?: boolean;
 }

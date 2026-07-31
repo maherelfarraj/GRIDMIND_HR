@@ -31,4 +31,9 @@ export interface SecurityClearance {
   employeeNameEn?: string | null;
   /** @nullable */
   employeeNameAr?: string | null;
+  /** @nullable */
+  reviewedByUserId?: number | null;
+  /** @nullable */
+  suspensionReason?: string | null;
+  updatedAt?: Date;
 }

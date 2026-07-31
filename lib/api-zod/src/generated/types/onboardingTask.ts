@@ -9,20 +9,23 @@
 export interface OnboardingTask {
   id: number;
   onboardingId: number;
-  taskName: string;
-  /** @nullable */
-  taskDescription?: string | null;
-  /** @nullable */
-  category?: string | null;
   /** @nullable */
   dueDate?: string | null;
   status: string;
   /** @nullable */
   completedAt?: string | null;
   /** @nullable */
-  completedBy?: number | null;
-  /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  templateItemId?: number | null;
+  titleEn?: string;
+  titleAr?: string;
+  ownerRole?: string;
+  taskType?: string;
+  /** @nullable */
+  completedByUserId?: number | null;
+  isRequired?: boolean;
+  sortOrder?: number;
 }

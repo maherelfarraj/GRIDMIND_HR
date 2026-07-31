@@ -24,4 +24,5 @@ export interface MilitaryRank {
   insigniaDescription?: string | null;
   isActive: boolean;
   createdAt?: string;
+  updatedAt?: Date;
 }

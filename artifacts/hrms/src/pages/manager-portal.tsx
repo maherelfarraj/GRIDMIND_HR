@@ -306,7 +306,7 @@ export default function ManagerPortal() {
                   <TableBody>
                     {goals.slice(0, 20).map(g => (
                       <TableRow key={g.id}>
-                        <TableCell className="font-medium">{g.title}</TableCell>
+                        <TableCell className="font-medium">{g.titleEn}</TableCell>
                         <TableCell>{getEmpName(g.employeeId)}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={cn('capitalize text-xs',
@@ -343,8 +343,8 @@ export default function ManagerPortal() {
                     {appraisals.slice(0, 20).map(a => (
                       <TableRow key={a.id}>
                         <TableCell>{getEmpName(a.employeeId)}</TableCell>
-                        <TableCell>{a.selfRating ?? '—'}</TableCell>
-                        <TableCell>{a.managerRating ?? '—'}</TableCell>
+                        <TableCell>{a.selfOverallScore ?? '—'}</TableCell>
+                        <TableCell>{a.managerOverallScore ?? '—'}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="capitalize text-xs">{a.status}</Badge>
                         </TableCell>

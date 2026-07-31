@@ -8,22 +8,40 @@
 
 export interface JobRequisition {
   id: number;
-  title: string;
   departmentId: number;
   /** @nullable */
-  positionId?: number | null;
-  requestedBy: number;
-  numberOfPositions: number;
-  /** @nullable */
   justification?: string | null;
-  /** @nullable */
-  requiredBy?: string | null;
   status: string;
-  /** @nullable */
-  priority?: string | null;
-  budgetApproved: boolean;
-  /** @nullable */
-  notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  requisitionNumber?: string;
+  /** @nullable */
+  orgUnitId?: number | null;
+  jobTitleEn?: string;
+  jobTitleAr?: string;
+  /** @nullable */
+  jobDescriptionEn?: string | null;
+  /** @nullable */
+  gradeCode?: string | null;
+  headcount?: number;
+  requisitionType?: string;
+  sourcingStrategy?: string;
+  employmentType?: string;
+  /** @nullable */
+  budgetedSalaryMin?: string | null;
+  /** @nullable */
+  budgetedSalaryMax?: string | null;
+  currency?: string;
+  /** @nullable */
+  targetStartDate?: string | null;
+  requestedByEmployeeId?: number;
+  /** @nullable */
+  approvedByEmployeeId?: number | null;
+  /** @nullable */
+  approvedAt?: Date | null;
+  /** @nullable */
+  rejectionReason?: string | null;
+  /** @nullable */
+  closedAt?: Date | null;
+  organizationType?: string;
 }

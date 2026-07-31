@@ -8,12 +8,27 @@
 
 export interface DocumentCategory {
   id: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
-  /** @nullable */
-  parentCategoryId?: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  code?: string;
+  nameEn?: string;
+  nameAr?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  categoryType?: string;
+  defaultClassification?: string;
+  retentionYears?: number;
+  retentionAction?: string;
+  allowDownload?: boolean;
+  allowPrint?: boolean;
+  requiresAcknowledgement?: boolean;
+  watermarkOnDownload?: boolean;
+  /** @nullable */
+  watermarkText?: string | null;
+  requiresExpiryDate?: boolean;
+  uploadRoles?: string;
+  viewRoles?: string;
+  sortOrder?: number;
+  organizationType?: string;
 }

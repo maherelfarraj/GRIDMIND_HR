@@ -9,24 +9,34 @@
 export interface UpdatePackage {
   id: number;
   packageName: string;
-  version: string;
-  /** @nullable */
-  description?: string | null;
   storagePath: string;
   /** @nullable */
   checksum?: string | null;
-  /** @nullable */
-  fileSize?: number | null;
   status: string;
-  isVerified: boolean;
   /** @nullable */
   verifiedAt?: string | null;
   /** @nullable */
   installedAt?: string | null;
   /** @nullable */
-  installedBy?: number | null;
-  /** @nullable */
   releaseNotes?: string | null;
   createdAt: string;
   updatedAt: string;
+  packageVersion?: string;
+  /** @nullable */
+  releaseNotesAr?: string | null;
+  /** @nullable */
+  signatureB64?: string | null;
+  /** @nullable */
+  signedByKeyId?: string | null;
+  signatureVerified?: boolean;
+  /** @nullable */
+  fileSizeBytes?: number | null;
+  isCritical?: boolean;
+  requiresRestart?: boolean;
+  /** @nullable */
+  minCompatibleVersion?: string | null;
+  /** @nullable */
+  installedByUserId?: number | null;
+  /** @nullable */
+  rollbackVersion?: string | null;
 }

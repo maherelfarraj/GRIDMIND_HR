@@ -8,10 +8,15 @@
 
 export interface CompetencyFramework {
   id: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  nameEn?: string;
+  nameAr?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  frameworkType?: string;
+  applicableTo?: string;
+  organizationType?: string;
+  version?: string;
 }

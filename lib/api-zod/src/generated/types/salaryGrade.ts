@@ -19,4 +19,5 @@ export interface SalaryGrade {
   organizationType: string;
   isActive: boolean;
   createdAt: string;
+  updatedAt?: Date;
 }

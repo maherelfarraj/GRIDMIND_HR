@@ -9,22 +9,44 @@
 export interface JobOffer {
   id: number;
   applicationId: number;
-  offerDate: string;
-  /** @nullable */
-  expiryDate?: string | null;
-  salary: number;
   currency: string;
-  /** @nullable */
-  startDate?: string | null;
   status: string;
-  /** @nullable */
-  notes?: string | null;
   /** @nullable */
   declineReason?: string | null;
   /** @nullable */
   sentAt?: string | null;
-  /** @nullable */
-  respondedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  offerNumber?: string;
+  applicantId?: number;
+  jobPostingId?: number;
+  jobTitleEn?: string;
+  jobTitleAr?: string;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  gradeCode?: string | null;
+  baseSalary?: string;
+  housingAllowance?: string;
+  transportAllowance?: string;
+  totalPackage?: string;
+  employmentType?: string;
+  /** @nullable */
+  proposedStartDate?: string | null;
+  probationMonths?: number;
+  offerValidUntil?: string;
+  /** @nullable */
+  acceptedAt?: Date | null;
+  /** @nullable */
+  declinedAt?: Date | null;
+  /** @nullable */
+  signedDocumentId?: number | null;
+  /** @nullable */
+  preparedByUserId?: number | null;
+  /** @nullable */
+  approvedByEmployeeId?: number | null;
+  /** @nullable */
+  approvedAt?: Date | null;
+  /** @nullable */
+  specialConditions?: string | null;
 }

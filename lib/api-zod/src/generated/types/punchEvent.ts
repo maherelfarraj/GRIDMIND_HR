@@ -19,14 +19,6 @@ export interface PunchEvent {
   isVerified: boolean;
   isMissing: boolean;
   /** @nullable */
-  dedupeKey?: string | null;
-  /** @nullable */
-  importBatchId?: number | null;
-  /** @nullable */
-  deviceEventUid?: string | null;
-  /** @nullable */
-  rawPayloadSha256?: string | null;
-  /** @nullable */
   notes?: string | null;
   createdAt: string;
   /** @nullable */
@@ -43,4 +35,14 @@ export interface PunchEvent {
   deviceName?: string | null;
   /** @nullable */
   deviceLocation?: string | null;
+  /** @nullable */
+  rawPayload?: string | null;
+  /** @nullable */
+  dedupeKey?: string | null;
+  /** @nullable */
+  importBatchId?: number | null;
+  /** @nullable */
+  deviceEventUid?: string | null;
+  /** @nullable */
+  rawPayloadSha256?: string | null;
 }

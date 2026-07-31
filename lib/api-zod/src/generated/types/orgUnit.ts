@@ -32,4 +32,5 @@ export interface OrgUnit {
   classificationLevel: string;
   isActive: boolean;
   createdAt?: string;
+  updatedAt?: Date;
 }

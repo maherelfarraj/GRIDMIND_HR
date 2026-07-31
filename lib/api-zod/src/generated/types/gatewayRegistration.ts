@@ -5,6 +5,7 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+import type { GatewayRegistrationAdapterConnStatus } from './gatewayRegistrationAdapterConnStatus';
 import type { GatewayRegistrationAdapterType } from './gatewayRegistrationAdapterType';
 import type { GatewayRegistrationStatus } from './gatewayRegistrationStatus';
 
@@ -28,6 +29,12 @@ export interface GatewayRegistration {
   /** @nullable */
   clockDriftMs?: number | null;
   driftAlert?: boolean;
+  /** @nullable */
+  adapterConnStatus?: GatewayRegistrationAdapterConnStatus;
+  /** @nullable */
+  adapterConnMessage?: string | null;
+  /** @nullable */
+  adapterConnTestedAt?: string | null;
   /** @nullable */
   notes?: string | null;
   createdAt?: string;

@@ -11,13 +11,19 @@ export interface DeploymentEvent {
   eventType: string;
   outcome: string;
   /** @nullable */
-  packageId?: number | null;
-  /** @nullable */
-  triggeredByUserId?: number | null;
-  /** @nullable */
   description?: string | null;
   /** @nullable */
   detailsJson?: string | null;
   occurredAt: string;
-  createdAt: string;
+  /** @nullable */
+  performedByUserId?: number | null;
+  performedBySystem?: boolean;
+  /** @nullable */
+  errorMessage?: string | null;
+  /** @nullable */
+  durationMs?: number | null;
+  /** @nullable */
+  previousValue?: string | null;
+  /** @nullable */
+  newValue?: string | null;
 }

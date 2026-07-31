@@ -12,16 +12,20 @@ export interface EmployeeOnboarding {
   /** @nullable */
   templateId?: number | null;
   startDate: string;
-  /** @nullable */
-  expectedEndDate?: string | null;
-  /** @nullable */
-  actualEndDate?: string | null;
   status: string;
-  completionPercentage: number;
-  /** @nullable */
-  assignedToId?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  contractId?: number | null;
+  /** @nullable */
+  targetCompletionDate?: string | null;
+  /** @nullable */
+  completedAt?: Date | null;
+  completionPct?: number;
+  /** @nullable */
+  hrOwnerUserId?: number | null;
+  /** @nullable */
+  managerEmployeeId?: number | null;
 }

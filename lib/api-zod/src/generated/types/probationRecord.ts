@@ -11,17 +11,38 @@ export interface ProbationRecord {
   employeeId: number;
   startDate: string;
   endDate: string;
-  /** @nullable */
-  extensionDate?: string | null;
   status: string;
   /** @nullable */
-  reviewDate?: string | null;
-  /** @nullable */
   outcome?: string | null;
-  /** @nullable */
-  reviewedBy?: number | null;
-  /** @nullable */
-  notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  contractId?: number | null;
+  /** @nullable */
+  extendedEndDate?: string | null;
+  /** @nullable */
+  midReviewDate?: string | null;
+  /** @nullable */
+  midReviewConductedAt?: Date | null;
+  /** @nullable */
+  midReviewScore?: number | null;
+  /** @nullable */
+  midReviewNotes?: string | null;
+  /** @nullable */
+  midReviewByEmployeeId?: number | null;
+  /** @nullable */
+  finalReviewConductedAt?: Date | null;
+  /** @nullable */
+  finalReviewScore?: number | null;
+  /** @nullable */
+  finalReviewNotes?: string | null;
+  /** @nullable */
+  finalReviewByEmployeeId?: number | null;
+  /** @nullable */
+  outcomeDate?: string | null;
+  /** @nullable */
+  outcomeNotes?: string | null;
+  confirmationLetterSent?: boolean;
+  /** @nullable */
+  confirmationLetterSentAt?: Date | null;
 }

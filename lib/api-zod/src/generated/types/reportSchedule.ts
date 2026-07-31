@@ -9,18 +9,30 @@
 export interface ReportSchedule {
   id: number;
   reportDefinitionId: number;
-  scheduleName: string;
-  cronExpression: string;
   exportFormat: string;
-  recipients?: string[];
-  /** @nullable */
-  filtersJson?: string | null;
   isActive: boolean;
   /** @nullable */
   lastRunAt?: string | null;
   /** @nullable */
   nextRunAt?: string | null;
-  createdBy: number;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  savedFilterId?: number | null;
+  nameEn?: string;
+  frequency?: string;
+  /** @nullable */
+  dayOfMonth?: number | null;
+  /** @nullable */
+  dayOfWeek?: number | null;
+  timeOfDay?: string;
+  language?: string;
+  /** @nullable */
+  outputPath?: string | null;
+  /** @nullable */
+  notifyUserIdsJson?: string | null;
+  /** @nullable */
+  lastRunStatus?: string | null;
+  /** @nullable */
+  createdByUserId?: number | null;
 }

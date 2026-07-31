@@ -9,12 +9,23 @@
 export interface Competency {
   id: number;
   frameworkId: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
-  /** @nullable */
-  category?: string | null;
-  maxScore: number;
   createdAt: string;
-  updatedAt: string;
+  codeEn?: string;
+  nameEn?: string;
+  nameAr?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  level1En?: string | null;
+  /** @nullable */
+  level2En?: string | null;
+  /** @nullable */
+  level3En?: string | null;
+  /** @nullable */
+  level4En?: string | null;
+  /** @nullable */
+  level5En?: string | null;
+  weight?: number;
+  sortOrder?: number;
+  isActive?: boolean;
 }

@@ -174,7 +174,7 @@ export default function Recruitment() {
   const filled = requisitions.filter(r => r.status === 'filled').length;
 
   const filteredReqs = requisitions.filter(r => {
-    const matchSearch = !search || r.title.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search || (r.jobTitleEn ?? '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || r.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -276,9 +276,9 @@ export default function Recruitment() {
                   <TableRow>
                     <TableHead>{t('Title', 'المسمى')}</TableHead>
                     <TableHead>{t('Positions', 'المناصب')}</TableHead>
-                    <TableHead>{t('Priority', 'الأولوية')}</TableHead>
+                    <TableHead>{t('Type', 'النوع')}</TableHead>
                     <TableHead>{t('Status', 'الحالة')}</TableHead>
-                    <TableHead>{t('Required By', 'مطلوب بحلول')}</TableHead>
+                    <TableHead>{t('Target Start', 'تاريخ البدء المستهدف')}</TableHead>
                     <TableHead>{t('Created', 'تاريخ الإنشاء')}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -289,11 +289,11 @@ export default function Recruitment() {
                     <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t('No requisitions found', 'لا توجد طلبات')}</TableCell></TableRow>
                   ) : filteredReqs.map(r => (
                     <TableRow key={r.id}>
-                      <TableCell className="font-medium">{r.title}</TableCell>
-                      <TableCell>{r.numberOfPositions}</TableCell>
+                      <TableCell className="font-medium">{r.jobTitleEn ?? '—'}</TableCell>
+                      <TableCell>{r.headcount ?? '—'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={cn('capitalize', r.priority === 'urgent' ? 'border-red-400 text-red-600' : r.priority === 'high' ? 'border-orange-400 text-orange-600' : '')}>
-                          {r.priority ?? '—'}
+                        <Badge variant="outline" className="capitalize">
+                          {r.requisitionType?.replace('_', ' ') ?? '—'}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -301,7 +301,7 @@ export default function Recruitment() {
                           {r.status.replace('_', ' ')}
                         </Badge>
                       </TableCell>
-                      <TableCell>{fmtDate(r.requiredBy)}</TableCell>
+                      <TableCell>{fmtDate(r.targetStartDate)}</TableCell>
                       <TableCell>{fmtDate(r.createdAt)}</TableCell>
                     </TableRow>
                   ))}
@@ -317,8 +317,7 @@ export default function Recruitment() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t('Title', 'المسمى')}</TableHead>
-                    <TableHead>{t('Location', 'الموقع')}</TableHead>
-                    <TableHead>{t('Type', 'النوع')}</TableHead>
+                    <TableHead>{t('Visibility', 'الظهور')}</TableHead>
                     <TableHead>{t('Status', 'الحالة')}</TableHead>
                     <TableHead>{t('Posted', 'تاريخ النشر')}</TableHead>
                     <TableHead>{t('Closing', 'تاريخ الإغلاق')}</TableHead>
@@ -327,14 +326,13 @@ export default function Recruitment() {
                 </TableHeader>
                 <TableBody>
                   {postLoading ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('Loading...', 'جارٍ التحميل...')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t('Loading...', 'جارٍ التحميل...')}</TableCell></TableRow>
                   ) : postings.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('No postings found', 'لا توجد إعلانات')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t('No postings found', 'لا توجد إعلانات')}</TableCell></TableRow>
                   ) : postings.map(p => (
                     <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.title}</TableCell>
-                      <TableCell>{p.location ?? '—'}</TableCell>
-                      <TableCell>{p.employmentType ?? '—'}</TableCell>
+                      <TableCell className="font-medium">{p.titleEn ?? '—'}</TableCell>
+                      <TableCell className="capitalize">{p.visibility ?? '—'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn('capitalize text-xs',
                           p.status === 'published' ? 'border-emerald-400 text-emerald-600' :
@@ -344,7 +342,7 @@ export default function Recruitment() {
                           {p.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>{fmtDate(p.postedAt)}</TableCell>
+                      <TableCell>{fmtDate(p.publishedAt)}</TableCell>
                       <TableCell>{fmtDate(p.closingDate)}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">

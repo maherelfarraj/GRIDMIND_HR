@@ -12,10 +12,14 @@ export interface ApprovalDelegation {
   delegateEmployeeId: number;
   startDate: string;
   endDate: string;
-  approvalTypes?: string[];
   status: string;
   /** @nullable */
   reason?: string | null;
   createdAt: string;
   updatedAt: string;
+  delegationType?: string;
+  /** @nullable */
+  approvedByUserId?: number | null;
+  /** @nullable */
+  revokedAt?: Date | null;
 }

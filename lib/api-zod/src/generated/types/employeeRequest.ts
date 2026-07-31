@@ -10,18 +10,30 @@ export interface EmployeeRequest {
   id: number;
   employeeId: number;
   requestType: string;
-  subject: string;
-  /** @nullable */
-  description?: string | null;
   status: string;
-  /** @nullable */
-  priority?: string | null;
-  /** @nullable */
-  assignedToId?: number | null;
-  /** @nullable */
-  resolvedAt?: string | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  requestNumber?: string;
+  titleEn?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  addressedTo?: string | null;
+  /** @nullable */
+  purposeEn?: string | null;
+  /** @nullable */
+  reviewedByUserId?: number | null;
+  /** @nullable */
+  reviewedAt?: Date | null;
+  /** @nullable */
+  rejectionReason?: string | null;
+  /** @nullable */
+  fulfilledAt?: Date | null;
+  /** @nullable */
+  generatedDocumentId?: number | null;
+  urgency?: string;
+  /** @nullable */
+  requiredByDate?: string | null;
 }

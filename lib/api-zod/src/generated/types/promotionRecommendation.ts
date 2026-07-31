@@ -9,22 +9,30 @@
 export interface PromotionRecommendation {
   id: number;
   employeeId: number;
-  recommendedBy: number;
-  /** @nullable */
-  currentPositionId?: number | null;
-  /** @nullable */
-  recommendedPositionId?: number | null;
   /** @nullable */
   effectiveDate?: string | null;
-  /** @nullable */
-  justification?: string | null;
   status: string;
-  /** @nullable */
-  reviewedBy?: number | null;
   /** @nullable */
   reviewedAt?: string | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  appraisalId?: number | null;
+  /** @nullable */
+  currentGradeCode?: string | null;
+  /** @nullable */
+  recommendedGradeCode?: string | null;
+  /** @nullable */
+  currentRankCode?: string | null;
+  /** @nullable */
+  recommendedRankCode?: string | null;
+  recommendationDate?: string;
+  justificationEn?: string;
+  /** @nullable */
+  reviewedByEmployeeId?: number | null;
+  requiresDualAuth?: boolean;
+  /** @nullable */
+  dualAuthRequestId?: number | null;
 }

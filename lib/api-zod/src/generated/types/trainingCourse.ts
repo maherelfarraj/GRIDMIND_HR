@@ -10,11 +10,6 @@ export interface TrainingCourse {
   id: number;
   /** @nullable */
   programId?: number | null;
-  name: string;
-  /** @nullable */
-  description?: string | null;
-  /** @nullable */
-  category?: string | null;
   /** @nullable */
   durationHours?: number | null;
   /** @nullable */
@@ -22,4 +17,20 @@ export interface TrainingCourse {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  codeEn?: string;
+  nameEn?: string;
+  nameAr?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  deliveryMode?: string;
+  providerType?: string;
+  /** @nullable */
+  providerName?: string | null;
+  costPerPerson?: string;
+  currency?: string;
+  grantsCertification?: boolean;
+  /** @nullable */
+  certificationValidMonths?: number | null;
+  /** @nullable */
+  prerequisitesEn?: string | null;
 }

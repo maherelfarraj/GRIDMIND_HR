@@ -29,4 +29,17 @@ export interface EmployeeSecondment {
   employeeNameEn?: string | null;
   /** @nullable */
   hostUnitNameEn?: string | null;
+  /** @nullable */
+  purposeAr?: string | null;
+  /** @nullable */
+  approvedByEmployeeId?: number | null;
+  /** @nullable */
+  approvedAt?: Date | null;
+  /** @nullable */
+  dualAuthRequestId?: number | null;
+  /** @nullable */
+  hostContactName?: string | null;
+  /** @nullable */
+  hostContactEmail?: string | null;
+  updatedAt?: Date;
 }

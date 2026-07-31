@@ -9,7 +9,6 @@
 export interface Certification {
   id: number;
   employeeId: number;
-  certName: string;
   /** @nullable */
   certType?: string | null;
   /** @nullable */
@@ -18,13 +17,19 @@ export interface Certification {
   issuedDate?: string | null;
   /** @nullable */
   expiryDate?: string | null;
-  /** @nullable */
-  certNumber?: string | null;
   status: string;
-  /** @nullable */
-  documentUrl?: string | null;
-  /** @nullable */
-  notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  courseId?: number | null;
+  /** @nullable */
+  sessionId?: number | null;
+  certificationName?: string;
+  /** @nullable */
+  certificationNumber?: string | null;
+  renewalReminderSent?: boolean;
+  /** @nullable */
+  documentId?: number | null;
+  /** @nullable */
+  verificationUrl?: string | null;
 }

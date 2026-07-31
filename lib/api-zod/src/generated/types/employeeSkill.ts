@@ -15,13 +15,12 @@ export interface EmployeeSkill {
   /** @nullable */
   proficiencyLevel?: string | null;
   /** @nullable */
-  yearsExperience?: number | null;
-  /** @nullable */
-  lastUsedDate?: string | null;
-  /** @nullable */
   certificationId?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  assessmentMethod?: string;
+  /** @nullable */
+  lastAssessedAt?: Date | null;
 }

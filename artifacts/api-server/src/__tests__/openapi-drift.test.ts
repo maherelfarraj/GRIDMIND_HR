@@ -72,7 +72,164 @@ const SCHEMA_NAME_OVERRIDES: Record<string, string | null> = {
  * Key: OpenAPI schema name.
  */
 const ALLOWED_EXTRA_PROPERTIES: Record<string, string[]> = {
-  PrivilegedSession: ["userName"], // joined from system_users when serializing
+  "PrivilegedSession": ["userName"], // joined from system_users when serializing
+  "Department": [
+    "parentNameEn",
+    "headEmployeeNameEn",
+    "employeeCount"
+  ],
+  "Role": [
+    "permissions",
+    "userCount"
+  ],
+  "Employee": [
+    "departmentNameEn",
+    "departmentNameAr",
+    "managerNameEn",
+    "roleNameEn"
+  ],
+  "SystemUser": [
+    "roleNameEn"
+  ],
+  "Document": [
+    "employeeNameEn",
+    "uploadedByUserName"
+  ],
+  "Approval": [
+    "requestedByEmployeeNameEn",
+    "assignedToUserName"
+  ],
+  "AuditLog": [
+    "actorUserName"
+  ],
+  "AttendanceRecord": [
+    "employeeNameEn",
+    "employeeNameAr",
+    "departmentNameEn",
+    "deviceName"
+  ],
+  "AttendanceDevice": [
+    "departmentNameEn"
+  ],
+  "SecurityAlert": [
+    "acknowledgedByUserName"
+  ],
+  "Shift": [
+    "assignedEmployeeCount"
+  ],
+  "RosterEntry": [
+    "firstNameEn",
+    "lastNameEn",
+    "firstNameAr",
+    "lastNameAr",
+    "employeeNumber",
+    "jobTitleEn",
+    "jobTitleAr",
+    "shiftCode",
+    "shiftNameEn",
+    "shiftNameAr",
+    "shiftStartTime",
+    "shiftEndTime",
+    "shiftColor"
+  ],
+  "OvertimeRule": [
+    "deptNameEn",
+    "deptNameAr"
+  ],
+  "PunchEvent": [
+    "firstNameEn",
+    "lastNameEn",
+    "firstNameAr",
+    "lastNameAr",
+    "employeeNumber",
+    "deviceName",
+    "deviceLocation"
+  ],
+  "LeaveBalance": [
+    "available",
+    "employeeNameEn",
+    "employeeNameAr",
+    "leaveTypeNameEn",
+    "leaveTypeNameAr",
+    "leaveTypeColor"
+  ],
+  "LeaveRequestDetail": [
+    "employeeNameEn",
+    "employeeNameAr",
+    "departmentId",
+    "leaveTypeNameEn",
+    "leaveTypeNameAr",
+    "leaveTypeColor",
+    "leaveTypeCategory",
+    "coveringEmployeeNameEn",
+    "steps",
+    "attachments"
+  ],
+  "LeaveDelegation": [
+    "delegatorNameEn",
+    "delegateeNameEn"
+  ],
+  "PayrollRunDetail": [
+    "employeeNameEn",
+    "employeeNameAr",
+    "employeeNumber",
+    "jobTitleEn",
+    "jobTitleAr",
+    "nationalId",
+    "periodNameEn",
+    "periodNameAr",
+    "periodStartDate",
+    "periodEndDate",
+    "payDate",
+    "lines",
+    "departmentNameEn",
+    "grade"
+  ],
+  "EmployeePosting": [
+    "employeeNameEn",
+    "orgUnitNameEn",
+    "dutyStationNameEn",
+    "rankNameEn"
+  ],
+  "EmployeeTransfer": [
+    "employeeNameEn",
+    "fromUnitNameEn",
+    "toUnitNameEn"
+  ],
+  "EmployeeSecondment": [
+    "employeeNameEn",
+    "hostUnitNameEn"
+  ],
+  "SecurityClearance": [
+    "employeeNameEn",
+    "employeeNameAr"
+  ],
+  "MobilizationStatus": [
+    "employeeNameEn",
+    "employeeNameAr"
+  ],
+  "ChainOfCommandEntry": [
+    "employeeNameEn",
+    "supervisorNameEn"
+  ],
+  "DualAuthRequest": [
+    "initiatedByUserName"
+  ],
+  "BreakGlassAccess": [
+    "userName"
+  ],
+  "LicenseRecord": [
+    "daysUntilExpiry",
+    "features"
+  ],
+  "DevelopmentPlan": [
+    "completionPercentage"
+  ],
+  "PayrollVarianceLog": [
+    "periodCode",
+    "periodNameEn",
+    "startDate"
+  ]
 };
 
 /**

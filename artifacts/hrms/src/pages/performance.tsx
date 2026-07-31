@@ -90,8 +90,8 @@ function CyclePanel({ cycle }: { cycle: any }) {
                   {records.map(r => (
                     <TableRow key={r.id}>
                       <TableCell>#{r.employeeId}</TableCell>
-                      <TableCell><RatingBadge rating={r.selfRating} /></TableCell>
-                      <TableCell><RatingBadge rating={r.managerRating} /></TableCell>
+                      <TableCell><RatingBadge rating={r.selfOverallScore != null ? Number(r.selfOverallScore) : null} /></TableCell>
+                      <TableCell><RatingBadge rating={r.managerOverallScore != null ? Number(r.managerOverallScore) : null} /></TableCell>
                       <TableCell><RatingBadge rating={r.finalRating} /></TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize text-xs">{r.status}</Badge>
@@ -159,7 +159,7 @@ export default function Performance() {
                 </SelectTrigger>
                 <SelectContent>
                   {goalCycles.map(gc => (
-                    <SelectItem key={gc.id} value={String(gc.id)}>{gc.name}</SelectItem>
+                    <SelectItem key={gc.id} value={String(gc.id)}>{gc.nameEn}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -187,7 +187,7 @@ export default function Performance() {
                   <TableBody>
                     {goals.map(g => (
                       <TableRow key={g.id}>
-                        <TableCell className="font-medium">{g.title}</TableCell>
+                        <TableCell className="font-medium">{g.titleEn}</TableCell>
                         <TableCell>#{g.employeeId}</TableCell>
                         <TableCell>{g.weight != null ? `${g.weight}%` : '—'}</TableCell>
                         <TableCell>{g.targetValue ?? '—'}</TableCell>
@@ -240,7 +240,7 @@ export default function Performance() {
                         <span>{t('Cycle', 'الدورة')}</span><span>#{s.cycleId}</span>
                       </div>
                       <div className="flex justify-between text-muted-foreground">
-                        <span>{t('Facilitator', 'الميسر')}</span><span>{s.facilitatorId ? `#${s.facilitatorId}` : '—'}</span>
+                        <span>{t('Facilitator', 'الميسر')}</span><span>{s.facilitatorUserId ? `#${s.facilitatorUserId}` : '—'}</span>
                       </div>
                       <div className="flex justify-between text-muted-foreground">
                         <span>{t('Date', 'التاريخ')}</span><span>{fmtDate(s.sessionDate)}</span>

@@ -9,18 +9,21 @@
 export interface DevelopmentActivity {
   id: number;
   planId: number;
-  activityName: string;
   /** @nullable */
   activityType?: string | null;
-  /** @nullable */
-  description?: string | null;
   /** @nullable */
   dueDate?: string | null;
   status: string;
   /** @nullable */
   completedAt?: string | null;
-  /** @nullable */
-  notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  titleEn?: string;
+  /** @nullable */
+  targetCompetencyId?: number | null;
+  /** @nullable */
+  courseId?: number | null;
+  /** @nullable */
+  completionNotes?: string | null;
+  sortOrder?: number;
 }

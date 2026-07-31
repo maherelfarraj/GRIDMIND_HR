@@ -12,14 +12,19 @@ export interface IdCardRecord {
   /** @nullable */
   cardNumber?: string | null;
   /** @nullable */
-  issuedDate?: string | null;
-  /** @nullable */
   expiryDate?: string | null;
   status: string;
   /** @nullable */
-  issuedBy?: number | null;
-  /** @nullable */
   notes?: string | null;
   createdAt: string;
-  updatedAt: string;
+  cardType?: string;
+  issuedAt?: Date;
+  /** @nullable */
+  replacedByCardId?: number | null;
+  /** @nullable */
+  replacementReason?: string | null;
+  /** @nullable */
+  issuedByUserId?: number | null;
+  /** @nullable */
+  revokedAt?: Date | null;
 }

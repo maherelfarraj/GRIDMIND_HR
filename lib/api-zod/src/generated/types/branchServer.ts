@@ -33,4 +33,9 @@ export interface BranchServer {
   /** @nullable */
   softwareVersion?: string | null;
   registeredAt?: string;
+  /** @nullable */
+  licenseKeyHash?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  updatedAt?: Date;
 }

@@ -8,14 +8,24 @@
 
 export interface AppraisalCycle {
   id: number;
-  name: string;
-  startDate: string;
-  endDate: string;
-  reviewPeriodStart: string;
-  reviewPeriodEnd: string;
   status: string;
-  /** @nullable */
-  description?: string | null;
   createdAt: string;
   updatedAt: string;
+  nameEn?: string;
+  nameAr?: string;
+  /** @nullable */
+  goalCycleId?: number | null;
+  /** @nullable */
+  competencyFrameworkId?: number | null;
+  year?: number;
+  appraisalType?: string;
+  /** @nullable */
+  selfAppraisalDeadline?: string | null;
+  /** @nullable */
+  managerAppraisalDeadline?: string | null;
+  /** @nullable */
+  calibrationDeadline?: string | null;
+  goalsWeight?: number;
+  competenciesWeight?: number;
+  isActive?: boolean;
 }

@@ -32,4 +32,13 @@ export interface PayrollPeriod {
   /** @nullable */
   notes?: string | null;
   createdAt: string;
+  /** @nullable */
+  firstApprovedBy?: number | null;
+  /** @nullable */
+  firstApproverNote?: string | null;
+  /** @nullable */
+  secondApprovedBy?: number | null;
+  /** @nullable */
+  secondApproverNote?: string | null;
+  updatedAt?: Date;
 }

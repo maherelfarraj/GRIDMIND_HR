@@ -8,15 +8,17 @@
 
 export interface InstallationReadiness {
   id: number;
-  checkName: string;
-  checkType: string;
   status: string;
-  /** @nullable */
-  message?: string | null;
-  severity: string;
-  isRequired: boolean;
   /** @nullable */
   lastCheckedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  checkCategory?: string;
+  checkItemEn?: string;
+  /** @nullable */
+  checkItemAr?: string | null;
+  /** @nullable */
+  resultMessage?: string | null;
+  isMandatory?: boolean;
+  sortOrder?: number;
 }

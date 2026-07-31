@@ -235,7 +235,7 @@ export default function RecruitmentApplication() {
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><User className="w-4 h-4 text-amber-500" />{t('Applicant Profile', 'ملف المتقدم')}</CardTitle></CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t('Name', 'الاسم')}</span><span className="font-medium">{applicant ? `${applicant.firstName} ${applicant.lastName}` : '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t('Name', 'الاسم')}</span><span className="font-medium">{applicant ? `${applicant.firstNameEn ?? ''} ${applicant.lastNameEn ?? ''}`.trim() || '—' : '—'}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">{t('Email', 'البريد')}</span><span>{applicant?.email ?? '—'}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">{t('Phone', 'الهاتف')}</span><span>{applicant?.phone ?? '—'}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">{t('Type', 'النوع')}</span><span className="capitalize">{applicant?.applicantType ?? '—'}</span></div>
@@ -251,8 +251,8 @@ export default function RecruitmentApplication() {
                   <div className="flex justify-between"><span className="text-muted-foreground">{t('Status', 'الحالة')}</span>
                     <Badge variant="outline" className="capitalize text-xs">{application.status.replace('_', ' ')}</Badge>
                   </div>
-                  {application.coverLetter && (
-                    <div><p className="text-muted-foreground mb-1">{t('Cover Letter', 'خطاب التقديم')}</p><p className="text-xs bg-muted p-2 rounded">{application.coverLetter}</p></div>
+                  {application.coverLetterText && (
+                    <div><p className="text-muted-foreground mb-1">{t('Cover Letter', 'خطاب التقديم')}</p><p className="text-xs bg-muted p-2 rounded">{application.coverLetterText}</p></div>
                   )}
                 </CardContent>
               </Card>
@@ -288,7 +288,7 @@ export default function RecruitmentApplication() {
                 {scores.map(s => (
                   <Card key={s.id}>
                     <CardContent className="pt-4 space-y-2 text-sm">
-                      <div className="flex justify-between"><span className="text-muted-foreground">{t('Date', 'التاريخ')}</span><span>{fmtDate(s.interviewDate)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">{t('Date', 'التاريخ')}</span><span>{fmtDate(s.conductedAt ?? s.scheduledAt)}</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">{t('Overall', 'الإجمالي')}</span><span className="font-bold text-amber-500">{s.overallScore ?? '—'}/10</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">{t('Technical', 'التقني')}</span><span>{s.technicalScore ?? '—'}</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">{t('Communication', 'التواصل')}</span><span>{s.communicationScore ?? '—'}</span></div>
@@ -339,7 +339,7 @@ export default function RecruitmentApplication() {
                 <CardHeader className="pb-2"><CardTitle className="text-base">{t('Current Offer', 'العرض الحالي')}</CardTitle></CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="grid grid-cols-2 gap-4">
-                    <div><p className="text-muted-foreground">{t('Base Salary', 'الراتب الأساسي')}</p><p className="text-xl font-bold text-amber-500">{latestOffer.salary?.toLocaleString() ?? '—'} {latestOffer.currency ?? 'SAR'}</p></div>
+                    <div><p className="text-muted-foreground">{t('Base Salary', 'الراتب الأساسي')}</p><p className="text-xl font-bold text-amber-500">{latestOffer.baseSalary ?? '—'} {latestOffer.currency ?? 'SAR'}</p></div>
                     <div><p className="text-muted-foreground">{t('Status', 'الحالة')}</p>
                       <Badge variant="outline" className={cn('capitalize text-xs mt-1',
                         latestOffer.status === 'accepted' ? 'border-emerald-400 text-emerald-600' :
@@ -349,8 +349,8 @@ export default function RecruitmentApplication() {
                         {latestOffer.status}
                       </Badge>
                     </div>
-                    <div><p className="text-muted-foreground">{t('Start Date', 'تاريخ البدء')}</p><p>{fmtDate(latestOffer.startDate)}</p></div>
-                    <div><p className="text-muted-foreground">{t('Valid Until', 'صالح حتى')}</p><p>{fmtDate(latestOffer.expiryDate)}</p></div>
+                    <div><p className="text-muted-foreground">{t('Start Date', 'تاريخ البدء')}</p><p>{fmtDate(latestOffer.proposedStartDate)}</p></div>
+                    <div><p className="text-muted-foreground">{t('Valid Until', 'صالح حتى')}</p><p>{fmtDate(latestOffer.offerValidUntil)}</p></div>
                   </div>
                   <div className="flex gap-2 pt-2 flex-wrap">
                     {latestOffer.status === 'draft' && (

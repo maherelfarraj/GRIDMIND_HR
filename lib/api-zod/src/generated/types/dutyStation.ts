@@ -29,4 +29,5 @@ export interface DutyStation {
   timezoneName?: string;
   isActive: boolean;
   createdAt?: string;
+  updatedAt?: Date;
 }

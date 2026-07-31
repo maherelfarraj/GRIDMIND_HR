@@ -26,4 +26,7 @@ export type LeaveRequestDetail = LeaveRequestSummary & ({
   totalApprovalSteps?: number;
   steps?: LeaveApprovalStep[];
   attachments?: LeaveAttachment[];
+  /** @nullable */
+  halfDayPeriod?: string | null;
+  updatedAt?: Date;
 });

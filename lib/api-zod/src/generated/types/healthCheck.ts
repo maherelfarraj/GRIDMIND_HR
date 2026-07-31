@@ -14,7 +14,9 @@ export interface HealthCheck {
   message?: string | null;
   /** @nullable */
   details?: string | null;
-  /** @nullable */
-  durationMs?: number | null;
   checkedAt: string;
+  checkName?: string;
+  /** @nullable */
+  responseTimeMs?: number | null;
+  triggeredBy?: string;
 }

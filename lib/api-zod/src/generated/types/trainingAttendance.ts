@@ -10,12 +10,23 @@ export interface TrainingAttendance {
   id: number;
   sessionId: number;
   employeeId: number;
-  attendanceDate: string;
-  status: string;
-  /** @nullable */
-  hoursAttended?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  nominationId?: number | null;
+  attendanceStatus?: string;
+  attendancePct?: number;
+  /** @nullable */
+  assessmentScore?: number | null;
+  /** @nullable */
+  passed?: boolean | null;
+  /** @nullable */
+  completedAt?: Date | null;
+  certificateIssued?: boolean;
+  /** @nullable */
+  certificateIssuedAt?: Date | null;
+  /** @nullable */
+  recordedByUserId?: number | null;
 }

@@ -24,4 +24,5 @@ export interface PayComponent {
   /** @nullable */
   notes?: string | null;
   createdAt: string;
+  updatedAt?: Date;
 }

@@ -26,4 +26,18 @@ export interface BreakGlassAccess {
   createdAt?: string;
   /** @nullable */
   userName?: string | null;
+  /** @nullable */
+  emergencyCode?: string | null;
+  /** @nullable */
+  revokedByUserId?: number | null;
+  /** @nullable */
+  revocationReason?: string | null;
+  /** @nullable */
+  reviewedAt?: Date | null;
+  /** @nullable */
+  reviewedByUserId?: number | null;
+  /** @nullable */
+  reviewNotes?: string | null;
+  /** @nullable */
+  notifiedAt?: Date | null;
 }

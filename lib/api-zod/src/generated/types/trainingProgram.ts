@@ -8,12 +8,14 @@
 
 export interface TrainingProgram {
   id: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
   /** @nullable */
   category?: string | null;
   isActive: boolean;
   createdAt: string;
-  updatedAt: string;
+  codeEn?: string;
+  nameEn?: string;
+  nameAr?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  organizationType?: string;
 }

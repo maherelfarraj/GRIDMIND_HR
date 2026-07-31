@@ -10,14 +10,9 @@ export interface AppraisalCompetencyRating {
   id: number;
   appraisalId: number;
   competencyId: number;
-  /** @nullable */
-  selfScore?: number | null;
-  /** @nullable */
-  managerScore?: number | null;
-  /** @nullable */
-  finalScore?: number | null;
-  /** @nullable */
-  comments?: string | null;
   createdAt: string;
-  updatedAt: string;
+  raterType?: string;
+  score?: number;
+  /** @nullable */
+  notes?: string | null;
 }

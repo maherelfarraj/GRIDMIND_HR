@@ -31,4 +31,5 @@ export interface AttendanceRecord {
   workingHours?: number | null;
   /** @nullable */
   notes?: string | null;
+  createdAt?: Date;
 }

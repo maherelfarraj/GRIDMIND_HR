@@ -39,4 +39,13 @@ export interface DualAuthRequest {
   createdAt?: string;
   /** @nullable */
   initiatedByUserName?: string | null;
+  /** @nullable */
+  firstApproverNotes?: string | null;
+  /** @nullable */
+  secondApproverNotes?: string | null;
+  /** @nullable */
+  rejectedByUserId?: number | null;
+  /** @nullable */
+  payloadJson?: string | null;
+  updatedAt?: Date;
 }

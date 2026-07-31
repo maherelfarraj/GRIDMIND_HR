@@ -10,27 +10,30 @@ export interface JobPosting {
   id: number;
   /** @nullable */
   requisitionId?: number | null;
-  title: string;
   departmentId: number;
-  /** @nullable */
-  description?: string | null;
-  /** @nullable */
-  requirements?: string | null;
-  /** @nullable */
-  location?: string | null;
-  /** @nullable */
-  employmentType?: string | null;
-  /** @nullable */
-  salaryMin?: number | null;
-  /** @nullable */
-  salaryMax?: number | null;
-  /** @nullable */
-  currency?: string | null;
   status: string;
-  /** @nullable */
-  postedAt?: string | null;
   /** @nullable */
   closingDate?: string | null;
   createdAt: string;
   updatedAt: string;
+  postingCode?: string;
+  titleEn?: string;
+  titleAr?: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  /** @nullable */
+  requirementsEn?: string | null;
+  /** @nullable */
+  qualificationsEn?: string | null;
+  visibility?: string;
+  /** @nullable */
+  publishedAt?: Date | null;
+  applicationCount?: number;
+  /** @nullable */
+  dutyStationId?: number | null;
+  /** @nullable */
+  postedByUserId?: number | null;
+  isActive?: boolean;
 }

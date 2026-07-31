@@ -13,11 +13,32 @@ export interface Application {
   status: string;
   appliedAt: string;
   /** @nullable */
-  coverLetter?: string | null;
-  /** @nullable */
   notes?: string | null;
   /** @nullable */
   rejectionReason?: string | null;
   createdAt: string;
   updatedAt: string;
+  applicationNumber?: string;
+  /** @nullable */
+  coverLetterText?: string | null;
+  /** @nullable */
+  screeningScore?: number | null;
+  /** @nullable */
+  interviewScore?: number | null;
+  /** @nullable */
+  overallRating?: string | null;
+  /** @nullable */
+  rejectedAt?: Date | null;
+  /** @nullable */
+  shortlistedAt?: Date | null;
+  /** @nullable */
+  shortlistedByUserId?: number | null;
+  currentInterviewRound?: number;
+  /** @nullable */
+  backgroundCheckId?: number | null;
+  /** @nullable */
+  offerId?: number | null;
+  isInternalApplicant?: boolean;
+  /** @nullable */
+  assignedRecruiterId?: number | null;
 }

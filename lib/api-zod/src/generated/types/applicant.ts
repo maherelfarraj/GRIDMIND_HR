@@ -8,22 +8,43 @@
 
 export interface Applicant {
   id: number;
-  firstName: string;
-  lastName: string;
   email: string;
   /** @nullable */
   phone?: string | null;
   applicantType: string;
   /** @nullable */
-  currentEmployeeId?: number | null;
-  /** @nullable */
-  resumeUrl?: string | null;
-  /** @nullable */
   linkedinUrl?: string | null;
   /** @nullable */
   source?: string | null;
-  /** @nullable */
-  notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  employeeId?: number | null;
+  firstNameEn?: string;
+  lastNameEn?: string;
+  /** @nullable */
+  firstNameAr?: string | null;
+  /** @nullable */
+  lastNameAr?: string | null;
+  /** @nullable */
+  nationalId?: string | null;
+  /** @nullable */
+  nationality?: string | null;
+  /** @nullable */
+  gender?: string | null;
+  /** @nullable */
+  dateOfBirth?: string | null;
+  /** @nullable */
+  currentEmployer?: string | null;
+  /** @nullable */
+  currentTitle?: string | null;
+  /** @nullable */
+  totalExperienceYears?: number | null;
+  /** @nullable */
+  highestEducation?: string | null;
+  /** @nullable */
+  resumeDocumentId?: number | null;
+  /** @nullable */
+  referredByEmployeeId?: number | null;
+  isActive?: boolean;
 }
