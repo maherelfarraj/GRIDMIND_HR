@@ -434,7 +434,7 @@ export default function Devices() {
                         <Activity className="w-8 h-8 text-primary" />
                         <div>
                           <p className="text-xs text-muted-foreground">{t('Uptime', 'وقت التشغيل')}</p>
-                          <p className="text-lg font-bold">{deviceHealth.uptimePercent}%</p>
+                          <p className="text-lg font-bold">{deviceHealth.uptimePercent != null ? `${deviceHealth.uptimePercent}%` : '-'}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 p-3 rounded-md border">
