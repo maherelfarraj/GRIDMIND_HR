@@ -12659,3 +12659,898 @@ components:
         grantedByUserId: { type: ["number", "null"] }
         grantedAt: { type: string }
       required: [id, featureType, isAllowed, grantedAt]
+
+    DeviceEmployeeMapping:
+      type: object
+      properties:
+        id: { type: integer }
+        deviceId: { type: integer }
+        employeeId: { type: integer }
+        accessLevel: { type: string }
+        enrolledAt: { type: string }
+        enrolledByUserId: { type: integer }
+        isActive: { type: boolean }
+        biometricType: { type: string }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, deviceId, employeeId, accessLevel, enrolledAt, enrolledByUserId, isActive, biometricType, createdAt, updatedAt]
+
+    AttendanceCorrection:
+      type: object
+      properties:
+        id: { type: integer }
+        attendanceRecordId: { type: integer }
+        employeeId: { type: integer }
+        requestedByUserId: { type: integer }
+        reviewedByUserId: { type: ["integer", "null"] }
+        correctionType: { type: string }
+        originalValue: { type: ["string", "null"] }
+        requestedValue: { type: string }
+        reason: { type: string }
+        status: { type: string }
+        reviewNote: { type: ["string", "null"] }
+        reviewedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, attendanceRecordId, employeeId, requestedByUserId, correctionType, requestedValue, reason, status, createdAt, updatedAt]
+
+    SetupWizardProgress:
+      type: object
+      properties:
+        id: { type: integer }
+        instanceId: { type: string }
+        currentStep: { type: string }
+        completedStepsJson: { type: string }
+        isComplete: { type: boolean }
+        completedAt: { type: ["string", "null"] }
+        completedByUserId: { type: ["integer", "null"] }
+        answersJson: { type: string }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, instanceId, currentStep, completedStepsJson, isComplete, answersJson, createdAt, updatedAt]
+
+    DataImportJob:
+      type: object
+      properties:
+        id: { type: integer }
+        importType: { type: string }
+        status: { type: string }
+        originalFilename: { type: ["string", "null"] }
+        fileFormat: { type: string }
+        columnMappingJson: { type: ["string", "null"] }
+        mappingTemplateName: { type: ["string", "null"] }
+        totalRows: { type: integer }
+        validRows: { type: integer }
+        errorRows: { type: integer }
+        duplicateRows: { type: integer }
+        importedRows: { type: integer }
+        rolledBackRows: { type: integer }
+        previewConfirmed: { type: boolean }
+        previewConfirmedAt: { type: ["string", "null"] }
+        isRollbackable: { type: boolean }
+        rolledBackAt: { type: ["string", "null"] }
+        rolledBackByUserId: { type: ["integer", "null"] }
+        errorSummary: { type: ["string", "null"] }
+        importedByUserId: { type: ["integer", "null"] }
+        startedAt: { type: ["string", "null"] }
+        completedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, importType, status, fileFormat, totalRows, validRows, errorRows, duplicateRows, importedRows, rolledBackRows, previewConfirmed, isRollbackable, createdAt]
+
+    DataImportRow:
+      type: object
+      properties:
+        id: { type: integer }
+        importJobId: { type: integer }
+        rowNumber: { type: integer }
+        status: { type: string }
+        rawDataJson: { type: ["string", "null"] }
+        mappedDataJson: { type: ["string", "null"] }
+        errorsJson: { type: ["string", "null"] }
+        createdEntityId: { type: ["integer", "null"] }
+        createdEntityType: { type: ["string", "null"] }
+        isDuplicate: { type: boolean }
+        duplicateOfId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+      required: [id, importJobId, rowNumber, status, isDuplicate, createdAt]
+
+    ImportMappingTemplate:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        importType: { type: string }
+        columnMappingJson: { type: string }
+        createdByUserId: { type: ["integer", "null"] }
+        isDefault: { type: boolean }
+        usageCount: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, name, importType, columnMappingJson, isDefault, usageCount, createdAt, updatedAt]
+
+    SystemHealthCheck:
+      type: object
+      properties:
+        id: { type: integer }
+        checkName: { type: string }
+        checkCategory: { type: string }
+        result: { type: string }
+        message: { type: ["string", "null"] }
+        metricValue: { type: ["string", "null"] }
+        metricUnit: { type: ["string", "null"] }
+        thresholdWarn: { type: ["string", "null"] }
+        thresholdFail: { type: ["string", "null"] }
+        durationMs: { type: ["integer", "null"] }
+        isCritical: { type: boolean }
+        runId: { type: ["string", "null"] }
+        runAt: { type: string }
+        triggeredByUserId: { type: ["integer", "null"] }
+      required: [id, checkName, checkCategory, result, isCritical, runAt]
+
+    EnvironmentReadinessCheck:
+      type: object
+      properties:
+        id: { type: integer }
+        checkName: { type: string }
+        checkCategory: { type: string }
+        result: { type: string }
+        message: { type: ["string", "null"] }
+        remediationHint: { type: ["string", "null"] }
+        isMandatory: { type: boolean }
+        isOverridden: { type: boolean }
+        overriddenByUserId: { type: ["integer", "null"] }
+        overrideReason: { type: ["string", "null"] }
+        lastCheckedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, checkName, checkCategory, result, isMandatory, isOverridden, createdAt]
+
+    SoftwareUpdatePackage:
+      type: object
+      properties:
+        id: { type: integer }
+        version: { type: string }
+        buildNumber: { type: ["string", "null"] }
+        releaseChannel: { type: string }
+        status: { type: string }
+        packageFilename: { type: ["string", "null"] }
+        fileSizeBytes: { type: ["integer", "null"] }
+        checksum: { type: ["string", "null"] }
+        signatureValid: { type: ["boolean", "null"] }
+        signatureVerifiedAt: { type: ["string", "null"] }
+        manifestJson: { type: ["string", "null"] }
+        releaseNotesEn: { type: ["string", "null"] }
+        releaseNotesAr: { type: ["string", "null"] }
+        installedAt: { type: ["string", "null"] }
+        installedByUserId: { type: ["integer", "null"] }
+        rollbackPackageId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+      required: [id, version, releaseChannel, status, createdAt]
+
+    DeploymentChecklistItem:
+      type: object
+      properties:
+        id: { type: integer }
+        category: { type: string }
+        itemCode: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        descriptionEn: { type: ["string", "null"] }
+        descriptionAr: { type: ["string", "null"] }
+        status: { type: string }
+        priority: { type: string }
+        implementationLevel: { type: string }
+        statusNotes: { type: ["string", "null"] }
+        lastCheckedAt: { type: ["string", "null"] }
+        checkedByUserId: { type: ["integer", "null"] }
+        sortOrder: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, category, itemCode, titleEn, titleAr, status, priority, implementationLevel, sortOrder, createdAt, updatedAt]
+
+    PilotAccount:
+      type: object
+      properties:
+        id: { type: integer }
+        persona: { type: string }
+        labelEn: { type: string }
+        labelAr: { type: string }
+        descriptionEn: { type: ["string", "null"] }
+        descriptionAr: { type: ["string", "null"] }
+        systemUsername: { type: string }
+        roleType: { type: string }
+        permittedPathsJson: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        sortOrder: { type: integer }
+        createdAt: { type: string }
+      required: [id, persona, labelEn, labelAr, systemUsername, roleType, isActive, sortOrder, createdAt]
+
+    PilotScenario:
+      type: object
+      properties:
+        id: { type: integer }
+        scenarioCode: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        descriptionEn: { type: ["string", "null"] }
+        descriptionAr: { type: ["string", "null"] }
+        category: { type: string }
+        applicableTo: { type: string }
+        estimatedMinutes: { type: integer }
+        stepsJson: { type: string }
+        targetPersonas: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        sortOrder: { type: integer }
+        createdAt: { type: string }
+      required: [id, scenarioCode, titleEn, titleAr, category, applicableTo, estimatedMinutes, stepsJson, isActive, sortOrder, createdAt]
+
+    PilotScenarioProgress:
+      type: object
+      properties:
+        id: { type: integer }
+        scenarioId: { type: integer }
+        userId: { type: integer }
+        status: { type: string }
+        currentStep: { type: integer }
+        startedAt: { type: ["string", "null"] }
+        completedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, scenarioId, userId, status, currentStep, createdAt]
+
+    Organization:
+      type: object
+      properties:
+        id: { type: integer }
+        orgType: { type: string }
+        orgCode: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        shortNameEn: { type: ["string", "null"] }
+        shortNameAr: { type: ["string", "null"] }
+        registrationNumber: { type: ["string", "null"] }
+        status: { type: string }
+        parentOrgId: { type: ["integer", "null"] }
+        primaryContactNameEn: { type: ["string", "null"] }
+        primaryContactNameAr: { type: ["string", "null"] }
+        primaryContactEmail: { type: ["string", "null"] }
+        primaryContactPhone: { type: ["string", "null"] }
+        headquartersCity: { type: ["string", "null"] }
+        countryCode: { type: string }
+        isDefault: { type: boolean }
+        activatedAt: { type: ["string", "null"] }
+        createdByUserId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, orgType, orgCode, nameEn, nameAr, status, countryCode, isDefault, createdAt, updatedAt]
+
+    OrganizationBranding:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: integer }
+        displayNameEn: { type: ["string", "null"] }
+        displayNameAr: { type: ["string", "null"] }
+        taglineEn: { type: ["string", "null"] }
+        taglineAr: { type: ["string", "null"] }
+        primaryColor: { type: string }
+        accentColor: { type: ["string", "null"] }
+        defaultTheme: { type: string }
+        logoUrl: { type: ["string", "null"] }
+        faviconUrl: { type: ["string", "null"] }
+        footerTextEn: { type: ["string", "null"] }
+        footerTextAr: { type: ["string", "null"] }
+        loginMessageEn: { type: ["string", "null"] }
+        loginMessageAr: { type: ["string", "null"] }
+        customCssSnippet: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        updatedByUserId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, orgId, primaryColor, defaultTheme, isActive, createdAt, updatedAt]
+
+    PolicyLocale:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: integer }
+        defaultLanguage: { type: string }
+        timezone: { type: string }
+        calendarType: { type: string }
+        showHijriDates: { type: boolean }
+        currencyCode: { type: string }
+        currencySymbolEn: { type: ["string", "null"] }
+        currencySymbolAr: { type: ["string", "null"] }
+        dateFormat: { type: string }
+        timeFormat: { type: string }
+        numeralStyle: { type: string }
+        thousandsSeparator: { type: ["string", "null"] }
+        decimalSeparator: { type: ["string", "null"] }
+        updatedByUserId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, orgId, defaultLanguage, timezone, calendarType, showHijriDates, currencyCode, dateFormat, timeFormat, numeralStyle, createdAt, updatedAt]
+
+    NumberingScheme:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: integer }
+        entityType: { type: string }
+        template: { type: string }
+        prefix: { type: ["string", "null"] }
+        suffix: { type: ["string", "null"] }
+        currentSequence: { type: integer }
+        sequencePadding: { type: integer }
+        resetCycle: { type: string }
+        lastResetAt: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, orgId, entityType, template, currentSequence, sequencePadding, resetCycle, isActive, createdAt, updatedAt]
+
+    EmploymentTypeConfig:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: integer }
+        employmentType: { type: string }
+        labelEn: { type: string }
+        labelAr: { type: string }
+        eligibleLeave: { type: boolean }
+        eligiblePayroll: { type: boolean }
+        eligibleBenefits: { type: boolean }
+        eligiblePension: { type: boolean }
+        probationEnabled: { type: boolean }
+        probationDays: { type: integer }
+        defaultContractMonths: { type: ["integer", "null"] }
+        maxRenewals: { type: ["integer", "null"] }
+        applicableOrgTypesJson: { type: string }
+        isActive: { type: boolean }
+        sortOrder: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, orgId, employmentType, labelEn, labelAr, eligibleLeave, eligiblePayroll, eligibleBenefits, eligiblePension, probationEnabled, probationDays, applicableOrgTypesJson, isActive, sortOrder, createdAt, updatedAt]
+
+    CalendarConfig:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: integer }
+        weekendDaysJson: { type: string }
+        standardHoursPerDay: { type: integer }
+        defaultShiftStart: { type: ["string", "null"] }
+        defaultShiftEnd: { type: ["string", "null"] }
+        hasSummerSchedule: { type: boolean }
+        summerMonthsJson: { type: ["string", "null"] }
+        summerHoursPerDay: { type: ["integer", "null"] }
+        summerShiftStart: { type: ["string", "null"] }
+        summerShiftEnd: { type: ["string", "null"] }
+        updatedByUserId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, orgId, weekendDaysJson, standardHoursPerDay, hasSummerSchedule, createdAt, updatedAt]
+
+    RetentionRule:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: integer }
+        dataCategory: { type: string }
+        labelEn: { type: string }
+        labelAr: { type: string }
+        retentionMonths: { type: integer }
+        expiryAction: { type: string }
+        legalBasisEn: { type: ["string", "null"] }
+        legalBasisAr: { type: ["string", "null"] }
+        requiresApprovalToDelete: { type: boolean }
+        isActive: { type: boolean }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, orgId, dataCategory, labelEn, labelAr, retentionMonths, expiryAction, requiresApprovalToDelete, isActive, createdAt, updatedAt]
+
+    PolicyChangeRequest:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        policyArea: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        status: { type: string }
+        makerUserId: { type: integer }
+        checkerUserId: { type: ["integer", "null"] }
+        checkerComment: { type: ["string", "null"] }
+        decidedAt: { type: ["string", "null"] }
+        targetEntityType: { type: ["string", "null"] }
+        targetEntityId: { type: ["integer", "null"] }
+        targetEntityLabel: { type: ["string", "null"] }
+        changeBeforeJson: { type: ["string", "null"] }
+        changeAfterJson: { type: string }
+        changeSummaryEn: { type: ["string", "null"] }
+        changeSummaryAr: { type: ["string", "null"] }
+        impactPreviewJson: { type: ["string", "null"] }
+        appliedVersion: { type: ["integer", "null"] }
+        appliedAt: { type: ["string", "null"] }
+        expiresAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, policyArea, titleEn, titleAr, status, makerUserId, changeAfterJson, createdAt, updatedAt]
+
+    PolicyVersion:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        policyArea: { type: string }
+        targetEntityType: { type: ["string", "null"] }
+        targetEntityId: { type: ["integer", "null"] }
+        targetEntityLabel: { type: ["string", "null"] }
+        version: { type: integer }
+        snapshotJson: { type: string }
+        checksum: { type: ["string", "null"] }
+        changeRequestId: { type: ["integer", "null"] }
+        appliedByUserId: { type: integer }
+        appliedAt: { type: string }
+        isCurrent: { type: boolean }
+        rollbackReason: { type: ["string", "null"] }
+        rolledBackFromVersion: { type: ["integer", "null"] }
+        createdAt: { type: string }
+      required: [id, policyArea, version, snapshotJson, appliedByUserId, appliedAt, isCurrent, createdAt]
+
+    ApprovalChainConfig:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        name: { type: string }
+        nameAr: { type: string }
+        chainType: { type: string }
+        stepsJson: { type: string }
+        requireAllSteps: { type: boolean }
+        totalTimeoutHours: { type: ["integer", "null"] }
+        timeoutAction: { type: string }
+        isActive: { type: boolean }
+        createdByUserId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, name, nameAr, chainType, stepsJson, requireAllSteps, timeoutAction, isActive, createdAt, updatedAt]
+
+    IntegrationCredentialVaultRef:
+      type: object
+      properties:
+        id: { type: integer }
+        labelEn: { type: string }
+        labelAr: { type: string }
+        credentialType: { type: string }
+        vaultKeyRef: { type: string }
+        vaultSecretRef: { type: ["string", "null"] }
+        descriptionEn: { type: ["string", "null"] }
+        descriptionAr: { type: ["string", "null"] }
+        status: { type: string }
+        lastRotatedAt: { type: ["string", "null"] }
+        rotationDueAt: { type: ["string", "null"] }
+        ownerUserId: { type: ["integer", "null"] }
+        createdByUserId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, labelEn, labelAr, credentialType, vaultKeyRef, status, createdAt, updatedAt]
+
+    IntegrationConnectionProfile:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        connectorId: { type: ["integer", "null"] }
+        profileName: { type: string }
+        profileNameAr: { type: string }
+        integrationType: { type: string }
+        environment: { type: string }
+        connectionParamsJson: { type: string }
+        credentialVaultRefId: { type: ["integer", "null"] }
+        status: { type: string }
+        lastTestResult: { type: ["string", "null"] }
+        lastTestMessage: { type: ["string", "null"] }
+        lastTestedAt: { type: ["string", "null"] }
+        lastTestedByUserId: { type: ["integer", "null"] }
+        lastTestLatencyMs: { type: ["integer", "null"] }
+        lastTestSimulated: { type: ["boolean", "null"] }
+        isHealthMonitoringEnabled: { type: boolean }
+        healthCheckIntervalMinutes: { type: integer }
+        consecutiveFailures: { type: integer }
+        alertOnFailureCount: { type: integer }
+        retryEnabled: { type: boolean }
+        retryMaxAttempts: { type: integer }
+        retryBackoffSeconds: { type: integer }
+        isAirGapSafe: { type: boolean }
+        governanceStatus: { type: string }
+        approvedByUserId: { type: ["integer", "null"] }
+        approvedAt: { type: ["string", "null"] }
+        approvalNotes: { type: ["string", "null"] }
+        createdByUserId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, profileName, profileNameAr, integrationType, environment, connectionParamsJson, status, isHealthMonitoringEnabled, healthCheckIntervalMinutes, consecutiveFailures, alertOnFailureCount, retryEnabled, retryMaxAttempts, retryBackoffSeconds, isAirGapSafe, governanceStatus, createdAt, updatedAt]
+
+    IntegrationGovernanceRule:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        integrationType: { type: string }
+        ruleCode: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        permissionLevel: { type: string }
+        requiresDualAuth: { type: boolean }
+        requiresMakerChecker: { type: boolean }
+        maxActiveProfiles: { type: integer }
+        allowExternalNetwork: { type: boolean }
+        notesEn: { type: ["string", "null"] }
+        notesAr: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, integrationType, ruleCode, titleEn, titleAr, permissionLevel, requiresDualAuth, requiresMakerChecker, maxActiveProfiles, allowExternalNetwork, isActive, createdAt, updatedAt]
+
+    IntegrationAuditLog:
+      type: object
+      properties:
+        id: { type: integer }
+        profileId: { type: ["integer", "null"] }
+        integrationType: { type: ["string", "null"] }
+        eventType: { type: string }
+        outcome: { type: string }
+        message: { type: ["string", "null"] }
+        metadataJson: { type: ["string", "null"] }
+        actorUserId: { type: ["integer", "null"] }
+        sourceIp: { type: ["string", "null"] }
+        occurredAt: { type: string }
+      required: [id, eventType, outcome, occurredAt]
+
+    ConfigPackage:
+      type: object
+      properties:
+        id: { type: integer }
+        packageName: { type: string }
+        packageType: { type: string }
+        status: { type: string }
+        version: { type: string }
+        sourceEnvironment: { type: string }
+        targetEnvironment: { type: string }
+        orgId: { type: ["integer", "null"] }
+        descriptionEn: { type: ["string", "null"] }
+        descriptionAr: { type: ["string", "null"] }
+        policyAreasJson: { type: string }
+        payloadJson: { type: ["string", "null"] }
+        payloadChecksum: { type: ["string", "null"] }
+        signature: { type: ["string", "null"] }
+        signedAt: { type: ["string", "null"] }
+        signedByUserId: { type: ["integer", "null"] }
+        exportedAt: { type: ["string", "null"] }
+        exportedByUserId: { type: ["integer", "null"] }
+        importedAt: { type: ["string", "null"] }
+        importedByUserId: { type: ["integer", "null"] }
+        appliedAt: { type: ["string", "null"] }
+        appliedByUserId: { type: ["integer", "null"] }
+        rejectedAt: { type: ["string", "null"] }
+        rejectedByUserId: { type: ["integer", "null"] }
+        rejectionReason: { type: ["string", "null"] }
+        impactPreviewJson: { type: ["string", "null"] }
+        changeRequestId: { type: ["integer", "null"] }
+        isRollbackPackage: { type: boolean }
+        rollbackOfPackageId: { type: ["integer", "null"] }
+        createdByUserId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, packageName, packageType, status, version, sourceEnvironment, targetEnvironment, policyAreasJson, isRollbackPackage, createdAt, updatedAt]
+
+    ConfigPackageItem:
+      type: object
+      properties:
+        id: { type: integer }
+        packageId: { type: integer }
+        policyArea: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["integer", "null"] }
+        entityLabel: { type: ["string", "null"] }
+        changeType: { type: string }
+        beforeJson: { type: ["string", "null"] }
+        afterJson: { type: ["string", "null"] }
+        applyStatus: { type: string }
+        applyError: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, packageId, policyArea, entityType, changeType, applyStatus, createdAt]
+
+    EnvironmentSnapshot:
+      type: object
+      properties:
+        id: { type: integer }
+        environment: { type: string }
+        orgId: { type: ["integer", "null"] }
+        snapshotName: { type: string }
+        scope: { type: string }
+        snapshotJson: { type: ["string", "null"] }
+        checksum: { type: ["string", "null"] }
+        itemCount: { type: integer }
+        capturedByUserId: { type: ["integer", "null"] }
+        capturedAt: { type: string }
+        isPinned: { type: boolean }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, environment, snapshotName, scope, itemCount, capturedAt, isPinned, createdAt]
+
+    OrgReportTemplate:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: integer }
+        templateType: { type: string }
+        nameEn: { type: string }
+        nameAr: { type: string }
+        paperOrientation: { type: string }
+        paperSize: { type: string }
+        includeOrgLogo: { type: boolean }
+        includeBranding: { type: boolean }
+        headerHtmlEn: { type: ["string", "null"] }
+        headerHtmlAr: { type: ["string", "null"] }
+        footerHtmlEn: { type: ["string", "null"] }
+        footerHtmlAr: { type: ["string", "null"] }
+        columnsJson: { type: ["string", "null"] }
+        groupingJson: { type: ["string", "null"] }
+        defaultFiltersJson: { type: ["string", "null"] }
+        defaultExportFormat: { type: string }
+        isDefault: { type: boolean }
+        isActive: { type: boolean }
+        createdByUserId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, orgId, templateType, nameEn, nameAr, paperOrientation, paperSize, includeOrgLogo, includeBranding, defaultExportFormat, isDefault, isActive, createdAt, updatedAt]
+
+    GoLiveGate:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        gateCode: { type: string }
+        category: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        descriptionEn: { type: ["string", "null"] }
+        severity: { type: string }
+        status: { type: string }
+        evaluationType: { type: string }
+        evidenceJson: { type: ["string", "null"] }
+        blockerDescriptionEn: { type: ["string", "null"] }
+        blockerDescriptionAr: { type: ["string", "null"] }
+        remediationEn: { type: ["string", "null"] }
+        remediationAr: { type: ["string", "null"] }
+        evaluatedByUserId: { type: ["integer", "null"] }
+        lastEvaluatedAt: { type: ["string", "null"] }
+        isOverridden: { type: boolean }
+        overriddenByUserId: { type: ["integer", "null"] }
+        overrideReason: { type: ["string", "null"] }
+        overriddenAt: { type: ["string", "null"] }
+        sortOrder: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, gateCode, category, titleEn, titleAr, severity, status, evaluationType, isOverridden, sortOrder, createdAt, updatedAt]
+
+    ReadinessScorecard:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        module: { type: string }
+        moduleDisplayEn: { type: string }
+        moduleDisplayAr: { type: string }
+        readinessStatus: { type: string }
+        totalGates: { type: integer }
+        passingGates: { type: integer }
+        failingGates: { type: integer }
+        overriddenGates: { type: integer }
+        readinessScore: { type: string }
+        coveredRolesJson: { type: string }
+        lastRecalculatedAt: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, module, moduleDisplayEn, moduleDisplayAr, readinessStatus, totalGates, passingGates, failingGates, overriddenGates, readinessScore, coveredRolesJson, createdAt, updatedAt]
+
+    PilotDefect:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        defectCode: { type: string }
+        module: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: ["string", "null"] }
+        descriptionEn: { type: ["string", "null"] }
+        stepsToReproduce: { type: ["string", "null"] }
+        severity: { type: string }
+        status: { type: string }
+        isGoLiveBlocker: { type: boolean }
+        relatedGateCode: { type: ["string", "null"] }
+        sourceTestCode: { type: ["string", "null"] }
+        assignedToUserId: { type: ["integer", "null"] }
+        reportedByUserId: { type: ["integer", "null"] }
+        reportedAt: { type: string }
+        resolvedAt: { type: ["string", "null"] }
+        resolvedByUserId: { type: ["integer", "null"] }
+        resolutionNotes: { type: ["string", "null"] }
+        verifiedAt: { type: ["string", "null"] }
+        verifiedByUserId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, defectCode, module, titleEn, severity, status, isGoLiveBlocker, reportedAt, createdAt, updatedAt]
+
+    MigrationStatus:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        migrationCode: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        descriptionEn: { type: ["string", "null"] }
+        status: { type: string }
+        priority: { type: string }
+        totalRecords: { type: ["integer", "null"] }
+        migratedRecords: { type: integer }
+        failedRecords: { type: integer }
+        progressPercent: { type: string }
+        startedAt: { type: ["string", "null"] }
+        completedAt: { type: ["string", "null"] }
+        runByUserId: { type: ["integer", "null"] }
+        errorSummary: { type: ["string", "null"] }
+        sourceSystem: { type: ["string", "null"] }
+        isGoLiveBlocker: { type: boolean }
+        sortOrder: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, migrationCode, titleEn, titleAr, status, priority, migratedRecords, failedRecords, progressPercent, isGoLiveBlocker, sortOrder, createdAt, updatedAt]
+
+    RestoreTestResult:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        backupRecordId: { type: ["integer", "null"] }
+        restoreType: { type: string }
+        result: { type: string }
+        restoreDurationSeconds: { type: ["integer", "null"] }
+        verificationChecksJson: { type: ["string", "null"] }
+        rowCountsJson: { type: ["string", "null"] }
+        failureReason: { type: ["string", "null"] }
+        testedByUserId: { type: ["integer", "null"] }
+        testedAt: { type: string }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, restoreType, result, testedAt, createdAt]
+
+    UatScript:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        scriptCode: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        targetRole: { type: string }
+        module: { type: string }
+        orgTypeApplicability: { type: string }
+        estimatedMinutes: { type: integer }
+        prerequisitesEn: { type: ["string", "null"] }
+        prerequisitesAr: { type: ["string", "null"] }
+        stepsJson: { type: string }
+        acceptanceCriteriaJson: { type: string }
+        relatedGateCodes: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        version: { type: string }
+        createdByUserId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, scriptCode, titleEn, titleAr, targetRole, module, orgTypeApplicability, estimatedMinutes, stepsJson, acceptanceCriteriaJson, isActive, version, createdAt, updatedAt]
+
+    UatTestRun:
+      type: object
+      properties:
+        id: { type: integer }
+        scriptId: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        testerUserId: { type: integer }
+        testerRole: { type: ["string", "null"] }
+        testerNameEn: { type: ["string", "null"] }
+        result: { type: string }
+        currentStep: { type: integer }
+        totalSteps: { type: integer }
+        passedSteps: { type: integer }
+        failedSteps: { type: integer }
+        skippedSteps: { type: integer }
+        raisedDefectIds: { type: ["string", "null"] }
+        overallNotes: { type: ["string", "null"] }
+        browserInfo: { type: ["string", "null"] }
+        environment: { type: string }
+        startedAt: { type: string }
+        completedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, scriptId, testerUserId, result, currentStep, totalSteps, passedSteps, failedSteps, skippedSteps, environment, startedAt, createdAt]
+
+    UatTestRunStep:
+      type: object
+      properties:
+        id: { type: integer }
+        runId: { type: integer }
+        stepNumber: { type: integer }
+        result: { type: string }
+        actualResultEn: { type: ["string", "null"] }
+        defectId: { type: ["integer", "null"] }
+        notes: { type: ["string", "null"] }
+        executedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, runId, stepNumber, result, createdAt]
+
+    SecurityTestScenario:
+      type: object
+      properties:
+        id: { type: integer }
+        scenarioCode: { type: string }
+        attackVector: { type: string }
+        titleEn: { type: string }
+        titleAr: { type: string }
+        descriptionEn: { type: ["string", "null"] }
+        severity: { type: string }
+        strideCategory: { type: ["string", "null"] }
+        targetEndpoint: { type: ["string", "null"] }
+        targetMethod: { type: ["string", "null"] }
+        requestTemplateJson: { type: ["string", "null"] }
+        expectedBehaviorEn: { type: ["string", "null"] }
+        expectedBehaviorAr: { type: ["string", "null"] }
+        expectedStatusCode: { type: integer }
+        requiresAuditLog: { type: boolean }
+        requiresSecurityAlert: { type: boolean }
+        executionType: { type: string }
+        relatedGateCode: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        sortOrder: { type: integer }
+        createdAt: { type: string }
+      required: [id, scenarioCode, attackVector, titleEn, titleAr, severity, expectedStatusCode, requiresAuditLog, requiresSecurityAlert, executionType, isActive, sortOrder, createdAt]
+
+    SecurityTestRun:
+      type: object
+      properties:
+        id: { type: integer }
+        orgId: { type: ["integer", "null"] }
+        runLabel: { type: ["string", "null"] }
+        runType: { type: string }
+        status: { type: string }
+        totalScenarios: { type: integer }
+        passedScenarios: { type: integer }
+        failedScenarios: { type: integer }
+        skippedScenarios: { type: integer }
+        overallPosture: { type: ["string", "null"] }
+        triggeredByUserId: { type: ["integer", "null"] }
+        startedAt: { type: string }
+        completedAt: { type: ["string", "null"] }
+        summaryJson: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required: [id, runType, status, totalScenarios, passedScenarios, failedScenarios, skippedScenarios, startedAt, createdAt]
+
+    SecurityTestFinding:
+      type: object
+      properties:
+        id: { type: integer }
+        runId: { type: integer }
+        scenarioId: { type: integer }
+        result: { type: string }
+        actualStatusCode: { type: ["integer", "null"] }
+        auditLogFound: { type: ["boolean", "null"] }
+        alertTriggered: { type: ["boolean", "null"] }
+        actualResponseSnippet: { type: ["string", "null"] }
+        findingDescriptionEn: { type: ["string", "null"] }
+        remediationEn: { type: ["string", "null"] }
+        riskScore: { type: ["string", "null"] }
+        isGoLiveBlocker: { type: boolean }
+        executedAt: { type: string }
+        createdAt: { type: string }
+      required: [id, runId, scenarioId, result, isGoLiveBlocker, executedAt, createdAt]

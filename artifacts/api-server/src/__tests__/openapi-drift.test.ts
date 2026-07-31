@@ -42,33 +42,11 @@ const SCHEMA_NAME_OVERRIDES: Record<string, string | null> = {
   leave_requests: "LeaveRequestDetail",
   mobilization_statuses: "MobilizationStatus",
   sync_queue: "SyncQueueEntry",
-  // Tables below have no OpenAPI component schema at all — internal
-  // bookkeeping, deployment/pilot tooling, or endpoints typed inline.
-  approval_chain_configs: null,
-  calendar_configs: null,
-  config_packages: null,
-  data_import_jobs: null,
-  deployment_checklist_items: null,
-  employment_type_configs: null,
-  environment_readiness_checks: null,
-  numbering_schemes: null,
-  organizations: null,
-  pilot_scenario_progress: null,
-  pilot_scenarios: null,
-  policy_change_requests: null,
-  policy_locales: null,
-  policy_versions: null,
+  // Audited 2026-07-31: no API route reads or serves this table (grep for
+  // privilegedSessionsTable across artifacts/api-server/src finds no usage
+  // outside the schema). Re-audit before keeping this opted out if a route
+  // starts serving it.
   privileged_sessions: null,
-  retention_rules: null,
-  security_test_findings: null,
-  security_test_runs: null,
-  security_test_scenarios: null,
-  setup_wizard_progress: null,
-  software_update_packages: null,
-  system_health_checks: null,
-  uat_scripts: null,
-  uat_test_run_steps: null,
-  uat_test_runs: null,
   employee_onboarding: "EmployeeOnboarding",
   installation_readiness: "InstallationReadiness",
   connection_health_log: "ConnectionHealthLog",
@@ -76,25 +54,10 @@ const SCHEMA_NAME_OVERRIDES: Record<string, string | null> = {
   integration_event_log: "IntegrationEvent",
   ai_config: "AiConfig",
   break_glass_access: "BreakGlassAccess",
-  readiness_scorecard: null, // no direct API schema
-  migration_status: null,
-  login_throttle: null, // internal security bookkeeping, not exposed
-  organization_branding: null,
-  environment_snapshots: null,
-  org_report_templates: null,
-  import_mapping_templates: null,
-  data_import_rows: null,
-  config_package_items: null,
-  integration_credential_vault_refs: null, // secrets — deliberately unexposed
-  integration_governance_rules: null,
-  integration_audit_log: null,
-  integration_connection_profiles: null,
-  device_employee_mappings: null,
-  pilot_accounts: null,
-  pilot_defects: null,
-  go_live_gates: null,
-  restore_test_results: null,
-  attendance_corrections: null,
+  // Audited 2026-07-31: no API route serves this table — it is only read and
+  // written by the internal login-throttle library (src/lib/loginThrottle.ts);
+  // no route handler returns its rows.
+  login_throttle: null,
   payroll_variance_logs: "PayrollVarianceLog",
   analytics_kpi_cache: "AnalyticsKpiCache",
   workforce_snapshots: "WorkforceSnapshot",
