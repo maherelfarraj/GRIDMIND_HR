@@ -1,8 +1,19 @@
 // Centralized fetch with credentials
 import { setDefaultCredentials, setUnauthorizedHandler } from '@workspace/api-client-react';
-export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+
+export interface ApiFetchOptions {
+  /**
+   * Deliberate, narrowly scoped opt-out of the global 401 session-expired
+   * redirect. Use ONLY for optional probes of endpoints that require auth
+   * even in demo mode (e.g. gateway administration), where a 401 means
+   * "hide this optional section", not "your session expired".
+   */
+  optionalAuth?: boolean;
+}
+
+export async function apiFetch(path: string, init?: RequestInit, opts?: ApiFetchOptions): Promise<Response> {
   const res = await fetch(path, { ...init, credentials: 'include' });
-  if (res.status === 401) {
+  if (res.status === 401 && !opts?.optionalAuth) {
     handleSessionExpired();
   }
   return res;

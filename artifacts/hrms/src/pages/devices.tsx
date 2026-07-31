@@ -1,5 +1,6 @@
 import { apiFetch } from '@/lib/api';
-import { useState } from 'react';
+import { fetchGatewayRegistrations, selectOfflineGateways, type GatewayRegistration } from '@/lib/gateways';
+import { useEffect, useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useListDevices, useGetDevice, useGetDeviceHealth, getGetDeviceQueryKey, getGetDeviceHealthQueryKey } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -25,6 +26,19 @@ export default function Devices() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [mappings, setMappings] = useState<DeviceMapping[]>([]);
   const [loadingMappings, setLoadingMappings] = useState(false);
+  const [gateways, setGateways] = useState<GatewayRegistration[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Optional probe: the endpoint requires an authenticated session even in
+    // demo mode — a 401 resolves to null (banner hidden), never a redirect.
+    fetchGatewayRegistrations().then(data => {
+      if (!cancelled) setGateways(data);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const offlineGateways = selectOfflineGateways(gateways);
 
   const { data: deviceDetail } = useGetDevice(selectedId || 0, { 
     query: { 
@@ -84,6 +98,49 @@ export default function Devices() {
           {t('Register Device', 'تسجيل جهاز')}
         </Button>
       </div>
+
+      {/* Offline attendance gateways (silent = no heartbeat within threshold) */}
+      {offlineGateways.length > 0 && (
+        <Card className="border-destructive/60 bg-destructive/5" data-testid="card-offline-gateways">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-destructive text-base">
+              <WifiOff className="w-5 h-5 shrink-0" />
+              {t(
+                `${offlineGateways.length} attendance gateway(s) OFFLINE — no heartbeat within threshold`,
+                `${offlineGateways.length} بوابة حضور غير متصلة — لا نبضات ضمن الحد المسموح`
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 pt-0">
+            {offlineGateways.map(g => {
+              const lastContact = g.lastHeartbeatAt ?? g.lastSeenAt;
+              return (
+                <div key={g.id} className="flex items-center justify-between gap-3 flex-wrap text-sm" data-testid={`row-offline-gateway-${g.id}`}>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="destructive" className="text-xs">
+                      {t('Offline', 'غير متصل')}
+                    </Badge>
+                    <span className="font-medium">{lang === 'ar' && g.nameAr ? g.nameAr : g.name}</span>
+                    {g.adapterType && <span className="text-xs text-muted-foreground font-mono">{g.adapterType}</span>}
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {t('Last contact: ', 'آخر اتصال: ')}
+                    {lastContact
+                      ? new Date(lastContact).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US')
+                      : t('never', 'أبدًا')}
+                  </span>
+                </div>
+              );
+            })}
+            <p className="text-xs text-muted-foreground pt-2 border-t border-destructive/20">
+              {t(
+                `A gateway is considered offline after ${Math.round((offlineGateways[0]?.silenceThresholdMs ?? 0) / 60000)} minutes without a heartbeat. Check the site's gateway service and network.`,
+                `تُعتبر البوابة غير متصلة بعد ${Math.round((offlineGateways[0]?.silenceThresholdMs ?? 0) / 60000)} دقيقة بدون نبضات. تحقق من خدمة البوابة والشبكة في الموقع.`
+              )}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Device List */}
