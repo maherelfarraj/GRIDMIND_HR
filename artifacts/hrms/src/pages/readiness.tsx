@@ -4,7 +4,7 @@ import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  AlertTriangle, CheckCircle, XCircle, ClipboardList, AlertCircle,
+  AlertTriangle, CheckCircle, XCircle, ClipboardList, AlertCircle, WifiOff, Wifi,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -47,6 +47,18 @@ interface MigrationItem {
   totalRecords: number;
   sourceSystem?: string;
   isGoLiveBlocker: boolean;
+}
+
+interface GatewayRegistration {
+  id: number;
+  name: string;
+  nameAr?: string | null;
+  status: string;
+  silent: boolean;
+  silenceThresholdMs: number;
+  lastHeartbeatAt?: string | null;
+  lastSeenAt?: string | null;
+  adapterType?: string | null;
 }
 
 interface MigrationSummary {
@@ -163,17 +175,20 @@ export default function ReadinessPage() {
   const [defects, setDefects] = useState<Defect[]>([]);
   const [migSummary, setMigSummary] = useState<MigrationSummary | null>(null);
   const [migItems, setMigItems] = useState<MigrationItem[]>([]);
+  const [gateways, setGateways] = useState<GatewayRegistration[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [sumR, scR, defR, migSumR] = await Promise.allSettled([
+      const [sumR, scR, defR, migSumR, gwR] = await Promise.allSettled([
         apiFetch('/api/go-live-gates/summary').then(r => r.json()),
         apiFetch('/api/readiness-scorecard').then(r => r.json()),
         apiFetch('/api/pilot-defects?status=open').then(r => r.json()),
         apiFetch('/api/migration-status/summary').then(r => r.json()),
+        apiFetch('/api/gateway/registrations', { credentials: 'include' }).then(r => (r.ok ? r.json() : null)),
       ]);
+      if (gwR.status === 'fulfilled' && Array.isArray(gwR.value)) setGateways(gwR.value);
       if (sumR.status === 'fulfilled') setSummary(sumR.value);
       if (scR.status === 'fulfilled') setScorecards(Array.isArray(scR.value) ? scR.value : scR.value?.scorecards ?? []);
       if (defR.status === 'fulfilled') setDefects(Array.isArray(defR.value) ? defR.value : defR.value?.defects ?? []);
@@ -238,6 +253,63 @@ export default function ReadinessPage() {
           {t('Go-live summary unavailable — API may be down.', 'ملخص الإطلاق غير متاح — قد تكون الـ API معطلة.')}
         </div>
       )}
+
+      {/* ── Offline gateways (silent = no heartbeat within threshold) ── */}
+      {gateways && (() => {
+        const active = gateways.filter(g => g.status === 'ACTIVE');
+        const offline = active.filter(g => g.silent);
+        if (offline.length === 0) {
+          return (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="text-gateways-online">
+              <Wifi className="w-4 h-4 text-emerald-500" />
+              {active.length > 0
+                ? t(`All ${active.length} attendance gateway(s) online`, `جميع بوابات الحضور (${active.length}) متصلة`)
+                : t('No active attendance gateways registered', 'لا توجد بوابات حضور نشطة مسجلة')}
+            </div>
+          );
+        }
+        return (
+          <Card className="bg-red-950/30 border-red-700" data-testid="card-offline-gateways">
+            <CardHeader className="pb-3 border-b border-red-800">
+              <CardTitle className="flex items-center gap-2 text-red-300">
+                <WifiOff className="w-5 h-5 shrink-0" />
+                {t(
+                  `${offline.length} attendance gateway(s) OFFLINE — no heartbeat within threshold`,
+                  `${offline.length} بوابة حضور غير متصلة — لا نبضات ضمن الحد المسموح`
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-2">
+              {offline.map(g => {
+                const lastContact = g.lastHeartbeatAt ?? g.lastSeenAt;
+                return (
+                  <div key={g.id} className="flex items-center justify-between gap-3 flex-wrap text-sm" data-testid={`row-offline-gateway-${g.id}`}>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-red-900 text-red-300 border-red-700 border text-xs">
+                        {t('Offline', 'غير متصل')}
+                      </Badge>
+                      <span className="text-red-200 font-medium">{lang === 'ar' && g.nameAr ? g.nameAr : g.name}</span>
+                      {g.adapterType && <span className="text-xs text-slate-400 font-mono">{g.adapterType}</span>}
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      {t('Last contact: ', 'آخر اتصال: ')}
+                      {lastContact
+                        ? new Date(lastContact).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US')
+                        : t('never', 'أبدًا')}
+                    </span>
+                  </div>
+                );
+              })}
+              <p className="text-xs text-slate-400 pt-2 border-t border-red-900">
+                {t(
+                  `A gateway is considered offline after ${Math.round((offline[0]?.silenceThresholdMs ?? 0) / 60000)} minutes without a heartbeat. Check the site's gateway service and network before go-live.`,
+                  `تُعتبر البوابة غير متصلة بعد ${Math.round((offline[0]?.silenceThresholdMs ?? 0) / 60000)} دقيقة بدون نبضات. تحقق من خدمة البوابة والشبكة في الموقع قبل الإطلاق.`
+                )}
+              </p>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* Section 1 — Module Status Grid                                         */}
