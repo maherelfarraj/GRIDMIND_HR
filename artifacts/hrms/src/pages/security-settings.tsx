@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useListDualAuthRequests, useCreateDualAuthRequest, useApproveDualAuthRequest, useRejectDualAuthRequest,
   useListBreakGlassAccess, useRequestBreakGlassAccess, useRevokeBreakGlassAccess,
-  useListPrivilegedSessions, useReviewPrivilegedSession,
+  useListPrivilegedSessions, useReviewPrivilegedSession, useGetPrivilegedSessionActivity,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -448,6 +448,33 @@ function outcomeBadge(o: string | null | undefined) {
   return <Badge className={cn('text-xs border-transparent capitalize', cfg[o] ?? 'bg-gray-100 text-gray-600')}>{o.replace(/_/g,' ')}</Badge>;
 }
 
+// Audit-log actions the session holder performed during the elevated-access
+// window — reviewers see what was actually touched, not just the time window.
+function SessionActivityList({ sessionId }: { sessionId: number }) {
+  const { t } = useLanguage();
+  const { data: activity, isLoading } = useGetPrivilegedSessionActivity(sessionId);
+
+  if (isLoading) return <div className="space-y-2">{[...Array(3)].map((_,i) => <Skeleton key={i} className="h-8" />)}</div>;
+  if (!activity || activity.length === 0) {
+    return <div className="text-xs text-gray-400 py-2">{t('No audit-log actions recorded during this session window.','لم تُسجل أي إجراءات في سجل التدقيق خلال نافذة هذه الجلسة.')}</div>;
+  }
+  return (
+    <div className="max-h-56 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/50">
+      {activity.map((a) => (
+        <div key={a.id} className="px-3 py-2 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono font-medium text-gray-800 dark:text-gray-200">{a.action}</span>
+            <span className="text-gray-400 whitespace-nowrap">{fmtDate(a.createdAt)}</span>
+          </div>
+          <div className="text-gray-500 mt-0.5">
+            {a.entityType}{a.entityId != null ? ` #${a.entityId}` : ''}{a.entityLabel ? ` — ${a.entityLabel}` : ''}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ReviewModal({ open, onClose, sessionId }: { open: boolean; onClose: () => void; sessionId: number | null }) {
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -469,10 +496,14 @@ function ReviewModal({ open, onClose, sessionId }: { open: boolean; onClose: () 
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>{t('Review Privileged Session','مراجعة الجلسة المميزة')}</DialogTitle></DialogHeader>
         <div className="space-y-3 py-2">
           <p className="text-xs text-gray-500">{t('The review is recorded under your signed-in account.','تُسجل المراجعة باسم حسابك المسجل.')}</p>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-500">{t('Actions taken during this session','الإجراءات المتخذة خلال هذه الجلسة')}</label>
+            {sessionId != null && <SessionActivityList sessionId={sessionId} />}
+          </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-gray-500">{t('Outcome','النتيجة')}</label>
             <select value={outcome} onChange={e => setOutcome(e.target.value)}
@@ -503,6 +534,7 @@ function ReviewModal({ open, onClose, sessionId }: { open: boolean; onClose: () 
 function SessionReviewTab() {
   const { t } = useLanguage();
   const [reviewId, setReviewId] = useState<number | null>(null);
+  const [activityId, setActivityId] = useState<number | null>(null);
   const [showReviewed, setShowReviewed] = useState(false);
 
   const { data: sessions, isLoading } = useListPrivilegedSessions();
@@ -520,7 +552,7 @@ function SessionReviewTab() {
             <TableHead>{t('Started','بدأت')}</TableHead>
             <TableHead>{t('Ended','انتهت')}</TableHead>
             <TableHead>{t('Outcome','النتيجة')}</TableHead>
-            {withAction && <TableHead></TableHead>}
+            <TableHead></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -531,13 +563,18 @@ function SessionReviewTab() {
               <TableCell className="text-xs">{fmtDate(s.startedAt)}</TableCell>
               <TableCell className="text-xs">{s.endedAt ? `${fmtDate(s.endedAt)} (${s.endReason ?? ''})` : t('Open until','مفتوحة حتى') + ' ' + fmtDate(s.scheduledEndAt)}</TableCell>
               <TableCell>{outcomeBadge(s.reviewOutcome)}</TableCell>
-              {withAction && (
-                <TableCell>
-                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReviewId(s.id)}>
-                    {t('Review','مراجعة')}
+              <TableCell>
+                <div className="flex gap-1 justify-end">
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setActivityId(s.id)}>
+                    {t('Activity','النشاط')}
                   </Button>
-                </TableCell>
-              )}
+                  {withAction && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReviewId(s.id)}>
+                      {t('Review','مراجعة')}
+                    </Button>
+                  )}
+                </div>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -585,6 +622,14 @@ function SessionReviewTab() {
       </div>
 
       <ReviewModal open={reviewId !== null} onClose={() => setReviewId(null)} sessionId={reviewId} />
+
+      <Dialog open={activityId !== null} onOpenChange={v => !v && setActivityId(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{t('Session Activity','نشاط الجلسة')}</DialogTitle></DialogHeader>
+          <p className="text-xs text-gray-500">{t('Audit-log actions the session holder performed during the elevated-access window.','إجراءات سجل التدقيق التي نفذها صاحب الجلسة خلال نافذة الوصول المرتفع.')}</p>
+          {activityId != null && <SessionActivityList sessionId={activityId} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -7129,4 +7129,3 @@ export type CreateImportMappingTemplateBody = {
 export type DeleteImportMappingTemplate200 = {
   deleted: boolean;
 };
-

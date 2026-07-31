@@ -228,6 +228,53 @@ describe("privileged session review", () => {
     expect(audits.length).toBe(1);
   });
 
+  it("activity endpoint returns the holder's audit actions inside the window only", async () => {
+    const { session } = await activateBreakGlass();
+    const officer = await loginAs("aisha.otaibi");
+
+    const started = new Date(session.startedAt);
+    const inserted = await db.insert(auditLogsTable).values([
+      { // inside window, by the session holder
+        actorUserId: session.userId, action: "TEST.activity.inside", entityType: "employee",
+        entityId: 42, entityLabel: "TEST inside", createdAt: new Date(started.getTime() + 60_000),
+      },
+      { // before the window started
+        actorUserId: session.userId, action: "TEST.activity.before", entityType: "employee",
+        entityId: 43, createdAt: new Date(started.getTime() - 60_000),
+      },
+      { // inside window but different actor
+        actorUserId: 2, action: "TEST.activity.other-actor", entityType: "employee",
+        entityId: 44, createdAt: new Date(started.getTime() + 60_000),
+      },
+    ]).returning();
+
+    try {
+      const res = await officer.get(`/api/privileged-sessions/${session.id}/activity`);
+      expect(res.status).toBe(200);
+      const actions = res.body.map((a: any) => a.action);
+      expect(actions).toContain("TEST.activity.inside");
+      expect(actions).not.toContain("TEST.activity.before");
+      expect(actions).not.toContain("TEST.activity.other-actor");
+    } finally {
+      await db.delete(auditLogsTable).where(inArray(auditLogsTable.id, inserted.map(r => r.id)));
+    }
+  });
+
+  it("activity endpoint is role-guarded and 404s for unknown sessions", async () => {
+    const { session } = await activateBreakGlass();
+
+    const clerk = await loginAs("hassan.qahtani");
+    const forbidden = await clerk.get(`/api/privileged-sessions/${session.id}/activity`);
+    expect(forbidden.status).toBe(403);
+
+    const auditor = await loginAs("auditor1");
+    const ok = await auditor.get(`/api/privileged-sessions/${session.id}/activity`);
+    expect(ok.status).toBe(200);
+
+    const missing = await auditor.get("/api/privileged-sessions/999999999/activity");
+    expect(missing.status).toBe(404);
+  });
+
   it("404s when reviewing a session that does not exist", async () => {
     const officer = await loginAs("aisha.otaibi");
     const res = await officer.post("/api/privileged-sessions/999999999/review")

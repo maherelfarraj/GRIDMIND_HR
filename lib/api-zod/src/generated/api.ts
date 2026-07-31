@@ -1342,7 +1342,6 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
-
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1357,7 +1356,6 @@ export const SetUserPasswordResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
-
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -5387,7 +5385,12 @@ export const ListPrivilegedSessionsResponseItem = zod.object({
 })
 export const ListPrivilegedSessionsResponse = zod.array(ListPrivilegedSessionsResponseItem)
 
-
+/**
+ * @summary Audit-log actions performed by the session holder during the elevated-access window
+ */
+export const GetPrivilegedSessionActivityParams = zod.object({
+  "id": zod.coerce.number()
+})
 /**
  * @summary Mark a privileged session as reviewed
  */
@@ -14319,3 +14322,18 @@ export const DeleteImportMappingTemplateResponse = zod.object({
 })
 
 
+export const GetPrivilegedSessionActivityResponseItem = zod.object({
+  "id": zod.number(),
+  "actorUserId": zod.number().nullish(),
+  "actorUserName": zod.string().nullish(),
+  "action": zod.string(),
+  "entityType": zod.string(),
+  "entityId": zod.number().nullish(),
+  "entityLabel": zod.string().nullish(),
+  "changesJson": zod.string().nullish(),
+  "ipAddress": zod.string().nullish(),
+  "userAgent": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+export const GetPrivilegedSessionActivityResponse = zod.array(GetPrivilegedSessionActivityResponseItem)

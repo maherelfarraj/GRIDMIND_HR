@@ -3209,6 +3209,20 @@ paths:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/PrivilegedSession' } }
 
+  /privileged-sessions/{id}/activity:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: number } }
+    get:
+      operationId: getPrivilegedSessionActivity
+      tags: [security]
+      summary: Audit-log actions performed by the session holder during the elevated-access window
+      responses:
+        '200':
+          description: Audit-log entries recorded between startedAt and endedAt/scheduledEndAt
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+
   /privileged-sessions/{id}/review:
     parameters:
       - { name: id, in: path, required: true, schema: { type: number } }

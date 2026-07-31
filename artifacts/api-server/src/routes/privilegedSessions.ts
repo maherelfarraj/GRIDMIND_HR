@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { db, privilegedSessionsTable, systemUsersTable, rolesTable, auditLogsTable } from "@workspace/db";
-import { eq, and, isNull, isNotNull, desc } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, desc, gte, lte } from "drizzle-orm";
 import { getActorUserId } from "../middleware/requireAuth.js";
 
 const router = Router();
@@ -67,6 +67,35 @@ router.get("/privileged-sessions", requireSecurityOfficer, async (req, res): Pro
 
   const enriched = await Promise.all(rows.map(enrichSession));
   res.json(enriched);
+});
+
+// GET /privileged-sessions/:id/activity — audit-log actions the session's
+// holder performed during the elevated-access window, so reviewers can see
+// what was actually done under break-glass, not just the time window.
+router.get("/privileged-sessions/:id/activity", requireSecurityOfficer, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [session] = await db.select().from(privilegedSessionsTable).where(eq(privilegedSessionsTable.id, id));
+  if (!session) {
+    res.status(404).json({ error: "Privileged session not found" });
+    return;
+  }
+
+  // The window closes at endedAt when the session was explicitly ended;
+  // otherwise it runs to scheduledEndAt (still-open sessions show activity
+  // up to the scheduled cutoff, matching what the reviewer is judging).
+  const windowEnd = session.endedAt ?? session.scheduledEndAt;
+  const conditions = [
+    eq(auditLogsTable.actorUserId, session.userId),
+    gte(auditLogsTable.createdAt, session.startedAt),
+  ];
+  if (windowEnd) conditions.push(lte(auditLogsTable.createdAt, windowEnd));
+
+  const logs = await db
+    .select()
+    .from(auditLogsTable)
+    .where(and(...conditions))
+    .orderBy(desc(auditLogsTable.createdAt));
+  res.json(logs);
 });
 
 // POST /privileged-sessions/:id/review — mark a session reviewed.
