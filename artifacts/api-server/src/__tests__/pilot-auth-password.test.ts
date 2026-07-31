@@ -189,12 +189,14 @@ describe("POST /users/:id/password (set/reset)", () => {
   });
 
   it("does not leak passwordHash in user list or detail responses", async () => {
-    const list = await request(app).get("/api/users");
+    // Reads are also auth-gated under PILOT_AUTH — use a logged-in agent.
+    const agent = await loggedInAgent();
+    const list = await agent.get("/api/users");
     expect(list.status).toBe(200);
     for (const u of list.body) {
       expect(u.passwordHash).toBeUndefined();
     }
-    const detail = await request(app).get(`/api/users/${userId}`);
+    const detail = await agent.get(`/api/users/${userId}`);
     expect(detail.status).toBe(200);
     expect(detail.body.passwordHash).toBeUndefined();
   });

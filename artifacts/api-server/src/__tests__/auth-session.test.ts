@@ -11,7 +11,7 @@
  * here because it requires restarting the server with a different env var. It is
  * verified at the middleware unit level via requireAuth.ts logic.
  */
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { db, employeesTable } from "@workspace/db";
@@ -177,12 +177,46 @@ describe("requireAuth middleware unit behavior", () => {
       else process.env.PILOT_AUTH = prev;
     }
   });
+});
 
-  // Note: PILOT_AUTH=true enforcement test is intentionally skipped here
-  // because it requires restarting the module with a different env var.
-  // The logic is: requireAuth checks process.env.PILOT_AUTH at module load time.
-  it.skip("PILOT_AUTH=true: POST /employees without session returns 401", () => {
-    // This scenario requires starting server with PILOT_AUTH=true env var.
-    // Verified manually or via integration test with environment override.
+describe("Auth enforcement (PILOT_AUTH toggled to enforced)", () => {
+  // isAuthEnforced() reads process.env.PILOT_AUTH at request time,
+  // so we can toggle enforcement per-suite without restarting the server.
+  beforeAll(() => {
+    process.env.PILOT_AUTH = "true";
+  });
+  afterAll(() => {
+    process.env.PILOT_AUTH = "false";
+  });
+
+  it("GET /api/employees without a session returns 401", async () => {
+    const res = await request(app).get("/api/employees");
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
+  });
+
+  it("GET /api/dashboard/summary without a session returns 401", async () => {
+    const res = await request(app).get("/api/dashboard/summary");
+    expect(res.status).toBe(401);
+  });
+
+  it("POST /api/employees without a session returns 401", async () => {
+    const res = await request(app).post("/api/employees").send({});
+    expect(res.status).toBe(401);
+  });
+
+  it("health endpoint stays open without a session", async () => {
+    const res = await request(app).get("/api/healthz");
+    expect(res.status).toBe(200);
+  });
+
+  it("POST /auth/login stays reachable without a session", async () => {
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send({ username: "nonexistent_user_xyz_999", password: "wrong" });
+    // Reaches the login handler (401 invalid credentials, not the auth gate's
+    // UNAUTHENTICATED code)
+    expect(res.status).toBe(401);
+    expect(res.body.code).not.toBe("UNAUTHENTICATED");
   });
 });

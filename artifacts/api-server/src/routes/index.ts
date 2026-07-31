@@ -80,15 +80,11 @@ router.use(healthRouter);
 // HMAC signatures (not sessions), so they sit before the session-auth gate.
 router.use(gatewayMachineRouter);
 
-// Enforce authentication for all mutating requests (POST/PATCH/PUT/DELETE)
-// placed after authRouter so /auth/login and /auth/logout pass through freely
-router.use((req, res, next) => {
-  if (["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) {
-    requireAuth(req, res, next);
-  } else {
-    next();
-  }
-});
+// Enforce authentication for ALL requests (reads and writes alike) —
+// placed after authRouter, healthRouter, and gatewayMachineRouter so
+// /auth/*, /healthz, and HMAC-authenticated gateway routes pass through freely.
+// requireAuth itself is a no-op when auth is not enforced (PILOT_AUTH=false).
+router.use(requireAuth);
 
 // Block everything below (all business endpoints) while the session user
 // still has must_change_password=true. Auth endpoints above stay reachable.
