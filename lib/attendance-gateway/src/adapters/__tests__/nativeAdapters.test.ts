@@ -188,6 +188,87 @@ describe("ZktecoNativeAdapter — poll with mock client", () => {
     expect(punches[0].deviceUserId).toBe("EMP003");
   });
 
+  it("device-unreachable: poll() throws rather than returning empty", async () => {
+    const adapter = new ZktecoNativeAdapter(ZK_CFG, mockZkFactory([], { connectFails: true }));
+    await expect(adapter.poll(null)).rejects.toThrow(/ECONNREFUSED/);
+  });
+
+  it("getAttendances failure mid-poll: poll() throws, cursor untouched", async () => {
+    const factory: ZkClientFactory = () => ({
+      connect: () => Promise.resolve(),
+      handshake: () => Promise.resolve({ deviceTimeMs: Date.now() }),
+      getAttendances: () => Promise.reject(new Error("read timeout")),
+      disconnect: () => Promise.resolve(),
+    });
+    const adapter = new ZktecoNativeAdapter(ZK_CFG, factory);
+    await expect(adapter.poll('{"t":"2024-03-15T09:00:00.000Z","ids":[]}')).rejects.toThrow(/read timeout/);
+  });
+
+  it("mid-backlog restart: replay produces no NEW punches beyond UID dedupe (no loss, no final duplicates)", async () => {
+    // Backlog of 4 records; poll 1 drains everything and yields a cursor.
+    const t1 = new Date("2024-03-15T09:00:00.000Z");
+    const t2 = new Date("2024-03-15T09:00:00.000Z"); // same second, same user
+    const t3 = new Date("2024-03-15T09:05:00.000Z");
+    const t4 = new Date("2024-03-15T09:10:00.000Z");
+    const backlog = [
+      makeZkRecord("EMP001", t1, 0, 1),
+      makeZkRecord("EMP001", t2, 1, 2),
+      makeZkRecord("EMP002", t3, 0, 3),
+      makeZkRecord("EMP003", t4, 0, 4),
+    ];
+    const { punches: first, nextCursor } = await new ZktecoNativeAdapter(ZK_CFG, mockZkFactory(backlog)).poll(null);
+    expect(first).toHaveLength(4);
+
+    // Gateway restarts with the persisted cursor; device still returns full log.
+    // A fresh adapter instance simulates the restarted process.
+    const { punches: replay, nextCursor: cursor2 } = await new ZktecoNativeAdapter(ZK_CFG, mockZkFactory(backlog)).poll(nextCursor);
+    expect(replay).toHaveLength(0);
+    expect(cursor2).toBe(nextCursor);
+
+    // Cross-poll union has no duplicate UIDs and no lost records.
+    const uids = [...first, ...replay].map((p) => p.deviceEventUid);
+    expect(new Set(uids).size).toBe(4);
+  });
+
+  it("mid-backlog restart with a STALE cursor: replayed punches keep identical UIDs so server dedupe absorbs them", async () => {
+    // Simulate crash AFTER forwarding but BEFORE the newer cursor persisted:
+    // restart re-polls with the OLDER cursor and the device returns the full log.
+    const tA = new Date("2024-03-15T09:00:00.000Z");
+    const tB = new Date("2024-03-15T09:05:00.000Z");
+    const early = [makeZkRecord("EMP001", tA, 0, 1)];
+    const full  = [...early, makeZkRecord("EMP002", tB, 0, 2), makeZkRecord("EMP002", tB, 1, 3)];
+
+    const { punches: p1, nextCursor: cursorAfterEarly } = await new ZktecoNativeAdapter(ZK_CFG, mockZkFactory(early)).poll(null);
+    const { punches: p2 } = await new ZktecoNativeAdapter(ZK_CFG, mockZkFactory(full)).poll(cursorAfterEarly);
+    // Crash here: p2 was forwarded but its cursor was never saved. Restart:
+    const { punches: p3 } = await new ZktecoNativeAdapter(ZK_CFG, mockZkFactory(full)).poll(cursorAfterEarly);
+
+    // Replay happened (p3 repeats p2) — but UIDs are byte-identical, so the
+    // HR core's deviceEventUid dedupe leaves no final duplicates and no loss.
+    expect(p3.map((p) => p.deviceEventUid)).toEqual(p2.map((p) => p.deviceEventUid));
+    const allUids = [...p1, ...p2, ...p3].map((p) => p.deviceEventUid);
+    expect(new Set(allUids).size).toBe(3); // 3 distinct events total
+  });
+
+  it("same-second double-punch survives a cursor round-trip through encode/decode (no loss)", async () => {
+    const t = new Date("2024-03-15T09:00:00.000Z");
+    const records = [makeZkRecord("EMP001", t, 0, 1), makeZkRecord("EMP001", t, 1, 2)];
+    const { punches, nextCursor } = await new ZktecoNativeAdapter(ZK_CFG, mockZkFactory(records)).poll(null);
+    expect(punches).toHaveLength(2);
+
+    // The persisted cursor must record BOTH boundary UIDs.
+    const decoded = zkDecodeCursor(nextCursor);
+    expect(decoded.t).toBe(t.toISOString());
+    expect(decoded.ids).toHaveLength(2);
+    expect(zkDecodeCursor(zkEncodeCursor(decoded)!)).toEqual(decoded);
+
+    // A third punch in the SAME second after restart still arrives (no loss).
+    const records2 = [...records, makeZkRecord("EMP001", t, 2, 3)];
+    const { punches: later } = await new ZktecoNativeAdapter(ZK_CFG, mockZkFactory(records2)).poll(nextCursor);
+    expect(later).toHaveLength(1);
+    expect(later[0].eventType).toBe("BREAK_START");
+  });
+
   it("raw metadata includes verifyType and status but excludes biometric fields", async () => {
     const t = new Date("2024-03-15T09:00:00.000Z");
     const adapter = new ZktecoNativeAdapter(ZK_CFG, mockZkFactory([makeZkRecord("EMP001", t, 1)]));
@@ -452,6 +533,64 @@ describe("SupremaNativeAdapter — poll with mock SDK", () => {
     const { punches } = await new SupremaNativeAdapter(SUPREMA_CFG, sdk2).poll(nextCursor);
     expect(punches).toHaveLength(1);
     expect(punches[0].deviceUserId).toBe("EMP002");
+  });
+
+  it("device-unreachable: poll() throws rather than returning empty", async () => {
+    const sdk = mockSupremaSDK([], "DEV-X", { connectFails: true });
+    const adapter = new SupremaNativeAdapter(SUPREMA_CFG, sdk);
+    await expect(adapter.poll(null)).rejects.toThrow(/unreachable/i);
+  });
+
+  it("getLogEntriesSince failure mid-poll: poll() throws rather than returning partial-empty", async () => {
+    const sdk: SupremaDeviceSDK = {
+      ...mockSupremaSDK([], "DEV-X"),
+      getLogEntriesSince: () => Promise.reject(new Error("session dropped")),
+    };
+    await expect(new SupremaNativeAdapter(SUPREMA_CFG, sdk).poll(null)).rejects.toThrow(/session dropped/);
+  });
+
+  it("mid-backlog restart: replay with a stale cursor yields identical UIDs (server dedupe → no final duplicates, no loss)", async () => {
+    const backlog = [
+      makeLogEntry(1, "EMP001", 1, "2024-03-15T09:00:00.000Z"),
+      makeLogEntry(2, "EMP001", 2, "2024-03-15T09:00:00.000Z"), // same second
+      makeLogEntry(3, "EMP002", 1, "2024-03-15T09:05:00.000Z"),
+    ];
+    // Poll 1 drains part of the backlog (cursor persisted at event 1).
+    const sdkEarly = mockSupremaSDK(backlog.slice(0, 1), "DEV-R");
+    const { punches: p1, nextCursor: c1 } = await new SupremaNativeAdapter(SUPREMA_CFG, sdkEarly).poll(null);
+    expect(p1).toHaveLength(1);
+
+    // Poll 2 forwards events 2–3, then the gateway crashes BEFORE persisting c2.
+    const sdkFull = mockSupremaSDK(backlog, "DEV-R");
+    const { punches: p2 } = await new SupremaNativeAdapter(SUPREMA_CFG, sdkFull).poll(c1);
+    expect(p2).toHaveLength(2);
+
+    // Restart re-polls with the stale cursor c1 → events 2–3 replay with the
+    // SAME deviceEventUids, so the HR core dedupe leaves no duplicates.
+    const { punches: p3, nextCursor: c3 } = await new SupremaNativeAdapter(SUPREMA_CFG, mockSupremaSDK(backlog, "DEV-R")).poll(c1);
+    expect(p3.map((p) => p.deviceEventUid)).toEqual(p2.map((p) => p.deviceEventUid));
+    const allUids = [...p1, ...p2, ...p3].map((p) => p.deviceEventUid);
+    expect(new Set(allUids).size).toBe(3);
+
+    // And the recovered cursor is fully caught up: nothing more replays.
+    const { punches: p4 } = await new SupremaNativeAdapter(SUPREMA_CFG, mockSupremaSDK(backlog, "DEV-R")).poll(c3);
+    expect(p4).toHaveLength(0);
+  });
+
+  it("drains a multi-page backlog in one poll and resumes cleanly after restart", async () => {
+    // 1200 entries > 2 pages of 500 — exercises pagination.
+    const entries: SupremaLogEntry[] = [];
+    for (let i = 1; i <= 1200; i++) {
+      entries.push(makeLogEntry(i, `EMP${i % 7}`, 1, new Date(Date.UTC(2024, 2, 15, 9, 0, 0) + i * 1000).toISOString()));
+    }
+    const { punches, nextCursor } = await new SupremaNativeAdapter(SUPREMA_CFG, mockSupremaSDK(entries, "DEV-P")).poll(null);
+    expect(punches).toHaveLength(1200);
+    expect(supremaDecodeCursor(nextCursor)?.lastEventId).toBe(1200);
+    expect(new Set(punches.map((p) => p.deviceEventUid)).size).toBe(1200);
+
+    // Restart with persisted cursor: nothing replays.
+    const { punches: replay } = await new SupremaNativeAdapter(SUPREMA_CFG, mockSupremaSDK(entries, "DEV-P")).poll(nextCursor);
+    expect(replay).toHaveLength(0);
   });
 
   it("raw metadata excludes biometric fields", async () => {
