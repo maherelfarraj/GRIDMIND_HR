@@ -99,6 +99,19 @@ export default function Devices() {
         </Button>
       </div>
 
+      {/* All gateways online — subtle confirmation (mirrors readiness.tsx) */}
+      {gateways && offlineGateways.length === 0 && (() => {
+        const active = gateways.filter(g => g.status === 'ACTIVE');
+        return (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="text-gateways-online">
+            <Wifi className="w-4 h-4 text-emerald-500" />
+            {active.length > 0
+              ? t(`All ${active.length} attendance gateway(s) online`, `جميع بوابات الحضور (${active.length}) متصلة`)
+              : t('No active attendance gateways registered', 'لا توجد بوابات حضور نشطة مسجلة')}
+          </div>
+        );
+      })()}
+
       {/* Offline attendance gateways (silent = no heartbeat within threshold) */}
       {offlineGateways.length > 0 && (
         <Card className="border-destructive/60 bg-destructive/5" data-testid="card-offline-gateways">
