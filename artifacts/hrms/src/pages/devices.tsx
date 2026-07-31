@@ -418,36 +418,58 @@ export default function Devices() {
             {t('Manage third-party device integrations and protocols', 'إدارة تكاملات الأجهزة التابعة لجهات خارجية والبروتوكولات')}
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-background rounded-md border border-border">
-            <div className="flex justify-between items-center mb-2">
-              <span className="font-semibold">ZKAccess SDK</span>
-              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-500">{t('Connected', 'متصل')}</Badge>
+        <CardContent>
+          {gateways === null ? (
+            <div className="p-4 bg-background rounded-md border border-dashed border-border" data-testid="sdk-integrations-unavailable">
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-semibold text-muted-foreground">{t('Integration status unavailable', 'حالة التكامل غير متاحة')}</span>
+                <Badge variant="outline" className="text-muted-foreground border-dashed">{t('Unknown', 'غير معروف')}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('Sign in with an administrator account to view live gateway integration status.', 'سجّل الدخول بحساب مسؤول لعرض حالة تكامل البوابات المباشرة.')}
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground mb-2">{t('Protocol: Push (REST)', 'البروتوكول: Push (REST)')}</p>
-            <div className="text-xs font-mono text-muted-foreground bg-muted p-2 rounded">
-              {t('Status: 3 active workers', 'الحالة: 3 عمال نشطين')}<br/>
-              {t('Last sync: 2m ago', 'آخر مزامنة: منذ دقيقتين')}
+          ) : gateways.length === 0 ? (
+            <div className="p-4 bg-background rounded-md border border-dashed border-border" data-testid="sdk-integrations-empty">
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-semibold text-muted-foreground">{t('No SDK integrations configured', 'لا توجد تكاملات SDK مهيأة')}</span>
+                <Badge variant="outline" className="text-muted-foreground border-dashed">{t('Not Configured', 'غير مهيأ')}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('Register an attendance gateway to connect vendor SDKs (ZKAccess, Suprema BioStar, OSDP) to this system.', 'سجّل بوابة حضور لربط أدوات تطوير الموردين (ZKAccess وSuprema BioStar وOSDP) بهذا النظام.')}
+              </p>
             </div>
-          </div>
-          
-          <div className="p-4 bg-background rounded-md border border-border">
-            <div className="flex justify-between items-center mb-2">
-              <span className="font-semibold">OSDP Controller</span>
-              <Badge variant="outline" className="text-muted-foreground">{t('Standby', 'استعداد')}</Badge>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {gateways.map((g) => {
+                const isActive = g.status === 'ACTIVE';
+                const online = isActive && !g.silent;
+                const lastContact = g.lastHeartbeatAt ?? g.lastSeenAt;
+                return (
+                  <div key={g.id} className="p-4 bg-background rounded-md border border-border" data-testid={`sdk-integration-${g.id}`}>
+                    <div className="flex justify-between items-center mb-2 gap-2">
+                      <span className="font-semibold truncate">{lang === 'ar' && g.nameAr ? g.nameAr : g.name}</span>
+                      {online ? (
+                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-500 shrink-0">{t('Connected', 'متصل')}</Badge>
+                      ) : isActive ? (
+                        <Badge variant="destructive" className="shrink-0">{t('Offline', 'غير متصل')}</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground shrink-0">{g.status}</Badge>
+                      )}
+                    </div>
+                    {g.adapterType && (
+                      <p className="text-xs text-muted-foreground mb-2 font-mono">{t('Adapter', 'المحوّل')}: {g.adapterType}</p>
+                    )}
+                    <div className="text-xs font-mono text-muted-foreground bg-muted p-2 rounded">
+                      {t('Last heartbeat', 'آخر نبضة')}: {lastContact
+                        ? new Date(lastContact).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US')
+                        : t('never', 'أبدًا')}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <p className="text-xs text-muted-foreground mb-2">{t('Protocol: RS-485 via Gateway', 'البروتوكول: RS-485 عبر البوابة')}</p>
-          </div>
-
-          <div className="p-4 bg-background rounded-md border border-dashed border-border">
-            <div className="flex justify-between items-center mb-2">
-              <span className="font-semibold text-muted-foreground">Suprema BioStar</span>
-              <Badge variant="outline" className="text-muted-foreground border-dashed">{t('Not Configured', 'غير مهيأ')}</Badge>
-            </div>
-            <Button variant="link" size="sm" className="px-0 h-auto text-xs mt-2">
-              {t('Configure Integration', 'تكوين التكامل')} &rarr;
-            </Button>
-          </div>
+          )}
         </CardContent>
       </Card>
     </AnimatedPage>
