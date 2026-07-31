@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { db, privilegedSessionsTable, systemUsersTable, rolesTable, auditLogsTable } from "@workspace/db";
 import { eq, and, isNull, isNotNull, desc, gte, lte } from "drizzle-orm";
 import { getActorUserId } from "../middleware/requireAuth.js";
+import { eq, and, isNull, isNotNull, desc, lte, sql } from "drizzle-orm";
 
 const router = Router();
 
@@ -51,11 +52,38 @@ async function enrichSession(s: typeof privilegedSessionsTable.$inferSelect) {
   return { ...s, userName };
 }
 
-// GET /privileged-sessions — review queue for security officers
-router.get("/privileged-sessions", requireSecurityOfficer, async (req, res): Promise<void> => {
+export async function sweepExpiredSessions(): Promise<void> {
+  // Single transaction: the closure (endedAt backdated to the scheduled
+  // lapse) and its audit entry commit together or not at all. If the audit
+  // insert fails, the rollback leaves the session open so a later sweep
+  // retries — an expired session can never be closed without its audit event.
+  await db.transaction(async (tx) => {
+    const expired = await tx
+      .update(privilegedSessionsTable)
+      .set({ endedAt: sql`${privilegedSessionsTable.scheduledEndAt}`, endReason: "expired" })
+      .where(and(
+        isNull(privilegedSessionsTable.endedAt),
+        lte(privilegedSessionsTable.scheduledEndAt, new Date()),
+      ))
+      .returning();
+    if (expired.length) {
+      await tx.insert(auditLogsTable).values(expired.map((s) => ({
+        actorUserId: null,
+        action: "privileged_session.closed",
+        entityType: "privileged_session",
+        entityId: s.id,
+        entityLabel: "expired",
+        changesJson: JSON.stringify({ endReason: "expired", breakGlassAccessId: s.breakGlassAccessId }),
+      })));
+    }
+  });
+}
   const { userId, reviewed, breakGlassAccessId } = req.query as Record<string, string>;
 
-  const conditions = [];
+  const conditions = [
+    eq(auditLogsTable.actorUserId, session.userId),
+    gte(auditLogsTable.createdAt, session.startedAt),
+  ];
   if (userId) conditions.push(eq(privilegedSessionsTable.userId, parseInt(userId, 10)));
   if (breakGlassAccessId) conditions.push(eq(privilegedSessionsTable.breakGlassAccessId, parseInt(breakGlassAccessId, 10)));
   if (reviewed === "true") conditions.push(isNotNull(privilegedSessionsTable.reviewedAt));
