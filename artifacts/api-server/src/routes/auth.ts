@@ -9,6 +9,7 @@ import {
   PASSWORD_REQUIREMENTS_AR,
 } from "@workspace/api-zod";
 import { isLockedOut, recordFailure, recordSuccess, LOCKOUT_MS, loginThrottleReady } from "../lib/loginThrottle";
+import { sendSmtpMail } from "../lib/smtp-adapter.js";
 
 const router = Router();
 
@@ -20,7 +21,7 @@ const PILOT_AUTH = process.env.PILOT_AUTH === "true";
 async function notifyAdminsOfLockout(username: string, ip: string, scope: string): Promise<void> {
   try {
     const admins = await db
-      .select({ id: systemUsersTable.id })
+      .select({ id: systemUsersTable.id, email: systemUsersTable.email })
       .from(systemUsersTable)
       .innerJoin(rolesTable, eq(systemUsersTable.roleId, rolesTable.id))
       .where(and(eq(systemUsersTable.isActive, true), ilike(rolesTable.nameEn, "%admin%")));
@@ -38,6 +39,32 @@ async function notifyAdminsOfLockout(username: string, ip: string, scope: string
       entityType: "auth",
       requiresAction: true,
     })));
+
+    // Also email the alert so it isn't missed when no admin is logged in.
+    // Fire-and-forget: SMTP latency or failure must never delay or block
+    // the login response; failures are logged only.
+    const recipients = admins.map((a) => a.email).filter((e): e is string => !!e);
+    if (recipients.length > 0) {
+      void sendSmtpMail({
+        to: recipients,
+        subject: `[HRMS security] Account lockout: ${username}`,
+        text:
+          `Repeated failed login attempts triggered a temporary lockout for account "${username}".\n\n` +
+          `Account: ${username}\n` +
+          `Source IP: ${ip}\n` +
+          `Lockout scope: ${scope}\n` +
+          `Time: ${new Date().toISOString()}\n\n` +
+          `Review the audit trail and consider resetting the password or disabling the account.`,
+      })
+        .then((result) => {
+          if (!result.success) {
+            console.error("Failed to send lockout alert email:", result.message);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to send lockout alert email:", err);
+        });
+    }
   } catch (err) {
     console.error("Failed to create lockout notifications:", err);
   }
