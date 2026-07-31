@@ -9,19 +9,31 @@
 export interface ApprovalInboxItem {
   id: number;
   assignedToUserId: number;
+  /** @nullable */
+  assignedToEmployeeId?: number | null;
+  entityType: string;
+  entityId: number;
+  titleEn: string;
+  /** @nullable */
+  titleAr?: string | null;
   approvalType: string;
-  referenceId: number;
-  referenceType: string;
-  status: string;
+  /** @nullable */
+  requestedByEmployeeId?: number | null;
+  requestedAt: string;
+  /** @nullable */
+  deadline?: string | null;
   priority: string;
-  /** @nullable */
-  dueAt?: string | null;
-  /** @nullable */
-  decision?: string | null;
-  /** @nullable */
-  decisionNote?: string | null;
+  status: string;
   /** @nullable */
   decidedAt?: string | null;
+  /** @nullable */
+  decisionNotes?: string | null;
+  isDelegated: boolean;
+  /** @nullable */
+  delegatedToUserId?: number | null;
+  isEscalated: boolean;
+  /** @nullable */
+  escalatedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

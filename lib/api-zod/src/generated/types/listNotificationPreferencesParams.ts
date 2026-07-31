@@ -7,5 +7,8 @@
  */
 
 export type ListNotificationPreferencesParams = {
+/**
+ * Optional; must match the session user
+ */
 userId?: number;
 };

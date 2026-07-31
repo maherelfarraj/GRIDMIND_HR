@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface EscalationRuleInput {
-  nameEn: string;
-  entityType: string;
-  triggerStatus: string;
+export interface EscalationRuleUpdate {
+  nameEn?: string;
+  entityType?: string;
+  triggerStatus?: string;
   escalateAfterHours?: number;
   /** @nullable */
   escalateToRole?: string | null;

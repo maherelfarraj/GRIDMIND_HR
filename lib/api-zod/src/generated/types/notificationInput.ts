@@ -8,14 +8,27 @@
 
 export interface NotificationInput {
   recipientUserId: number;
+  /** @nullable */
+  recipientEmployeeId?: number | null;
   notificationType: string;
-  title: string;
-  body: string;
+  titleEn: string;
   /** @nullable */
-  referenceType?: string | null;
+  titleAr?: string | null;
+  bodyEn: string;
   /** @nullable */
-  referenceId?: number | null;
-  isRead?: boolean;
-  isDismissed?: boolean;
+  bodyAr?: string | null;
+  severity?: string;
+  /** @nullable */
+  actionUrl?: string | null;
+  /** @nullable */
+  actionLabelEn?: string | null;
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityId?: number | null;
   requiresAction?: boolean;
+  /** @nullable */
+  actionDeadline?: string | null;
+  /** @nullable */
+  expiresAt?: string | null;
 }

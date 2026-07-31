@@ -11179,22 +11179,37 @@ export const ListNotificationsQueryParams = zod.object({
   "limit": zod.coerce.number().optional()
 })
 
-export const ListNotificationsResponseItem = zod.object({
+export const ListNotificationsResponse = zod.object({
+  "data": zod.array(zod.object({
   "id": zod.number(),
   "recipientUserId": zod.number(),
+  "recipientEmployeeId": zod.number().nullish(),
   "notificationType": zod.string(),
-  "title": zod.string(),
-  "body": zod.string(),
-  "referenceType": zod.string().nullish(),
-  "referenceId": zod.number().nullish(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "bodyEn": zod.string(),
+  "bodyAr": zod.string().nullish(),
+  "severity": zod.string(),
+  "actionUrl": zod.string().nullish(),
+  "actionLabelEn": zod.string().nullish(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish(),
   "isRead": zod.boolean(),
-  "isDismissed": zod.boolean(),
-  "requiresAction": zod.boolean(),
   "readAt": zod.string().nullish(),
+  "isDismissed": zod.boolean(),
+  "dismissedAt": zod.string().nullish(),
+  "requiresAction": zod.boolean(),
+  "actionDeadline": zod.string().nullish(),
+  "isEscalated": zod.boolean(),
+  "escalatedAt": zod.string().nullish(),
+  "escalatedToUserId": zod.number().nullish(),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "expiresAt": zod.string().nullish()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
 })
-export const ListNotificationsResponse = zod.array(ListNotificationsResponseItem)
 
 
 /**
@@ -11202,30 +11217,47 @@ export const ListNotificationsResponse = zod.array(ListNotificationsResponseItem
  */
 export const CreateNotificationBody = zod.object({
   "recipientUserId": zod.number(),
+  "recipientEmployeeId": zod.number().nullish(),
   "notificationType": zod.string(),
-  "title": zod.string(),
-  "body": zod.string(),
-  "referenceType": zod.string().nullish(),
-  "referenceId": zod.number().nullish(),
-  "isRead": zod.boolean().optional(),
-  "isDismissed": zod.boolean().optional(),
-  "requiresAction": zod.boolean().optional()
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "bodyEn": zod.string(),
+  "bodyAr": zod.string().nullish(),
+  "severity": zod.string().optional(),
+  "actionUrl": zod.string().nullish(),
+  "actionLabelEn": zod.string().nullish(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish(),
+  "requiresAction": zod.boolean().optional(),
+  "actionDeadline": zod.string().nullish(),
+  "expiresAt": zod.string().nullish()
 })
 
 export const CreateNotificationResponse = zod.object({
   "id": zod.number(),
   "recipientUserId": zod.number(),
+  "recipientEmployeeId": zod.number().nullish(),
   "notificationType": zod.string(),
-  "title": zod.string(),
-  "body": zod.string(),
-  "referenceType": zod.string().nullish(),
-  "referenceId": zod.number().nullish(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "bodyEn": zod.string(),
+  "bodyAr": zod.string().nullish(),
+  "severity": zod.string(),
+  "actionUrl": zod.string().nullish(),
+  "actionLabelEn": zod.string().nullish(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish(),
   "isRead": zod.boolean(),
-  "isDismissed": zod.boolean(),
-  "requiresAction": zod.boolean(),
   "readAt": zod.string().nullish(),
+  "isDismissed": zod.boolean(),
+  "dismissedAt": zod.string().nullish(),
+  "requiresAction": zod.boolean(),
+  "actionDeadline": zod.string().nullish(),
+  "isEscalated": zod.boolean(),
+  "escalatedAt": zod.string().nullish(),
+  "escalatedToUserId": zod.number().nullish(),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "expiresAt": zod.string().nullish()
 })
 
 
@@ -11239,17 +11271,28 @@ export const GetNotificationParams = zod.object({
 export const GetNotificationResponse = zod.object({
   "id": zod.number(),
   "recipientUserId": zod.number(),
+  "recipientEmployeeId": zod.number().nullish(),
   "notificationType": zod.string(),
-  "title": zod.string(),
-  "body": zod.string(),
-  "referenceType": zod.string().nullish(),
-  "referenceId": zod.number().nullish(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "bodyEn": zod.string(),
+  "bodyAr": zod.string().nullish(),
+  "severity": zod.string(),
+  "actionUrl": zod.string().nullish(),
+  "actionLabelEn": zod.string().nullish(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish(),
   "isRead": zod.boolean(),
-  "isDismissed": zod.boolean(),
-  "requiresAction": zod.boolean(),
   "readAt": zod.string().nullish(),
+  "isDismissed": zod.boolean(),
+  "dismissedAt": zod.string().nullish(),
+  "requiresAction": zod.boolean(),
+  "actionDeadline": zod.string().nullish(),
+  "isEscalated": zod.boolean(),
+  "escalatedAt": zod.string().nullish(),
+  "escalatedToUserId": zod.number().nullish(),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "expiresAt": zod.string().nullish()
 })
 
 
@@ -11261,31 +11304,37 @@ export const UpdateNotificationParams = zod.object({
 })
 
 export const UpdateNotificationBody = zod.object({
-  "recipientUserId": zod.number(),
-  "notificationType": zod.string(),
-  "title": zod.string(),
-  "body": zod.string(),
-  "referenceType": zod.string().nullish(),
-  "referenceId": zod.number().nullish(),
   "isRead": zod.boolean().optional(),
+  "readAt": zod.string().nullish(),
   "isDismissed": zod.boolean().optional(),
-  "requiresAction": zod.boolean().optional()
+  "dismissedAt": zod.string().nullish()
 })
 
 export const UpdateNotificationResponse = zod.object({
   "id": zod.number(),
   "recipientUserId": zod.number(),
+  "recipientEmployeeId": zod.number().nullish(),
   "notificationType": zod.string(),
-  "title": zod.string(),
-  "body": zod.string(),
-  "referenceType": zod.string().nullish(),
-  "referenceId": zod.number().nullish(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "bodyEn": zod.string(),
+  "bodyAr": zod.string().nullish(),
+  "severity": zod.string(),
+  "actionUrl": zod.string().nullish(),
+  "actionLabelEn": zod.string().nullish(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish(),
   "isRead": zod.boolean(),
-  "isDismissed": zod.boolean(),
-  "requiresAction": zod.boolean(),
   "readAt": zod.string().nullish(),
+  "isDismissed": zod.boolean(),
+  "dismissedAt": zod.string().nullish(),
+  "requiresAction": zod.boolean(),
+  "actionDeadline": zod.string().nullish(),
+  "isEscalated": zod.boolean(),
+  "escalatedAt": zod.string().nullish(),
+  "escalatedToUserId": zod.number().nullish(),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "expiresAt": zod.string().nullish()
 })
 
 
@@ -11298,53 +11347,54 @@ export const MarkAllNotificationsReadResponse = zod.object({
 
 
 /**
- * @summary Get notification preferences by userId
+ * @summary Get the authenticated user's notification preferences (null if none saved yet)
  */
 export const ListNotificationPreferencesQueryParams = zod.object({
-  "userId": zod.coerce.number().optional()
+  "userId": zod.coerce.number().optional().describe('Optional; must match the session user')
 })
 
-export const ListNotificationPreferencesResponseItem = zod.object({
+export const ListNotificationPreferencesResponse = zod.union([zod.object({
   "id": zod.number(),
   "userId": zod.number(),
-  "notificationType": zod.string(),
-  "inAppEnabled": zod.boolean(),
-  "emailEnabled": zod.boolean(),
-  "smsEnabled": zod.boolean(),
-  "pushEnabled": zod.boolean(),
+  "subscriptionsJson": zod.string().nullish(),
+  "quietHoursEnabled": zod.boolean(),
+  "quietHoursStart": zod.string().nullish(),
+  "quietHoursEnd": zod.string().nullish(),
+  "preferredLanguage": zod.string(),
+  "dashboardFrequency": zod.enum(['realtime', 'hourly', 'daily']),
+  "securityAlertChannel": zod.enum(['in_app', 'email', 'both']),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
-})
-export const ListNotificationPreferencesResponse = zod.array(ListNotificationPreferencesResponseItem)
+}),zod.null()])
 
 
 /**
- * @summary Upsert notification preferences for user
+ * @summary Upsert notification preferences for user (userId must be the session user)
  */
 export const UpsertNotificationPreferencesParams = zod.object({
   "userId": zod.coerce.number()
 })
 
 export const UpsertNotificationPreferencesBody = zod.object({
-  "id": zod.number(),
-  "userId": zod.number(),
-  "notificationType": zod.string(),
-  "inAppEnabled": zod.boolean(),
-  "emailEnabled": zod.boolean(),
-  "smsEnabled": zod.boolean(),
-  "pushEnabled": zod.boolean(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "subscriptionsJson": zod.string().nullish(),
+  "quietHoursEnabled": zod.boolean().optional(),
+  "quietHoursStart": zod.string().nullish(),
+  "quietHoursEnd": zod.string().nullish(),
+  "preferredLanguage": zod.string().optional(),
+  "dashboardFrequency": zod.enum(['realtime', 'hourly', 'daily']).optional(),
+  "securityAlertChannel": zod.enum(['in_app', 'email', 'both']).optional()
 })
 
 export const UpsertNotificationPreferencesResponse = zod.object({
   "id": zod.number(),
   "userId": zod.number(),
-  "notificationType": zod.string(),
-  "inAppEnabled": zod.boolean(),
-  "emailEnabled": zod.boolean(),
-  "smsEnabled": zod.boolean(),
-  "pushEnabled": zod.boolean(),
+  "subscriptionsJson": zod.string().nullish(),
+  "quietHoursEnabled": zod.boolean(),
+  "quietHoursStart": zod.string().nullish(),
+  "quietHoursEnd": zod.string().nullish(),
+  "preferredLanguage": zod.string(),
+  "dashboardFrequency": zod.enum(['realtime', 'hourly', 'daily']),
+  "securityAlertChannel": zod.enum(['in_app', 'email', 'both']),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -11355,17 +11405,15 @@ export const UpsertNotificationPreferencesResponse = zod.object({
  */
 export const ListEscalationRulesResponseItem = zod.object({
   "id": zod.number(),
-  "name": zod.string(),
-  "description": zod.string().nullish(),
-  "triggerType": zod.string(),
-  "conditionJson": zod.string().nullish(),
-  "escalateAfterMinutes": zod.number(),
-  "escalateToUserId": zod.number().nullish(),
+  "nameEn": zod.string(),
+  "entityType": zod.string(),
+  "triggerStatus": zod.string(),
+  "escalateAfterHours": zod.number(),
   "escalateToRole": zod.string().nullish(),
-  "notificationTemplate": zod.string().nullish(),
+  "escalateToUserId": zod.number().nullish(),
+  "notificationSeverity": zod.string(),
   "isActive": zod.boolean(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "createdAt": zod.string()
 })
 export const ListEscalationRulesResponse = zod.array(ListEscalationRulesResponseItem)
 
@@ -11374,30 +11422,27 @@ export const ListEscalationRulesResponse = zod.array(ListEscalationRulesResponse
  * @summary Create escalation rule
  */
 export const CreateEscalationRuleBody = zod.object({
-  "name": zod.string(),
-  "description": zod.string().nullish(),
-  "triggerType": zod.string(),
-  "conditionJson": zod.string().nullish(),
-  "escalateAfterMinutes": zod.number(),
-  "escalateToUserId": zod.number().nullish(),
+  "nameEn": zod.string(),
+  "entityType": zod.string(),
+  "triggerStatus": zod.string(),
+  "escalateAfterHours": zod.number().optional(),
   "escalateToRole": zod.string().nullish(),
-  "notificationTemplate": zod.string().nullish(),
+  "escalateToUserId": zod.number().nullish(),
+  "notificationSeverity": zod.string().optional(),
   "isActive": zod.boolean().optional()
 })
 
 export const CreateEscalationRuleResponse = zod.object({
   "id": zod.number(),
-  "name": zod.string(),
-  "description": zod.string().nullish(),
-  "triggerType": zod.string(),
-  "conditionJson": zod.string().nullish(),
-  "escalateAfterMinutes": zod.number(),
-  "escalateToUserId": zod.number().nullish(),
+  "nameEn": zod.string(),
+  "entityType": zod.string(),
+  "triggerStatus": zod.string(),
+  "escalateAfterHours": zod.number(),
   "escalateToRole": zod.string().nullish(),
-  "notificationTemplate": zod.string().nullish(),
+  "escalateToUserId": zod.number().nullish(),
+  "notificationSeverity": zod.string(),
   "isActive": zod.boolean(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "createdAt": zod.string()
 })
 
 
@@ -11410,17 +11455,15 @@ export const GetEscalationRuleParams = zod.object({
 
 export const GetEscalationRuleResponse = zod.object({
   "id": zod.number(),
-  "name": zod.string(),
-  "description": zod.string().nullish(),
-  "triggerType": zod.string(),
-  "conditionJson": zod.string().nullish(),
-  "escalateAfterMinutes": zod.number(),
-  "escalateToUserId": zod.number().nullish(),
+  "nameEn": zod.string(),
+  "entityType": zod.string(),
+  "triggerStatus": zod.string(),
+  "escalateAfterHours": zod.number(),
   "escalateToRole": zod.string().nullish(),
-  "notificationTemplate": zod.string().nullish(),
+  "escalateToUserId": zod.number().nullish(),
+  "notificationSeverity": zod.string(),
   "isActive": zod.boolean(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "createdAt": zod.string()
 })
 
 
@@ -11432,30 +11475,27 @@ export const UpdateEscalationRuleParams = zod.object({
 })
 
 export const UpdateEscalationRuleBody = zod.object({
-  "name": zod.string(),
-  "description": zod.string().nullish(),
-  "triggerType": zod.string(),
-  "conditionJson": zod.string().nullish(),
-  "escalateAfterMinutes": zod.number(),
-  "escalateToUserId": zod.number().nullish(),
+  "nameEn": zod.string().optional(),
+  "entityType": zod.string().optional(),
+  "triggerStatus": zod.string().optional(),
+  "escalateAfterHours": zod.number().optional(),
   "escalateToRole": zod.string().nullish(),
-  "notificationTemplate": zod.string().nullish(),
+  "escalateToUserId": zod.number().nullish(),
+  "notificationSeverity": zod.string().optional(),
   "isActive": zod.boolean().optional()
 })
 
 export const UpdateEscalationRuleResponse = zod.object({
   "id": zod.number(),
-  "name": zod.string(),
-  "description": zod.string().nullish(),
-  "triggerType": zod.string(),
-  "conditionJson": zod.string().nullish(),
-  "escalateAfterMinutes": zod.number(),
-  "escalateToUserId": zod.number().nullish(),
+  "nameEn": zod.string(),
+  "entityType": zod.string(),
+  "triggerStatus": zod.string(),
+  "escalateAfterHours": zod.number(),
   "escalateToRole": zod.string().nullish(),
-  "notificationTemplate": zod.string().nullish(),
+  "escalateToUserId": zod.number().nullish(),
+  "notificationSeverity": zod.string(),
   "isActive": zod.boolean(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "createdAt": zod.string()
 })
 
 
@@ -11471,22 +11511,34 @@ export const ListApprovalInboxQueryParams = zod.object({
   "limit": zod.coerce.number().optional()
 })
 
-export const ListApprovalInboxResponseItem = zod.object({
+export const ListApprovalInboxResponse = zod.object({
+  "data": zod.array(zod.object({
   "id": zod.number(),
   "assignedToUserId": zod.number(),
+  "assignedToEmployeeId": zod.number().nullish(),
+  "entityType": zod.string(),
+  "entityId": zod.number(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
   "approvalType": zod.string(),
-  "referenceId": zod.number(),
-  "referenceType": zod.string(),
-  "status": zod.string(),
+  "requestedByEmployeeId": zod.number().nullish(),
+  "requestedAt": zod.string(),
+  "deadline": zod.string().nullish(),
   "priority": zod.string(),
-  "dueAt": zod.string().nullish(),
-  "decision": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
+  "status": zod.string(),
   "decidedAt": zod.string().nullish(),
+  "decisionNotes": zod.string().nullish(),
+  "isDelegated": zod.boolean(),
+  "delegatedToUserId": zod.number().nullish(),
+  "isEscalated": zod.boolean(),
+  "escalatedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
 })
-export const ListApprovalInboxResponse = zod.array(ListApprovalInboxResponseItem)
 
 
 /**
@@ -11494,29 +11546,44 @@ export const ListApprovalInboxResponse = zod.array(ListApprovalInboxResponseItem
  */
 export const CreateApprovalInboxItemBody = zod.object({
   "assignedToUserId": zod.number(),
+  "assignedToEmployeeId": zod.number().nullish(),
+  "entityType": zod.string(),
+  "entityId": zod.number(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
   "approvalType": zod.string(),
-  "referenceId": zod.number(),
-  "referenceType": zod.string(),
-  "status": zod.string(),
-  "priority": zod.string(),
-  "dueAt": zod.string().nullish(),
-  "decision": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
-  "decidedAt": zod.string().nullish()
+  "requestedByEmployeeId": zod.number().nullish(),
+  "requestedAt": zod.string().nullish(),
+  "deadline": zod.string().nullish(),
+  "priority": zod.string().optional(),
+  "status": zod.string().optional(),
+  "decidedAt": zod.string().nullish(),
+  "decisionNotes": zod.string().nullish(),
+  "isDelegated": zod.boolean().optional(),
+  "delegatedToUserId": zod.number().nullish(),
+  "isEscalated": zod.boolean().optional()
 })
 
 export const CreateApprovalInboxItemResponse = zod.object({
   "id": zod.number(),
   "assignedToUserId": zod.number(),
+  "assignedToEmployeeId": zod.number().nullish(),
+  "entityType": zod.string(),
+  "entityId": zod.number(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
   "approvalType": zod.string(),
-  "referenceId": zod.number(),
-  "referenceType": zod.string(),
-  "status": zod.string(),
+  "requestedByEmployeeId": zod.number().nullish(),
+  "requestedAt": zod.string(),
+  "deadline": zod.string().nullish(),
   "priority": zod.string(),
-  "dueAt": zod.string().nullish(),
-  "decision": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
+  "status": zod.string(),
   "decidedAt": zod.string().nullish(),
+  "decisionNotes": zod.string().nullish(),
+  "isDelegated": zod.boolean(),
+  "delegatedToUserId": zod.number().nullish(),
+  "isEscalated": zod.boolean(),
+  "escalatedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -11532,15 +11599,23 @@ export const GetApprovalInboxItemParams = zod.object({
 export const GetApprovalInboxItemResponse = zod.object({
   "id": zod.number(),
   "assignedToUserId": zod.number(),
+  "assignedToEmployeeId": zod.number().nullish(),
+  "entityType": zod.string(),
+  "entityId": zod.number(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
   "approvalType": zod.string(),
-  "referenceId": zod.number(),
-  "referenceType": zod.string(),
-  "status": zod.string(),
+  "requestedByEmployeeId": zod.number().nullish(),
+  "requestedAt": zod.string(),
+  "deadline": zod.string().nullish(),
   "priority": zod.string(),
-  "dueAt": zod.string().nullish(),
-  "decision": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
+  "status": zod.string(),
   "decidedAt": zod.string().nullish(),
+  "decisionNotes": zod.string().nullish(),
+  "isDelegated": zod.boolean(),
+  "delegatedToUserId": zod.number().nullish(),
+  "isEscalated": zod.boolean(),
+  "escalatedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -11555,29 +11630,44 @@ export const UpdateApprovalInboxItemParams = zod.object({
 
 export const UpdateApprovalInboxItemBody = zod.object({
   "assignedToUserId": zod.number(),
+  "assignedToEmployeeId": zod.number().nullish(),
+  "entityType": zod.string(),
+  "entityId": zod.number(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
   "approvalType": zod.string(),
-  "referenceId": zod.number(),
-  "referenceType": zod.string(),
-  "status": zod.string(),
-  "priority": zod.string(),
-  "dueAt": zod.string().nullish(),
-  "decision": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
-  "decidedAt": zod.string().nullish()
+  "requestedByEmployeeId": zod.number().nullish(),
+  "requestedAt": zod.string().nullish(),
+  "deadline": zod.string().nullish(),
+  "priority": zod.string().optional(),
+  "status": zod.string().optional(),
+  "decidedAt": zod.string().nullish(),
+  "decisionNotes": zod.string().nullish(),
+  "isDelegated": zod.boolean().optional(),
+  "delegatedToUserId": zod.number().nullish(),
+  "isEscalated": zod.boolean().optional()
 })
 
 export const UpdateApprovalInboxItemResponse = zod.object({
   "id": zod.number(),
   "assignedToUserId": zod.number(),
+  "assignedToEmployeeId": zod.number().nullish(),
+  "entityType": zod.string(),
+  "entityId": zod.number(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
   "approvalType": zod.string(),
-  "referenceId": zod.number(),
-  "referenceType": zod.string(),
-  "status": zod.string(),
+  "requestedByEmployeeId": zod.number().nullish(),
+  "requestedAt": zod.string(),
+  "deadline": zod.string().nullish(),
   "priority": zod.string(),
-  "dueAt": zod.string().nullish(),
-  "decision": zod.string().nullish(),
-  "decisionNote": zod.string().nullish(),
+  "status": zod.string(),
   "decidedAt": zod.string().nullish(),
+  "decisionNotes": zod.string().nullish(),
+  "isDelegated": zod.boolean(),
+  "delegatedToUserId": zod.number().nullish(),
+  "isEscalated": zod.boolean(),
+  "escalatedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })

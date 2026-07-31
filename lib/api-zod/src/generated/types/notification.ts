@@ -9,18 +9,39 @@
 export interface Notification {
   id: number;
   recipientUserId: number;
+  /** @nullable */
+  recipientEmployeeId?: number | null;
   notificationType: string;
-  title: string;
-  body: string;
+  titleEn: string;
   /** @nullable */
-  referenceType?: string | null;
+  titleAr?: string | null;
+  bodyEn: string;
   /** @nullable */
-  referenceId?: number | null;
+  bodyAr?: string | null;
+  severity: string;
+  /** @nullable */
+  actionUrl?: string | null;
+  /** @nullable */
+  actionLabelEn?: string | null;
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityId?: number | null;
   isRead: boolean;
-  isDismissed: boolean;
-  requiresAction: boolean;
   /** @nullable */
   readAt?: string | null;
+  isDismissed: boolean;
+  /** @nullable */
+  dismissedAt?: string | null;
+  requiresAction: boolean;
+  /** @nullable */
+  actionDeadline?: string | null;
+  isEscalated: boolean;
+  /** @nullable */
+  escalatedAt?: string | null;
+  /** @nullable */
+  escalatedToUserId?: number | null;
   createdAt: string;
-  updatedAt: string;
+  /** @nullable */
+  expiresAt?: string | null;
 }

@@ -8,20 +8,15 @@
 
 export interface EscalationRule {
   id: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
-  triggerType: string;
-  /** @nullable */
-  conditionJson?: string | null;
-  escalateAfterMinutes: number;
-  /** @nullable */
-  escalateToUserId?: number | null;
+  nameEn: string;
+  entityType: string;
+  triggerStatus: string;
+  escalateAfterHours: number;
   /** @nullable */
   escalateToRole?: string | null;
   /** @nullable */
-  notificationTemplate?: string | null;
+  escalateToUserId?: number | null;
+  notificationSeverity: string;
   isActive: boolean;
   createdAt: string;
-  updatedAt: string;
 }

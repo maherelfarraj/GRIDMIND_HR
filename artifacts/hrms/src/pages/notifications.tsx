@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useAuth } from '@/hooks/use-auth';
-import { apiFetch } from '@/lib/api';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import {
   useListNotifications,
@@ -11,6 +10,10 @@ import {
   useListEscalationRules,
   useCreateEscalationRule,
   useUpdateEscalationRule,
+  useListNotificationPreferences,
+  useUpsertNotificationPreferences,
+  getListNotificationPreferencesQueryKey,
+  type NotificationPreferenceInputSecurityAlertChannel,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,7 +43,7 @@ import {
 // ── Security Alert Channel (admin) ───────────────────────────────────────────
 
 const SECURITY_ALERT_CHANNELS = ['in_app', 'email', 'both'] as const;
-type SecurityAlertChannel = (typeof SECURITY_ALERT_CHANNELS)[number];
+type SecurityAlertChannel = NotificationPreferenceInputSecurityAlertChannel;
 
 /** Normalize any stored/returned value to a valid channel; default "both". */
 export function normalizeSecurityAlertChannel(value: unknown): SecurityAlertChannel {
@@ -56,37 +59,28 @@ function SecurityAlertPreferences() {
   const { user } = useAuth();
   const userId = user?.id;
 
-  const prefsKey = ['/api/notification-preferences', userId];
-  const { data: prefs, isLoading } = useQuery({
-    queryKey: prefsKey,
-    enabled: !!userId,
-    queryFn: async () => {
-      const res = await apiFetch(`/api/notification-preferences?userId=${userId}`);
-      if (!res.ok) throw new Error('Failed to load preferences');
-      return res.json();
-    },
+  const { data: prefs, isLoading } = useListNotificationPreferences(undefined, {
+    query: { queryKey: getListNotificationPreferencesQueryKey(), enabled: !!userId },
   });
 
   const channel = normalizeSecurityAlertChannel(prefs?.securityAlertChannel);
 
-  const saveMut = useMutation({
-    mutationFn: async (next: SecurityAlertChannel) => {
-      const res = await apiFetch(`/api/notification-preferences/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ securityAlertChannel: next }),
-      });
-      if (!res.ok) throw new Error('Failed to save preference');
-      return res.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: prefsKey });
-      toast({ title: t('Security alert channel updated', 'تم تحديث قناة تنبيهات الأمان') });
-    },
-    onError: (e: any) => {
-      toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
+  const saveMut = useUpsertNotificationPreferences({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListNotificationPreferencesQueryKey() });
+        toast({ title: t('Security alert channel updated', 'تم تحديث قناة تنبيهات الأمان') });
+      },
+      onError: (e: any) => {
+        toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
+      },
     },
   });
+
+  const save = (next: SecurityAlertChannel) => {
+    if (!userId) return;
+    saveMut.mutate({ userId, data: { securityAlertChannel: next } });
+  };
 
   const options: { value: SecurityAlertChannel; labelEn: string; labelAr: string; descEn: string; descAr: string }[] = [
     { value: 'in_app', labelEn: 'In-app only', labelAr: 'داخل التطبيق فقط',
@@ -125,7 +119,7 @@ function SecurityAlertPreferences() {
                   role="radio"
                   aria-checked={selected}
                   disabled={saveMut.isPending}
-                  onClick={() => { if (!selected) saveMut.mutate(opt.value); }}
+                  onClick={() => { if (!selected) save(opt.value); }}
                   className={cn(
                     'w-full text-left rounded-lg border p-3 transition-colors flex items-start gap-3',
                     selected
@@ -208,33 +202,32 @@ function InboxTab() {
   const [actionFilter, setActionFilter]   = useState(false);
   const [dismissing, setDismissing]       = useState<number | null>(null);
 
-  const { data: notifs, isLoading } = useListNotifications(undefined as any);
+  const { data: notifs, isLoading } = useListNotifications();
   const updateMut   = useUpdateNotification();
   const markAllMut  = useMarkAllNotificationsRead();
 
-  const allNotifs = notifs ?? [];
+  const allNotifs = useMemo(() => notifs?.data ?? [], [notifs]);
 
-  const unreadCount = useMemo(() => allNotifs.filter(n => !(n as any).isRead).length, [allNotifs]);
+  const unreadCount = useMemo(() => allNotifs.filter(n => !n.isRead).length, [allNotifs]);
 
   const types = useMemo(
-    () => [...new Set(allNotifs.map(n => (n as any).notificationType).filter(Boolean))],
+    () => [...new Set(allNotifs.map(n => n.notificationType).filter(Boolean))],
     [allNotifs]
   );
 
   const filtered = useMemo(() => {
     return allNotifs.filter(n => {
-      const nn = n as any;
-      if (typeFilter !== 'all' && nn.notificationType !== typeFilter) return false;
-      if (readFilter === 'unread' && nn.isRead) return false;
-      if (readFilter === 'read'   && !nn.isRead) return false;
-      if (actionFilter && !nn.requiresAction) return false;
+      if (typeFilter !== 'all' && n.notificationType !== typeFilter) return false;
+      if (readFilter === 'unread' && n.isRead) return false;
+      if (readFilter === 'read'   && !n.isRead) return false;
+      if (actionFilter && !n.requiresAction) return false;
       return true;
     });
   }, [allNotifs, typeFilter, readFilter, actionFilter]);
 
   async function handleRead(id: number) {
     try {
-      await updateMut.mutateAsync({ id, data: { isRead: true } as any });
+      await updateMut.mutateAsync({ id, data: { isRead: true } });
       qc.invalidateQueries({ queryKey: ['/api/notifications'] });
     } catch { /* silent */ }
   }
@@ -242,7 +235,7 @@ function InboxTab() {
   async function handleDismiss(id: number) {
     setDismissing(id);
     try {
-      await updateMut.mutateAsync({ id, data: { isDismissed: true } as any });
+      await updateMut.mutateAsync({ id, data: { isDismissed: true } });
       qc.invalidateQueries({ queryKey: ['/api/notifications'] });
     } catch (e: any) {
       toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
@@ -404,14 +397,14 @@ function EscalationRulesTab() {
   const qc = useQueryClient();
   const [newOpen, setNewOpen] = useState(false);
 
-  const { data: rules, isLoading } = useListEscalationRules(undefined as any);
+  const { data: rules, isLoading } = useListEscalationRules();
   const updateRule = useUpdateEscalationRule();
 
   const allRules = rules ?? [];
 
   async function handleToggleActive(id: number, current: boolean) {
     try {
-      await updateRule.mutateAsync({ id, data: { isActive: !current } as any });
+      await updateRule.mutateAsync({ id, data: { isActive: !current } });
       qc.invalidateQueries({ queryKey: ['/api/escalation-rules'] });
       toast({ title: t('Updated', 'تم التحديث') });
     } catch (e: any) {
@@ -523,9 +516,14 @@ function NewEscalationRuleDialog({ open, onClose }: { open: boolean; onClose: ()
     try {
       await createRule.mutateAsync({
         data: {
-          ...form,
+          nameEn: form.nameEn,
+          entityType: form.entityType,
+          triggerStatus: form.triggerStatus,
           escalateAfterHours: Number(form.escalateAfterHours),
-        } as any,
+          escalateToRole: form.escalateToRole,
+          notificationSeverity: form.severity,
+          isActive: form.isActive,
+        },
       });
       qc.invalidateQueries({ queryKey: ['/api/escalation-rules'] });
       toast({ title: t('Rule created', 'تم إنشاء القاعدة') });
@@ -617,8 +615,8 @@ export default function Notifications() {
   const { t } = useLanguage();
   const { user } = useAuth();
   const isAdmin = user ? user.roleId <= 2 : false;
-  const { data: notifs } = useListNotifications(undefined as any);
-  const unread = (notifs ?? []).filter(n => !(n as any).isRead).length;
+  const { data: notifs } = useListNotifications();
+  const unread = (notifs?.data ?? []).filter(n => !n.isRead).length;
 
   return (
     <AnimatedPage>

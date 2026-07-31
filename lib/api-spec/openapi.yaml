@@ -7085,8 +7085,15 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: '#/components/schemas/Notification' }
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Notification' }
+                  total: { type: number }
+                  page: { type: number }
+                  limit: { type: number }
+                required: [data, total, page, limit]
     post:
       operationId: createNotification
       tags: [Notifications]
@@ -7124,7 +7131,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/NotificationInput' }
+            schema: { $ref: '#/components/schemas/NotificationUpdate' }
       responses:
         '200':
           description: OK
@@ -7152,17 +7159,18 @@ paths:
     get:
       operationId: listNotificationPreferences
       tags: [Notifications]
-      summary: Get notification preferences by userId
+      summary: Get the authenticated user's notification preferences (null if none saved yet)
       parameters:
-        - { name: userId, in: query, schema: { type: number } }
+        - { name: userId, in: query, schema: { type: number }, description: 'Optional; must match the session user' }
       responses:
         '200':
-          description: OK
+          description: OK (null when the user has no saved preferences row)
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: '#/components/schemas/NotificationPreference' }
+                oneOf:
+                  - { $ref: '#/components/schemas/NotificationPreference' }
+                  - { type: 'null' }
 
   /notification-preferences/{userId}:
     parameters:
@@ -7170,15 +7178,20 @@ paths:
     put:
       operationId: upsertNotificationPreferences
       tags: [Notifications]
-      summary: Upsert notification preferences for user
+      summary: Upsert notification preferences for user (userId must be the session user)
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/NotificationPreference' }
+            schema: { $ref: '#/components/schemas/NotificationPreferenceInput' }
       responses:
         '200':
-          description: OK
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationPreference' }
+        '201':
+          description: Created
           content:
             application/json:
               schema: { $ref: '#/components/schemas/NotificationPreference' }
@@ -7233,7 +7246,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/EscalationRuleInput' }
+            schema: { $ref: '#/components/schemas/EscalationRuleUpdate' }
       responses:
         '200':
           description: OK
@@ -7259,8 +7272,15 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: '#/components/schemas/ApprovalInboxItem' }
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ApprovalInboxItem' }
+                  total: { type: number }
+                  page: { type: number }
+                  limit: { type: number }
+                required: [data, total, page, limit]
     post:
       operationId: createApprovalInboxItem
       tags: [Notifications]
@@ -12234,110 +12254,180 @@ components:
       properties:
         id: { type: number }
         recipientUserId: { type: number }
+        recipientEmployeeId: { type: ["number", "null"] }
         notificationType: { type: string }
-        title: { type: string }
-        body: { type: string }
-        referenceType: { type: ["string", "null"] }
-        referenceId: { type: ["number", "null"] }
+        titleEn: { type: string }
+        titleAr: { type: ["string", "null"] }
+        bodyEn: { type: string }
+        bodyAr: { type: ["string", "null"] }
+        severity: { type: string }
+        actionUrl: { type: ["string", "null"] }
+        actionLabelEn: { type: ["string", "null"] }
+        entityType: { type: ["string", "null"] }
+        entityId: { type: ["number", "null"] }
         isRead: { type: boolean }
-        isDismissed: { type: boolean }
-        requiresAction: { type: boolean }
         readAt: { type: ["string", "null"] }
+        isDismissed: { type: boolean }
+        dismissedAt: { type: ["string", "null"] }
+        requiresAction: { type: boolean }
+        actionDeadline: { type: ["string", "null"] }
+        isEscalated: { type: boolean }
+        escalatedAt: { type: ["string", "null"] }
+        escalatedToUserId: { type: ["number", "null"] }
         createdAt: { type: string }
-        updatedAt: { type: string }
-      required: [id, recipientUserId, notificationType, title, body, isRead, isDismissed, requiresAction, createdAt, updatedAt]
+        expiresAt: { type: ["string", "null"] }
+      required: [id, recipientUserId, notificationType, titleEn, bodyEn, severity, isRead, isDismissed, requiresAction, isEscalated, createdAt]
 
     NotificationInput:
       type: object
       properties:
         recipientUserId: { type: number }
+        recipientEmployeeId: { type: ["number", "null"] }
         notificationType: { type: string }
-        title: { type: string }
-        body: { type: string }
-        referenceType: { type: ["string", "null"] }
-        referenceId: { type: ["number", "null"] }
-        isRead: { type: boolean }
-        isDismissed: { type: boolean }
+        titleEn: { type: string }
+        titleAr: { type: ["string", "null"] }
+        bodyEn: { type: string }
+        bodyAr: { type: ["string", "null"] }
+        severity: { type: string }
+        actionUrl: { type: ["string", "null"] }
+        actionLabelEn: { type: ["string", "null"] }
+        entityType: { type: ["string", "null"] }
+        entityId: { type: ["number", "null"] }
         requiresAction: { type: boolean }
-      required: [recipientUserId, notificationType, title, body]
+        actionDeadline: { type: ["string", "null"] }
+        expiresAt: { type: ["string", "null"] }
+      required: [recipientUserId, notificationType, titleEn, bodyEn]
+
+    NotificationUpdate:
+      type: object
+      properties:
+        isRead: { type: boolean }
+        readAt: { type: ["string", "null"] }
+        isDismissed: { type: boolean }
+        dismissedAt: { type: ["string", "null"] }
 
     NotificationPreference:
       type: object
       properties:
         id: { type: number }
         userId: { type: number }
-        notificationType: { type: string }
-        inAppEnabled: { type: boolean }
-        emailEnabled: { type: boolean }
-        smsEnabled: { type: boolean }
-        pushEnabled: { type: boolean }
+        subscriptionsJson: { type: ["string", "null"] }
+        quietHoursEnabled: { type: boolean }
+        quietHoursStart: { type: ["string", "null"] }
+        quietHoursEnd: { type: ["string", "null"] }
+        preferredLanguage: { type: string }
+        dashboardFrequency:
+          type: string
+          enum: [realtime, hourly, daily]
+        securityAlertChannel:
+          type: string
+          enum: [in_app, email, both]
         createdAt: { type: string }
         updatedAt: { type: string }
-      required: [id, userId, notificationType, inAppEnabled, emailEnabled, smsEnabled, pushEnabled, createdAt, updatedAt]
+      required: [id, userId, quietHoursEnabled, preferredLanguage, dashboardFrequency, securityAlertChannel, createdAt, updatedAt]
+
+    NotificationPreferenceInput:
+      type: object
+      properties:
+        subscriptionsJson: { type: ["string", "null"] }
+        quietHoursEnabled: { type: boolean }
+        quietHoursStart: { type: ["string", "null"] }
+        quietHoursEnd: { type: ["string", "null"] }
+        preferredLanguage: { type: string }
+        dashboardFrequency:
+          type: string
+          enum: [realtime, hourly, daily]
+        securityAlertChannel:
+          type: string
+          enum: [in_app, email, both]
 
     EscalationRule:
       type: object
       properties:
         id: { type: number }
-        name: { type: string }
-        description: { type: ["string", "null"] }
-        triggerType: { type: string }
-        conditionJson: { type: ["string", "null"] }
-        escalateAfterMinutes: { type: number }
-        escalateToUserId: { type: ["number", "null"] }
+        nameEn: { type: string }
+        entityType: { type: string }
+        triggerStatus: { type: string }
+        escalateAfterHours: { type: number }
         escalateToRole: { type: ["string", "null"] }
-        notificationTemplate: { type: ["string", "null"] }
+        escalateToUserId: { type: ["number", "null"] }
+        notificationSeverity: { type: string }
         isActive: { type: boolean }
         createdAt: { type: string }
-        updatedAt: { type: string }
-      required: [id, name, triggerType, escalateAfterMinutes, isActive, createdAt, updatedAt]
+      required: [id, nameEn, entityType, triggerStatus, escalateAfterHours, notificationSeverity, isActive, createdAt]
 
     EscalationRuleInput:
       type: object
       properties:
-        name: { type: string }
-        description: { type: ["string", "null"] }
-        triggerType: { type: string }
-        conditionJson: { type: ["string", "null"] }
-        escalateAfterMinutes: { type: number }
-        escalateToUserId: { type: ["number", "null"] }
+        nameEn: { type: string }
+        entityType: { type: string }
+        triggerStatus: { type: string }
+        escalateAfterHours: { type: number }
         escalateToRole: { type: ["string", "null"] }
-        notificationTemplate: { type: ["string", "null"] }
+        escalateToUserId: { type: ["number", "null"] }
+        notificationSeverity: { type: string }
         isActive: { type: boolean }
-      required: [name, triggerType, escalateAfterMinutes]
+      required: [nameEn, entityType, triggerStatus]
+
+    EscalationRuleUpdate:
+      type: object
+      properties:
+        nameEn: { type: string }
+        entityType: { type: string }
+        triggerStatus: { type: string }
+        escalateAfterHours: { type: number }
+        escalateToRole: { type: ["string", "null"] }
+        escalateToUserId: { type: ["number", "null"] }
+        notificationSeverity: { type: string }
+        isActive: { type: boolean }
 
     ApprovalInboxItem:
       type: object
       properties:
         id: { type: number }
         assignedToUserId: { type: number }
+        assignedToEmployeeId: { type: ["number", "null"] }
+        entityType: { type: string }
+        entityId: { type: number }
+        titleEn: { type: string }
+        titleAr: { type: ["string", "null"] }
         approvalType: { type: string }
-        referenceId: { type: number }
-        referenceType: { type: string }
-        status: { type: string }
+        requestedByEmployeeId: { type: ["number", "null"] }
+        requestedAt: { type: string }
+        deadline: { type: ["string", "null"] }
         priority: { type: string }
-        dueAt: { type: ["string", "null"] }
-        decision: { type: ["string", "null"] }
-        decisionNote: { type: ["string", "null"] }
+        status: { type: string }
         decidedAt: { type: ["string", "null"] }
+        decisionNotes: { type: ["string", "null"] }
+        isDelegated: { type: boolean }
+        delegatedToUserId: { type: ["number", "null"] }
+        isEscalated: { type: boolean }
+        escalatedAt: { type: ["string", "null"] }
         createdAt: { type: string }
         updatedAt: { type: string }
-      required: [id, assignedToUserId, approvalType, referenceId, referenceType, status, priority, createdAt, updatedAt]
+      required: [id, assignedToUserId, entityType, entityId, titleEn, approvalType, requestedAt, priority, status, isDelegated, isEscalated, createdAt, updatedAt]
 
     ApprovalInboxItemInput:
       type: object
       properties:
         assignedToUserId: { type: number }
+        assignedToEmployeeId: { type: ["number", "null"] }
+        entityType: { type: string }
+        entityId: { type: number }
+        titleEn: { type: string }
+        titleAr: { type: ["string", "null"] }
         approvalType: { type: string }
-        referenceId: { type: number }
-        referenceType: { type: string }
-        status: { type: string }
+        requestedByEmployeeId: { type: ["number", "null"] }
+        requestedAt: { type: ["string", "null"] }
+        deadline: { type: ["string", "null"] }
         priority: { type: string }
-        dueAt: { type: ["string", "null"] }
-        decision: { type: ["string", "null"] }
-        decisionNote: { type: ["string", "null"] }
+        status: { type: string }
         decidedAt: { type: ["string", "null"] }
-      required: [assignedToUserId, approvalType, referenceId, referenceType, status, priority]
+        decisionNotes: { type: ["string", "null"] }
+        isDelegated: { type: boolean }
+        delegatedToUserId: { type: ["number", "null"] }
+        isEscalated: { type: boolean }
+      required: [assignedToUserId, entityType, entityId, titleEn, approvalType]
 
     # ── DEPLOYMENT OPS SCHEMAS ────────────────────────────────────────────────
 

@@ -3791,120 +3791,244 @@ export interface ReportOutput {
 export interface Notification {
   id: number;
   recipientUserId: number;
+  /** @nullable */
+  recipientEmployeeId?: number | null;
   notificationType: string;
-  title: string;
-  body: string;
+  titleEn: string;
   /** @nullable */
-  referenceType?: string | null;
+  titleAr?: string | null;
+  bodyEn: string;
   /** @nullable */
-  referenceId?: number | null;
+  bodyAr?: string | null;
+  severity: string;
+  /** @nullable */
+  actionUrl?: string | null;
+  /** @nullable */
+  actionLabelEn?: string | null;
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityId?: number | null;
   isRead: boolean;
-  isDismissed: boolean;
-  requiresAction: boolean;
   /** @nullable */
   readAt?: string | null;
+  isDismissed: boolean;
+  /** @nullable */
+  dismissedAt?: string | null;
+  requiresAction: boolean;
+  /** @nullable */
+  actionDeadline?: string | null;
+  isEscalated: boolean;
+  /** @nullable */
+  escalatedAt?: string | null;
+  /** @nullable */
+  escalatedToUserId?: number | null;
   createdAt: string;
-  updatedAt: string;
+  /** @nullable */
+  expiresAt?: string | null;
 }
 
 export interface NotificationInput {
   recipientUserId: number;
+  /** @nullable */
+  recipientEmployeeId?: number | null;
   notificationType: string;
-  title: string;
-  body: string;
+  titleEn: string;
   /** @nullable */
-  referenceType?: string | null;
+  titleAr?: string | null;
+  bodyEn: string;
   /** @nullable */
-  referenceId?: number | null;
-  isRead?: boolean;
-  isDismissed?: boolean;
+  bodyAr?: string | null;
+  severity?: string;
+  /** @nullable */
+  actionUrl?: string | null;
+  /** @nullable */
+  actionLabelEn?: string | null;
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityId?: number | null;
   requiresAction?: boolean;
+  /** @nullable */
+  actionDeadline?: string | null;
+  /** @nullable */
+  expiresAt?: string | null;
 }
+
+export interface NotificationUpdate {
+  isRead?: boolean;
+  /** @nullable */
+  readAt?: string | null;
+  isDismissed?: boolean;
+  /** @nullable */
+  dismissedAt?: string | null;
+}
+
+export type NotificationPreferenceDashboardFrequency = typeof NotificationPreferenceDashboardFrequency[keyof typeof NotificationPreferenceDashboardFrequency];
+
+
+export const NotificationPreferenceDashboardFrequency = {
+  realtime: 'realtime',
+  hourly: 'hourly',
+  daily: 'daily',
+} as const;
+
+export type NotificationPreferenceSecurityAlertChannel = typeof NotificationPreferenceSecurityAlertChannel[keyof typeof NotificationPreferenceSecurityAlertChannel];
+
+
+export const NotificationPreferenceSecurityAlertChannel = {
+  in_app: 'in_app',
+  email: 'email',
+  both: 'both',
+} as const;
 
 export interface NotificationPreference {
   id: number;
   userId: number;
-  notificationType: string;
-  inAppEnabled: boolean;
-  emailEnabled: boolean;
-  smsEnabled: boolean;
-  pushEnabled: boolean;
+  /** @nullable */
+  subscriptionsJson?: string | null;
+  quietHoursEnabled: boolean;
+  /** @nullable */
+  quietHoursStart?: string | null;
+  /** @nullable */
+  quietHoursEnd?: string | null;
+  preferredLanguage: string;
+  dashboardFrequency: NotificationPreferenceDashboardFrequency;
+  securityAlertChannel: NotificationPreferenceSecurityAlertChannel;
   createdAt: string;
   updatedAt: string;
+}
+
+export type NotificationPreferenceInputDashboardFrequency = typeof NotificationPreferenceInputDashboardFrequency[keyof typeof NotificationPreferenceInputDashboardFrequency];
+
+
+export const NotificationPreferenceInputDashboardFrequency = {
+  realtime: 'realtime',
+  hourly: 'hourly',
+  daily: 'daily',
+} as const;
+
+export type NotificationPreferenceInputSecurityAlertChannel = typeof NotificationPreferenceInputSecurityAlertChannel[keyof typeof NotificationPreferenceInputSecurityAlertChannel];
+
+
+export const NotificationPreferenceInputSecurityAlertChannel = {
+  in_app: 'in_app',
+  email: 'email',
+  both: 'both',
+} as const;
+
+export interface NotificationPreferenceInput {
+  /** @nullable */
+  subscriptionsJson?: string | null;
+  quietHoursEnabled?: boolean;
+  /** @nullable */
+  quietHoursStart?: string | null;
+  /** @nullable */
+  quietHoursEnd?: string | null;
+  preferredLanguage?: string;
+  dashboardFrequency?: NotificationPreferenceInputDashboardFrequency;
+  securityAlertChannel?: NotificationPreferenceInputSecurityAlertChannel;
 }
 
 export interface EscalationRule {
   id: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
-  triggerType: string;
-  /** @nullable */
-  conditionJson?: string | null;
-  escalateAfterMinutes: number;
-  /** @nullable */
-  escalateToUserId?: number | null;
+  nameEn: string;
+  entityType: string;
+  triggerStatus: string;
+  escalateAfterHours: number;
   /** @nullable */
   escalateToRole?: string | null;
   /** @nullable */
-  notificationTemplate?: string | null;
+  escalateToUserId?: number | null;
+  notificationSeverity: string;
   isActive: boolean;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface EscalationRuleInput {
-  name: string;
-  /** @nullable */
-  description?: string | null;
-  triggerType: string;
-  /** @nullable */
-  conditionJson?: string | null;
-  escalateAfterMinutes: number;
-  /** @nullable */
-  escalateToUserId?: number | null;
+  nameEn: string;
+  entityType: string;
+  triggerStatus: string;
+  escalateAfterHours?: number;
   /** @nullable */
   escalateToRole?: string | null;
   /** @nullable */
-  notificationTemplate?: string | null;
+  escalateToUserId?: number | null;
+  notificationSeverity?: string;
+  isActive?: boolean;
+}
+
+export interface EscalationRuleUpdate {
+  nameEn?: string;
+  entityType?: string;
+  triggerStatus?: string;
+  escalateAfterHours?: number;
+  /** @nullable */
+  escalateToRole?: string | null;
+  /** @nullable */
+  escalateToUserId?: number | null;
+  notificationSeverity?: string;
   isActive?: boolean;
 }
 
 export interface ApprovalInboxItem {
   id: number;
   assignedToUserId: number;
+  /** @nullable */
+  assignedToEmployeeId?: number | null;
+  entityType: string;
+  entityId: number;
+  titleEn: string;
+  /** @nullable */
+  titleAr?: string | null;
   approvalType: string;
-  referenceId: number;
-  referenceType: string;
-  status: string;
+  /** @nullable */
+  requestedByEmployeeId?: number | null;
+  requestedAt: string;
+  /** @nullable */
+  deadline?: string | null;
   priority: string;
-  /** @nullable */
-  dueAt?: string | null;
-  /** @nullable */
-  decision?: string | null;
-  /** @nullable */
-  decisionNote?: string | null;
+  status: string;
   /** @nullable */
   decidedAt?: string | null;
+  /** @nullable */
+  decisionNotes?: string | null;
+  isDelegated: boolean;
+  /** @nullable */
+  delegatedToUserId?: number | null;
+  isEscalated: boolean;
+  /** @nullable */
+  escalatedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface ApprovalInboxItemInput {
   assignedToUserId: number;
+  /** @nullable */
+  assignedToEmployeeId?: number | null;
+  entityType: string;
+  entityId: number;
+  titleEn: string;
+  /** @nullable */
+  titleAr?: string | null;
   approvalType: string;
-  referenceId: number;
-  referenceType: string;
-  status: string;
-  priority: string;
   /** @nullable */
-  dueAt?: string | null;
+  requestedByEmployeeId?: number | null;
   /** @nullable */
-  decision?: string | null;
+  requestedAt?: string | null;
   /** @nullable */
-  decisionNote?: string | null;
+  deadline?: string | null;
+  priority?: string;
+  status?: string;
   /** @nullable */
   decidedAt?: string | null;
+  /** @nullable */
+  decisionNotes?: string | null;
+  isDelegated?: boolean;
+  /** @nullable */
+  delegatedToUserId?: number | null;
+  isEscalated?: boolean;
 }
 
 export interface HealthCheck {
@@ -5038,11 +5162,21 @@ page?: number;
 limit?: number;
 };
 
+export type ListNotifications200 = {
+  data: Notification[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
 export type MarkAllNotificationsRead200 = {
   count: number;
 };
 
 export type ListNotificationPreferencesParams = {
+/**
+ * Optional; must match the session user
+ */
 userId?: number;
 };
 
@@ -5053,6 +5187,13 @@ status?: string;
 priority?: string;
 page?: number;
 limit?: number;
+};
+
+export type ListApprovalInbox200 = {
+  data: ApprovalInboxItem[];
+  total: number;
+  page: number;
+  limit: number;
 };
 
 export type RunHealthChecksBody = {

@@ -5,15 +5,22 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+import type { NotificationPreferenceDashboardFrequency } from './notificationPreferenceDashboardFrequency';
+import type { NotificationPreferenceSecurityAlertChannel } from './notificationPreferenceSecurityAlertChannel';
 
 export interface NotificationPreference {
   id: number;
   userId: number;
-  notificationType: string;
-  inAppEnabled: boolean;
-  emailEnabled: boolean;
-  smsEnabled: boolean;
-  pushEnabled: boolean;
+  /** @nullable */
+  subscriptionsJson?: string | null;
+  quietHoursEnabled: boolean;
+  /** @nullable */
+  quietHoursStart?: string | null;
+  /** @nullable */
+  quietHoursEnd?: string | null;
+  preferredLanguage: string;
+  dashboardFrequency: NotificationPreferenceDashboardFrequency;
+  securityAlertChannel: NotificationPreferenceSecurityAlertChannel;
   createdAt: string;
   updatedAt: string;
 }

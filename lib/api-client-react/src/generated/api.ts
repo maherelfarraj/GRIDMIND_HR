@@ -153,6 +153,7 @@ import type {
   EquipmentIssuanceInput,
   EscalationRule,
   EscalationRuleInput,
+  EscalationRuleUpdate,
   ExecutiveDashboard,
   ExportJob,
   GenerateDocumentFromTemplateBody,
@@ -228,6 +229,7 @@ import type {
   ListAppraisalRecordsParams,
   ListApprovalDelegations200,
   ListApprovalDelegationsParams,
+  ListApprovalInbox200,
   ListApprovalInboxParams,
   ListApprovalsParams,
   ListAttendanceParams,
@@ -294,6 +296,7 @@ import type {
   ListMilitaryRanksParams,
   ListMobilizationStatusesParams,
   ListNotificationPreferencesParams,
+  ListNotifications200,
   ListNotificationsParams,
   ListOnboardingTasks200,
   ListOnboardingTemplates200,
@@ -334,6 +337,8 @@ import type {
   Notification,
   NotificationInput,
   NotificationPreference,
+  NotificationPreferenceInput,
+  NotificationUpdate,
   OnboardingTask,
   OnboardingTemplate,
   OnboardingTemplateInput,
@@ -29097,9 +29102,9 @@ export const getListNotificationsUrl = (params?: ListNotificationsParams,) => {
 /**
  * @summary List notifications
  */
-export const listNotifications = async (params?: ListNotificationsParams, options?: Parameters<typeof customFetch>[1]): Promise<Notification[]> => {
+export const listNotifications = async (params?: ListNotificationsParams, options?: Parameters<typeof customFetch>[1]): Promise<ListNotifications200> => {
 
-  return customFetch<Notification[]>(getListNotificationsUrl(params),
+  return customFetch<ListNotifications200>(getListNotificationsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -29323,14 +29328,14 @@ export const getUpdateNotificationUrl = (id: number,) => {
  * @summary Mark notification read/dismissed
  */
 export const updateNotification = async (id: number,
-    notificationInput: NotificationInput, options?: Parameters<typeof customFetch>[1]): Promise<Notification> => {
+    notificationUpdate: NotificationUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Notification> => {
 
   return customFetch<Notification>(getUpdateNotificationUrl(id),
   {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(notificationInput)
+    body: JSON.stringify(notificationUpdate)
   }
 );}
 
@@ -29339,8 +29344,8 @@ export const updateNotification = async (id: number,
 
 
 export const getUpdateNotificationMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNotification>>, TError,{id: number;data: BodyType<NotificationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateNotification>>, TError,{id: number;data: BodyType<NotificationInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNotification>>, TError,{id: number;data: BodyType<NotificationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateNotification>>, TError,{id: number;data: BodyType<NotificationUpdate>}, TContext> => {
 
 const mutationKey = ['updateNotification'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -29352,7 +29357,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateNotification>>, {id: number;data: BodyType<NotificationInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateNotification>>, {id: number;data: BodyType<NotificationUpdate>}> = (props) => {
           const {id,data} = props ?? {};
 
           return  updateNotification(id,data,requestOptions)
@@ -29366,18 +29371,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type UpdateNotificationMutationResult = NonNullable<Awaited<ReturnType<typeof updateNotification>>>
-    export type UpdateNotificationMutationBody = BodyType<NotificationInput>
+    export type UpdateNotificationMutationBody = BodyType<NotificationUpdate>
     export type UpdateNotificationMutationError = ErrorType<unknown>
 
     /**
  * @summary Mark notification read/dismissed
  */
 export const useUpdateNotification = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNotification>>, TError,{id: number;data: BodyType<NotificationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNotification>>, TError,{id: number;data: BodyType<NotificationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateNotification>>,
         TError,
-        {id: number;data: BodyType<NotificationInput>},
+        {id: number;data: BodyType<NotificationUpdate>},
         TContext
       > => {
       return useMutation(getUpdateNotificationMutationOptions(options));
@@ -29470,11 +29475,11 @@ export const getListNotificationPreferencesUrl = (params?: ListNotificationPrefe
 }
 
 /**
- * @summary Get notification preferences by userId
+ * @summary Get the authenticated user's notification preferences (null if none saved yet)
  */
-export const listNotificationPreferences = async (params?: ListNotificationPreferencesParams, options?: Parameters<typeof customFetch>[1]): Promise<NotificationPreference[]> => {
+export const listNotificationPreferences = async (params?: ListNotificationPreferencesParams, options?: Parameters<typeof customFetch>[1]): Promise<NotificationPreference | null> => {
 
-  return customFetch<NotificationPreference[]>(getListNotificationPreferencesUrl(params),
+  return customFetch<NotificationPreference | null>(getListNotificationPreferencesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -29517,7 +29522,7 @@ export type ListNotificationPreferencesQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get notification preferences by userId
+ * @summary Get the authenticated user's notification preferences (null if none saved yet)
  */
 
 export function useListNotificationPreferences<TData = Awaited<ReturnType<typeof listNotificationPreferences>>, TError = ErrorType<unknown>>(
@@ -29547,17 +29552,17 @@ export const getUpsertNotificationPreferencesUrl = (userId: number,) => {
 }
 
 /**
- * @summary Upsert notification preferences for user
+ * @summary Upsert notification preferences for user (userId must be the session user)
  */
 export const upsertNotificationPreferences = async (userId: number,
-    notificationPreference: NotificationPreference, options?: Parameters<typeof customFetch>[1]): Promise<NotificationPreference> => {
+    notificationPreferenceInput: NotificationPreferenceInput, options?: Parameters<typeof customFetch>[1]): Promise<NotificationPreference> => {
 
   return customFetch<NotificationPreference>(getUpsertNotificationPreferencesUrl(userId),
   {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(notificationPreference)
+    body: JSON.stringify(notificationPreferenceInput)
   }
 );}
 
@@ -29566,8 +29571,8 @@ export const upsertNotificationPreferences = async (userId: number,
 
 
 export const getUpsertNotificationPreferencesMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertNotificationPreferences>>, TError,{userId: number;data: BodyType<NotificationPreference>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof upsertNotificationPreferences>>, TError,{userId: number;data: BodyType<NotificationPreference>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertNotificationPreferences>>, TError,{userId: number;data: BodyType<NotificationPreferenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertNotificationPreferences>>, TError,{userId: number;data: BodyType<NotificationPreferenceInput>}, TContext> => {
 
 const mutationKey = ['upsertNotificationPreferences'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -29579,7 +29584,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertNotificationPreferences>>, {userId: number;data: BodyType<NotificationPreference>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertNotificationPreferences>>, {userId: number;data: BodyType<NotificationPreferenceInput>}> = (props) => {
           const {userId,data} = props ?? {};
 
           return  upsertNotificationPreferences(userId,data,requestOptions)
@@ -29593,18 +29598,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type UpsertNotificationPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof upsertNotificationPreferences>>>
-    export type UpsertNotificationPreferencesMutationBody = BodyType<NotificationPreference>
+    export type UpsertNotificationPreferencesMutationBody = BodyType<NotificationPreferenceInput>
     export type UpsertNotificationPreferencesMutationError = ErrorType<unknown>
 
     /**
- * @summary Upsert notification preferences for user
+ * @summary Upsert notification preferences for user (userId must be the session user)
  */
 export const useUpsertNotificationPreferences = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertNotificationPreferences>>, TError,{userId: number;data: BodyType<NotificationPreference>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertNotificationPreferences>>, TError,{userId: number;data: BodyType<NotificationPreferenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof upsertNotificationPreferences>>,
         TError,
-        {userId: number;data: BodyType<NotificationPreference>},
+        {userId: number;data: BodyType<NotificationPreferenceInput>},
         TContext
       > => {
       return useMutation(getUpsertNotificationPreferencesMutationOptions(options));
@@ -29847,14 +29852,14 @@ export const getUpdateEscalationRuleUrl = (id: number,) => {
  * @summary Update escalation rule
  */
 export const updateEscalationRule = async (id: number,
-    escalationRuleInput: EscalationRuleInput, options?: Parameters<typeof customFetch>[1]): Promise<EscalationRule> => {
+    escalationRuleUpdate: EscalationRuleUpdate, options?: Parameters<typeof customFetch>[1]): Promise<EscalationRule> => {
 
   return customFetch<EscalationRule>(getUpdateEscalationRuleUrl(id),
   {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(escalationRuleInput)
+    body: JSON.stringify(escalationRuleUpdate)
   }
 );}
 
@@ -29863,8 +29868,8 @@ export const updateEscalationRule = async (id: number,
 
 
 export const getUpdateEscalationRuleMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEscalationRule>>, TError,{id: number;data: BodyType<EscalationRuleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateEscalationRule>>, TError,{id: number;data: BodyType<EscalationRuleInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEscalationRule>>, TError,{id: number;data: BodyType<EscalationRuleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEscalationRule>>, TError,{id: number;data: BodyType<EscalationRuleUpdate>}, TContext> => {
 
 const mutationKey = ['updateEscalationRule'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -29876,7 +29881,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEscalationRule>>, {id: number;data: BodyType<EscalationRuleInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEscalationRule>>, {id: number;data: BodyType<EscalationRuleUpdate>}> = (props) => {
           const {id,data} = props ?? {};
 
           return  updateEscalationRule(id,data,requestOptions)
@@ -29890,18 +29895,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type UpdateEscalationRuleMutationResult = NonNullable<Awaited<ReturnType<typeof updateEscalationRule>>>
-    export type UpdateEscalationRuleMutationBody = BodyType<EscalationRuleInput>
+    export type UpdateEscalationRuleMutationBody = BodyType<EscalationRuleUpdate>
     export type UpdateEscalationRuleMutationError = ErrorType<unknown>
 
     /**
  * @summary Update escalation rule
  */
 export const useUpdateEscalationRule = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEscalationRule>>, TError,{id: number;data: BodyType<EscalationRuleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEscalationRule>>, TError,{id: number;data: BodyType<EscalationRuleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateEscalationRule>>,
         TError,
-        {id: number;data: BodyType<EscalationRuleInput>},
+        {id: number;data: BodyType<EscalationRuleUpdate>},
         TContext
       > => {
       return useMutation(getUpdateEscalationRuleMutationOptions(options));
@@ -29925,9 +29930,9 @@ export const getListApprovalInboxUrl = (params?: ListApprovalInboxParams,) => {
 /**
  * @summary List approval inbox items
  */
-export const listApprovalInbox = async (params?: ListApprovalInboxParams, options?: Parameters<typeof customFetch>[1]): Promise<ApprovalInboxItem[]> => {
+export const listApprovalInbox = async (params?: ListApprovalInboxParams, options?: Parameters<typeof customFetch>[1]): Promise<ListApprovalInbox200> => {
 
-  return customFetch<ApprovalInboxItem[]>(getListApprovalInboxUrl(params),
+  return customFetch<ListApprovalInbox200>(getListApprovalInboxUrl(params),
   {
     ...options,
     method: 'GET'

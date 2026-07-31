@@ -8,17 +8,28 @@
 
 export interface ApprovalInboxItemInput {
   assignedToUserId: number;
+  /** @nullable */
+  assignedToEmployeeId?: number | null;
+  entityType: string;
+  entityId: number;
+  titleEn: string;
+  /** @nullable */
+  titleAr?: string | null;
   approvalType: string;
-  referenceId: number;
-  referenceType: string;
-  status: string;
-  priority: string;
   /** @nullable */
-  dueAt?: string | null;
+  requestedByEmployeeId?: number | null;
   /** @nullable */
-  decision?: string | null;
+  requestedAt?: string | null;
   /** @nullable */
-  decisionNote?: string | null;
+  deadline?: string | null;
+  priority?: string;
+  status?: string;
   /** @nullable */
   decidedAt?: string | null;
+  /** @nullable */
+  decisionNotes?: string | null;
+  isDelegated?: boolean;
+  /** @nullable */
+  delegatedToUserId?: number | null;
+  isEscalated?: boolean;
 }
