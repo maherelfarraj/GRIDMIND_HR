@@ -4,6 +4,13 @@ modules = ["nodejs-24", "python-base-3.13", "postgresql-16"]
 router = "application"
 deploymentTarget = "autoscale"
 
+# Pre-publish gate: run the full regression check (schema-drift tests,
+# mobile tests, monorepo typecheck) before any artifact builds. A non-zero
+# exit blocks the release; output names each failing suite.
+[deployment.build]
+args = ["bash", "scripts/regression.sh"]
+env = { "CI" = "true" }
+
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
