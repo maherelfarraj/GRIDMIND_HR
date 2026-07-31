@@ -6,6 +6,7 @@
 # Suites:
 #   1. API schema/OpenAPI drift tests (artifacts/api-server)
 #   2. Mobile unit tests (artifacts/mobile)
+#   3. Monorepo-wide TypeScript typecheck (libs + all packages)
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,6 +31,9 @@ run_suite "api-schema-drift" \
 
 run_suite "mobile-tests" \
   bash -c "cd '$ROOT/artifacts/mobile' && npx vitest run"
+
+run_suite "typecheck" \
+  bash -c "cd '$ROOT' && pnpm run typecheck"
 
 echo ""
 echo "=============================================="
