@@ -4,8 +4,9 @@ description: Design decisions for the HMAC gateway API, credential handling, and
 ---
 
 ## Machine auth scheme
-- Gateway requests sign `${timestamp}.${sha256(rawBody)}` with HMAC-SHA256; key = sha256(plaintext secret). Server stores ONLY sha256(secret) and uses it directly as the verification key.
-- **Why:** the plaintext secret is shown once at registration and never persisted; ±5 min window + timing-safe compare block replay/oracle attacks. Tradeoff (documented, accepted): a DB read of secret_hash grants signing capability — mitigate later with KMS if needed.
+- Gateway requests sign `${timestamp}.${sha256(rawBody)}` with HMAC-SHA256; key = sha256(plaintext secret), unchanged on the wire.
+- Server no longer stores the verification key in the clear: gateway_registrations.secret_hash holds an AES-256-GCM envelope (`v2:iv:tag:ct`) wrapped with a pepper from GATEWAY_KEY_PEPPER (fallback SESSION_SECRET) via the key-vault module — a DB leak alone can't forge punches. Legacy bare-hash rows verify once then rotate in place; startup runs an idempotent eager rotation.
+- **Why:** the plaintext secret is shown once at registration and never persisted; ±5 min window + timing-safe compare block replay/oracle attacks. Note: rotating the pepper (or SESSION_SECRET when no dedicated pepper is set) makes existing envelopes undecryptable — gateways must re-register unless a re-wrap path is added.
 - Raw body must be captured via express.json `verify` hook — re-serializing JSON breaks signatures.
 - Machine endpoints mount BEFORE the session gate; admin endpoints that mint machine credentials require a real session UNCONDITIONALLY, even in demo mode (PILOT_AUTH off) where normal routes stay open. Review flagged this; don't regress.
 

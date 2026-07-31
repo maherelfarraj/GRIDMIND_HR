@@ -12,7 +12,10 @@ import { systemUsersTable } from "./systemUsers";
  * Security model:
  *  - Registration is created by an admin in the HR core; a random shared
  *    secret is generated server-side and returned exactly ONCE.
- *  - Only the SHA-256 hash of the secret is stored (never the secret itself).
+ *  - The secret itself is never stored; the server keeps the derived signing
+ *    key (sha256 of the secret) only inside an AES-256-GCM envelope wrapped
+ *    with a server-side pepper held outside the database, so a DB leak alone
+ *    cannot forge signatures.
  *  - Every gateway request is authenticated via HMAC-SHA256 over
  *    `${timestamp}.${sha256(rawBody)}` using the shared secret.
  *  - No raw biometric templates ever reach the HR core: adapters only emit
@@ -25,7 +28,10 @@ export const gatewayRegistrationsTable = pgTable("gateway_registrations", {
   deviceId: integer("device_id").references(() => attendanceDevicesTable.id),
   adapterType: varchar("adapter_type", { length: 30 }).notNull().default("SIMULATOR"),
   // ZKTECO | SUPREMA | GENERIC_REST | CSV | SIMULATOR
-  secretHash: varchar("secret_hash", { length: 64 }).notNull(), // sha256 hex of the shared secret
+  // Encrypted envelope of the HMAC signing key (sha256 of the shared secret),
+  // wrapped with a server-side pepper stored outside the database. Legacy rows
+  // may still hold the bare sha256 hex until rotated.
+  secretHash: text("secret_hash").notNull(),
   status: varchar("status", { length: 20 }).notNull().default("ACTIVE"), // ACTIVE | REVOKED
   registeredByUserId: integer("registered_by_user_id").notNull().references(() => systemUsersTable.id),
   lastSeenAt: timestamp("last_seen_at"),

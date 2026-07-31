@@ -110,10 +110,12 @@ beforeAll(async () => {
   expect(create.body.secretHash).toBeUndefined();
   signingKey = deriveSigningKey(secret);
 
-  // Server must store only the hash of the secret.
+  // Server must never store forgery-capable material in the clear: the stored
+  // value is an encrypted envelope, not the secret nor the bare signing key.
   const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
-  expect(reg.secretHash).toBe(sha256(secret));
   expect(reg.secretHash).not.toBe(secret);
+  expect(reg.secretHash).not.toBe(sha256(secret));
+  expect(reg.secretHash.startsWith("v2:")).toBe(true);
 
   // Map the device-user id to the employee.
   const [mapping] = await db
@@ -483,5 +485,98 @@ describe("payroll handoff", () => {
     // linked to the materialized attendance record → daily summary + payroll
     // no-show logic both see the same day.
     expect(gwRows.every((r) => r.attendanceRecordId !== null)).toBe(true);
+  });
+});
+
+describe("key vault hardening (DB leak cannot forge punches)", () => {
+  it("stored envelope cannot be used directly as an HMAC signing key", async () => {
+    // Simulate an attacker who exfiltrated gateway_registrations: signing with
+    // the stored value (as the legacy scheme allowed) must be rejected.
+    const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    const body = JSON.stringify({ deviceTimeMs: Date.now() });
+    const ts = Date.now();
+    const forged = createHmac("sha256", reg.secretHash).update(`${ts}.${sha256(body)}`).digest("hex");
+    const res = await postSigned("/api/gateway/heartbeat", { deviceTimeMs: Date.now() }, { ts, sig: forged });
+    expect(res.status).toBe(401);
+  });
+
+  it("legacy plaintext-key rows still verify and get rotated in place", async () => {
+    const { rotateLegacyGatewayKeys } = await import("../routes/attendanceGateway");
+    // Manufacture a legacy row: bare sha256(secret) stored as the key.
+    const legacySecret = "aa".repeat(32);
+    const legacyKey = sha256(legacySecret);
+    const [legacyReg] = await db
+      .insert(gatewayRegistrationsTable)
+      .values({ name: "Legacy GW", adapterType: "SIMULATOR", secretHash: legacyKey, registeredByUserId: 1 })
+      .returning();
+    try {
+      // Signed request with the legacy-derived key must still work...
+      const body = JSON.stringify({ deviceTimeMs: Date.now() });
+      const ts = Date.now();
+      const sig = createHmac("sha256", legacyKey).update(`${ts}.${sha256(body)}`).digest("hex");
+      const res = await request(app)
+        .post("/api/gateway/heartbeat")
+        .set({
+          "content-type": "application/json",
+          "x-gateway-id": String(legacyReg.id),
+          "x-gateway-timestamp": String(ts),
+          "x-gateway-signature": sig,
+        })
+        .send(body);
+      expect(res.status).toBe(200);
+      // ...and the row must have been rotated to an envelope by that request.
+      let [after] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, legacyReg.id));
+      expect(after.secretHash.startsWith("v2:")).toBe(true);
+      expect(after.secretHash).not.toBe(legacyKey);
+
+      // Eager rotation is idempotent (nothing legacy left for this row).
+      await db.update(gatewayRegistrationsTable).set({ secretHash: legacyKey }).where(eq(gatewayRegistrationsTable.id, legacyReg.id));
+      const rotated = await rotateLegacyGatewayKeys();
+      expect(rotated).toBeGreaterThanOrEqual(1);
+      [after] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, legacyReg.id));
+      expect(after.secretHash.startsWith("v2:")).toBe(true);
+      expect(await rotateLegacyGatewayKeys()).toBe(0);
+
+      // Rotated row still verifies with the gateway-side key (protocol unchanged).
+      const body2 = JSON.stringify({ deviceTimeMs: Date.now() });
+      const ts2 = Date.now();
+      const sig2 = createHmac("sha256", legacyKey).update(`${ts2}.${sha256(body2)}`).digest("hex");
+      const res2 = await request(app)
+        .post("/api/gateway/heartbeat")
+        .set({
+          "content-type": "application/json",
+          "x-gateway-id": String(legacyReg.id),
+          "x-gateway-timestamp": String(ts2),
+          "x-gateway-signature": sig2,
+        })
+        .send(body2);
+      expect(res2.status).toBe(200);
+    } finally {
+      await db.delete(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, legacyReg.id));
+    }
+  });
+
+  it("a tampered envelope is rejected, not silently trusted", async () => {
+    const [tamperedReg] = await db
+      .insert(gatewayRegistrationsTable)
+      .values({ name: "Tampered GW", adapterType: "SIMULATOR", secretHash: "v2:00:00:00", registeredByUserId: 1 })
+      .returning();
+    try {
+      const body = JSON.stringify({ deviceTimeMs: Date.now() });
+      const ts = Date.now();
+      const sig = createHmac("sha256", "anything").update(`${ts}.${sha256(body)}`).digest("hex");
+      const res = await request(app)
+        .post("/api/gateway/heartbeat")
+        .set({
+          "content-type": "application/json",
+          "x-gateway-id": String(tamperedReg.id),
+          "x-gateway-timestamp": String(ts),
+          "x-gateway-signature": sig,
+        })
+        .send(body);
+      expect(res.status).toBe(401);
+    } finally {
+      await db.delete(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, tamperedReg.id));
+    }
   });
 });

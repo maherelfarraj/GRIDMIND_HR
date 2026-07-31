@@ -11,6 +11,12 @@ import {
 } from "@workspace/db";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { materializePunch } from "../lib/attendanceMaterializer.js";
+import {
+  protectSigningKey,
+  recoverSigningKey,
+  rotateLegacyValue,
+  isLegacyStoredKey,
+} from "../lib/gatewayKeyVault.js";
 
 /**
  * Attendance Gateway — HR-core side.
@@ -61,20 +67,58 @@ async function verifyGatewaySignature(req: GatewayRequest, res: Response, next: 
     res.status(401).json({ error: "Unknown or revoked gateway registration" });
     return;
   }
-  // The stored secretHash is sha256(secret). The gateway signs with the raw
-  // secret; the server cannot recompute HMACs from the hash alone, so the
-  // signing key is HMAC over the hash: both sides derive
-  // signingKey = sha256(secret) — the gateway hashes its secret locally.
+  // Both sides derive signingKey = sha256(secret); the gateway hashes its
+  // secret locally. The server stores that key only inside an encrypted
+  // envelope (see gatewayKeyVault) so a database leak alone cannot forge
+  // signatures. Legacy plaintext rows are accepted once, then rotated.
+  let signingKey: string;
+  let legacy = false;
+  try {
+    ({ signingKey, legacy } = recoverSigningKey(reg.secretHash));
+  } catch {
+    res.status(401).json({ error: "Gateway credential unusable — re-register the gateway", errorAr: "بيانات اعتماد البوابة غير صالحة" });
+    return;
+  }
   const bodyHash = sha256(req.rawBody ?? Buffer.from(""));
-  const expected = createHmac("sha256", reg.secretHash).update(`${timestamp}.${bodyHash}`).digest("hex");
+  const expected = createHmac("sha256", signingKey).update(`${timestamp}.${bodyHash}`).digest("hex");
   const a = Buffer.from(expected, "hex");
   const b = Buffer.from(sigHeader, "hex");
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     res.status(401).json({ error: "Invalid gateway signature", errorAr: "توقيع البوابة غير صالح" });
     return;
   }
+  if (legacy) {
+    // Lazy rotation: replace the plaintext signing key with its envelope the
+    // first time the registration is seen after the hardening deploy.
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ secretHash: rotateLegacyValue(reg.secretHash), updatedAt: new Date() })
+      .where(and(eq(gatewayRegistrationsTable.id, reg.id), eq(gatewayRegistrationsTable.secretHash, reg.secretHash)));
+  }
   req.gatewayRegistration = reg;
   next();
+}
+
+/**
+ * Eager rotation path for existing registrations: wraps every legacy
+ * plaintext signing key in the vault envelope. Idempotent; safe to run at
+ * every server start.
+ */
+export async function rotateLegacyGatewayKeys(): Promise<number> {
+  const rows = await db
+    .select({ id: gatewayRegistrationsTable.id, secretHash: gatewayRegistrationsTable.secretHash })
+    .from(gatewayRegistrationsTable);
+  let rotated = 0;
+  for (const row of rows) {
+    if (!isLegacyStoredKey(row.secretHash)) continue;
+    const result = await db
+      .update(gatewayRegistrationsTable)
+      .set({ secretHash: rotateLegacyValue(row.secretHash), updatedAt: new Date() })
+      .where(and(eq(gatewayRegistrationsTable.id, row.id), eq(gatewayRegistrationsTable.secretHash, row.secretHash)))
+      .returning({ id: gatewayRegistrationsTable.id });
+    rotated += result.length;
+  }
+  return rotated;
 }
 
 /** Compute + persist gateway↔server clock drift from the reported device time. */
@@ -357,7 +401,7 @@ gatewayAdminRouter.post("/gateway/registrations", async (req, res): Promise<void
       nameAr: nameAr ?? null,
       deviceId: deviceId ?? null,
       adapterType: adapterType ?? "SIMULATOR",
-      secretHash: sha256(secret),
+      secretHash: protectSigningKey(sha256(secret)),
       registeredByUserId: actorUserId,
       notes: notes ?? null,
     })

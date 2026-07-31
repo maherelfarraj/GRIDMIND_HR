@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startHealthMonitor } from "./lib/health-monitor";
 import { seedDemoPasswords } from "./lib/seed-passwords";
+import { rotateLegacyGatewayKeys } from "./routes/attendanceGateway";
 
 const rawPort = process.env["PORT"];
 
@@ -28,4 +29,11 @@ app.listen(port, (err) => {
   seedDemoPasswords().catch((err) => {
     logger.error({ err }, "Failed to provision demo password hashes");
   });
+  rotateLegacyGatewayKeys()
+    .then((rotated) => {
+      if (rotated > 0) logger.info({ rotated }, "Rotated legacy gateway signing keys into vault envelopes");
+    })
+    .catch((err) => {
+      logger.error({ err }, "Failed to rotate legacy gateway signing keys");
+    });
 });
