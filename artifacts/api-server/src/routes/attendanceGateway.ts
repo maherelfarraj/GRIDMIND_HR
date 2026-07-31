@@ -100,11 +100,34 @@ export const gatewayMachineRouter: ReturnType<typeof Router> = Router();
 // POST /gateway/heartbeat — device health ping
 gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (req: GatewayRequest, res): Promise<void> => {
   const reg = req.gatewayRegistration!;
-  const { deviceTimeMs, adapterStatus } = req.body as { deviceTimeMs?: number; adapterStatus?: string };
+  const { deviceTimeMs, adapterStatus, connectionTest } = req.body as {
+    deviceTimeMs?: number;
+    adapterStatus?: string;
+    connectionTest?: { ok?: boolean; status?: string; message?: string };
+  };
   const drift = await recordDrift(reg, deviceTimeMs);
+  const VALID_CONN_STATUSES = new Set(["REACHABLE", "AUTH_FAILED", "UNREACHABLE", "NOT_CONFIGURED"]);
+  // Structured connection-test result (newer gateways). Falls back to the
+  // legacy free-text adapterStatus so older gateways still surface something.
+  const connStatus = connectionTest?.status && VALID_CONN_STATUSES.has(connectionTest.status)
+    ? connectionTest.status
+    : connectionTest && typeof connectionTest.ok === "boolean"
+      ? (connectionTest.ok ? "REACHABLE" : "UNREACHABLE")
+      : undefined;
+  const connMessage = connectionTest?.message ?? adapterStatus;
   await db
     .update(gatewayRegistrationsTable)
-    .set({ lastHeartbeatAt: new Date(), notes: adapterStatus ? `adapter: ${adapterStatus}` : reg.notes })
+    .set({
+      lastHeartbeatAt: new Date(),
+      notes: adapterStatus ? `adapter: ${adapterStatus}` : reg.notes,
+      ...(connStatus || connMessage
+        ? {
+            adapterConnStatus: connStatus ?? (connMessage ? reg.adapterConnStatus : undefined),
+            adapterConnMessage: typeof connMessage === "string" ? connMessage.slice(0, 2000) : reg.adapterConnMessage,
+            adapterConnTestedAt: new Date(),
+          }
+        : {}),
+    })
     .where(eq(gatewayRegistrationsTable.id, reg.id));
   res.json({ ok: true, serverTimeMs: Date.now(), clockDriftMs: drift, driftAlert: drift !== null && Math.abs(drift) > DRIFT_ALERT_MS });
 });

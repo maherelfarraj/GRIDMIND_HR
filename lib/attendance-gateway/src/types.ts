@@ -21,8 +21,13 @@ export interface GatewayPunch {
   raw?: Record<string, unknown>;
 }
 
+/** Coarse classification of a connection-test outcome, surfaced to HR admins. */
+export type AdapterConnectionStatus = "REACHABLE" | "AUTH_FAILED" | "UNREACHABLE" | "NOT_CONFIGURED";
+
 export interface AdapterTestResult {
   ok: boolean;
+  /** Machine-readable outcome so the HR core can render distinct failure states. */
+  status: AdapterConnectionStatus;
   message: string;
   /** True when the adapter cannot run without a vendor SDK / licensed driver. */
   requiresVendorSdk?: boolean;

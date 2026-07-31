@@ -63,13 +63,11 @@ async function main(): Promise<void> {
 
   const pollIntervalMs = parseInt(process.env.POLL_INTERVAL_MS ?? "60000", 10);
   const tick = async (): Promise<void> => {
-    try {
-      await service.pollOnce();
-      await service.flush();
-      await hr.heartbeat((await adapter.testConnection()).message);
-    } catch (e) {
-      console.error("[gateway] tick failed:", e instanceof Error ? e.message : e);
-    }
+    // service.tick() heartbeats even when poll/flush fail, so connection
+    // failures still reach the HR core admin screen.
+    const { pollError, heartbeatError } = await service.tick();
+    if (pollError) console.error("[gateway] poll/flush failed:", pollError);
+    if (heartbeatError) console.error("[gateway] heartbeat failed:", heartbeatError);
   };
   setInterval(tick, pollIntervalMs);
   void tick();

@@ -1,5 +1,5 @@
 import { apiFetch } from '@/lib/api';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -29,6 +29,9 @@ interface GatewayRegistration {
   lastHeartbeatAt: string | null;
   clockDriftMs: number | null;
   driftAlert: boolean;
+  adapterConnStatus: 'REACHABLE' | 'AUTH_FAILED' | 'UNREACHABLE' | 'NOT_CONFIGURED' | null;
+  adapterConnMessage: string | null;
+  adapterConnTestedAt: string | null;
   notes: string | null;
   createdAt: string;
 }
@@ -210,6 +213,52 @@ export default function AttendanceGateway() {
     return <Badge variant="outline" className="text-xs">{adapter}</Badge>;
   };
 
+  const getConnectionBadge = (reg: GatewayRegistration) => {
+    if (!reg.adapterConnStatus) {
+      return <span className="text-xs text-muted-foreground">{t('No test yet', 'لا يوجد اختبار بعد')}</span>;
+    }
+    const conf: Record<string, { cls: string; icon: React.ReactNode; label: string }> = {
+      REACHABLE: {
+        cls: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+        icon: <CheckCircle className="w-3 h-3" />,
+        label: t('Reachable', 'يمكن الوصول'),
+      },
+      AUTH_FAILED: {
+        cls: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
+        icon: <ShieldAlert className="w-3 h-3" />,
+        label: t('Auth failed', 'فشل المصادقة'),
+      },
+      UNREACHABLE: {
+        cls: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
+        icon: <XCircle className="w-3 h-3" />,
+        label: t('Unreachable', 'تعذر الوصول'),
+      },
+      NOT_CONFIGURED: {
+        cls: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+        icon: <AlertCircle className="w-3 h-3" />,
+        label: t('Not configured', 'غير مُهيأ'),
+      },
+    };
+    const c = conf[reg.adapterConnStatus];
+    return (
+      <div className="space-y-1" title={reg.adapterConnMessage ?? undefined}>
+        <Badge variant="outline" className={`text-xs gap-1 ${c.cls}`}>
+          {c.icon}
+          {c.label}
+        </Badge>
+        {reg.adapterConnTestedAt && (
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Clock className="w-3 h-3" />
+            {formatDateTime(reg.adapterConnTestedAt)}
+          </div>
+        )}
+        {reg.adapterConnStatus !== 'REACHABLE' && reg.adapterConnMessage && (
+          <div className="text-[11px] text-muted-foreground max-w-[220px] truncate">{reg.adapterConnMessage}</div>
+        )}
+      </div>
+    );
+  };
+
   const getBatchStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
       COMPLETED: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
@@ -287,6 +336,7 @@ export default function AttendanceGateway() {
                 <TableHead>{t('Adapter', 'المحول')}</TableHead>
                 <TableHead>{t('Status', 'الحالة')}</TableHead>
                 <TableHead>{t('Health', 'الصحة')}</TableHead>
+                <TableHead>{t('Connection', 'الاتصال')}</TableHead>
                 <TableHead>{t('Clock Drift', 'انحراف الساعة')}</TableHead>
                 <TableHead>{t('Created', 'تم الإنشاء')}</TableHead>
                 <TableHead className="text-center">{t('Actions', 'إجراءات')}</TableHead>
@@ -300,6 +350,7 @@ export default function AttendanceGateway() {
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-20 mx-auto" /></TableCell>
@@ -307,7 +358,7 @@ export default function AttendanceGateway() {
                 ))
               ) : !registrations || registrations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                     <Server className="w-8 h-8 mx-auto mb-3 opacity-20" />
                     {t('No gateway registrations found.', 'لا توجد تسجيلات بوابات.')}
                   </TableCell>
@@ -343,6 +394,9 @@ export default function AttendanceGateway() {
                         {getHealthIcon(reg)}
                         <span className="text-sm">{getHealthText(reg)}</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {getConnectionBadge(reg)}
                     </TableCell>
                     <TableCell>
                       {reg.driftAlert ? (

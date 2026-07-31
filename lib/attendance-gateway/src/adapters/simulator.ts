@@ -15,7 +15,7 @@ export class SimulatorAdapter implements DeviceAdapter {
   ) {}
 
   async testConnection(): Promise<AdapterTestResult> {
-    return { ok: true, message: "Simulator ready", deviceTimeMs: this.now().getTime() };
+    return { ok: true, status: "REACHABLE", message: "Simulator ready", deviceTimeMs: this.now().getTime() };
   }
 
   async poll(_sinceCursor: string | null): Promise<{ punches: GatewayPunch[]; nextCursor: string | null }> {

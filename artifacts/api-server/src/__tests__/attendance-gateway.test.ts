@@ -39,6 +39,7 @@ import { GatewayService } from "../../../../lib/attendance-gateway/src/service.j
 import { deriveSigningKey } from "../../../../lib/attendance-gateway/src/signing.js";
 import { SimulatorAdapter } from "../../../../lib/attendance-gateway/src/adapters/simulator.js";
 import { ZktecoAdapter } from "../../../../lib/attendance-gateway/src/adapters/vendorStubs.js";
+import { GenericRestAdapter } from "../../../../lib/attendance-gateway/src/adapters/genericRest.js";
 import { parseCsvPunches } from "../../../../lib/attendance-gateway/src/adapters/csv.js";
 
 const sha256 = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
@@ -172,6 +173,40 @@ describe("heartbeat + clock drift", () => {
     const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
     expect(reg.driftAlert).toBe(true);
     expect(Math.abs((reg.clockDriftMs ?? 0) - 5 * 60 * 1000)).toBeLessThan(10_000);
+  });
+
+  it("persists a structured adapter connection-test result", async () => {
+    const res = await postSigned("/api/gateway/heartbeat", {
+      deviceTimeMs: Date.now(),
+      adapterStatus: "ZKBioTime authentication failed: 401",
+      connectionTest: { ok: false, status: "AUTH_FAILED", message: "ZKBioTime authentication failed: 401" },
+    });
+    expect(res.status).toBe(200);
+    const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(reg.adapterConnStatus).toBe("AUTH_FAILED");
+    expect(reg.adapterConnMessage).toContain("authentication failed");
+    expect(reg.adapterConnTestedAt).toBeTruthy();
+  });
+
+  it("falls back to ok flag when the status value is unknown, and ignores garbage statuses", async () => {
+    const res = await postSigned("/api/gateway/heartbeat", {
+      deviceTimeMs: Date.now(),
+      connectionTest: { ok: true, status: "WEIRD_VALUE", message: "middleware reachable" },
+    });
+    expect(res.status).toBe(200);
+    const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(reg.adapterConnStatus).toBe("REACHABLE");
+    expect(reg.adapterConnMessage).toBe("middleware reachable");
+  });
+
+  it("exposes connection health through the admin registrations listing", async () => {
+    const res = await admin.get("/api/gateway/registrations");
+    expect(res.status).toBe(200);
+    const mine = (res.body as Array<Record<string, unknown>>).find((r) => r.id === registrationId);
+    expect(mine).toBeTruthy();
+    expect(mine!.adapterConnStatus).toBe("REACHABLE");
+    expect(mine!.adapterConnTestedAt).toBeTruthy();
+    expect(mine!.secretHash).toBeUndefined();
   });
 });
 
@@ -346,6 +381,51 @@ describe("offline operation and reconnect synchronization (gateway pipeline)", (
     createdBatchIds.push(b.id);
     await db.delete(punchEventsTable).where(eq(punchEventsTable.importBatchId, b.id));
     await db.delete(attendanceRecordsTable).where(eq(attendanceRecordsTable.date, "2030-06-11"));
+  });
+});
+
+describe("gateway loop reports connection health even when polling fails", () => {
+  async function tickWith(adapter: import("../../../../lib/attendance-gateway/src/types.js").DeviceAdapter) {
+    const dir = path.join(os.tmpdir(), `gw-tick-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const queue = new EncryptedQueue(dir, "tick-test-key");
+    await queue.init();
+    const hr = new HrClient({ hrApiUrl: "/api", gatewayId: registrationId, signingKey, fetchImpl: supertestFetch() });
+    const service = new GatewayService(queue, hr, adapter);
+    const outcome = await service.tick();
+    const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    return { outcome, reg };
+  }
+
+  it("unconfigured ZKTeco adapter: poll throws, heartbeat still persists NOT_CONFIGURED", async () => {
+    const { outcome, reg } = await tickWith(new ZktecoAdapter());
+    expect(outcome.pollError).toMatch(/vendor SDK/i);
+    expect(outcome.heartbeatError).toBeNull();
+    expect(reg.adapterConnStatus).toBe("NOT_CONFIGURED");
+    expect(reg.adapterConnTestedAt).toBeTruthy();
+  });
+
+  it("middleware rejecting credentials: heartbeat persists AUTH_FAILED", async () => {
+    const deny401: typeof fetch = (async () => ({ ok: false, status: 401, json: async () => ({}) })) as unknown as typeof fetch;
+    const { outcome, reg } = await tickWith(new GenericRestAdapter("http://device.local", "bad-key", deny401));
+    expect(outcome.pollError).toBeTruthy(); // poll fails against the 401 device
+    expect(outcome.heartbeatError).toBeNull();
+    expect(reg.adapterConnStatus).toBe("AUTH_FAILED");
+  });
+
+  it("dead middleware: heartbeat persists UNREACHABLE", async () => {
+    const dead: typeof fetch = (async () => { throw new Error("connect ECONNREFUSED"); }) as unknown as typeof fetch;
+    const { outcome, reg } = await tickWith(new GenericRestAdapter("http://device.local", undefined, dead));
+    expect(outcome.pollError).toBeTruthy();
+    expect(outcome.heartbeatError).toBeNull();
+    expect(reg.adapterConnStatus).toBe("UNREACHABLE");
+    expect(reg.adapterConnMessage).toContain("ECONNREFUSED");
+  });
+
+  it("healthy adapter: heartbeat persists REACHABLE again", async () => {
+    const { outcome, reg } = await tickWith(new SimulatorAdapter([])); // no punches queued
+    expect(outcome.pollError).toBeNull();
+    expect(outcome.heartbeatError).toBeNull();
+    expect(reg.adapterConnStatus).toBe("REACHABLE");
   });
 });
 

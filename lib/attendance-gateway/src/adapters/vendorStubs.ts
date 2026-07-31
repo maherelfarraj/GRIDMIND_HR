@@ -192,15 +192,24 @@ export class ZktecoAdapter implements DeviceAdapter {
 
   async testConnection(): Promise<AdapterTestResult> {
     if (!this.config) {
-      return { ok: false, requiresVendorSdk: true, message: this.notConfiguredMessage() };
+      return { ok: false, status: "NOT_CONFIGURED", requiresVendorSdk: true, message: this.notConfiguredMessage() };
     }
     try {
       const res = await this.authedGet(`${this.config.baseUrl}/iclock/api/transactions/?page_size=1`);
       return res.ok
-        ? { ok: true, message: `ZKBioTime middleware reachable (${res.status})`, deviceTimeMs: Date.now() }
-        : { ok: false, message: `ZKBioTime transactions endpoint returned ${res.status}` };
+        ? { ok: true, status: "REACHABLE", message: `ZKBioTime middleware reachable (${res.status})`, deviceTimeMs: Date.now() }
+        : {
+            ok: false,
+            status: res.status === 401 || res.status === 403 ? "AUTH_FAILED" : "UNREACHABLE",
+            message: `ZKBioTime transactions endpoint returned ${res.status}`,
+          };
     } catch (e) {
-      return { ok: false, message: `ZKBioTime middleware unreachable: ${errMsg(e)}` };
+      const msg = errMsg(e);
+      return {
+        ok: false,
+        status: /auth/i.test(msg) ? "AUTH_FAILED" : "UNREACHABLE",
+        message: /auth/i.test(msg) ? `ZKBioTime authentication failed: ${msg}` : `ZKBioTime middleware unreachable: ${msg}`,
+      };
     }
   }
 
@@ -352,13 +361,18 @@ export class SupremaAdapter implements DeviceAdapter {
 
   async testConnection(): Promise<AdapterTestResult> {
     if (!this.config) {
-      return { ok: false, requiresVendorSdk: true, message: this.notConfiguredMessage() };
+      return { ok: false, status: "NOT_CONFIGURED", requiresVendorSdk: true, message: this.notConfiguredMessage() };
     }
     try {
       await this.searchEvents(null, 1);
-      return { ok: true, message: "BioStar 2 server reachable", deviceTimeMs: Date.now() };
+      return { ok: true, status: "REACHABLE", message: "BioStar 2 server reachable", deviceTimeMs: Date.now() };
     } catch (e) {
-      return { ok: false, message: `BioStar 2 server unreachable: ${errMsg(e)}` };
+      const msg = errMsg(e);
+      return {
+        ok: false,
+        status: /auth|401|403/i.test(msg) ? "AUTH_FAILED" : "UNREACHABLE",
+        message: /auth|401|403/i.test(msg) ? `BioStar 2 authentication failed: ${msg}` : `BioStar 2 server unreachable: ${msg}`,
+      };
     }
   }
 

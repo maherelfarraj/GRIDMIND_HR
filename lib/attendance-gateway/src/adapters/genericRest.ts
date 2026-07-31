@@ -46,10 +46,14 @@ export class GenericRestAdapter implements DeviceAdapter {
     try {
       const res = await this.fetchImpl(`${this.baseUrl}/health`, { headers: this.headers() });
       return res.ok
-        ? { ok: true, message: `Device reachable (${res.status})`, deviceTimeMs: Date.now() }
-        : { ok: false, message: `Device health returned ${res.status}` };
+        ? { ok: true, status: "REACHABLE", message: `Device reachable (${res.status})`, deviceTimeMs: Date.now() }
+        : {
+            ok: false,
+            status: res.status === 401 || res.status === 403 ? "AUTH_FAILED" : "UNREACHABLE",
+            message: `Device health returned ${res.status}`,
+          };
     } catch (e) {
-      return { ok: false, message: `Device unreachable: ${e instanceof Error ? e.message : String(e)}` };
+      return { ok: false, status: "UNREACHABLE", message: `Device unreachable: ${e instanceof Error ? e.message : String(e)}` };
     }
   }
 

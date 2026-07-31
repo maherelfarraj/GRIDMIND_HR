@@ -32,6 +32,11 @@ export const gatewayRegistrationsTable = pgTable("gateway_registrations", {
   lastHeartbeatAt: timestamp("last_heartbeat_at"),
   clockDriftMs: bigint("clock_drift_ms", { mode: "number" }), // last measured gateway↔server drift
   driftAlert: boolean("drift_alert").notNull().default(false), // drift beyond tolerance
+  // Last adapter→middleware connection test reported via heartbeat.
+  // REACHABLE | AUTH_FAILED | UNREACHABLE | NOT_CONFIGURED
+  adapterConnStatus: varchar("adapter_conn_status", { length: 20 }),
+  adapterConnMessage: text("adapter_conn_message"),
+  adapterConnTestedAt: timestamp("adapter_conn_tested_at"),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

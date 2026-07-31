@@ -14,7 +14,7 @@ class StepAdapter implements DeviceAdapter {
   pollCalls: Array<string | null> = [];
   constructor(private readonly punches: GatewayPunch[]) {}
   async testConnection() {
-    return { ok: true, message: "ok" };
+    return { ok: true, status: "REACHABLE" as const, message: "ok" };
   }
   async poll(sinceCursor: string | null) {
     this.pollCalls.push(sinceCursor);

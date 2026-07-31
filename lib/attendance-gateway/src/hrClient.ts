@@ -1,5 +1,5 @@
 import { buildSignedHeaders } from "./signing.js";
-import type { GatewayPunch } from "./types.js";
+import type { AdapterTestResult, GatewayPunch } from "./types.js";
 
 /**
  * Signed HTTP client for the HR core. All requests carry HMAC headers; the
@@ -30,10 +30,15 @@ export class HrClient {
     return { status: res.status, body: (await res.json().catch(() => ({}))) as T };
   }
 
-  async heartbeat(adapterStatus?: string) {
+  async heartbeat(connectionTest?: AdapterTestResult | string) {
+    const structured = typeof connectionTest === "object" && connectionTest !== null ? connectionTest : undefined;
     return this.post<{ ok: boolean; clockDriftMs: number | null; driftAlert: boolean }>("/gateway/heartbeat", {
       deviceTimeMs: Date.now(),
-      adapterStatus,
+      // Legacy free-text field kept for older HR cores.
+      adapterStatus: structured ? structured.message : connectionTest,
+      connectionTest: structured
+        ? { ok: structured.ok, status: structured.status, message: structured.message }
+        : undefined,
     });
   }
 

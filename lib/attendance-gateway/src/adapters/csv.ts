@@ -73,7 +73,7 @@ export class CsvAdapter implements DeviceAdapter {
   }
 
   async testConnection(): Promise<AdapterTestResult> {
-    return { ok: true, message: "CSV adapter ready (offline import)" };
+    return { ok: true, status: "REACHABLE", message: "CSV adapter ready (offline import)" };
   }
 
   async poll(_sinceCursor: string | null): Promise<{ punches: GatewayPunch[]; nextCursor: string | null }> {

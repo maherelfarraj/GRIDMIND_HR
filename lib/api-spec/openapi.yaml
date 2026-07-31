@@ -9380,6 +9380,11 @@ components:
         lastHeartbeatAt: { type: ["string", "null"] }
         clockDriftMs: { type: ["number", "null"] }
         driftAlert: { type: boolean }
+        adapterConnStatus:
+          type: ["string", "null"]
+          enum: [REACHABLE, AUTH_FAILED, UNREACHABLE, NOT_CONFIGURED, null]
+        adapterConnMessage: { type: ["string", "null"] }
+        adapterConnTestedAt: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         createdAt: { type: string }
         updatedAt: { type: string }

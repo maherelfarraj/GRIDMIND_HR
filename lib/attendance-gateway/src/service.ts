@@ -91,6 +91,32 @@ export class GatewayService {
     return { queued: punches.length, batchUuid };
   }
 
+  /**
+   * One scheduler tick: poll + flush, then ALWAYS report connection health.
+   * The heartbeat is decoupled from poll/flush failures on purpose — an
+   * unreachable / misconfigured / auth-failing adapter makes pollOnce() throw,
+   * and that is exactly when the HR core most needs the structured
+   * testConnection() result (UNREACHABLE / AUTH_FAILED / NOT_CONFIGURED).
+   */
+  async tick(): Promise<{ pollError: string | null; heartbeatError: string | null }> {
+    let pollError: string | null = null;
+    try {
+      await this.pollOnce();
+      await this.flush();
+    } catch (e) {
+      pollError = e instanceof Error ? e.message : String(e);
+      this.lastError = pollError;
+    }
+    let heartbeatError: string | null = null;
+    try {
+      await this.hr.heartbeat(await this.adapter.testConnection());
+    } catch (e) {
+      heartbeatError = e instanceof Error ? e.message : String(e);
+      this.lastError = heartbeatError;
+    }
+    return { pollError, heartbeatError };
+  }
+
   /** Queue an ad-hoc batch (e.g. parsed from a CSV upload). */
   async enqueuePunches(punches: GatewayPunch[]): Promise<string> {
     const batchUuid = randomUUID();
