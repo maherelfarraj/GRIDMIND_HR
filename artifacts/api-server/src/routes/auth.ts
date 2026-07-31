@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db, systemUsersTable, rolesTable, auditLogsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, systemUsersTable, rolesTable, auditLogsTable, notificationsTable } from "@workspace/db";
+import { and, eq, ilike } from "drizzle-orm";
 import {
   ChangeMyPasswordBody,
   getPasswordIssues,
@@ -13,6 +13,35 @@ import { isLockedOut, recordFailure, recordSuccess, LOCKOUT_MS } from "../lib/lo
 const router = Router();
 
 const PILOT_AUTH = process.env.PILOT_AUTH === "true";
+
+// Notify all active admins the moment a lockout fires so they can react to
+// an active brute-force attempt in real time. Best-effort: failures are
+// logged and never block the auth response path.
+async function notifyAdminsOfLockout(username: string, ip: string, scope: string): Promise<void> {
+  try {
+    const admins = await db
+      .select({ id: systemUsersTable.id })
+      .from(systemUsersTable)
+      .innerJoin(rolesTable, eq(systemUsersTable.roleId, rolesTable.id))
+      .where(and(eq(systemUsersTable.isActive, true), ilike(rolesTable.nameEn, "%admin%")));
+    if (admins.length === 0) return;
+    await db.insert(notificationsTable).values(admins.map(({ id }) => ({
+      recipientUserId: id,
+      notificationType: "security_alert",
+      titleEn: `Account lockout: ${username}`,
+      titleAr: `قفل الحساب: ${username}`,
+      bodyEn: `Repeated failed login attempts triggered a temporary lockout (scope: ${scope}) for account "${username}" from IP ${ip}. Review the audit trail and consider resetting the password or disabling the account.`,
+      bodyAr: `أدت محاولات تسجيل الدخول الفاشلة المتكررة إلى قفل مؤقت (النطاق: ${scope}) للحساب "${username}" من عنوان IP ‏${ip}. راجع سجل التدقيق وفكر في إعادة تعيين كلمة المرور أو تعطيل الحساب.`,
+      severity: "urgent",
+      actionUrl: "/audit",
+      actionLabelEn: "View audit trail",
+      entityType: "auth",
+      requiresAction: true,
+    })));
+  } catch (err) {
+    console.error("Failed to create lockout notifications:", err);
+  }
+}
 
 function userResponse(user: typeof systemUsersTable.$inferSelect) {
   return {
@@ -68,6 +97,8 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       ipAddress: ip,
       userAgent,
     }];
+    const lockScope = accountLockedNow && ipLockedNow ? "account+ip"
+      : accountLockedNow ? "account" : "ip";
     if (accountLockedNow || ipLockedNow) {
       entries.push({
         action: "login.lockout",
@@ -77,8 +108,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
         ipAddress: ip,
         userAgent,
         changesJson: JSON.stringify({
-          scope: accountLockedNow && ipLockedNow ? "account+ip"
-            : accountLockedNow ? "account" : "ip",
+          scope: lockScope,
           lockoutMs: LOCKOUT_MS,
         }),
       });
@@ -88,6 +118,9 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     } catch (err) {
       // Auditing must not block the auth response path.
       console.error("Failed to write login audit entry:", err);
+    }
+    if (accountLockedNow || ipLockedNow) {
+      await notifyAdminsOfLockout(username, ip, lockScope);
     }
     res.status(401).json({ error: "Invalid credentials" });
   };
