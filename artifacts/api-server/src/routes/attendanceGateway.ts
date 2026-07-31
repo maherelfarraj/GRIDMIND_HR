@@ -11,6 +11,7 @@ import {
 } from "@workspace/db";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { materializePunch } from "../lib/attendanceMaterializer.js";
+import { processGatewayWarningTransitions } from "../lib/gatewayDeviceAlerts.js";
 import {
   protectSigningKey,
   recoverSigningKey,
@@ -203,6 +204,15 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
         : {}),
     })
     .where(eq(gatewayRegistrationsTable.id, reg.id));
+  // Notify HR admins exactly once when this heartbeat transitions the
+  // registration into a warning state (SDK missing / skew over limit), and
+  // auto-resolve open alerts on recovery. `reg` is the pre-heartbeat row.
+  await processGatewayWarningTransitions(reg, {
+    sdkPresent: typeof sdkPresent === "boolean" ? sdkPresent : undefined,
+    deviceClockSkewAlert:
+      deviceSkewAlert !== undefined ? deviceSkewAlert : deviceClockSkewMs === null ? false : undefined,
+    deviceClockSkewMs: deviceSkewMs ?? null,
+  });
   res.json({
     ok: true,
     serverTimeMs: Date.now(),
