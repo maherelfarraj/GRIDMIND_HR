@@ -1,5 +1,5 @@
 import { buildSignedHeaders } from "./signing.js";
-import type { AdapterTestResult, GatewayPunch } from "./types.js";
+import type { AdapterSdkInfo, AdapterTestResult, GatewayPunch } from "./types.js";
 
 /**
  * Signed HTTP client for the HR core. All requests carry HMAC headers; the
@@ -30,7 +30,10 @@ export class HrClient {
     return { status: res.status, body: (await res.json().catch(() => ({}))) as T };
   }
 
-  async heartbeat(connectionTest?: AdapterTestResult | string) {
+  async heartbeat(
+    connectionTest?: AdapterTestResult | string,
+    health?: { sdk?: AdapterSdkInfo; deviceClockSkewMs?: number | null },
+  ) {
     const structured = typeof connectionTest === "object" && connectionTest !== null ? connectionTest : undefined;
     return this.post<{ ok: boolean; clockDriftMs: number | null; driftAlert: boolean }>("/gateway/heartbeat", {
       deviceTimeMs: Date.now(),
@@ -46,6 +49,10 @@ export class HrClient {
             clockSkewMs: structured.clockSkewMs,
           }
         : undefined,
+      // SDK presence/version and device↔gateway clock skew, so HR admins can
+      // spot a missing vendor SDK or a drifting device clock remotely.
+      ...(health?.sdk ? { sdkPresent: health.sdk.present, sdkVersion: health.sdk.version } : {}),
+      ...(health && health.deviceClockSkewMs !== undefined ? { deviceClockSkewMs: health.deviceClockSkewMs } : {}),
     });
   }
 

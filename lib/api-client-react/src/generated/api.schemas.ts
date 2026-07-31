@@ -69,6 +69,10 @@ export interface GatewayRegistration {
   deviceClockSkewMs?: number | null;
   deviceClockSkewAlert?: boolean;
   /** @nullable */
+  sdkPresent?: boolean | null;
+  /** @nullable */
+  sdkVersion?: string | null;
+  /** @nullable */
   notes?: string | null;
   createdAt?: string;
   updatedAt?: string;

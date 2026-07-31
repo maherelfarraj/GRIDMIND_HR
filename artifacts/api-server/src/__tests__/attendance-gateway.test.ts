@@ -249,6 +249,35 @@ describe("heartbeat + clock drift", () => {
     expect(mine!.deviceClockSkewAlert).toBe(false);
   });
 
+  it("persists SDK presence/version and device clock skew from the heartbeat", async () => {
+    const res = await postSigned("/api/gateway/heartbeat", {
+      deviceTimeMs: Date.now(),
+      connectionTest: { ok: true, status: "REACHABLE", message: "ok" },
+      sdkPresent: false,
+      sdkVersion: null,
+      deviceClockSkewMs: 95_000, // device clock ~95s ahead of the gateway
+    });
+    expect(res.status).toBe(200);
+    const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(reg.sdkPresent).toBe(false);
+    expect(reg.sdkVersion).toBeNull();
+    expect(reg.deviceClockSkewMs).toBe(95_000);
+  });
+
+  it("updates SDK fields on later heartbeats and ignores non-finite skew values", async () => {
+    const res = await postSigned("/api/gateway/heartbeat", {
+      deviceTimeMs: Date.now(),
+      sdkPresent: true,
+      sdkVersion: "2.9.1",
+      deviceClockSkewMs: "not-a-number",
+    });
+    expect(res.status).toBe(200);
+    const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(reg.sdkPresent).toBe(true);
+    expect(reg.sdkVersion).toBe("2.9.1");
+    expect(reg.deviceClockSkewMs).toBe(95_000); // garbage skew value left the last good one intact
+  });
+
   it("exposes connection health through the admin registrations listing", async () => {
     const res = await admin.get("/api/gateway/registrations");
     expect(res.status).toBe(200);
@@ -257,6 +286,10 @@ describe("heartbeat + clock drift", () => {
     expect(mine!.adapterConnStatus).toBe("REACHABLE");
     expect(mine!.adapterConnTestedAt).toBeTruthy();
     expect(mine!.secretHash).toBeUndefined();
+    // SDK + device clock skew fields flow through to the HR admin screen.
+    expect(mine!.sdkPresent).toBe(true);
+    expect(mine!.sdkVersion).toBe("2.9.1");
+    expect(mine!.deviceClockSkewMs).toBe(95_000);
   });
 });
 
@@ -594,6 +627,43 @@ describe("gateway loop reports connection health even when polling fails", () =>
     expect(outcome.pollError).toBeNull();
     expect(outcome.heartbeatError).toBeNull();
     expect(reg.adapterConnStatus).toBe("REACHABLE");
+  });
+
+  it("end to end: tick() forwards SDK info and a skewed device clock to the HR core", async () => {
+    const skewedAdapter: import("../../../../lib/attendance-gateway/src/types.js").DeviceAdapter = {
+      type: "ZKTECO_NATIVE",
+      sdkInfo: () => ({ present: true, version: "3.1.0" }),
+      testConnection: async () => ({
+        ok: true,
+        status: "REACHABLE",
+        message: "device reachable",
+        deviceTimeMs: Date.now() + 120_000, // device clock 2 minutes ahead
+      }),
+      poll: async () => ({ punches: [], nextCursor: null }),
+    };
+    const { outcome, reg } = await tickWith(skewedAdapter);
+    expect(outcome.heartbeatError).toBeNull();
+    expect(reg.sdkPresent).toBe(true);
+    expect(reg.sdkVersion).toBe("3.1.0");
+    expect(reg.deviceClockSkewMs).not.toBeNull();
+    expect(Math.abs((reg.deviceClockSkewMs ?? 0) - 120_000)).toBeLessThan(10_000);
+  });
+
+  it("end to end: tick() reports a missing vendor SDK inferred from the connection test", async () => {
+    const noSdkAdapter: import("../../../../lib/attendance-gateway/src/types.js").DeviceAdapter = {
+      type: "SUPREMA_NATIVE",
+      testConnection: async () => ({
+        ok: false,
+        status: "NOT_CONFIGURED",
+        message: "vendor SDK not installed",
+        requiresVendorSdk: true,
+      }),
+      poll: async () => { throw new Error("vendor SDK not installed"); },
+    };
+    const { outcome, reg } = await tickWith(noSdkAdapter);
+    expect(outcome.heartbeatError).toBeNull();
+    expect(reg.sdkPresent).toBe(false);
+    expect(reg.deviceClockSkewMs).toBeNull(); // no deviceTimeMs → skew unknown, not fabricated
   });
 });
 

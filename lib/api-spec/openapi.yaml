@@ -9396,6 +9396,8 @@ components:
         adapterConnTestedAt: { type: [ "string", "null" ] }
         deviceClockSkewMs: { type: [ "number", "null" ] }
         deviceClockSkewAlert: { type: boolean }
+        sdkPresent: { type: [ "boolean", "null" ] }
+        sdkVersion: { type: [ "string", "null" ] }
         notes: { type: [ "string", "null" ] }
         createdAt: { type: string }
         updatedAt: { type: string }

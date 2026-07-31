@@ -43,6 +43,10 @@ export const gatewayRegistrationsTable = pgTable("gateway_registrations", {
   adapterConnStatus: varchar("adapter_conn_status", { length: 20 }),
   adapterConnMessage: text("adapter_conn_message"),
   adapterConnTestedAt: timestamp("adapter_conn_tested_at"),
+  // Vendor SDK availability reported via heartbeat (null until a gateway
+  // new enough to report them checks in).
+  sdkPresent: boolean("sdk_present"),
+  sdkVersion: varchar("sdk_version", { length: 60 }),
   // Device↔gateway clock skew measured by the gateway at testConnection()
   // time (distinct from clockDriftMs = gateway↔server drift). A skewed
   // device clock silently mis-stamps every punch, so it gets its own alert.

@@ -34,6 +34,8 @@ interface GatewayRegistration {
   adapterConnStatus: 'REACHABLE' | 'AUTH_FAILED' | 'UNREACHABLE' | 'NOT_CONFIGURED' | null;
   adapterConnMessage: string | null;
   adapterConnTestedAt: string | null;
+  sdkPresent: boolean | null;
+  sdkVersion: string | null;
   notes: string | null;
   createdAt: string;
 }
@@ -276,6 +278,52 @@ export default function AttendanceGateway() {
     );
   };
 
+  const DEVICE_CLOCK_SKEW_WARN_MS = 60_000;
+
+  const getSdkAndClockCell = (reg: GatewayRegistration) => {
+    const skewWarning =
+      reg.deviceClockSkewAlert ||
+      (reg.deviceClockSkewMs != null && Math.abs(reg.deviceClockSkewMs) > DEVICE_CLOCK_SKEW_WARN_MS);
+    return (
+      <div className="space-y-1">
+        {reg.sdkPresent == null ? (
+          <span className="text-xs text-muted-foreground">{t('SDK: not reported', 'SDK: غير مُبلغ')}</span>
+        ) : reg.sdkPresent ? (
+          <Badge variant="outline" className="text-xs gap-1 bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+            <CheckCircle className="w-3 h-3" />
+            {t('SDK', 'SDK')} {reg.sdkVersion ? `v${reg.sdkVersion}` : t('present', 'موجود')}
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-xs gap-1 bg-amber-500/10 text-amber-500 border-amber-500/20">
+            <AlertTriangle className="w-3 h-3" />
+            {t('SDK missing', 'SDK مفقود')}
+          </Badge>
+        )}
+        {skewWarning ? (
+          <div
+            className="flex items-center gap-1 text-rose-500"
+            title={t(
+              'Device clock skew exceeds 60s — fix the device clock before go-live.',
+              'انحراف ساعة الجهاز يتجاوز 60 ثانية — اضبط ساعة الجهاز قبل الإطلاق.'
+            )}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            <span className="text-xs font-semibold">
+              {t(
+                `Device clock off by ${Math.round(Math.abs(reg.deviceClockSkewMs!) / 1000)}s`,
+                `ساعة الجهاز منحرفة بمقدار ${Math.round(Math.abs(reg.deviceClockSkewMs!) / 1000)} ثانية`
+              )}
+            </span>
+          </div>
+        ) : reg.deviceClockSkewMs != null ? (
+          <div className="text-[11px] text-muted-foreground">
+            {t(`Device clock skew: ${Math.abs(reg.deviceClockSkewMs)}ms`, `انحراف ساعة الجهاز: ${Math.abs(reg.deviceClockSkewMs)} م.ث`)}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   const getBatchStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
       COMPLETED: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
@@ -397,7 +445,7 @@ export default function AttendanceGateway() {
                 <TableHead>{t('Health', 'الصحة')}</TableHead>
                 <TableHead>{t('Connection', 'الاتصال')}</TableHead>
                 <TableHead>{t('Clock Drift', 'انحراف الساعة')}</TableHead>
-                <TableHead>{t('Device Clock', 'ساعة الجهاز')}</TableHead>
+                <TableHead>{t('SDK / Device Clock', 'SDK / ساعة الجهاز')}</TableHead>
                 <TableHead>{t('Created', 'تم الإنشاء')}</TableHead>
                 <TableHead className="text-center">{t('Actions', 'إجراءات')}</TableHead>
               </TableRow>
@@ -412,7 +460,7 @@ export default function AttendanceGateway() {
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-20 mx-auto" /></TableCell>
                   </TableRow>
@@ -474,21 +522,7 @@ export default function AttendanceGateway() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {reg.deviceClockSkewAlert ? (
-                        <div
-                          className="flex items-center gap-1 text-rose-500"
-                          title={t('Device clock skew exceeds 60s — fix the device clock', 'انحراف ساعة الجهاز يتجاوز 60 ثانية — يجب ضبط ساعة الجهاز')}
-                        >
-                          <AlertTriangle className="w-3 h-3" />
-                          <span className="text-xs font-semibold">
-                            {reg.deviceClockSkewMs != null ? `${Math.round(reg.deviceClockSkewMs / 1000)}s` : '-'}
-                          </span>
-                        </div>
-                      ) : reg.deviceClockSkewMs != null ? (
-                        <span className="text-xs text-muted-foreground">{(reg.deviceClockSkewMs / 1000).toFixed(1)}s</span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
+                      {getSdkAndClockCell(reg)}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDateTime(reg.createdAt)}

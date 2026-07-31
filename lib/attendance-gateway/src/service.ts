@@ -28,8 +28,10 @@ export class GatewayService {
   readonly baseBackoffMs: number;
 
   readonly maxBackoffMs: number;
+
   /** Skew above this logs a structured warning + flags the heartbeat (default 60s). */
   readonly clockSkewWarnMs: number;
+
   /** Skew above this hard limit blocks poll() entirely (default 5 min). */
   readonly clockSkewMaxMs: number;
 
@@ -61,8 +63,10 @@ export class GatewayService {
   lastFlushAt: Date | null = null;
 
   lastError: string | null = null;
+
   /** Last measured device clock skew (ms); null when unknown/not measured. */
   lastClockSkewMs: number | null = null;
+
   /** Non-null while polling is blocked because skew exceeds the hard limit. */
   private clockSkewBlockReason: string | null = null;
 
@@ -151,7 +155,11 @@ export class GatewayService {
 
     let heartbeatError: string | null = null;
     try {
-      await this.hr.heartbeat(heartbeatTest ?? await this.adapter.testConnection());
+      const t = heartbeatTest ?? await this.adapter.testConnection();
+      await this.hr.heartbeat(t, {
+        sdk: this.resolveSdkInfo(t),
+        deviceClockSkewMs: GatewayService.computeClockSkewMs(t),
+      });
     } catch (e) {
       heartbeatError = e instanceof Error ? e.message : String(e);
       this.lastError = heartbeatError;
@@ -160,13 +168,8 @@ export class GatewayService {
   }
 
   /**
-   * Device clock-skew enforcement (runbook validation checklist item 1, made
-   * continuous): devices report local time with no auto time-sync, so a
-   * drifting device clock silently skews every punch timestamp.
-   *
-   *   skew > clockSkewWarnMs → structured warning log + flagged heartbeat
-   *   skew > clockSkewMaxMs  → poll() blocked until the device clock is fixed
-   *
+   * Enforce the device clock-skew policy on a fresh testConnection() result:
+   * warn past the soft threshold, block polling past the hard limit.
    * Returns the (possibly annotated) test result to send as the heartbeat.
    */
   private evaluateClockSkew(test: AdapterTestResult): AdapterTestResult {
@@ -277,12 +280,9 @@ export class GatewayService {
       else pendingCount++;
     }
     const test = await this.adapter.testConnection();
-    // sdk_present: adapters expose sdkInfo() when they load a native vendor
-    // SDK; otherwise infer from the connection test (an adapter that flags
-    // requiresVendorSdk on failure is telling us the SDK layer is missing).
-    const sdk = this.adapter.sdkInfo?.() ?? { present: !(test.requiresVendorSdk ?? false), version: null };
+    const sdk = this.resolveSdkInfo(test);
     const deviceTimeMs = test.deviceTimeMs ?? null;
-    const clockSkewMs = deviceTimeMs === null ? null : deviceTimeMs - Date.now();
+    const clockSkewMs = GatewayService.computeClockSkewMs(test);
     const skewExceeded = clockSkewMs !== null && Math.abs(clockSkewMs) > GatewayService.CLOCK_SKEW_WARN_MS;
     return {
       adapterType: this.adapter.type,
@@ -353,5 +353,20 @@ export class GatewayService {
     delete batch.nextAttemptAtMs;
     await this.queue.enqueue(batch);
     return { batchUuid: batch.batchUuid, punchCount: batch.punches.length };
+  }
+
+  /**
+   * sdk_present: adapters expose sdkInfo() when they load a native vendor
+   * SDK; otherwise infer from the connection test (an adapter that flags
+   * requiresVendorSdk on failure is telling us the SDK layer is missing).
+   */
+  private resolveSdkInfo(test: { requiresVendorSdk?: boolean }): { present: boolean; version: string | null } {
+    return this.adapter.sdkInfo?.() ?? { present: !(test.requiresVendorSdk ?? false), version: null };
+  }
+
+  /** Device↔gateway clock skew from the connection test, or null when unknown. */
+  static computeClockSkewMs(test: { deviceTimeMs?: number | null }): number | null {
+    const deviceTimeMs = test.deviceTimeMs ?? null;
+    return deviceTimeMs === null ? null : deviceTimeMs - Date.now();
   }
 }

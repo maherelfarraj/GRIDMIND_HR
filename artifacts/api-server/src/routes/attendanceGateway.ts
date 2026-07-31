@@ -145,10 +145,13 @@ export const gatewayMachineRouter: ReturnType<typeof Router> = Router();
 // POST /gateway/heartbeat — device health ping
 gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (req: GatewayRequest, res): Promise<void> => {
   const reg = req.gatewayRegistration!;
-  const { deviceTimeMs, adapterStatus, connectionTest } = req.body as {
+  const { deviceTimeMs, adapterStatus, connectionTest, sdkPresent, sdkVersion, deviceClockSkewMs } = req.body as {
     deviceTimeMs?: number;
     adapterStatus?: string;
     connectionTest?: { ok?: boolean; status?: string; message?: string; clockSkewMs?: number };
+    sdkPresent?: boolean;
+    sdkVersion?: string | null;
+    deviceClockSkewMs?: number | null;
   };
   const drift = await recordDrift(reg, deviceTimeMs);
   const VALID_CONN_STATUSES = new Set(["REACHABLE", "AUTH_FAILED", "UNREACHABLE", "NOT_CONFIGURED"]);
@@ -163,11 +166,18 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
   // Device↔gateway clock skew measured by the gateway adapter (distinct from
   // clockDriftMs = gateway↔server drift). Only accept finite non-negative
   // values; absence means "not measured", so the stored value is untouched.
-  const rawSkew = connectionTest?.clockSkewMs;
-  const deviceSkewMs = typeof rawSkew === "number" && Number.isFinite(rawSkew) && rawSkew >= 0
-    ? Math.round(rawSkew)
+  // Prefer the explicit top-level field (newer gateways; may be negative =
+  // device behind the gateway); fall back to connectionTest.clockSkewMs
+  // (non-negative by contract).
+  const topSkew = typeof deviceClockSkewMs === "number" && Number.isFinite(deviceClockSkewMs)
+    ? deviceClockSkewMs
     : undefined;
-  const deviceSkewAlert = deviceSkewMs !== undefined ? deviceSkewMs > DEVICE_CLOCK_SKEW_ALERT_MS : undefined;
+  const rawSkew = connectionTest?.clockSkewMs;
+  const ctSkew = typeof rawSkew === "number" && Number.isFinite(rawSkew) && rawSkew >= 0
+    ? rawSkew
+    : undefined;
+  const deviceSkewMs = topSkew !== undefined ? Math.round(topSkew) : ctSkew !== undefined ? Math.round(ctSkew) : undefined;
+  const deviceSkewAlert = deviceSkewMs !== undefined ? Math.abs(deviceSkewMs) > DEVICE_CLOCK_SKEW_ALERT_MS : undefined;
   await db
     .update(gatewayRegistrationsTable)
     .set({
@@ -182,6 +192,14 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
         : {}),
       ...(deviceSkewMs !== undefined
         ? { deviceClockSkewMs: deviceSkewMs, deviceClockSkewAlert: deviceSkewAlert }
+        : deviceClockSkewMs === null
+          // Explicit null = "measured nothing" from a newer gateway — clear
+          // the stored skew instead of showing a stale warning forever.
+          ? { deviceClockSkewMs: null, deviceClockSkewAlert: false }
+          : {}),
+      // Vendor SDK availability reported by newer gateways.
+      ...(typeof sdkPresent === "boolean"
+        ? { sdkPresent, sdkVersion: typeof sdkVersion === "string" ? sdkVersion.slice(0, 60) : null }
         : {}),
     })
     .where(eq(gatewayRegistrationsTable.id, reg.id));
