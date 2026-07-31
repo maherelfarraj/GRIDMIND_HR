@@ -5,6 +5,92 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+export type GatewayRegistrationAdapterType = typeof GatewayRegistrationAdapterType[keyof typeof GatewayRegistrationAdapterType];
+
+
+export const GatewayRegistrationAdapterType = {
+  ZKTECO: 'ZKTECO',
+  SUPREMA: 'SUPREMA',
+  GENERIC_REST: 'GENERIC_REST',
+  CSV: 'CSV',
+  SIMULATOR: 'SIMULATOR',
+} as const;
+
+export type GatewayRegistrationStatus = typeof GatewayRegistrationStatus[keyof typeof GatewayRegistrationStatus];
+
+
+export const GatewayRegistrationStatus = {
+  ACTIVE: 'ACTIVE',
+  REVOKED: 'REVOKED',
+} as const;
+
+/**
+ * A registered local Attendance Gateway (secretHash is intentionally never exposed through the API).
+ */
+export interface GatewayRegistration {
+  id?: number;
+  name?: string;
+  /** @nullable */
+  nameAr?: string | null;
+  /** @nullable */
+  deviceId?: number | null;
+  adapterType?: GatewayRegistrationAdapterType;
+  status?: GatewayRegistrationStatus;
+  registeredByUserId?: number;
+  /** @nullable */
+  lastSeenAt?: string | null;
+  /** @nullable */
+  lastHeartbeatAt?: string | null;
+  /** @nullable */
+  clockDriftMs?: number | null;
+  driftAlert?: boolean;
+  /** @nullable */
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type PunchImportBatchSource = typeof PunchImportBatchSource[keyof typeof PunchImportBatchSource];
+
+
+export const PunchImportBatchSource = {
+  GATEWAY: 'GATEWAY',
+  CSV: 'CSV',
+  SIMULATOR: 'SIMULATOR',
+} as const;
+
+export type PunchImportBatchStatus = typeof PunchImportBatchStatus[keyof typeof PunchImportBatchStatus];
+
+
+export const PunchImportBatchStatus = {
+  COMPLETED: 'COMPLETED',
+  PARTIAL: 'PARTIAL',
+  FAILED: 'FAILED',
+} as const;
+
+export interface PunchImportBatch {
+  id?: number;
+  batchUuid?: string;
+  /** @nullable */
+  registrationId?: number | null;
+  source?: PunchImportBatchSource;
+  receivedAt?: string;
+  eventCount?: number;
+  insertedCount?: number;
+  duplicateCount?: number;
+  errorCount?: number;
+  unmappedCount?: number;
+  /** @nullable */
+  rawPayloadSha256?: string | null;
+  signatureValid?: boolean;
+  /** @nullable */
+  clockDriftMs?: number | null;
+  status?: PunchImportBatchStatus;
+  /** @nullable */
+  errorSummary?: string | null;
+  createdAt?: string;
+}
+
 export interface WorkforceSnapshot {
   id?: number;
   snapshotDate?: string;
@@ -830,6 +916,14 @@ export interface PunchEvent {
   source: string;
   isVerified: boolean;
   isMissing: boolean;
+  /** @nullable */
+  dedupeKey?: string | null;
+  /** @nullable */
+  importBatchId?: number | null;
+  /** @nullable */
+  deviceEventUid?: string | null;
+  /** @nullable */
+  rawPayloadSha256?: string | null;
   /** @nullable */
   notes?: string | null;
   createdAt: string;
@@ -4292,6 +4386,1098 @@ export interface AiPermission {
   /** @nullable */
   grantedByUserId?: number | null;
   grantedAt: string;
+}
+
+export interface DeviceEmployeeMapping {
+  id: number;
+  deviceId: number;
+  employeeId: number;
+  accessLevel: string;
+  enrolledAt: string;
+  enrolledByUserId: number;
+  isActive: boolean;
+  biometricType: string;
+  /** @nullable */
+  deviceUserId?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AttendanceCorrection {
+  id: number;
+  attendanceRecordId: number;
+  employeeId: number;
+  requestedByUserId: number;
+  /** @nullable */
+  reviewedByUserId?: number | null;
+  correctionType: string;
+  /** @nullable */
+  originalValue?: string | null;
+  requestedValue: string;
+  reason: string;
+  status: string;
+  /** @nullable */
+  reviewNote?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SetupWizardProgress {
+  id: number;
+  instanceId: string;
+  currentStep: string;
+  completedStepsJson: string;
+  isComplete: boolean;
+  /** @nullable */
+  completedAt?: string | null;
+  /** @nullable */
+  completedByUserId?: number | null;
+  answersJson: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DataImportJob {
+  id: number;
+  importType: string;
+  status: string;
+  /** @nullable */
+  originalFilename?: string | null;
+  fileFormat: string;
+  /** @nullable */
+  columnMappingJson?: string | null;
+  /** @nullable */
+  mappingTemplateName?: string | null;
+  totalRows: number;
+  validRows: number;
+  errorRows: number;
+  duplicateRows: number;
+  importedRows: number;
+  rolledBackRows: number;
+  previewConfirmed: boolean;
+  /** @nullable */
+  previewConfirmedAt?: string | null;
+  isRollbackable: boolean;
+  /** @nullable */
+  rolledBackAt?: string | null;
+  /** @nullable */
+  rolledBackByUserId?: number | null;
+  /** @nullable */
+  errorSummary?: string | null;
+  /** @nullable */
+  importedByUserId?: number | null;
+  /** @nullable */
+  startedAt?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  createdAt: string;
+}
+
+export interface DataImportRow {
+  id: number;
+  importJobId: number;
+  rowNumber: number;
+  status: string;
+  /** @nullable */
+  rawDataJson?: string | null;
+  /** @nullable */
+  mappedDataJson?: string | null;
+  /** @nullable */
+  errorsJson?: string | null;
+  /** @nullable */
+  createdEntityId?: number | null;
+  /** @nullable */
+  createdEntityType?: string | null;
+  isDuplicate: boolean;
+  /** @nullable */
+  duplicateOfId?: number | null;
+  createdAt: string;
+}
+
+export interface ImportMappingTemplate {
+  id: number;
+  name: string;
+  importType: string;
+  columnMappingJson: string;
+  /** @nullable */
+  createdByUserId?: number | null;
+  isDefault: boolean;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SystemHealthCheck {
+  id: number;
+  checkName: string;
+  checkCategory: string;
+  result: string;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  metricValue?: string | null;
+  /** @nullable */
+  metricUnit?: string | null;
+  /** @nullable */
+  thresholdWarn?: string | null;
+  /** @nullable */
+  thresholdFail?: string | null;
+  /** @nullable */
+  durationMs?: number | null;
+  isCritical: boolean;
+  /** @nullable */
+  runId?: string | null;
+  runAt: string;
+  /** @nullable */
+  triggeredByUserId?: number | null;
+}
+
+export interface EnvironmentReadinessCheck {
+  id: number;
+  checkName: string;
+  checkCategory: string;
+  result: string;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  remediationHint?: string | null;
+  isMandatory: boolean;
+  isOverridden: boolean;
+  /** @nullable */
+  overriddenByUserId?: number | null;
+  /** @nullable */
+  overrideReason?: string | null;
+  /** @nullable */
+  lastCheckedAt?: string | null;
+  createdAt: string;
+}
+
+export interface SoftwareUpdatePackage {
+  id: number;
+  version: string;
+  /** @nullable */
+  buildNumber?: string | null;
+  releaseChannel: string;
+  status: string;
+  /** @nullable */
+  packageFilename?: string | null;
+  /** @nullable */
+  fileSizeBytes?: number | null;
+  /** @nullable */
+  checksum?: string | null;
+  /** @nullable */
+  signatureValid?: boolean | null;
+  /** @nullable */
+  signatureVerifiedAt?: string | null;
+  /** @nullable */
+  manifestJson?: string | null;
+  /** @nullable */
+  releaseNotesEn?: string | null;
+  /** @nullable */
+  releaseNotesAr?: string | null;
+  /** @nullable */
+  installedAt?: string | null;
+  /** @nullable */
+  installedByUserId?: number | null;
+  /** @nullable */
+  rollbackPackageId?: number | null;
+  createdAt: string;
+}
+
+export interface DeploymentChecklistItem {
+  id: number;
+  category: string;
+  itemCode: string;
+  titleEn: string;
+  titleAr: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  status: string;
+  priority: string;
+  implementationLevel: string;
+  /** @nullable */
+  statusNotes?: string | null;
+  /** @nullable */
+  lastCheckedAt?: string | null;
+  /** @nullable */
+  checkedByUserId?: number | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PilotAccount {
+  id: number;
+  persona: string;
+  labelEn: string;
+  labelAr: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  systemUsername: string;
+  roleType: string;
+  /** @nullable */
+  permittedPathsJson?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface PilotScenario {
+  id: number;
+  scenarioCode: string;
+  titleEn: string;
+  titleAr: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  category: string;
+  applicableTo: string;
+  estimatedMinutes: number;
+  stepsJson: string;
+  /** @nullable */
+  targetPersonas?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface PilotScenarioProgress {
+  id: number;
+  scenarioId: number;
+  userId: number;
+  status: string;
+  currentStep: number;
+  /** @nullable */
+  startedAt?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  createdAt: string;
+}
+
+export interface Organization {
+  id: number;
+  orgType: string;
+  orgCode: string;
+  nameEn: string;
+  nameAr: string;
+  /** @nullable */
+  shortNameEn?: string | null;
+  /** @nullable */
+  shortNameAr?: string | null;
+  /** @nullable */
+  registrationNumber?: string | null;
+  status: string;
+  /** @nullable */
+  parentOrgId?: number | null;
+  /** @nullable */
+  primaryContactNameEn?: string | null;
+  /** @nullable */
+  primaryContactNameAr?: string | null;
+  /** @nullable */
+  primaryContactEmail?: string | null;
+  /** @nullable */
+  primaryContactPhone?: string | null;
+  /** @nullable */
+  headquartersCity?: string | null;
+  countryCode: string;
+  isDefault: boolean;
+  /** @nullable */
+  activatedAt?: string | null;
+  /** @nullable */
+  createdByUserId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationBranding {
+  id: number;
+  orgId: number;
+  /** @nullable */
+  displayNameEn?: string | null;
+  /** @nullable */
+  displayNameAr?: string | null;
+  /** @nullable */
+  taglineEn?: string | null;
+  /** @nullable */
+  taglineAr?: string | null;
+  primaryColor: string;
+  /** @nullable */
+  accentColor?: string | null;
+  defaultTheme: string;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  faviconUrl?: string | null;
+  /** @nullable */
+  footerTextEn?: string | null;
+  /** @nullable */
+  footerTextAr?: string | null;
+  /** @nullable */
+  loginMessageEn?: string | null;
+  /** @nullable */
+  loginMessageAr?: string | null;
+  /** @nullable */
+  customCssSnippet?: string | null;
+  isActive: boolean;
+  /** @nullable */
+  updatedByUserId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PolicyLocale {
+  id: number;
+  orgId: number;
+  defaultLanguage: string;
+  timezone: string;
+  calendarType: string;
+  showHijriDates: boolean;
+  currencyCode: string;
+  /** @nullable */
+  currencySymbolEn?: string | null;
+  /** @nullable */
+  currencySymbolAr?: string | null;
+  dateFormat: string;
+  timeFormat: string;
+  numeralStyle: string;
+  /** @nullable */
+  thousandsSeparator?: string | null;
+  /** @nullable */
+  decimalSeparator?: string | null;
+  /** @nullable */
+  updatedByUserId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NumberingScheme {
+  id: number;
+  orgId: number;
+  entityType: string;
+  template: string;
+  /** @nullable */
+  prefix?: string | null;
+  /** @nullable */
+  suffix?: string | null;
+  currentSequence: number;
+  sequencePadding: number;
+  resetCycle: string;
+  /** @nullable */
+  lastResetAt?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmploymentTypeConfig {
+  id: number;
+  orgId: number;
+  employmentType: string;
+  labelEn: string;
+  labelAr: string;
+  eligibleLeave: boolean;
+  eligiblePayroll: boolean;
+  eligibleBenefits: boolean;
+  eligiblePension: boolean;
+  probationEnabled: boolean;
+  probationDays: number;
+  /** @nullable */
+  defaultContractMonths?: number | null;
+  /** @nullable */
+  maxRenewals?: number | null;
+  applicableOrgTypesJson: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CalendarConfig {
+  id: number;
+  orgId: number;
+  weekendDaysJson: string;
+  standardHoursPerDay: number;
+  /** @nullable */
+  defaultShiftStart?: string | null;
+  /** @nullable */
+  defaultShiftEnd?: string | null;
+  hasSummerSchedule: boolean;
+  /** @nullable */
+  summerMonthsJson?: string | null;
+  /** @nullable */
+  summerHoursPerDay?: number | null;
+  /** @nullable */
+  summerShiftStart?: string | null;
+  /** @nullable */
+  summerShiftEnd?: string | null;
+  /** @nullable */
+  updatedByUserId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RetentionRule {
+  id: number;
+  orgId: number;
+  dataCategory: string;
+  labelEn: string;
+  labelAr: string;
+  retentionMonths: number;
+  expiryAction: string;
+  /** @nullable */
+  legalBasisEn?: string | null;
+  /** @nullable */
+  legalBasisAr?: string | null;
+  requiresApprovalToDelete: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PolicyChangeRequest {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  policyArea: string;
+  titleEn: string;
+  titleAr: string;
+  status: string;
+  makerUserId: number;
+  /** @nullable */
+  checkerUserId?: number | null;
+  /** @nullable */
+  checkerComment?: string | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  /** @nullable */
+  targetEntityType?: string | null;
+  /** @nullable */
+  targetEntityId?: number | null;
+  /** @nullable */
+  targetEntityLabel?: string | null;
+  /** @nullable */
+  changeBeforeJson?: string | null;
+  changeAfterJson: string;
+  /** @nullable */
+  changeSummaryEn?: string | null;
+  /** @nullable */
+  changeSummaryAr?: string | null;
+  /** @nullable */
+  impactPreviewJson?: string | null;
+  /** @nullable */
+  appliedVersion?: number | null;
+  /** @nullable */
+  appliedAt?: string | null;
+  /** @nullable */
+  expiresAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PolicyVersion {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  policyArea: string;
+  /** @nullable */
+  targetEntityType?: string | null;
+  /** @nullable */
+  targetEntityId?: number | null;
+  /** @nullable */
+  targetEntityLabel?: string | null;
+  version: number;
+  snapshotJson: string;
+  /** @nullable */
+  checksum?: string | null;
+  /** @nullable */
+  changeRequestId?: number | null;
+  appliedByUserId: number;
+  appliedAt: string;
+  isCurrent: boolean;
+  /** @nullable */
+  rollbackReason?: string | null;
+  /** @nullable */
+  rolledBackFromVersion?: number | null;
+  createdAt: string;
+}
+
+export interface ApprovalChainConfig {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  name: string;
+  nameAr: string;
+  chainType: string;
+  stepsJson: string;
+  requireAllSteps: boolean;
+  /** @nullable */
+  totalTimeoutHours?: number | null;
+  timeoutAction: string;
+  isActive: boolean;
+  /** @nullable */
+  createdByUserId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationCredentialVaultRef {
+  id: number;
+  labelEn: string;
+  labelAr: string;
+  credentialType: string;
+  vaultKeyRef: string;
+  /** @nullable */
+  vaultSecretRef?: string | null;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  status: string;
+  /** @nullable */
+  lastRotatedAt?: string | null;
+  /** @nullable */
+  rotationDueAt?: string | null;
+  /** @nullable */
+  ownerUserId?: number | null;
+  /** @nullable */
+  createdByUserId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationConnectionProfile {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  /** @nullable */
+  connectorId?: number | null;
+  profileName: string;
+  profileNameAr: string;
+  integrationType: string;
+  environment: string;
+  connectionParamsJson: string;
+  /** @nullable */
+  credentialVaultRefId?: number | null;
+  status: string;
+  /** @nullable */
+  lastTestResult?: string | null;
+  /** @nullable */
+  lastTestMessage?: string | null;
+  /** @nullable */
+  lastTestedAt?: string | null;
+  /** @nullable */
+  lastTestedByUserId?: number | null;
+  /** @nullable */
+  lastTestLatencyMs?: number | null;
+  /** @nullable */
+  lastTestSimulated?: boolean | null;
+  isHealthMonitoringEnabled: boolean;
+  healthCheckIntervalMinutes: number;
+  consecutiveFailures: number;
+  alertOnFailureCount: number;
+  retryEnabled: boolean;
+  retryMaxAttempts: number;
+  retryBackoffSeconds: number;
+  isAirGapSafe: boolean;
+  governanceStatus: string;
+  /** @nullable */
+  approvedByUserId?: number | null;
+  /** @nullable */
+  approvedAt?: string | null;
+  /** @nullable */
+  approvalNotes?: string | null;
+  /** @nullable */
+  createdByUserId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationGovernanceRule {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  integrationType: string;
+  ruleCode: string;
+  titleEn: string;
+  titleAr: string;
+  permissionLevel: string;
+  requiresDualAuth: boolean;
+  requiresMakerChecker: boolean;
+  maxActiveProfiles: number;
+  allowExternalNetwork: boolean;
+  /** @nullable */
+  notesEn?: string | null;
+  /** @nullable */
+  notesAr?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationAuditLog {
+  id: number;
+  /** @nullable */
+  profileId?: number | null;
+  /** @nullable */
+  integrationType?: string | null;
+  eventType: string;
+  outcome: string;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  metadataJson?: string | null;
+  /** @nullable */
+  actorUserId?: number | null;
+  /** @nullable */
+  sourceIp?: string | null;
+  occurredAt: string;
+}
+
+export interface ConfigPackage {
+  id: number;
+  packageName: string;
+  packageType: string;
+  status: string;
+  version: string;
+  sourceEnvironment: string;
+  targetEnvironment: string;
+  /** @nullable */
+  orgId?: number | null;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  policyAreasJson: string;
+  /** @nullable */
+  payloadJson?: string | null;
+  /** @nullable */
+  payloadChecksum?: string | null;
+  /** @nullable */
+  signature?: string | null;
+  /** @nullable */
+  signedAt?: string | null;
+  /** @nullable */
+  signedByUserId?: number | null;
+  /** @nullable */
+  exportedAt?: string | null;
+  /** @nullable */
+  exportedByUserId?: number | null;
+  /** @nullable */
+  importedAt?: string | null;
+  /** @nullable */
+  importedByUserId?: number | null;
+  /** @nullable */
+  appliedAt?: string | null;
+  /** @nullable */
+  appliedByUserId?: number | null;
+  /** @nullable */
+  rejectedAt?: string | null;
+  /** @nullable */
+  rejectedByUserId?: number | null;
+  /** @nullable */
+  rejectionReason?: string | null;
+  /** @nullable */
+  impactPreviewJson?: string | null;
+  /** @nullable */
+  changeRequestId?: number | null;
+  isRollbackPackage: boolean;
+  /** @nullable */
+  rollbackOfPackageId?: number | null;
+  /** @nullable */
+  createdByUserId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConfigPackageItem {
+  id: number;
+  packageId: number;
+  policyArea: string;
+  entityType: string;
+  /** @nullable */
+  entityId?: number | null;
+  /** @nullable */
+  entityLabel?: string | null;
+  changeType: string;
+  /** @nullable */
+  beforeJson?: string | null;
+  /** @nullable */
+  afterJson?: string | null;
+  applyStatus: string;
+  /** @nullable */
+  applyError?: string | null;
+  createdAt: string;
+}
+
+export interface EnvironmentSnapshot {
+  id: number;
+  environment: string;
+  /** @nullable */
+  orgId?: number | null;
+  snapshotName: string;
+  scope: string;
+  /** @nullable */
+  snapshotJson?: string | null;
+  /** @nullable */
+  checksum?: string | null;
+  itemCount: number;
+  /** @nullable */
+  capturedByUserId?: number | null;
+  capturedAt: string;
+  isPinned: boolean;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface OrgReportTemplate {
+  id: number;
+  orgId: number;
+  templateType: string;
+  nameEn: string;
+  nameAr: string;
+  paperOrientation: string;
+  paperSize: string;
+  includeOrgLogo: boolean;
+  includeBranding: boolean;
+  /** @nullable */
+  headerHtmlEn?: string | null;
+  /** @nullable */
+  headerHtmlAr?: string | null;
+  /** @nullable */
+  footerHtmlEn?: string | null;
+  /** @nullable */
+  footerHtmlAr?: string | null;
+  /** @nullable */
+  columnsJson?: string | null;
+  /** @nullable */
+  groupingJson?: string | null;
+  /** @nullable */
+  defaultFiltersJson?: string | null;
+  defaultExportFormat: string;
+  isDefault: boolean;
+  isActive: boolean;
+  /** @nullable */
+  createdByUserId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GoLiveGate {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  gateCode: string;
+  category: string;
+  titleEn: string;
+  titleAr: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  severity: string;
+  status: string;
+  evaluationType: string;
+  /** @nullable */
+  evidenceJson?: string | null;
+  /** @nullable */
+  blockerDescriptionEn?: string | null;
+  /** @nullable */
+  blockerDescriptionAr?: string | null;
+  /** @nullable */
+  remediationEn?: string | null;
+  /** @nullable */
+  remediationAr?: string | null;
+  /** @nullable */
+  evaluatedByUserId?: number | null;
+  /** @nullable */
+  lastEvaluatedAt?: string | null;
+  isOverridden: boolean;
+  /** @nullable */
+  overriddenByUserId?: number | null;
+  /** @nullable */
+  overrideReason?: string | null;
+  /** @nullable */
+  overriddenAt?: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReadinessScorecard {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  module: string;
+  moduleDisplayEn: string;
+  moduleDisplayAr: string;
+  readinessStatus: string;
+  totalGates: number;
+  passingGates: number;
+  failingGates: number;
+  overriddenGates: number;
+  readinessScore: string;
+  coveredRolesJson: string;
+  /** @nullable */
+  lastRecalculatedAt?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PilotDefect {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  defectCode: string;
+  module: string;
+  titleEn: string;
+  /** @nullable */
+  titleAr?: string | null;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  stepsToReproduce?: string | null;
+  severity: string;
+  status: string;
+  isGoLiveBlocker: boolean;
+  /** @nullable */
+  relatedGateCode?: string | null;
+  /** @nullable */
+  sourceTestCode?: string | null;
+  /** @nullable */
+  assignedToUserId?: number | null;
+  /** @nullable */
+  reportedByUserId?: number | null;
+  reportedAt: string;
+  /** @nullable */
+  resolvedAt?: string | null;
+  /** @nullable */
+  resolvedByUserId?: number | null;
+  /** @nullable */
+  resolutionNotes?: string | null;
+  /** @nullable */
+  verifiedAt?: string | null;
+  /** @nullable */
+  verifiedByUserId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MigrationStatus {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  migrationCode: string;
+  titleEn: string;
+  titleAr: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  status: string;
+  priority: string;
+  /** @nullable */
+  totalRecords?: number | null;
+  migratedRecords: number;
+  failedRecords: number;
+  progressPercent: string;
+  /** @nullable */
+  startedAt?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  /** @nullable */
+  runByUserId?: number | null;
+  /** @nullable */
+  errorSummary?: string | null;
+  /** @nullable */
+  sourceSystem?: string | null;
+  isGoLiveBlocker: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RestoreTestResult {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  /** @nullable */
+  backupRecordId?: number | null;
+  restoreType: string;
+  result: string;
+  /** @nullable */
+  restoreDurationSeconds?: number | null;
+  /** @nullable */
+  verificationChecksJson?: string | null;
+  /** @nullable */
+  rowCountsJson?: string | null;
+  /** @nullable */
+  failureReason?: string | null;
+  /** @nullable */
+  testedByUserId?: number | null;
+  testedAt: string;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface UatScript {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  scriptCode: string;
+  titleEn: string;
+  titleAr: string;
+  targetRole: string;
+  module: string;
+  orgTypeApplicability: string;
+  estimatedMinutes: number;
+  /** @nullable */
+  prerequisitesEn?: string | null;
+  /** @nullable */
+  prerequisitesAr?: string | null;
+  stepsJson: string;
+  acceptanceCriteriaJson: string;
+  /** @nullable */
+  relatedGateCodes?: string | null;
+  isActive: boolean;
+  version: string;
+  /** @nullable */
+  createdByUserId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UatTestRun {
+  id: number;
+  scriptId: number;
+  /** @nullable */
+  orgId?: number | null;
+  testerUserId: number;
+  /** @nullable */
+  testerRole?: string | null;
+  /** @nullable */
+  testerNameEn?: string | null;
+  result: string;
+  currentStep: number;
+  totalSteps: number;
+  passedSteps: number;
+  failedSteps: number;
+  skippedSteps: number;
+  /** @nullable */
+  raisedDefectIds?: string | null;
+  /** @nullable */
+  overallNotes?: string | null;
+  /** @nullable */
+  browserInfo?: string | null;
+  environment: string;
+  startedAt: string;
+  /** @nullable */
+  completedAt?: string | null;
+  createdAt: string;
+}
+
+export interface UatTestRunStep {
+  id: number;
+  runId: number;
+  stepNumber: number;
+  result: string;
+  /** @nullable */
+  actualResultEn?: string | null;
+  /** @nullable */
+  defectId?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  executedAt?: string | null;
+  createdAt: string;
+}
+
+export interface SecurityTestScenario {
+  id: number;
+  scenarioCode: string;
+  attackVector: string;
+  titleEn: string;
+  titleAr: string;
+  /** @nullable */
+  descriptionEn?: string | null;
+  severity: string;
+  /** @nullable */
+  strideCategory?: string | null;
+  /** @nullable */
+  targetEndpoint?: string | null;
+  /** @nullable */
+  targetMethod?: string | null;
+  /** @nullable */
+  requestTemplateJson?: string | null;
+  /** @nullable */
+  expectedBehaviorEn?: string | null;
+  /** @nullable */
+  expectedBehaviorAr?: string | null;
+  expectedStatusCode: number;
+  requiresAuditLog: boolean;
+  requiresSecurityAlert: boolean;
+  executionType: string;
+  /** @nullable */
+  relatedGateCode?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface SecurityTestRun {
+  id: number;
+  /** @nullable */
+  orgId?: number | null;
+  /** @nullable */
+  runLabel?: string | null;
+  runType: string;
+  status: string;
+  totalScenarios: number;
+  passedScenarios: number;
+  failedScenarios: number;
+  skippedScenarios: number;
+  /** @nullable */
+  overallPosture?: string | null;
+  /** @nullable */
+  triggeredByUserId?: number | null;
+  startedAt: string;
+  /** @nullable */
+  completedAt?: string | null;
+  /** @nullable */
+  summaryJson?: string | null;
+  createdAt: string;
+}
+
+export interface SecurityTestFinding {
+  id: number;
+  runId: number;
+  scenarioId: number;
+  result: string;
+  /** @nullable */
+  actualStatusCode?: number | null;
+  /** @nullable */
+  auditLogFound?: boolean | null;
+  /** @nullable */
+  alertTriggered?: boolean | null;
+  /** @nullable */
+  actualResponseSnippet?: string | null;
+  /** @nullable */
+  findingDescriptionEn?: string | null;
+  /** @nullable */
+  remediationEn?: string | null;
+  /** @nullable */
+  riskScore?: string | null;
+  isGoLiveBlocker: boolean;
+  executedAt: string;
+  createdAt: string;
 }
 
 export type ListEmployeesParams = {

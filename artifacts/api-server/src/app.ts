@@ -76,7 +76,12 @@ app.use(session({
 }));
 
 // 10mb limit to allow base64-encoded medical certificate attachments
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({
+  limit: "10mb",
+  // Keep the exact raw request bytes so HMAC-signed machine endpoints
+  // (attendance gateway) can verify signatures over the wire payload.
+  verify: (req, _res, buf) => { (req as { rawBody?: Buffer }).rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);

@@ -11,6 +11,7 @@ export const deviceEmployeeMappingsTable = pgTable("device_employee_mappings", {
   enrolledByUserId: integer("enrolled_by_user_id").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   biometricType: text("biometric_type").notNull().default("fingerprint"), // fingerprint | face | card | pin
+  deviceUserId: text("device_user_id"), // the device's internal user id, used by gateway punch resolution
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -78,6 +78,7 @@ import PilotControlCenter from '@/pages/pilot-control-center';
 import UATScripts from '@/pages/uat-scripts';
 import SecurityTests from '@/pages/security-tests';
 import ReadinessPage from '@/pages/readiness';
+import AttendanceGateway from '@/pages/attendance-gateway';
 
 const queryClient = new QueryClient();
 
@@ -124,6 +125,7 @@ function ProtectedRouter() {
         <Route path="/audit" component={Audit} />
         <Route path="/attendance" component={Attendance} />
         <Route path="/devices" component={Devices} />
+        <Route path="/attendance-gateway" component={AttendanceGateway} />
         <Route path="/shifts" component={Shifts} />
         <Route path="/rosters" component={Rosters} />
         <Route path="/overtime" component={Overtime} />

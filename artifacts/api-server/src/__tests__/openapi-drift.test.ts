@@ -36,6 +36,9 @@ import * as dbSchema from "@workspace/db";
  * exists for it, e.g. internal bookkeeping tables).
  */
 const SCHEMA_NAME_OVERRIDES: Record<string, string | null> = {
+  // session: infrastructure table for connect-pg-simple (express-session
+  // store) — never exposed through the API, so no OpenAPI schema exists.
+  session: null,
   chain_of_command: "ChainOfCommandEntry",
   rosters: "RosterEntry",
   payroll_runs: "PayrollRunDetail",
@@ -76,6 +79,7 @@ const ALLOWED_EXTRA_PROPERTIES: Record<string, string[]> = {};
  */
 const ALLOWED_MISSING_COLUMNS: Record<string, string[]> = {
   SystemUser: ["passwordHash"], // never serialized
+  GatewayRegistration: ["secretHash"], // secret material — never serialized
 };
 
 // Pre-existing drift captured as a shrink-only baseline: the test fails on

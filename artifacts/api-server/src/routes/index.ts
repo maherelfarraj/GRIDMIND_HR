@@ -67,12 +67,17 @@ import {
 } from "./trainingRoutes.js";
 import { successionPoolsRouter, successionCandidatesRouter, developmentPlansRouter, developmentActivitiesRouter } from "./succession.js";
 import { employeeRequestsRouter, announcementsRouter, approvalDelegationsRouter } from "./selfService.js";
+import { gatewayMachineRouter, gatewayAdminRouter } from "./attendanceGateway.js";
 
 const router: IRouter = Router();
 
 // Auth router first — POST /auth/login must be unauthenticated
 router.use(authRouter);
 router.use(healthRouter);
+
+// Machine-to-machine gateway endpoints authenticate with per-registration
+// HMAC signatures (not sessions), so they sit before the session-auth gate.
+router.use(gatewayMachineRouter);
 
 // Enforce authentication for all mutating requests (POST/PATCH/PUT/DELETE)
 // placed after authRouter so /auth/login and /auth/logout pass through freely
@@ -98,6 +103,7 @@ router.use(auditRouter);
 router.use(attendanceRouter);
 router.use(attendanceCorrectionsRouter);
 router.use(devicesRouter);
+router.use(gatewayAdminRouter);
 router.use(deviceMappingsRouter);
 router.use(alertsRouter);
 router.use(usersRouter);

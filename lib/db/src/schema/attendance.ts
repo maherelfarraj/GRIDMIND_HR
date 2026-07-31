@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, real, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -16,7 +16,11 @@ export const attendanceRecordsTable = pgTable("attendance_records", {
   workingHours: real("working_hours"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // One attendance row per employee per day — required for the gateway's
+  // concurrency-safe punch materialization upsert.
+  uniqueIndex("uq_attendance_employee_date").on(t.employeeId, t.date),
+]);
 
 export const insertAttendanceSchema = createInsertSchema(attendanceRecordsTable).omit({ id: true, createdAt: true });
 export type InsertAttendance = z.infer<typeof insertAttendanceSchema>;

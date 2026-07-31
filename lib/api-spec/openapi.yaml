@@ -8575,6 +8575,48 @@ paths:
 
 components:
   schemas:
+    # ── Attendance Gateway (device integration) ────────────────────────────
+    GatewayRegistration:
+      type: object
+      description: >
+        A registered local Attendance Gateway (secretHash is intentionally
+        never exposed through the API).
+      properties:
+        id: { type: number }
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        deviceId: { type: ["number", "null"] }
+        adapterType: { type: string, enum: [ZKTECO, SUPREMA, GENERIC_REST, CSV, SIMULATOR] }
+        status: { type: string, enum: [ACTIVE, REVOKED] }
+        registeredByUserId: { type: number }
+        lastSeenAt: { type: ["string", "null"] }
+        lastHeartbeatAt: { type: ["string", "null"] }
+        clockDriftMs: { type: ["number", "null"] }
+        driftAlert: { type: boolean }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    PunchImportBatch:
+      type: object
+      properties:
+        id: { type: number }
+        batchUuid: { type: string }
+        registrationId: { type: ["number", "null"] }
+        source: { type: string, enum: [GATEWAY, CSV, SIMULATOR] }
+        receivedAt: { type: string }
+        eventCount: { type: number }
+        insertedCount: { type: number }
+        duplicateCount: { type: number }
+        errorCount: { type: number }
+        unmappedCount: { type: number }
+        rawPayloadSha256: { type: ["string", "null"] }
+        signatureValid: { type: boolean }
+        clockDriftMs: { type: ["number", "null"] }
+        status: { type: string, enum: [COMPLETED, PARTIAL, FAILED] }
+        errorSummary: { type: ["string", "null"] }
+        createdAt: { type: string }
+
     # ── Phase 7A — Workforce Analytics + Report Builder + Exports ──────────────
     WorkforceSnapshot:
       type: object
@@ -9501,6 +9543,10 @@ components:
         source: { type: string }
         isVerified: { type: boolean }
         isMissing: { type: boolean }
+        dedupeKey: { type: ["string", "null"] }
+        importBatchId: { type: ["integer", "null"] }
+        deviceEventUid: { type: ["string", "null"] }
+        rawPayloadSha256: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         createdAt: { type: string }
         firstNameEn: { type: ["string", "null"] }
@@ -12671,6 +12717,7 @@ components:
         enrolledByUserId: { type: integer }
         isActive: { type: boolean }
         biometricType: { type: string }
+        deviceUserId: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         createdAt: { type: string }
         updatedAt: { type: string }

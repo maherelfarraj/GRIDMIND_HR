@@ -1,0 +1,23 @@
+{
+  "name": "@workspace/attendance-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local Attendance Gateway: runs inside the customer network (air-gap friendly), polls attendance devices through pluggable adapters, queues punches in an encrypted local store, and forwards them to the HR core over HMAC-signed requests.",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "tsx": "catalog:"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "catalog:",
+    "typescript": "^5.7.2",
+    "vitest": "^4.0.0"
+  }
+}

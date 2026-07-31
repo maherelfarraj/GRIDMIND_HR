@@ -8,6 +8,10 @@
     "types": ["node"]
   },
   "include": ["src"],
+  // attendance-gateway.test.ts imports gateway sources from lib/attendance-gateway
+  // (outside rootDir) to run the real offline pipeline against the app; vitest
+  // transpiles it and the gateway package typechecks its own sources.
+  "exclude": ["src/__tests__/attendance-gateway.test.ts"],
   "references": [
     {
       "path": "../../lib/db"

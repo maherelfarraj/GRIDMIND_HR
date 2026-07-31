@@ -84,6 +84,7 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
     { href: '/overtime', icon: TrendingUp, labelEn: 'Overtime', labelAr: 'الوقت الإضافي' },
     { href: '/punch-events', icon: Fingerprint, labelEn: 'Punch Log', labelAr: 'سجل البصمة' },
     { href: '/devices', icon: Cpu, labelEn: 'Devices', labelAr: 'الأجهزة' },
+    { href: '/attendance-gateway', icon: Server, labelEn: 'Attendance Gateway', labelAr: 'بوابة الحضور' },
     { href: '/audit', icon: History, labelEn: 'Audit Log', labelAr: 'سجل التدقيق' },
     { href: '/alerts', icon: AlertTriangle, labelEn: 'Alerts', labelAr: 'التنبيهات' },
     { href: '/users', icon: Settings, labelEn: 'System Users', labelAr: 'مستخدمي النظام' },

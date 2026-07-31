@@ -19,6 +19,14 @@ export interface PunchEvent {
   isVerified: boolean;
   isMissing: boolean;
   /** @nullable */
+  dedupeKey?: string | null;
+  /** @nullable */
+  importBatchId?: number | null;
+  /** @nullable */
+  deviceEventUid?: string | null;
+  /** @nullable */
+  rawPayloadSha256?: string | null;
+  /** @nullable */
   notes?: string | null;
   createdAt: string;
   /** @nullable */
