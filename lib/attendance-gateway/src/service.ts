@@ -24,7 +24,9 @@ export interface FlushResult {
 
 export class GatewayService {
   readonly maxAttempts: number;
+
   readonly baseBackoffMs: number;
+
   readonly maxBackoffMs: number;
 
   constructor(
@@ -40,9 +42,13 @@ export class GatewayService {
   }
 
   private readonly cursorPath: string | null;
+
   private cursor: string | null = null;
+
   lastPollAt: Date | null = null;
+
   lastFlushAt: Date | null = null;
+
   lastError: string | null = null;
 
   /** Restore the persisted adapter cursor (call once at startup). */
@@ -189,7 +195,15 @@ export class GatewayService {
   static readonly CLOCK_SKEW_WARN_MS = 60_000;
 
   async status() {
-    const pending = await this.queue.pending();
+    const uuids = await this.queue.pending();
+    let pendingCount = 0;
+    let terminalCount = 0;
+    for (const uuid of uuids) {
+      const batch = await this.queue.read(uuid);
+      if (!batch) continue;
+      if (batch.terminal) terminalCount++;
+      else pendingCount++;
+    }
     const test = await this.adapter.testConnection();
     // sdk_present: adapters expose sdkInfo() when they load a native vendor
     // SDK; otherwise infer from the connection test (an adapter that flags
@@ -220,10 +234,50 @@ export class GatewayService {
               "Fix the device clock before go-live — see NATIVE_PROTOCOLS.md validation checklist item 1.",
           }
         : {}),
-      pendingBatches: pending.length,
+      // Terminal batches are no longer counted as pending — they will never
+      // be auto-retried and need explicit operator action (requeue).
+      pendingBatches: pendingCount,
+      terminalBatches: terminalCount,
       lastPollAt: this.lastPollAt?.toISOString() ?? null,
       lastFlushAt: this.lastFlushAt?.toISOString() ?? null,
       lastError: this.lastError,
     };
+  }
+
+  /**
+   * List batches that exhausted their delivery attempts and were marked
+   * terminal — kept encrypted on disk, never auto-retried. Operators inspect
+   * these and requeue them once the underlying failure is fixed.
+   */
+  async listTerminalBatches(): Promise<
+    Array<{ batchUuid: string; createdAtMs: number; attempts: number; punchCount: number }>
+  > {
+    const out: Array<{ batchUuid: string; createdAtMs: number; attempts: number; punchCount: number }> = [];
+    for (const uuid of await this.queue.pending()) {
+      const batch = await this.queue.read(uuid);
+      if (batch?.terminal) {
+        out.push({
+          batchUuid: batch.batchUuid,
+          createdAtMs: batch.createdAtMs,
+          attempts: batch.attempts,
+          punchCount: batch.punches.length,
+        });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Operator recovery: reset a batch's attempts/terminal state so the next
+   * flush retries it immediately. Returns null when the batch is unknown.
+   */
+  async requeueBatch(batchUuid: string): Promise<{ batchUuid: string; punchCount: number } | null> {
+    const batch = await this.queue.read(batchUuid);
+    if (!batch) return null;
+    batch.attempts = 0;
+    delete batch.terminal;
+    delete batch.nextAttemptAtMs;
+    await this.queue.enqueue(batch);
+    return { batchUuid: batch.batchUuid, punchCount: batch.punches.length };
   }
 }

@@ -40,6 +40,7 @@ import { deriveSigningKey } from "../../../../lib/attendance-gateway/src/signing
 import { SimulatorAdapter } from "../../../../lib/attendance-gateway/src/adapters/simulator.js";
 import { ZktecoAdapter } from "../../../../lib/attendance-gateway/src/adapters/vendorStubs.js";
 import { GenericRestAdapter } from "../../../../lib/attendance-gateway/src/adapters/genericRest.js";
+import { buildLocalApi } from "../../../../lib/attendance-gateway/src/localApi.js";
 import { parseCsvPunches } from "../../../../lib/attendance-gateway/src/adapters/csv.js";
 
 const sha256 = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
@@ -323,6 +324,124 @@ describe("reconciliation", () => {
     expect(res.body.results[0].status).toBe("OK");
     expect(res.body.results[1].status).toBe("MISSING_ON_SERVER");
     expect(res.body.results[2].status).toBe("COUNT_MISMATCH");
+
+    // The reconcile outcome is persisted and exposed to the admin UI so it
+    // can warn about batches missing on the server.
+    const status = await admin.get("/api/gateway/reconcile-status");
+    expect(status.status).toBe(200);
+    const mine = status.body.find((s: { registrationId: number }) => s.registrationId === registrationId);
+    expect(mine).toBeDefined();
+    expect(mine.checked).toBe(3);
+    expect(mine.missing).toEqual([known.batchUuid + "-mismatch-probe"]);
+    expect(mine.mismatched).toEqual([known.batchUuid]);
+
+    // Admin endpoint is session-gated like the rest of gateway administration.
+    const anon = await request(app).get("/api/gateway/reconcile-status");
+    expect(anon.status).toBe(401);
+  });
+});
+
+describe("terminal batch recovery", () => {
+  it("surfaces exhausted batches in status/terminal listing and requeue makes them deliverable again", async () => {
+    const dir = path.join(os.tmpdir(), `gw-term-${Date.now()}`);
+    const queue = new EncryptedQueue(dir, "test-queue-key");
+    await queue.init();
+
+    let online = false;
+    const flakyFetch: typeof fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      if (!online) throw new Error("network unreachable (simulated outage)");
+      return supertestFetch()(input, init);
+    }) as typeof fetch;
+
+    const hr = new HrClient({ hrApiUrl: "/api", gatewayId: registrationId, signingKey, fetchImpl: flakyFetch });
+    const service = new GatewayService(queue, hr, new SimulatorAdapter([DEVICE_USER_ID], () => new Date("2030-06-13T14:00:00Z")), {
+      maxAttempts: 2,
+      baseBackoffMs: 0, // every attempt is immediately due
+    });
+
+    const polled = await service.pollOnce();
+    expect(polled.queued).toBe(2);
+
+    // Exhaust maxAttempts while offline → batch goes terminal.
+    await service.flush();
+    const secondFlush = await service.flush();
+    expect(secondFlush.failed).toBe(1);
+    const stored = await queue.read(polled.batchUuid!);
+    expect(stored!.terminal).toBe(true);
+    expect(stored!.attempts).toBe(2);
+
+    // Status no longer counts it as pending; the terminal listing surfaces it.
+    const status = await service.status();
+    expect(status.pendingBatches).toBe(0);
+    expect(status.terminalBatches).toBe(1);
+    const terminal = await service.listTerminalBatches();
+    expect(terminal).toHaveLength(1);
+    expect(terminal[0]).toMatchObject({ batchUuid: polled.batchUuid, attempts: 2, punchCount: 2 });
+
+    // Flush never auto-retries a terminal batch, even when the network is back.
+    online = true;
+    const skippedFlush = await service.flush();
+    expect(skippedFlush.sent).toBe(0);
+
+    // Unknown uuid → null; requeue resets attempts/terminal and delivery succeeds.
+    expect(await service.requeueBatch(randomUUID())).toBeNull();
+    const requeued = await service.requeueBatch(polled.batchUuid!);
+    expect(requeued).toMatchObject({ batchUuid: polled.batchUuid, punchCount: 2 });
+    const reset = await queue.read(polled.batchUuid!);
+    expect(reset!.terminal).toBeUndefined();
+    expect(reset!.attempts).toBe(0);
+
+    const deliveredFlush = await service.flush();
+    expect(deliveredFlush.sent).toBe(1);
+    expect((await queue.pending()).length).toBe(0);
+    expect((await service.status()).terminalBatches).toBe(0);
+
+    // cleanup rows created by this pipeline
+    const [b] = await db
+      .select()
+      .from(punchImportBatchesTable)
+      .where(eq(punchImportBatchesTable.batchUuid, polled.batchUuid!));
+    createdBatchIds.push(b.id);
+    await db.delete(punchEventsTable).where(eq(punchEventsTable.importBatchId, b.id));
+    await db.delete(attendanceRecordsTable).where(eq(attendanceRecordsTable.date, "2030-06-13"));
+  });
+});
+
+describe("local operator API security", () => {
+  it("mutating endpoints require the operator token; reads stay loopback-open", async () => {
+    const dir = path.join(os.tmpdir(), `gw-local-${Date.now()}`);
+    const queue = new EncryptedQueue(dir, "test-queue-key");
+    await queue.init();
+    const adapter = new SimulatorAdapter([DEVICE_USER_ID]);
+    const hr = new HrClient({ hrApiUrl: "/api", gatewayId: registrationId, signingKey, fetchImpl: supertestFetch() });
+    const service = new GatewayService(queue, hr, adapter);
+    const token = "test-operator-token";
+    const local = buildLocalApi({ service, adapter, adminToken: token });
+
+    // An empty token is refused outright — no accidental unauthenticated deploys.
+    expect(() => buildLocalApi({ service, adapter, adminToken: "" })).toThrow(/adminToken/);
+
+    // Read-only endpoints work without a token (loopback-only surface).
+    expect((await request(local).get("/status")).status).toBe(200);
+    expect((await request(local).get("/terminal-batches")).status).toBe(200);
+
+    // Mutating endpoints reject missing or wrong tokens.
+    for (const [method, url, body] of [
+      ["post", "/flush", {}],
+      ["post", "/requeue", { batchUuid: randomUUID() }],
+      ["post", "/import-csv", { content: "x" }],
+    ] as const) {
+      const missing = await request(local)[method](url).send(body);
+      expect(missing.status).toBe(401);
+      const wrong = await request(local)[method](url).set("x-gateway-admin-token", "nope").send(body);
+      expect(wrong.status).toBe(401);
+    }
+
+    // With the token, the endpoints behave normally.
+    const flush = await request(local).post("/flush").set("x-gateway-admin-token", token).send({});
+    expect(flush.status).toBe(200);
+    const requeue = await request(local).post("/requeue").set("x-gateway-admin-token", token).send({ batchUuid: randomUUID() });
+    expect(requeue.status).toBe(404); // authenticated, but unknown batch
   });
 });
 

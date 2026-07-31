@@ -67,6 +67,14 @@ interface CreateRegistrationResponse {
   secret: string;
 }
 
+interface ReconcileStatus {
+  registrationId: number | null;
+  registrationName: string | null;
+  reconciledAt: string;
+  checked: number;
+  missing: string[];
+  mismatched: string[];
+}
 export default function AttendanceGateway() {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
@@ -94,6 +102,13 @@ export default function AttendanceGateway() {
       apiFetch(`/api/gateway/batches${selectedRegistration ? `?registrationId=${selectedRegistration}` : ''}`, { credentials: 'include' }).then(r => r.json()),
     enabled: !!selectedRegistration,
   });
+
+  const { data: reconcileStatus } = useQuery<ReconcileStatus[]>({
+    queryKey: ['gateway-reconcile-status'],
+    queryFn: () => apiFetch('/api/gateway/reconcile-status', { credentials: 'include' }).then(r => r.json()),
+  });
+
+  const reconcileAlerts = (reconcileStatus ?? []).filter(s => s.missing.length > 0 || s.mismatched.length > 0);
 
   const createMutation = useMutation({
     mutationFn: async (payload: CreateRegistrationPayload) => {
@@ -319,6 +334,48 @@ export default function AttendanceGateway() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Reconciliation warning: gateway-reported batches missing on the server */}
+      {reconcileAlerts.length > 0 && (
+        <Card className="bg-rose-500/5 border-rose-500/20">
+          <CardContent className="p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+            <div className="text-sm space-y-2">
+              <p className="font-semibold text-rose-500">
+                {t('Punch batches missing on server', 'دفعات بصمات مفقودة على الخادم')}
+              </p>
+              <p className="text-muted-foreground">
+                {t(
+                  'The last reconciliation found batches a gateway believes it delivered but the server never received. Check the gateway\'s local status API for terminal batches and requeue them once the underlying failure is fixed.',
+                  'وجدت آخر عملية مطابقة دفعات تعتقد البوابة أنها سلمتها لكن الخادم لم يستلمها. تحقق من واجهة الحالة المحلية للبوابة بحثًا عن الدفعات المتوقفة وأعد إرسالها بعد إصلاح سبب الفشل.',
+                )}
+              </p>
+              {reconcileAlerts.map(alert => (
+                <div key={alert.registrationId ?? alert.registrationName ?? 'unknown'} className="text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">{alert.registrationName ?? `#${alert.registrationId}`}</span>
+                  {' — '}
+                  {alert.missing.length > 0 && (
+                    <span>
+                      {t(`${alert.missing.length} missing`, `${alert.missing.length} مفقودة`)}
+                      {': '}
+                      <code className="font-mono break-all">{alert.missing.join(', ')}</code>
+                    </span>
+                  )}
+                  {alert.missing.length > 0 && alert.mismatched.length > 0 && '; '}
+                  {alert.mismatched.length > 0 && (
+                    <span>
+                      {t(`${alert.mismatched.length} count mismatch`, `${alert.mismatched.length} عدم تطابق العدد`)}
+                      {': '}
+                      <code className="font-mono break-all">{alert.mismatched.join(', ')}</code>
+                    </span>
+                  )}
+                  {' ('}{formatDateTime(alert.reconciledAt)}{')'}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Registrations Table */}
       <Card>

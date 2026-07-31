@@ -1,4 +1,3 @@
-import express from "express";
 import { EncryptedQueue } from "./queue.js";
 import { HrClient } from "./hrClient.js";
 import { GatewayService } from "./service.js";
@@ -10,6 +9,7 @@ import { ZktecoAdapter, SupremaAdapter, zktecoConfigFromEnv, supremaConfigFromEn
 import { ZktecoNativeAdapter, zktecoNativeConfigFromEnv } from "./adapters/zktecoNative.js";
 import { SupremaNativeAdapter, supremaNativeConfigFromEnv } from "./adapters/supremaNative.js";
 import type { DeviceAdapter } from "./types.js";
+import { buildLocalApi } from "./localApi.js";
 
 /**
  * Attendance Gateway entrypoint — runs inside the customer network.
@@ -78,23 +78,12 @@ async function main(): Promise<void> {
   setInterval(tick, pollIntervalMs);
   void tick();
 
-  // Minimal local status/admin API (bind to localhost in production).
-  const app = express();
-  app.use(express.json({ limit: "5mb" }));
-  app.get("/status", async (_req, res) => { res.json(await service.status()); });
-  app.post("/flush", async (_req, res) => { res.json(await service.flush()); });
-  app.post("/import-csv", async (req, res) => {
-    if (adapter.type !== "CSV") { res.status(400).json({ error: "gateway not configured with CSV adapter" }); return; }
-    const { content } = req.body as { content?: string };
-    if (!content) { res.status(400).json({ error: "content required" }); return; }
-    (adapter as CsvAdapter).loadContent(content);
-    const polled = await service.pollOnce();
-    const flushed = await service.flush();
-    res.json({ queued: polled.queued, batchUuid: polled.batchUuid, flush: flushed });
-  });
-
+  // Local operator API: loopback-only by default; mutating endpoints require
+  // the operator token (see localApi.ts).
+  const app = buildLocalApi({ service, adapter, adminToken: requiredEnv("GATEWAY_ADMIN_TOKEN") });
   const port = parseInt(process.env.PORT ?? "9800", 10);
-  app.listen(port, () => console.log(`[gateway] status API on :${port}, adapter=${adapter.type}`));
+  const host = process.env.GATEWAY_BIND_HOST ?? "127.0.0.1";
+  app.listen(port, host, () => console.log(`[gateway] status API on ${host}:${port}, adapter=${adapter.type}`));
 }
 
 main().catch((e) => {

@@ -18,5 +18,8 @@ description: Design decisions for the HMAC gateway API, credential handling, and
 ## Offline queue
 - Encrypted spool (AES-256-GCM per batch file) with persisted attempts, nextAttemptAtMs (exponential backoff), and terminal flag kept on disk for operator recovery. Flush must skip not-due and terminal batches — "retry everything each flush" fails review.
 
+- Terminal batches (attempts exhausted) are excluded from pending counts and only recover via an explicit operator requeue that resets attempts/terminal.
+- The gateway's local operator API must bind loopback by default and require a shared operator token (timing-safe compare) on all mutating endpoints — review rejects unauthenticated local control planes even with a "bind to localhost" comment.
+
 ## Cross-package test imports
 - api-server tests that import lib/* TS sources directly violate its tsconfig rootDir; such test files are excluded from the tsc program (vitest still transpiles/runs them). OpenAPI drift test requires new tables to get spec schemas (or explicit opt-outs) and secret columns to be listed in ALLOWED_MISSING_COLUMNS.

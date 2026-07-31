@@ -354,6 +354,18 @@ gatewayMachineRouter.post("/gateway/reconcile", verifyGatewaySignature, async (r
     return { batchUuid: b.batchUuid, status: "OK" as const, inserted: server.insertedCount, duplicates: server.duplicateCount };
   });
   await db.update(gatewayRegistrationsTable).set({ lastSeenAt: new Date() }).where(eq(gatewayRegistrationsTable.id, reg.id));
+  // Persist the reconcile outcome so the HRMS admin page can warn when a
+  // gateway believes it delivered batches the server never received.
+  const missing = results.filter((r) => r.status === "MISSING_ON_SERVER").map((r) => r.batchUuid);
+  const mismatched = results.filter((r) => r.status === "COUNT_MISMATCH").map((r) => r.batchUuid);
+  await db.insert(auditLogsTable).values({
+    action: "gateway_reconcile",
+    entityType: "gateway_registration",
+    entityId: reg.id,
+    entityLabel: reg.name,
+    actorUserId: null,
+    changesJson: JSON.stringify({ checked: results.length, missing, mismatched }),
+  });
   res.json({ ok: true, results });
 });
 
@@ -445,6 +457,39 @@ gatewayAdminRouter.post("/gateway/registrations/:id/revoke", async (req, res): P
     actorUserId: session.userId ?? null,
   });
   res.json({ ...reg, secretHash: undefined });
+});
+
+// GET /gateway/reconcile-status — latest reconcile outcome per registration,
+// used by the admin UI to warn about batches missing on the server.
+gatewayAdminRouter.get("/gateway/reconcile-status", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(auditLogsTable)
+    .where(eq(auditLogsTable.action, "gateway_reconcile"))
+    .orderBy(desc(auditLogsTable.createdAt))
+    .limit(200);
+  const latest = new Map<number, (typeof rows)[number]>();
+  for (const row of rows) {
+    if (row.entityId != null && !latest.has(row.entityId)) latest.set(row.entityId, row);
+  }
+  res.json(
+    [...latest.values()].map((row) => {
+      let parsed: { checked?: number; missing?: string[]; mismatched?: string[] } = {};
+      try {
+        parsed = JSON.parse(row.changesJson ?? "{}");
+      } catch {
+        /* tolerate malformed history */
+      }
+      return {
+        registrationId: row.entityId,
+        registrationName: row.entityLabel,
+        reconciledAt: row.createdAt,
+        checked: parsed.checked ?? 0,
+        missing: parsed.missing ?? [],
+        mismatched: parsed.mismatched ?? [],
+      };
+    }),
+  );
 });
 
 // GET /gateway/batches
