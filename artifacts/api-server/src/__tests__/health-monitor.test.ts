@@ -12,7 +12,7 @@ import {
   notificationsTable,
 } from "@workspace/db";
 import app from "../app";
-import { runHealthChecksOnce } from "../lib/health-monitor";
+import { runHealthChecksOnce, HEALTH_CHECK_CONCURRENCY_LIMIT } from "../lib/health-monitor";
 import { testLdapConnection } from "../lib/ldap-adapter";
 
 vi.mock("../lib/ldap-adapter", async (importOriginal) => {
@@ -429,6 +429,53 @@ describe("connection health monitor", () => {
     const slowDoneAfterMs = new Date(slowRow.updatedAt!).getTime() - started;
     expect(normalDoneAfterMs).toBeLessThan(1000); // not held up by the slow profile
     expect(slowDoneAfterMs).toBeGreaterThanOrEqual(1900);
+  });
+
+  it("checks more profiles than the concurrency limit in one sweep, never exceeding the limit", async () => {
+    // More profiles than the pool allows in flight at once.
+    const profileCount = HEALTH_CHECK_CONCURRENCY_LIMIT + 3;
+    const profiles = [];
+    for (let i = 0; i < profileCount; i++) {
+      profiles.push(await createProfile({ integrationType: "ldap" }));
+    }
+    const ids = new Set(profiles.map((p) => p.id));
+
+    // Only these profiles may consume the mocked adapter — take earlier test
+    // profiles out of the sweep.
+    const others = createdProfileIds.filter((id) => !ids.has(id));
+    if (others.length) {
+      await db.update(integrationConnectionProfilesTable)
+        .set({ isHealthMonitoringEnabled: false })
+        .where(inArray(integrationConnectionProfilesTable.id, others));
+    }
+
+    // Instrument the adapter to record how many checks are in flight at once.
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const instrumented = async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      inFlight--;
+      return { success: true, message: "ok", latencyMs: 1, simulated: false };
+    };
+    // One-shot implementations (retries are disabled, so exactly one call per
+    // profile) — later tests keep the real adapter behavior.
+    const callsBefore = vi.mocked(testLdapConnection).mock.calls.length;
+    for (let i = 0; i < profileCount; i++) {
+      vi.mocked(testLdapConnection).mockImplementationOnce(instrumented);
+    }
+
+    const result = await runHealthChecksOnce({ force: true });
+
+    // Every profile beyond the limit still got checked in this sweep...
+    const checkedIds = new Set(result.outcomes.map((o) => o.profileId));
+    for (const p of profiles) expect(checkedIds.has(p.id)).toBe(true);
+    expect(vi.mocked(testLdapConnection).mock.calls.length - callsBefore).toBe(profileCount);
+
+    // ...but never more than the limit ran concurrently.
+    expect(maxInFlight).toBeGreaterThan(1); // still concurrent, not serialized
+    expect(maxInFlight).toBeLessThanOrEqual(HEALTH_CHECK_CONCURRENCY_LIMIT);
   });
 
   it("skips profiles without monitoring enabled and suspended profiles", async () => {

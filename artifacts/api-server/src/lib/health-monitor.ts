@@ -224,6 +224,37 @@ async function runConnectionTestWithRetry(
   return { ...attempt, attempts };
 }
 
+/**
+ * Maximum number of profiles a sweep checks at the same time. Concurrency
+ * keeps one slow profile from delaying the others, but it must stay bounded:
+ * each in-flight check holds an adapter connection plus several DB writes,
+ * so an unbounded sweep over many failing/retrying profiles could exhaust
+ * the DB pool or hammer external systems.
+ */
+export const HEALTH_CHECK_CONCURRENCY_LIMIT = 5;
+
+/**
+ * Runs `worker` over every item with at most `limit` invocations in flight.
+ * Preserves result order; the worker must not throw (callers wrap errors).
+ */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const runners = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index]);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
 function isDue(profile: IntegrationConnectionProfile, now: Date): boolean {
   if (!profile.lastTestedAt) return true;
   const intervalMs = Math.max(1, profile.healthCheckIntervalMinutes) * 60_000;
@@ -250,16 +281,22 @@ export async function runHealthChecksOnce(
   const due = profiles.filter((profile) => options.force || isDue(profile, now));
 
   // Check profiles concurrently so one slow profile (e.g. a failing connection
-  // retrying with long backoffs) cannot delay health checks for the others.
+  // retrying with long backoffs) cannot delay health checks for the others —
+  // but with bounded concurrency so a sweep over many failing/retrying
+  // profiles cannot exhaust DB pool connections or hammer external systems.
   // Sweeps still never overlap each other (see startHealthMonitor).
-  const settled = await Promise.all(due.map(async (profile): Promise<HealthCheckOutcome | null> => {
-    try {
-      return await checkProfile(profile, now);
-    } catch (err) {
-      logger.error({ err, profileId: profile.id }, "Health check failed for profile");
-      return null;
-    }
-  }));
+  const settled = await mapWithConcurrency(
+    due,
+    HEALTH_CHECK_CONCURRENCY_LIMIT,
+    async (profile): Promise<HealthCheckOutcome | null> => {
+      try {
+        return await checkProfile(profile, now);
+      } catch (err) {
+        logger.error({ err, profileId: profile.id }, "Health check failed for profile");
+        return null;
+      }
+    },
+  );
 
   const outcomes = settled.filter((o): o is HealthCheckOutcome => o !== null);
 
