@@ -13,7 +13,12 @@ import {
 import { and, eq, desc, gte, inArray, lt } from "drizzle-orm";
 import { DEVICE_COMMAND_TTL_MS } from "./devices.js";
 import { materializePunch } from "../lib/attendanceMaterializer.js";
-import { processGatewayWarningTransitions, GATEWAY_SILENCE_THRESHOLD_MS, effectiveSilenceThresholdMs } from "../lib/gatewayDeviceAlerts.js";
+import {
+  processGatewayWarningTransitions,
+  processReconcileDiscrepancyTransitions,
+  GATEWAY_SILENCE_THRESHOLD_MS,
+  effectiveSilenceThresholdMs,
+} from "../lib/gatewayDeviceAlerts.js";
 import { notifyCommandOutcomes } from "../lib/deviceCommandNotifications.js";
 import {
   protectSigningKey,
@@ -570,6 +575,22 @@ gatewayMachineRouter.post("/gateway/reconcile", verifyGatewaySignature, async (r
       changesJson,
     });
   }
+  // Notify HR admins exactly once when this reconcile transitions the
+  // registration into a discrepancy state (missing/mismatched batches), and
+  // auto-resolve the open alert when a later reconcile comes back clean.
+  // The previous state is derived from the latest reconcile audit row loaded
+  // above, so a re-reported identical (or shifted) discrepancy never
+  // re-notifies within the same episode.
+  let prevHadDiscrepancy = false;
+  if (lastAudit?.changesJson) {
+    try {
+      const prev = JSON.parse(lastAudit.changesJson) as { missing?: string[]; mismatched?: string[] };
+      prevHadDiscrepancy = (prev.missing?.length ?? 0) > 0 || (prev.mismatched?.length ?? 0) > 0;
+    } catch {
+      // Unparseable previous outcome — treat as clean so a real discrepancy still alerts.
+    }
+  }
+  await processReconcileDiscrepancyTransitions(reg, prevHadDiscrepancy, { missing, mismatched });
   res.json({ ok: true, results, audited: !isFreshDuplicate });
 });
 

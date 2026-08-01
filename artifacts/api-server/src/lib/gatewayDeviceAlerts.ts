@@ -22,6 +22,7 @@ export const GATEWAY_SDK_ALERT_TYPE = "gateway_sdk_missing";
 export const GATEWAY_SKEW_ALERT_TYPE = "gateway_clock_skew";
 
 export const GATEWAY_SILENT_ALERT_TYPE = "gateway_silent";
+export const GATEWAY_BATCH_DISCREPANCY_ALERT_TYPE = "gateway_batch_discrepancy";
 export const GATEWAY_AUTH_FAILED_ALERT_TYPE = "gateway_device_auth_failed";
 export const GATEWAY_UNREACHABLE_ALERT_TYPE = "gateway_device_unreachable";
 /** Connection-test statuses that raise an admin alert. */
@@ -191,6 +192,64 @@ export async function processGatewayWarningTransitions(prev: PrevState, next: Ne
     }
   } catch (e) {
     logger.error({ err: e, registrationId: prev.id }, "Failed to process gateway warning transitions");
+  }
+}
+
+/**
+ * Punch-batch reconcile discrepancy transitions.
+ *
+ * A reconcile can move a registration into (or out of) a discrepancy state:
+ * the gateway believes it delivered batches the server never received
+ * (MISSING_ON_SERVER) or whose event counts disagree (COUNT_MISMATCH).
+ * Missing punches directly affect payroll, so HR admins must hear about the
+ * *transition* exactly once — not on every periodic reconcile while the same
+ * discrepancy persists — and the open alert auto-resolves when a later
+ * reconcile comes back clean.
+ *
+ * Transition detection compares the previous reconcile outcome (the latest
+ * gateway_reconcile audit row, already loaded by the route) against the
+ * current one. As with silence alerts, an admin dismissing the notification
+ * is an acknowledgement, not a recovery: while the registration stays in a
+ * discrepancy state no new alert is raised even if the set of affected
+ * batches shifts, because an open-or-dismissed alert for the current episode
+ * already exists; only a clean reconcile resets the episode.
+ * Never throws — a notification failure must not fail the reconcile itself.
+ */
+export async function processReconcileDiscrepancyTransitions(
+  reg: { id: number; name: string; nameAr: string | null },
+  prevHadDiscrepancy: boolean,
+  current: { missing: string[]; mismatched: string[] },
+): Promise<void> {
+  try {
+    const hasDiscrepancy = current.missing.length > 0 || current.mismatched.length > 0;
+    if (!hasDiscrepancy) {
+      if (prevHadDiscrepancy) {
+        await resolveAlerts(reg.id, [GATEWAY_BATCH_DISCREPANCY_ALERT_TYPE]);
+      }
+      return;
+    }
+    if (prevHadDiscrepancy) return; // same episode — no repeat spam
+    const nameAr = reg.nameAr ?? reg.name;
+    const parts: string[] = [];
+    const partsAr: string[] = [];
+    if (current.missing.length) {
+      parts.push(`${current.missing.length} batch(es) were never received by the server`);
+      partsAr.push(`${current.missing.length} دفعة لم يستلمها الخادم إطلاقًا`);
+    }
+    if (current.mismatched.length) {
+      parts.push(`${current.mismatched.length} batch(es) have mismatched event counts`);
+      partsAr.push(`${current.mismatched.length} دفعة بعدد أحداث غير مطابق`);
+    }
+    await raiseAlert(
+      { id: reg.id, name: reg.name, nameAr: reg.nameAr, sdkPresent: null, deviceClockSkewAlert: false, adapterConnStatus: null },
+      GATEWAY_BATCH_DISCREPANCY_ALERT_TYPE,
+      `Gateway "${reg.name}": punch batches missing on server`,
+      `البوابة "${nameAr}": دفعات بصمات مفقودة على الخادم`,
+      `Batch reconciliation for gateway "${reg.name}" found a delivery discrepancy: ${parts.join("; ")}. Missing punches directly affect payroll — investigate before the next payroll run.`,
+      `كشفت مطابقة الدفعات لبوابة "${nameAr}" عن اختلاف في التسليم: ${partsAr.join("؛ ")}. البصمات المفقودة تؤثر مباشرة على الرواتب — يرجى التحقق قبل تشغيل الرواتب القادم.`,
+    );
+  } catch (e) {
+    logger.error({ err: e, registrationId: reg.id }, "Failed to process reconcile discrepancy transitions");
   }
 }
 
