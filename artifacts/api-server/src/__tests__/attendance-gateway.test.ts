@@ -547,6 +547,97 @@ describe("terminal batch recovery", () => {
   });
 });
 
+describe("terminal batch export (last-resort CSV recovery)", () => {
+  it("exports a stuck batch as CSV (metadata only) that the CSV import path re-ingests", async () => {
+    const dir = path.join(os.tmpdir(), `gw-export-${Date.now()}`);
+    const queue = new EncryptedQueue(dir, "test-queue-key");
+    await queue.init();
+    const deadFetch: typeof fetch = (async () => { throw new Error("network unreachable"); }) as typeof fetch;
+    const hr = new HrClient({ hrApiUrl: "/api", gatewayId: registrationId, signingKey, fetchImpl: deadFetch });
+    const adapter = new SimulatorAdapter([DEVICE_USER_ID], () => new Date("2030-06-14T14:00:00Z"));
+    const service = new GatewayService(queue, hr, adapter, { maxAttempts: 1, baseBackoffMs: 0 });
+    const token = "export-operator-token";
+    const local = buildLocalApi({ service, adapter, adminToken: token });
+
+    // Spool a batch. While it is still pending (not terminal), export is
+    // refused even with the operator token — export is strictly a last
+    // resort for batches that exhausted automatic delivery.
+    const polled = await service.pollOnce();
+    expect(polled.queued).toBe(2);
+    expect(
+      (await request(local).get(`/terminal-batches/${polled.batchUuid}/export`).set("x-gateway-admin-token", token)).status,
+    ).toBe(404);
+
+    // Let it go terminal (persistent delivery failure).
+    await service.flush();
+    const stored = await queue.read(polled.batchUuid!);
+    expect(stored!.terminal).toBe(true);
+    // The spooled punches carry raw vendor metadata that must NOT be exported.
+    expect(stored!.punches.some((p) => p.raw && Object.keys(p.raw).length > 0)).toBe(true);
+
+    // Export requires the operator token — this is decrypted punch data.
+    expect((await request(local).get(`/terminal-batches/${polled.batchUuid}/export`)).status).toBe(401);
+    // Unknown batch → 404 even with the token.
+    expect(
+      (await request(local).get(`/terminal-batches/${randomUUID()}/export`).set("x-gateway-admin-token", token)).status,
+    ).toBe(404);
+
+    const res = await request(local)
+      .get(`/terminal-batches/${polled.batchUuid}/export`)
+      .set("x-gateway-admin-token", token);
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/csv");
+    expect(res.headers["content-disposition"]).toContain(`punch-batch-${polled.batchUuid}.csv`);
+    const csv = res.text;
+
+    // Nothing beyond punch metadata leaves the spool: no raw payload keys,
+    // no biometric-adjacent fields.
+    expect(csv.split(/\r?\n/)[0]).toBe("device_user_id,employee_id,event_time,event_type,event_uid");
+    for (const forbidden of ["raw", "template", "biometric", "csvRow"]) {
+      expect(csv.toLowerCase()).not.toContain(forbidden.toLowerCase());
+    }
+
+    // The export parses cleanly through the existing CSV import parser and
+    // preserves the original punches (uids included → server dedupe holds).
+    const { punches, errors } = parseCsvPunches(csv);
+    expect(errors).toEqual([]);
+    expect(punches).toHaveLength(2);
+    for (let i = 0; i < punches.length; i++) {
+      expect(punches[i].deviceUserId).toBe(stored!.punches[i].deviceUserId);
+      expect(punches[i].eventTime).toBe(stored!.punches[i].eventTime);
+      expect(punches[i].eventType).toBe(stored!.punches[i].eventType);
+      expect(punches[i].deviceEventUid).toBe(stored!.punches[i].deviceEventUid);
+    }
+
+    // Full round trip: a CSV-adapter gateway imports the exported file and
+    // delivers the punches to the HR core.
+    const csvDir = path.join(os.tmpdir(), `gw-export-csv-${Date.now()}`);
+    const csvQueue = new EncryptedQueue(csvDir, "test-queue-key");
+    await csvQueue.init();
+    const { CsvAdapter } = await import("../../../../lib/attendance-gateway/src/adapters/csv.js");
+    const csvAdapter = new CsvAdapter();
+    const csvHr = new HrClient({ hrApiUrl: "/api", gatewayId: registrationId, signingKey, fetchImpl: supertestFetch() });
+    const csvService = new GatewayService(csvQueue, csvHr, csvAdapter);
+    const csvLocal = buildLocalApi({ service: csvService, adapter: csvAdapter, adminToken: token });
+    const imported = await request(csvLocal)
+      .post("/import-csv")
+      .set("x-gateway-admin-token", token)
+      .send({ content: csv });
+    expect(imported.status).toBe(200);
+    expect(imported.body.queued).toBe(2);
+    expect(imported.body.flush.sent).toBe(1);
+
+    // cleanup rows created by the re-import
+    const [b] = await db
+      .select()
+      .from(punchImportBatchesTable)
+      .where(eq(punchImportBatchesTable.batchUuid, imported.body.batchUuid));
+    createdBatchIds.push(b.id);
+    await db.delete(punchEventsTable).where(eq(punchEventsTable.importBatchId, b.id));
+    await db.delete(attendanceRecordsTable).where(eq(attendanceRecordsTable.date, "2030-06-14"));
+  });
+});
+
 describe("local operator API security", () => {
   it("mutating endpoints require the operator token; reads stay loopback-open", async () => {
     const dir = path.join(os.tmpdir(), `gw-local-${Date.now()}`);

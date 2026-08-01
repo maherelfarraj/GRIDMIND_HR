@@ -40,6 +40,23 @@ export function buildLocalApi(opts: { service: GatewayService; adapter: DeviceAd
   // Terminal batches: exhausted all delivery attempts, kept encrypted on disk.
   app.get("/terminal-batches", async (_req, res) => { res.json(await service.listTerminalBatches()); });
 
+  // Last-resort recovery: export a stuck batch's punches as a CSV file that
+  // the CSV import path accepts. The file contains decrypted punch data
+  // (metadata only — never biometric fields), so unlike the other read-only
+  // endpoints it requires the operator token.
+  app.get("/terminal-batches/:uuid/export", requireOperatorToken, async (req, res) => {
+    try {
+      const exported = await service.exportBatchCsv(req.params.uuid);
+      if (!exported) { res.status(404).json({ error: "unknown or non-terminal batchUuid" }); return; }
+      res
+        .set("content-type", "text/csv; charset=utf-8")
+        .set("content-disposition", `attachment; filename="punch-batch-${exported.batchUuid}.csv"`)
+        .send(exported.csv);
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
   app.post("/flush", requireOperatorToken, async (_req, res) => { res.json(await service.flush()); });
   // Operator requeue: reset attempts/terminal so the next flush retries the batch.
   app.post("/requeue", requireOperatorToken, async (req, res) => {

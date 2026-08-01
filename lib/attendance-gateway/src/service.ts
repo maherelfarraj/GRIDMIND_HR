@@ -537,6 +537,41 @@ export class GatewayService {
   }
 
   /**
+   * Last-resort recovery: export a spooled batch's punches as CSV compatible
+   * with the CSV import path (parseCsvPunches). Only punch metadata is
+   * emitted — the `raw` field (and anything else) never leaves the spool, so
+   * no vendor payloads or biometric-adjacent data can end up in the file.
+   * Only TERMINAL batches are exportable — a pending/retrying batch is still
+   * on the automatic delivery path and must not be pulled out of it early.
+   * Returns null when the batch is unknown or not terminal (indistinguishable
+   * on purpose: no disclosure about non-exportable batches).
+   */
+  async exportBatchCsv(batchUuid: string): Promise<{ batchUuid: string; punchCount: number; csv: string } | null> {
+    const batch = await this.queue.read(batchUuid);
+    if (!batch || !batch.terminal) return null;
+    const clean = (v: string | number | undefined, field: string): string => {
+      const s = v === undefined ? "" : String(v);
+      if (/[,\r\n"]/.test(s)) {
+        // The CSV import parser splits naively on commas; refuse to emit a
+        // file it would mis-parse rather than silently corrupt punches.
+        throw new Error(`cannot export batch ${batchUuid}: ${field} value contains a comma/quote/newline`);
+      }
+      return s;
+    };
+    const rows = batch.punches.map((p) =>
+      [
+        clean(p.deviceUserId, "device_user_id"),
+        clean(p.employeeId, "employee_id"),
+        clean(p.eventTime, "event_time"),
+        clean(p.eventType, "event_type"),
+        clean(p.deviceEventUid, "event_uid"),
+      ].join(","),
+    );
+    const csv = ["device_user_id,employee_id,event_time,event_type,event_uid", ...rows].join("\n") + "\n";
+    return { batchUuid: batch.batchUuid, punchCount: batch.punches.length, csv };
+  }
+
+  /**
    * sdk_present: adapters expose sdkInfo() when they load a native vendor
    * SDK; otherwise infer from the connection test (an adapter that flags
    * requiresVendorSdk on failure is telling us the SDK layer is missing).
