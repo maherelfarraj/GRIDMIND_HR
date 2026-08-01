@@ -180,6 +180,8 @@ describe("payroll excused no-show days", () => {
     expect(res.status).toBe(201);
     expect(res.body.date).toBe(NO_SHOW_1);
     expect(res.body.reason).toBe("Biometric device outage at HQ");
+    // No runs exist yet, so nothing to auto-recalculate.
+    expect(res.body.recalculated).toBe(false);
     excusedId = res.body.id;
 
     // Duplicate excusal is rejected.
@@ -238,6 +240,42 @@ describe("payroll excused no-show days", () => {
     const calc = await request(app).post(`/api/payroll-periods/${periodId}/calculate`);
     expect(calc.status).toBe(200);
 
+    const run = await getRun(periodId, empId);
+    expect(run.absentDays).toBe(2);
+    const absLine = await getAbsenceLine(run.id);
+    expect(parseFloat(absLine.amount)).toBeCloseTo(round2(2 * dailyRate), 2);
+  });
+
+  it("auto-recalculates run totals when a day is excused on a period with runs", async () => {
+    // State here: runs exist, both no-show days unexcused (2 absent days).
+    const res = await request(app)
+      .post(`/api/payroll-periods/${periodId}/excused-absences`)
+      .send({ employeeId: empId, date: NO_SHOW_1, reason: "Approved off-site work" });
+    expect(res.status).toBe(201);
+    expect(res.body.recalculated).toBe(true);
+
+    // No manual calculate step — totals already reflect the excusal.
+    const run = await getRun(periodId, empId);
+    expect(run.absentDays).toBe(1);
+    expect(run.presentDays).toBe(WORKDAYS.length - 1);
+    const absLine = await getAbsenceLine(run.id);
+    expect(parseFloat(absLine.amount)).toBeCloseTo(round2(1 * dailyRate), 2);
+  });
+
+  it("auto-recalculates run totals when an excusal is undone on a period with runs", async () => {
+    const [row] = await db.select().from(payrollExcusedAbsencesTable).where(and(
+      eq(payrollExcusedAbsencesTable.payrollPeriodId, periodId),
+      eq(payrollExcusedAbsencesTable.employeeId, empId),
+      eq(payrollExcusedAbsencesTable.date, NO_SHOW_1),
+    ));
+    expect(row).toBeDefined();
+
+    const del = await request(app)
+      .delete(`/api/payroll-periods/${periodId}/excused-absences/${row.id}`);
+    expect(del.status).toBe(200);
+    expect(del.body.recalculated).toBe(true);
+
+    // Deduction reinstated without a manual calculate step.
     const run = await getRun(periodId, empId);
     expect(run.absentDays).toBe(2);
     const absLine = await getAbsenceLine(run.id);

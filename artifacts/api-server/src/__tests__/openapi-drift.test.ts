@@ -73,6 +73,7 @@ const SCHEMA_NAME_OVERRIDES: Record<string, string | null> = {
  */
 const ALLOWED_EXTRA_PROPERTIES: Record<string, string[]> = {
   "PrivilegedSession": ["userName"], // joined from system_users when serializing
+  "PayrollExcusedAbsence": ["recalculated"], // computed flag: whether excusal change auto-recalculated runs
   "Department": [
     "parentNameEn",
     "headEmployeeNameEn",

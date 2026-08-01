@@ -382,6 +382,19 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }
   if (period.isClosed) { res.status(400).json({ error: "Period is closed and cannot be recalculated" }); return; }
 
+  const summary = await recalculatePeriodRuns(period, actorUserId);
+  res.json(summary);
+});
+
+// Shared payroll run (re)calculation. Used by the calculate endpoint above and
+// invoked automatically when an excusal changes on a period that already has
+// runs, so totals never go stale. Callers must ensure the period is not closed.
+async function recalculatePeriodRuns(
+  period: typeof payrollPeriodsTable.$inferSelect,
+  actorUserId: number,
+) {
+  const periodId = period.id;
+
   // Flip any active employee whose last working day has passed to terminated
   // before selecting, so future-dated offboardings converge without a scheduler.
   await reconcileTerminationStatuses();
@@ -782,7 +795,7 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     changesJson: JSON.stringify({ employeeCount: employees.length, exceptionCount, totalNet: Math.round(totalNet * 100) / 100 }),
   });
 
-  res.json({
+  return {
     periodId,
     runsCreated: runs.length,
     employeeCount: employees.length,
@@ -791,8 +804,17 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     totalDeductions: Math.round(totalDeductions * 100) / 100,
     totalNet: Math.round(totalNet * 100) / 100,
     runs: runs.map(r => ({ runId: r.id, employeeId: r.employeeId, grossSalary: r.grossSalary, netSalary: r.netSalary, hasException: r.hasException })),
-  });
-});
+  };
+}
+
+// True if the period already has payroll runs (i.e. was calculated before).
+async function periodHasRuns(periodId: number): Promise<boolean> {
+  const [run] = await db.select({ id: payrollRunsTable.id })
+    .from(payrollRunsTable)
+    .where(eq(payrollRunsTable.payrollPeriodId, periodId))
+    .limit(1);
+  return !!run;
+}
 
 // GET /payroll-periods/:id/no-shows — detected no-show days per employee (with excused status)
 router.get("/payroll-periods/:id/no-shows", async (req, res): Promise<void> => {
@@ -897,7 +919,15 @@ router.post("/payroll-periods/:id/excused-absences", async (req, res): Promise<v
     changesJson: JSON.stringify({ employeeId: emp.id, date, reason: created.reason }),
   });
 
-  res.status(201).json(created);
+  // Auto-recalculate so run totals reflect the excusal without a manual step.
+  // (Closed periods were rejected above; periods without runs stay untouched.)
+  let recalculated = false;
+  if (await periodHasRuns(periodId)) {
+    await recalculatePeriodRuns(period, actorUserId);
+    recalculated = true;
+  }
+
+  res.status(201).json({ ...created, recalculated });
 });
 
 // DELETE /payroll-periods/:id/excused-absences/:excusedId — undo an excusal
@@ -924,7 +954,15 @@ router.delete("/payroll-periods/:id/excused-absences/:excusedId", async (req, re
     actorUserId,
     changesJson: JSON.stringify({ employeeId: row.employeeId, date: row.date }),
   });
-  res.json({ deleted: true, id: excusedId });
+
+  // Auto-recalculate so the reinstated deduction shows up without a manual step.
+  let recalculated = false;
+  if (await periodHasRuns(periodId)) {
+    await recalculatePeriodRuns(period, actorUserId);
+    recalculated = true;
+  }
+
+  res.json({ deleted: true, id: excusedId, recalculated });
 });
 
 // POST /payroll-periods/:id/approve — first/second approval step

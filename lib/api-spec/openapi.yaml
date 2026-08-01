@@ -2463,6 +2463,15 @@ paths:
       responses:
         "200":
           description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: boolean }
+                  id: { type: number }
+                  recalculated: { type: boolean, description: "True when the change auto-recalculated existing payroll runs" }
+                required: [ deleted, id, recalculated ]
 
   /payroll-periods/{id}/approve:
     post:
@@ -11092,6 +11101,7 @@ components:
         reason: { type: string }
         excusedByUserId: { type: number }
         createdAt: { type: string }
+        recalculated: { type: boolean, description: "True when the change auto-recalculated existing payroll runs" }
       required: [ id, payrollPeriodId, employeeId, date, reason, excusedByUserId, createdAt ]
 
     PayrollPeriodOtSummary:

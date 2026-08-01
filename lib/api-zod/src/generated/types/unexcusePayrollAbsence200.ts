@@ -6,14 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface PayrollExcusedAbsence {
+export type UnexcusePayrollAbsence200 = {
+  deleted: boolean;
   id: number;
-  payrollPeriodId: number;
-  employeeId: number;
-  date: string;
-  reason: string;
-  excusedByUserId: number;
-  createdAt: string;
   /** True when the change auto-recalculated existing payroll runs */
-  recalculated?: boolean;
-}
+  recalculated: boolean;
+};

@@ -3753,7 +3753,8 @@ export const ExcusePayrollAbsenceResponse = zod.object({
   "date": zod.string(),
   "reason": zod.string(),
   "excusedByUserId": zod.number(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "recalculated": zod.boolean().optional().describe('True when the change auto-recalculated existing payroll runs')
 })
 
 
@@ -3765,7 +3766,11 @@ export const UnexcusePayrollAbsenceParams = zod.object({
   "excusedId": zod.coerce.number()
 })
 
-export const UnexcusePayrollAbsenceResponse = zod.unknown()
+export const UnexcusePayrollAbsenceResponse = zod.object({
+  "deleted": zod.boolean(),
+  "id": zod.number(),
+  "recalculated": zod.boolean().describe('True when the change auto-recalculated existing payroll runs')
+})
 
 
 /**

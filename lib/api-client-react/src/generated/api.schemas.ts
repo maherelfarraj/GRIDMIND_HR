@@ -1533,6 +1533,8 @@ export interface PayrollExcusedAbsence {
   reason: string;
   excusedByUserId: number;
   createdAt: string;
+  /** True when the change auto-recalculated existing payroll runs */
+  recalculated?: boolean;
 }
 
 export interface PayrollPeriodOtSummary {
@@ -6513,6 +6515,13 @@ applicableTo?: string;
 export type ListPayrollPeriodsParams = {
 status?: string;
 year?: string;
+};
+
+export type UnexcusePayrollAbsence200 = {
+  deleted: boolean;
+  id: number;
+  /** True when the change auto-recalculated existing payroll runs */
+  recalculated: boolean;
 };
 
 export type ListPayrollRunsParams = {

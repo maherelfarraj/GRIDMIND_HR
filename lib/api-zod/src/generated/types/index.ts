@@ -549,6 +549,7 @@ export * from './trainingSessionInput';
 export * from './uatScript';
 export * from './uatTestRun';
 export * from './uatTestRunStep';
+export * from './unexcusePayrollAbsence200';
 export * from './updateAiPermissionBody';
 export * from './updateInstallationReadinessBody';
 export * from './updateOnboardingTaskBody';

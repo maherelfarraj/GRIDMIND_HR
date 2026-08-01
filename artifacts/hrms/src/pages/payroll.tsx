@@ -336,18 +336,27 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
   const [excuseTarget, setExcuseTarget] = useState<null | { employeeId: number; employeeName: string; date: string }>(null);
   const [reason, setReason] = useState('');
 
-  const invalidate = () => {
+  const invalidate = (recalculated: boolean) => {
     queryClient.invalidateQueries({ queryKey: [`/api/payroll-periods/${periodId}/no-shows`] });
+    if (recalculated) {
+      // Runs were auto-recalculated on the server — refresh totals everywhere.
+      queryClient.invalidateQueries({ queryKey: [`/api/payroll-periods/${periodId}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/payroll-periods'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/payroll-runs'] });
+    }
   };
 
   const excuseMutation = useExcusePayrollAbsence({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (result: any) => {
+        const recalculated = !!result?.recalculated;
         toast({
           title: t('Day excused', 'تم إعفاء اليوم'),
-          description: t('Recalculate the period to update deductions.', 'أعد حساب الفترة لتحديث الاستقطاعات.'),
+          description: recalculated
+            ? t('Payroll was recalculated automatically — deductions are up to date.', 'أعيد حساب الرواتب تلقائيًا — الاستقطاعات محدثة.')
+            : t('The excused day will be skipped when payroll is calculated.', 'سيتم استثناء اليوم المعفى عند حساب الرواتب.'),
         });
-        invalidate();
+        invalidate(recalculated);
         setExcuseTarget(null);
         setReason('');
       },
@@ -359,9 +368,15 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
 
   const unexcuseMutation = useUnexcusePayrollAbsence({
     mutation: {
-      onSuccess: () => {
-        toast({ title: t('Excusal removed', 'تمت إزالة الإعفاء') });
-        invalidate();
+      onSuccess: (result: any) => {
+        const recalculated = !!result?.recalculated;
+        toast({
+          title: t('Excusal removed', 'تمت إزالة الإعفاء'),
+          description: recalculated
+            ? t('Payroll was recalculated automatically — the deduction was reinstated.', 'أعيد حساب الرواتب تلقائيًا — أعيد الخصم.')
+            : undefined,
+        });
+        invalidate(recalculated);
       },
       onError: (err: any) => {
         toast({ title: t('Error', 'خطأ'), description: err?.response?.data?.error ?? err?.message, variant: 'destructive' });
@@ -382,8 +397,8 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {t(
-            'Workdays with no punch activity, no attendance record and no approved leave. Excused days are skipped from the absence deduction on recalculation.',
-            'أيام عمل بدون بصمة أو سجل حضور أو إجازة معتمدة. الأيام المعفاة تُستثنى من خصم الغياب عند إعادة الحساب.'
+            'Workdays with no punch activity, no attendance record and no approved leave. Excusing or un-excusing a day updates the absence deduction automatically if payroll has been calculated.',
+            'أيام عمل بدون بصمة أو سجل حضور أو إجازة معتمدة. إعفاء يوم أو إلغاء إعفائه يحدّث خصم الغياب تلقائيًا إذا كانت الرواتب قد حُسبت.'
           )}
         </p>
       </CardHeader>

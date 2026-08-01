@@ -478,6 +478,7 @@ import type {
   TrainingProgramInput,
   TrainingSession,
   TrainingSessionInput,
+  UnexcusePayrollAbsence200,
   UpdateAiPermissionBody,
   UpdateInstallationReadinessBody,
   UpdateOnboardingTaskBody,
@@ -9694,9 +9695,9 @@ export const getUnexcusePayrollAbsenceUrl = (id: number,
  * @summary Undo an excused no-show day
  */
 export const unexcusePayrollAbsence = async (id: number,
-    excusedId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+    excusedId: number, options?: Parameters<typeof customFetch>[1]): Promise<UnexcusePayrollAbsence200> => {
 
-  return customFetch<void>(getUnexcusePayrollAbsenceUrl(id,excusedId),
+  return customFetch<UnexcusePayrollAbsence200>(getUnexcusePayrollAbsenceUrl(id,excusedId),
   {
     ...options,
     method: 'DELETE'
