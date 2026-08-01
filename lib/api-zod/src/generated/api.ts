@@ -161,6 +161,7 @@ export const ListEmployeesResponse = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string(),
   "contractEndDate": zod.string().nullish(),
+  "terminationDate": zod.string().nullish(),
   "nationality": zod.string(),
   "photoUrl": zod.string().nullish(),
   "organizationType": zod.string(),
@@ -197,6 +198,7 @@ export const CreateEmployeeBody = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string(),
   "contractEndDate": zod.string().nullish(),
+  "terminationDate": zod.string().nullish(),
   "nationality": zod.string(),
   "photoUrl": zod.string().nullish(),
   "organizationType": zod.string()
@@ -228,6 +230,7 @@ export const CreateEmployeeResponse = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string(),
   "contractEndDate": zod.string().nullish(),
+  "terminationDate": zod.string().nullish(),
   "nationality": zod.string(),
   "photoUrl": zod.string().nullish(),
   "organizationType": zod.string(),
@@ -269,6 +272,7 @@ export const GetEmployeeResponse = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string(),
   "contractEndDate": zod.string().nullish(),
+  "terminationDate": zod.string().nullish(),
   "nationality": zod.string(),
   "photoUrl": zod.string().nullish(),
   "organizationType": zod.string(),
@@ -302,6 +306,7 @@ export const UpdateEmployeeBody = zod.object({
   "email": zod.string().optional(),
   "phone": zod.string().nullish(),
   "contractEndDate": zod.string().nullish(),
+  "terminationDate": zod.string().nullish(),
   "photoUrl": zod.string().nullish()
 })
 
@@ -331,6 +336,7 @@ export const UpdateEmployeeResponse = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string(),
   "contractEndDate": zod.string().nullish(),
+  "terminationDate": zod.string().nullish(),
   "nationality": zod.string(),
   "photoUrl": zod.string().nullish(),
   "organizationType": zod.string(),
@@ -16011,4 +16017,3 @@ export const DeleteImportMappingTemplateParams = zod.object({
 export const DeleteImportMappingTemplateResponse = zod.object({
   "deleted": zod.boolean()
 })
-

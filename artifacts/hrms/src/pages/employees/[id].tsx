@@ -8,13 +8,23 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, Briefcase, FileText, Clock, User, Shield, Plus } from 'lucide-react';
+import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, Briefcase, FileText, Clock, User, Shield, Plus, LogOut } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 
 export default function EmployeeDetail() {
   const { id } = useParams<{ id: string }>();
   const { t, lang } = useLanguage();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [offboardOpen, setOffboardOpen] = useState(false);
+  const [lastWorkingDay, setLastWorkingDay] = useState('');
   
   const { data: employee, isLoading } = useGetEmployee(Number(id));
   const { data: documents } = useGetEmployeeDocuments(Number(id));
@@ -39,6 +49,31 @@ export default function EmployeeDetail() {
     return <div>{t('Employee not found', 'لم يتم العثور على الموظف')}</div>;
   }
 
+  const saveTermination = (date: string | null) => {
+    updateEmployee.mutate(
+      { id: Number(id), data: { terminationDate: date } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: [`/api/employees/${id}`] });
+          queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
+          setOffboardOpen(false);
+          toast({
+            title: date
+              ? t('Last working day recorded', 'تم تسجيل آخر يوم عمل')
+              : t('Employee reinstated', 'تمت إعادة تعيين الموظف'),
+          });
+        },
+        onError: (err: unknown) => {
+          toast({
+            title: t('Failed to update', 'فشل التحديث'),
+            description: err instanceof Error ? err.message : undefined,
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
+
   const name = lang === 'en' ? `${employee.firstNameEn} ${employee.lastNameEn}` : `${employee.firstNameAr} ${employee.lastNameAr}`;
   const title = lang === 'en' ? employee.jobTitleEn : employee.jobTitleAr;
   const dept = lang === 'en' ? employee.departmentNameEn : employee.departmentNameAr;
@@ -59,6 +94,54 @@ export default function EmployeeDetail() {
           <Edit className="w-4 h-4 me-2" />
           {t('Edit Profile', 'تعديل الملف')}
         </Button>
+        <Dialog open={offboardOpen} onOpenChange={(open) => { setOffboardOpen(open); if (open) setLastWorkingDay(employee.terminationDate ?? ''); }}>
+          <DialogTrigger asChild>
+            <Button variant={employee.terminationDate ? 'outline' : 'destructive'} data-testid="button-offboard">
+              <LogOut className="w-4 h-4 me-2" />
+              {employee.terminationDate ? t('Update Last Working Day', 'تحديث آخر يوم عمل') : t('Offboard', 'إنهاء الخدمة')}
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('Record Last Working Day', 'تسجيل آخر يوم عمل')}</DialogTitle>
+              <DialogDescription>
+                {t(
+                  'Set the employee\'s last working day. Payroll pays them up to and including this date; once the date has passed, the employee is marked as terminated.',
+                  'حدد آخر يوم عمل للموظف. تدفع الرواتب حتى هذا التاريخ؛ وبعد مروره يتم تعيين حالة الموظف إلى منتهي الخدمة.'
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-2">
+              <Label htmlFor="last-working-day">{t('Last working day', 'آخر يوم عمل')}</Label>
+              <Input
+                id="last-working-day"
+                type="date"
+                value={lastWorkingDay}
+                onChange={(e) => setLastWorkingDay(e.target.value)}
+                data-testid="input-last-working-day"
+              />
+            </div>
+            <DialogFooter className="gap-2">
+              {employee.terminationDate && (
+                <Button
+                  variant="outline"
+                  disabled={updateEmployee.isPending}
+                  onClick={() => saveTermination(null)}
+                  data-testid="button-clear-termination"
+                >
+                  {t('Clear & Reinstate', 'إلغاء وإعادة التعيين')}
+                </Button>
+              )}
+              <Button
+                disabled={!lastWorkingDay || updateEmployee.isPending}
+                onClick={() => saveTermination(lastWorkingDay)}
+                data-testid="button-save-termination"
+              >
+                {t('Save', 'حفظ')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -172,6 +255,12 @@ export default function EmployeeDetail() {
                     <div>
                       <p className="text-sm text-muted-foreground">{t('Contract End', 'نهاية العقد')}</p>
                       <p className="font-medium">{new Date(employee.contractEndDate).toLocaleDateString()}</p>
+                    </div>
+                  )}
+                  {employee.terminationDate && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">{t('Last Working Day', 'آخر يوم عمل')}</p>
+                      <p className="font-medium text-destructive" data-testid="text-termination-date">{new Date(employee.terminationDate).toLocaleDateString()}</p>
                     </div>
                   )}
                 </CardContent>

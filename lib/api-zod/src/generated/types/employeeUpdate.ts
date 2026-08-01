@@ -31,5 +31,7 @@ export interface EmployeeUpdate {
   /** @nullable */
   contractEndDate?: string | null;
   /** @nullable */
+  terminationDate?: string | null;
+  /** @nullable */
   photoUrl?: string | null;
 }

@@ -24,6 +24,9 @@ export const employeesTable = pgTable("employees", {
   phone: text("phone"),
   hireDate: text("hire_date").notNull(),
   contractEndDate: text("contract_end_date"),
+  // Explicit last working day set by HR when the employee leaves.
+  // Payroll proration prefers this over contract-derived termination dates.
+  terminationDate: text("termination_date"),
   nationality: text("nationality").notNull(),
   photoUrl: text("photo_url"),
   organizationType: text("organization_type").notNull().default("commercial"),

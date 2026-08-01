@@ -39,6 +39,8 @@ export interface Employee {
   hireDate: string;
   /** @nullable */
   contractEndDate?: string | null;
+  /** @nullable */
+  terminationDate?: string | null;
   nationality: string;
   /** @nullable */
   photoUrl?: string | null;

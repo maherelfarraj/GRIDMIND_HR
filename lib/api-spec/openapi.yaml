@@ -9780,6 +9780,7 @@ components:
         phone: { type: [ "string", "null" ] }
         hireDate: { type: string }
         contractEndDate: { type: [ "string", "null" ] }
+        terminationDate: { type: [ "string", "null" ] }
         nationality: { type: string }
         photoUrl: { type: [ "string", "null" ] }
         organizationType: { type: string }
@@ -9846,6 +9847,7 @@ components:
         phone: { type: [ "string", "null" ] }
         hireDate: { type: string }
         contractEndDate: { type: [ "string", "null" ] }
+        terminationDate: { type: [ "string", "null" ] }
         nationality: { type: string }
         photoUrl: { type: [ "string", "null" ] }
         organizationType: { type: string }
@@ -9887,6 +9889,7 @@ components:
         email: { type: string }
         phone: { type: [ "string", "null" ] }
         contractEndDate: { type: [ "string", "null" ] }
+        terminationDate: { type: [ "string", "null" ] }
         photoUrl: { type: [ "string", "null" ] }
 
     # ── Department ─────────────────────────────────────────

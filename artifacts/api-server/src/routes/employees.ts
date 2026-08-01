@@ -4,6 +4,7 @@ import { eq, and, ilike, sql, count } from "drizzle-orm";
 import {
   CreateEmployeeBody, UpdateEmployeeBody, ListEmployeesQueryParams,
 } from "@workspace/api-zod";
+import { reconcileTerminationStatuses } from "../lib/terminationReconciler.js";
 
 const router = Router();
 
@@ -33,6 +34,7 @@ async function buildEmployeeResponse(emp: typeof employeesTable.$inferSelect) {
 }
 
 router.get("/employees", async (req, res): Promise<void> => {
+  await reconcileTerminationStatuses();
   const parsed = ListEmployeesQueryParams.safeParse(req.query);
   const q = parsed.success ? parsed.data : {};
 
@@ -94,6 +96,7 @@ router.post("/employees", async (req, res): Promise<void> => {
 });
 
 router.get("/employees/:id", async (req, res): Promise<void> => {
+  await reconcileTerminationStatuses();
   const id = parseId(req.params.id);
   const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, id));
   if (!emp) { res.status(404).json({ error: "Not found" }); return; }
@@ -108,8 +111,39 @@ router.patch("/employees/:id", async (req, res): Promise<void> => {
   const parsed = UpdateEmployeeBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [before] = await db.select().from(employeesTable).where(eq(employeesTable.id, id));
+  if (!before) { res.status(404).json({ error: "Not found" }); return; }
+
+  // Offboarding state machine: status transitions are tied to the last
+  // working day, for every payload combination.
+  const update: Record<string, unknown> = { ...parsed.data };
+  const bodyHasTermination = Object.prototype.hasOwnProperty.call(req.body, "terminationDate");
+  const newTermination = bodyHasTermination ? (parsed.data.terminationDate ?? null) : (before.terminationDate ?? null);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (parsed.data.status === "terminated") {
+    if (!newTermination) {
+      res.status(400).json({ error: "A terminationDate (last working day) is required to mark an employee as terminated" });
+      return;
+    }
+    if (newTermination > todayStr) {
+      res.status(400).json({ error: "Cannot mark an employee terminated before their last working day; the status will transition automatically on that date" });
+      return;
+    }
+  }
+  if (parsed.data.status === "active" && newTermination && newTermination <= todayStr) {
+    res.status(400).json({ error: "Cannot set status to active while a past terminationDate is recorded; clear the terminationDate to reinstate the employee" });
+    return;
+  }
+  if (parsed.data.status === undefined) {
+    if (newTermination && newTermination <= todayStr && before.status === "active") {
+      // Last working day has passed → the employee is terminated.
+      update.status = "terminated";
+    } else if (bodyHasTermination && !newTermination && before.status === "terminated") {
+      // Clearing the last working day reinstates the employee.
+      update.status = "active";
+    }
+  }
   const [emp] = await db.update(employeesTable)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set({ ...update, updatedAt: new Date() })
     .where(eq(employeesTable.id, id))
     .returning();
   if (!emp) { res.status(404).json({ error: "Not found" }); return; }

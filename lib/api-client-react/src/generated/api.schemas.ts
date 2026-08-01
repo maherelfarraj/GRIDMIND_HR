@@ -364,6 +364,8 @@ export interface Employee {
   hireDate: string;
   /** @nullable */
   contractEndDate?: string | null;
+  /** @nullable */
+  terminationDate?: string | null;
   nationality: string;
   /** @nullable */
   photoUrl?: string | null;
@@ -406,6 +408,8 @@ export interface EmployeeInput {
   hireDate: string;
   /** @nullable */
   contractEndDate?: string | null;
+  /** @nullable */
+  terminationDate?: string | null;
   nationality: string;
   /** @nullable */
   photoUrl?: string | null;
@@ -436,6 +440,8 @@ export interface EmployeeUpdate {
   phone?: string | null;
   /** @nullable */
   contractEndDate?: string | null;
+  /** @nullable */
+  terminationDate?: string | null;
   /** @nullable */
   photoUrl?: string | null;
 }

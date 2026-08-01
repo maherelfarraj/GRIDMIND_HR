@@ -10,6 +10,7 @@ import type { PayrollPeriod, Employee } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getWeekendDays, WEEKEND_CONFIG_KEY } from "../lib/weekend";
 import { getActorUserId } from "../middleware/requireAuth.js";
+import { reconcileTerminationStatuses } from "../lib/terminationReconciler.js";
 
 export { WEEKEND_CONFIG_KEY };
 
@@ -335,8 +336,18 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }
   if (period.isClosed) { res.status(400).json({ error: "Period is closed and cannot be recalculated" }); return; }
 
-  // Get all active employees
-  const employees = await db.select().from(employeesTable).where(eq(employeesTable.status, "active"));
+  // Flip any active employee whose last working day has passed to terminated
+  // before selecting, so future-dated offboardings converge without a scheduler.
+  await reconcileTerminationStatuses();
+
+  // Active employees, plus leavers whose explicit last working day falls on or
+  // after the period start — a terminated employee must still be paid for the
+  // days they worked in this period instead of silently dropping out.
+  const allEmployees = await db.select().from(employeesTable);
+  const employees = allEmployees.filter(emp =>
+    emp.status === "active" ||
+    (emp.terminationDate && emp.terminationDate >= period.startDate && emp.hireDate <= period.endDate)
+  );
   const grades = await db.select().from(salaryGradesTable);
   const components = await db.select().from(payComponentsTable).where(eq(payComponentsTable.isActive, true));
   const overtimeRules = await db.select().from(overtimeRulesTable).where(eq(overtimeRulesTable.isActive, true));
@@ -455,7 +466,9 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     // termination (if any). Days outside this window are neither paid nor
     // counted as absences.
     const employStart = emp.hireDate > period.startDate ? emp.hireDate : period.startDate;
-    const empTermination = terminationByEmp[emp.id] ?? null;
+    // Prefer the explicit last working day set on the employee record;
+    // fall back to the contract-derived termination date.
+    const empTermination = emp.terminationDate ?? terminationByEmp[emp.id] ?? null;
     const employEnd = empTermination && empTermination < period.endDate ? empTermination : period.endDate;
     const grade = emp.grade ? gradeMap[emp.grade] : null;
     const baseSalary = grade ? parseFloat(grade.baseSalary) : 5000; // fallback base
