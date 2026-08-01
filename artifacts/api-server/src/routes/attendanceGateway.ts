@@ -713,12 +713,29 @@ gatewayAdminRouter.use("/gateway", requireGatewayAdminSession);
 
 // POST /gateway/registrations — create; returns plaintext secret ONCE
 gatewayAdminRouter.post("/gateway/registrations", async (req, res): Promise<void> => {
-  const { name, nameAr, deviceId, adapterType, notes } = req.body as {
+  const { name, nameAr, deviceId, adapterType, notes, silenceThresholdMinutes } = req.body as {
     name?: string; nameAr?: string; deviceId?: number; adapterType?: string; notes?: string;
+    silenceThresholdMinutes?: unknown;
   };
   if (!name) {
     res.status(400).json({ error: "name required" });
     return;
+  }
+  // Optional per-registration silence alarm window — validated exactly like
+  // the PATCH endpoint (integer minutes 1–1440; null/undefined = global default).
+  let thresholdValue: number | null = null;
+  if (silenceThresholdMinutes !== undefined && silenceThresholdMinutes !== null) {
+    if (
+      typeof silenceThresholdMinutes === "number" &&
+      Number.isInteger(silenceThresholdMinutes) &&
+      silenceThresholdMinutes >= 1 &&
+      silenceThresholdMinutes <= 1440
+    ) {
+      thresholdValue = silenceThresholdMinutes;
+    } else {
+      res.status(400).json({ error: "silenceThresholdMinutes must be an integer between 1 and 1440 minutes, or null" });
+      return;
+    }
   }
   const VALID_ADAPTERS = ["ZKTECO", "SUPREMA", "ZKTECO_NATIVE", "SUPREMA_NATIVE", "GENERIC_REST", "CSV", "SIMULATOR"];
   if (adapterType && !VALID_ADAPTERS.includes(adapterType)) {
@@ -738,6 +755,7 @@ gatewayAdminRouter.post("/gateway/registrations", async (req, res): Promise<void
       secretHash: protectSigningKey(sha256(secret)),
       registeredByUserId: actorUserId,
       notes: notes ?? null,
+      silenceThresholdMinutes: thresholdValue,
     })
     .returning();
   await db.insert(auditLogsTable).values({
@@ -746,7 +764,7 @@ gatewayAdminRouter.post("/gateway/registrations", async (req, res): Promise<void
     entityId: reg.id,
     entityLabel: name,
     actorUserId,
-    changesJson: JSON.stringify({ adapterType: reg.adapterType, deviceId: reg.deviceId }),
+    changesJson: JSON.stringify({ adapterType: reg.adapterType, deviceId: reg.deviceId, silenceThresholdMinutes: reg.silenceThresholdMinutes }),
   });
   // The plaintext secret is returned exactly once and never stored.
   res.status(201).json({ ...reg, secret, secretHash: undefined });

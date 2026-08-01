@@ -279,3 +279,49 @@ describe("silent-gateway sweep", () => {
     expect((await silenceAlerts()).length).toBe(before);
   });
 });
+
+describe("create with silence threshold", () => {
+  it("accepts an optional silenceThresholdMinutes at registration and audits it", async () => {
+    const create = await admin
+      .post("/api/gateway/registrations")
+      .send({ name: "Threshold-at-create GW", adapterType: "SIMULATOR", silenceThresholdMinutes: 45 });
+    expect(create.status).toBe(201);
+    expect(create.body.silenceThresholdMinutes).toBe(45);
+    const id = create.body.id as number;
+    try {
+      const [audit] = await db
+        .select()
+        .from(auditLogsTable)
+        .where(and(
+          eq(auditLogsTable.action, "create"),
+          eq(auditLogsTable.entityType, "gateway_registration"),
+          eq(auditLogsTable.entityId, id),
+        ));
+      expect(audit).toBeDefined();
+      expect(JSON.parse(audit!.changesJson!).silenceThresholdMinutes).toBe(45);
+    } finally {
+      await db.delete(auditLogsTable).where(and(eq(auditLogsTable.entityType, "gateway_registration"), eq(auditLogsTable.entityId, id)));
+      await db.delete(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, id));
+    }
+  });
+
+  it("rejects out-of-range or non-integer thresholds", async () => {
+    for (const bad of [0, 1441, 2.5, "60"]) {
+      const r = await admin
+        .post("/api/gateway/registrations")
+        .send({ name: "Bad Threshold GW", silenceThresholdMinutes: bad });
+      expect(r.status).toBe(400);
+    }
+  });
+
+  it("defaults to the global threshold when omitted or null", async () => {
+    const create = await admin
+      .post("/api/gateway/registrations")
+      .send({ name: "Default Threshold GW", silenceThresholdMinutes: null });
+    expect(create.status).toBe(201);
+    expect(create.body.silenceThresholdMinutes).toBeNull();
+    const id = create.body.id as number;
+    await db.delete(auditLogsTable).where(and(eq(auditLogsTable.entityType, "gateway_registration"), eq(auditLogsTable.entityId, id)));
+    await db.delete(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, id));
+  });
+});

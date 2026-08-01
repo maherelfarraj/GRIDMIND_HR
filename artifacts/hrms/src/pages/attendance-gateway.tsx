@@ -72,6 +72,7 @@ interface CreateRegistrationPayload {
   deviceId?: number;
   adapterType: 'ZKTECO' | 'SUPREMA' | 'ZKTECO_NATIVE' | 'SUPREMA_NATIVE' | 'GENERIC_REST' | 'CSV' | 'SIMULATOR';
   notes?: string;
+  silenceThresholdMinutes?: number;
 }
 
 interface CreateRegistrationResponse {
@@ -102,6 +103,9 @@ export default function AttendanceGateway() {
     adapterType: 'GENERIC_REST',
     notes: '',
   });
+  // Optional silence alarm window in the create dialog, kept as raw text so
+  // the user can leave it empty for the global default.
+  const [createThreshold, setCreateThreshold] = useState('');
 
   const { data: registrations, isLoading: loadingRegistrations } = useQuery<GatewayRegistration[]>({
     queryKey: ['gateway-registrations'],
@@ -140,6 +144,7 @@ export default function AttendanceGateway() {
       setOneTimeSecret(data.secret);
       setShowCreateDialog(false);
       setFormData({ name: '', nameAr: '', adapterType: 'GENERIC_REST', notes: '' });
+      setCreateThreshold('');
       toast({
         title: t('Gateway Registered', 'تم تسجيل البوابة'),
         description: t('Gateway registration created successfully. Copy the secret now — it cannot be retrieved again.', 'تم إنشاء تسجيل البوابة بنجاح. انسخ السر الآن — لا يمكن استرجاعه مرة أخرى.'),
@@ -233,7 +238,21 @@ export default function AttendanceGateway() {
   };
 
   const handleCreate = () => {
-    createMutation.mutate(formData);
+    const trimmed = createThreshold.trim();
+    let silenceThresholdMinutes: number | undefined;
+    if (trimmed !== '') {
+      const minutes = Number(trimmed);
+      if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+        toast({
+          title: t('Invalid value', 'قيمة غير صالحة'),
+          description: t('Enter a whole number of minutes between 1 and 1440, or leave empty for the default.', 'أدخل عددًا صحيحًا من الدقائق بين 1 و 1440، أو اتركه فارغًا للإعداد الافتراضي.'),
+          variant: 'destructive',
+        });
+        return;
+      }
+      silenceThresholdMinutes = minutes;
+    }
+    createMutation.mutate({ ...formData, silenceThresholdMinutes });
   };
 
   const handleRevoke = (id: number) => {
@@ -860,6 +879,22 @@ export default function AttendanceGateway() {
                 placeholder={t('Optional notes', 'ملاحظات اختيارية')}
                 rows={3}
               />
+            </div>
+
+            <div>
+              <Label htmlFor="createSilenceThreshold">{t('Silence alarm window (minutes, optional)', 'نافذة إنذار الصمت (بالدقائق، اختياري)')}</Label>
+              <Input
+                id="createSilenceThreshold"
+                type="number"
+                min={1}
+                max={1440}
+                value={createThreshold}
+                onChange={e => setCreateThreshold(e.target.value)}
+                placeholder={t('Leave empty for the global default', 'اتركه فارغًا للإعداد الافتراضي العام')}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {t('Minutes without a heartbeat before an offline alert (1–1440).', 'الدقائق بدون نبضة قبل إنذار عدم الاتصال (1–1440).')}
+              </p>
             </div>
           </div>
 
