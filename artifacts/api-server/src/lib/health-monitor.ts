@@ -22,6 +22,11 @@ import { testLdapConnection, type AdapterResult } from "./ldap-adapter.js";
 import { testSmtpConnection } from "./smtp-adapter.js";
 import { testDeviceConnection } from "./device-adapter.js";
 import { logger } from "./logger.js";
+import {
+  createJobFailureAlerter,
+  JOB_FAILURE_ALERT_THRESHOLD,
+  type JobRunResult,
+} from "./backgroundJobAlerts.js";
 
 export interface HealthCheckOutcome {
   profileId: number;
@@ -397,17 +402,81 @@ const SWEEP_INTERVAL_MS = 60_000;
 let timer: NodeJS.Timeout | null = null;
 let sweeping = false;
 
+/** Consecutive sweep-loop failures before security officers are alerted. */
+export const HEALTH_SWEEP_FAILURE_ALERT_THRESHOLD = JOB_FAILURE_ALERT_THRESHOLD;
+
+// Audit-trail markers for the sweep-loop alert/recovery transition. This is
+// about the scheduler itself breaking (e.g. the DB query listing profiles
+// throws) — distinct from per-profile "health_alert" events, which fire when
+// a specific connection's checks fail.
+export const HEALTH_SWEEP_ALERT_ACTION = "health_monitor_sweep.alert";
+export const HEALTH_SWEEP_RECOVERED_ACTION = "health_monitor_sweep.recovered";
+
+const sweepAlerter = createJobFailureAlerter({
+  entityType: "health_monitor_sweep",
+  alertAction: HEALTH_SWEEP_ALERT_ACTION,
+  recoveredAction: HEALTH_SWEEP_RECOVERED_ACTION,
+  // Arbitrary but stable app-defined advisory-lock key for this loop
+  // (distinct from the privileged-session sweeper's key).
+  lockKey: 0x4ea1_7451,
+  threshold: HEALTH_SWEEP_FAILURE_ALERT_THRESHOLD,
+  logLabel: "Health monitor sweep",
+  alertMessage: (failures, lastError) =>
+    `The background connection health monitor sweep has failed ${failures} consecutive times. ` +
+    `Integration connection profiles are no longer being health-checked, so broken connections ` +
+    `(LDAP/AD, SMTP, attendance devices) may go unnoticed. Last error: ${lastError}`,
+  recoveredMessage:
+    "The background connection health monitor has recovered and is checking integration " +
+    "connection profiles again. Health statuses are up to date as of the latest sweep.",
+  notification: {
+    alertTitleEn: "Connection health monitor is failing",
+    alertTitleAr: "توقفت مراقبة صحة الاتصالات عن العمل",
+    alertBodyAr: (failures) =>
+      `فشلت دورة مراقبة صحة الاتصالات في الخلفية ${failures} مرات متتالية. لم يعد يتم فحص ملفات تعريف الاتصال، لذا قد تمر الاتصالات المعطلة دون ملاحظة.`,
+    recoveredTitleEn: "Connection health monitor recovered",
+    recoveredTitleAr: "عادت مراقبة صحة الاتصالات إلى العمل",
+    recoveredBodyAr:
+      "عادت مراقبة صحة الاتصالات في الخلفية إلى العمل وتقوم بفحص ملفات تعريف الاتصال مرة أخرى.",
+    actionUrl: "/integration-governance",
+    actionLabelEn: "View connection profiles",
+  },
+});
+
+/** Test-only: reset the sweep-loop failure streak between test cases. */
+export function _resetHealthSweepStateForTests(): void {
+  sweepAlerter._resetForTests();
+}
+
+export type HealthSweepRunResult = JobRunResult;
+
+/**
+ * Runs one monitored sweep: executes the health checks and updates the
+ * sweep-loop failure streak / alert state. Exported separately from the
+ * scheduler so tests can drive it directly; `sweepFn` is injectable so tests
+ * can simulate DB failures.
+ */
+export async function runMonitoredHealthSweep(
+  sweepFn: () => Promise<void> = async () => {
+    const r = await runHealthChecksOnce();
+    if (r.checked > 0) {
+      logger.info(
+        { checked: r.checked, failed: r.failed, alertsRaised: r.alertsRaised },
+        "Health monitor sweep completed",
+      );
+    }
+  },
+): Promise<HealthSweepRunResult> {
+  return sweepAlerter.runMonitored(sweepFn);
+}
+
 /** Starts the background scheduler. Called from index.ts (not from tests). */
 export function startHealthMonitor(): void {
   if (timer) return;
   timer = setInterval(() => {
     if (sweeping) return; // never overlap sweeps
     sweeping = true;
-    runHealthChecksOnce()
-      .then((r) => {
-        if (r.checked > 0) logger.info({ checked: r.checked, failed: r.failed, alertsRaised: r.alertsRaised }, "Health monitor sweep completed");
-      })
-      .catch((err) => logger.error({ err }, "Health monitor sweep failed"))
+    runMonitoredHealthSweep()
+      .catch((err) => logger.error({ err }, "Health monitor sweep failed unexpectedly"))
       .finally(() => { sweeping = false; });
   }, SWEEP_INTERVAL_MS);
   timer.unref?.();
