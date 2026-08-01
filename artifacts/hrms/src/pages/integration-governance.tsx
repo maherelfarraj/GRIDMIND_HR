@@ -191,6 +191,89 @@ function HealthSettingsDialog({ profile, onClose, onSaved }: { profile: any; onC
   );
 }
 
+function ProfileDetailDialog({ profileId, onClose }: { profileId: number | null; onClose: () => void }) {
+  const { t, lang } = useLanguage();
+  const [detail, setDetail] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    if (profileId == null) { setDetail(null); setError(false); return; }
+    let cancelled = false;
+    setLoading(true); setError(false); setDetail(null);
+    apiFetch(`/api/integration-governance/connection-profiles/${profileId}`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(d => { if (!cancelled) setDetail(d); })
+      .catch(() => { if (!cancelled) setError(true); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [profileId]);
+  const testerName = detail ? (lang === 'ar' ? (detail.lastTestedByNameAr || detail.lastTestedByNameEn) : (detail.lastTestedByNameEn || detail.lastTestedByNameAr)) : null;
+  return (
+    <Dialog open={profileId != null} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Network className="w-5 h-5 text-blue-400" />{t('Connection Details', 'تفاصيل الاتصال')}</DialogTitle>
+        </DialogHeader>
+        {loading ? (
+          <div className="space-y-2 py-2"><Skeleton className="h-5 bg-slate-700" /><Skeleton className="h-5 bg-slate-700" /><Skeleton className="h-5 bg-slate-700" /></div>
+        ) : error ? (
+          <p className="text-sm text-red-300 py-2">{t('Could not load connection details.', 'تعذر تحميل تفاصيل الاتصال.')}</p>
+        ) : detail ? (
+          <div className="space-y-3 py-1 text-sm">
+            <div>
+              <p className="text-white font-medium">{detail.profileName}</p>
+              <p className="text-xs text-slate-400">{detail.integrationType}</p>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Badge variant="outline" className={`text-xs ${envBadge(detail.environment)}`}>{detail.environment}</Badge>
+              <Badge variant="outline" className={`text-xs ${statusBadge(detail.status)}`}>{detail.status}</Badge>
+            </div>
+            <div className="rounded-md border border-slate-700 bg-slate-700/30 p-3 space-y-1.5">
+              <p className="text-xs font-medium text-slate-300">{t('Last connection test', 'آخر اختبار اتصال')}</p>
+              {detail.lastTestResult ? (
+                <>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {detail.lastTestResult === 'success'
+                      ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      : <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />}
+                    <span className={`text-xs font-medium ${detail.lastTestResult === 'success' ? 'text-emerald-300' : 'text-red-300'}`}>
+                      {detail.lastTestResult === 'success' ? t('Test passed', 'نجح الاختبار') : t('Test failed', 'فشل الاختبار')}
+                    </span>
+                    {typeof detail.lastTestLatencyMs === 'number' && <span className="text-xs text-slate-400">{detail.lastTestLatencyMs}ms</span>}
+                  </div>
+                  {detail.lastTestedAt && (
+                    <p className="text-xs text-slate-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3 shrink-0" />
+                      {new Date(detail.lastTestedAt).toLocaleString()}
+                    </p>
+                  )}
+                  {testerName ? (
+                    <p className="text-xs text-slate-400 flex items-center gap-1">
+                      <User className="w-3 h-3 shrink-0" />
+                      {t('Tested by', 'اختبرها')} {testerName}
+                    </p>
+                  ) : detail.lastTestedAt ? (
+                    <p className="text-xs text-slate-400 flex items-center gap-1">
+                      <Bot className="w-3 h-3 shrink-0" />
+                      {t('Automated health check', 'فحص صحة تلقائي')}
+                    </p>
+                  ) : null}
+                  {detail.lastTestMessage && <p className="text-xs text-slate-400 break-words">{detail.lastTestMessage}</p>}
+                </>
+              ) : (
+                <p className="text-xs text-slate-500">{t('Never tested', 'لم يُختبر بعد')}</p>
+              )}
+            </div>
+          </div>
+        ) : null}
+        <DialogFooter>
+          <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Close', 'إغلاق')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function IntegrationGovernance() {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
@@ -206,6 +289,7 @@ export default function IntegrationGovernance() {
   const [smtpRecipient, setSmtpRecipient] = useState('');
   const [healthTarget, setHealthTarget] = useState<any>(null);
   const [runningHealthChecks, setRunningHealthChecks] = useState(false);
+  const [detailProfileId, setDetailProfileId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -450,6 +534,9 @@ export default function IntegrationGovernance() {
                           {p.governanceStatus === 'pending_approval' && (
                             <Button size="sm" variant="ghost" className="text-emerald-400 hover:text-emerald-300 h-7 px-2 text-xs" onClick={() => approveProfile(p.id)}>{t('Approve', 'موافقة')}</Button>
                           )}
+                          <Button size="sm" variant="ghost" className="text-slate-300 hover:text-white h-7 px-2 text-xs" onClick={() => setDetailProfileId(p.id)}>
+                            {t('Details', 'تفاصيل')}
+                          </Button>
                           <Button size="sm" variant="ghost" className="text-slate-300 hover:text-white h-7 px-2 text-xs" onClick={() => setHealthTarget(p)}>
                             <Settings2 className="w-3.5 h-3.5 me-1" />{t('Health', 'الصحة')}
                           </Button>
@@ -568,6 +655,8 @@ export default function IntegrationGovernance() {
         <AddProfileDialog open={addProfileOpen} onClose={() => setAddProfileOpen(false)} onSaved={load} />
 
         {healthTarget && <HealthSettingsDialog profile={healthTarget} onClose={() => setHealthTarget(null)} onSaved={load} />}
+
+        <ProfileDetailDialog profileId={detailProfileId} onClose={() => setDetailProfileId(null)} />
 
         <Dialog open={!!smtpTestTarget} onOpenChange={v => !v && setSmtpTestTarget(null)}>
           <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
