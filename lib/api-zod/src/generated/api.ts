@@ -1292,7 +1292,8 @@ export const ListUsersResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "preferredLanguage": zod.string(),
   "createdAt": zod.string(),
-  "mustChangePassword": zod.boolean().optional()
+  "mustChangePassword": zod.boolean().optional(),
+  "lockedUntil": zod.string().nullish()
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
 
@@ -1326,7 +1327,8 @@ export const CreateUserResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "preferredLanguage": zod.string(),
   "createdAt": zod.string(),
-  "mustChangePassword": zod.boolean().optional()
+  "mustChangePassword": zod.boolean().optional(),
+  "lockedUntil": zod.string().nullish()
 })
 
 
@@ -1352,7 +1354,8 @@ export const GetUserResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "preferredLanguage": zod.string(),
   "createdAt": zod.string(),
-  "mustChangePassword": zod.boolean().optional()
+  "mustChangePassword": zod.boolean().optional(),
+  "lockedUntil": zod.string().nullish()
 })
 
 
@@ -1389,7 +1392,8 @@ export const UpdateUserResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "preferredLanguage": zod.string(),
   "createdAt": zod.string(),
-  "mustChangePassword": zod.boolean().optional()
+  "mustChangePassword": zod.boolean().optional(),
+  "lockedUntil": zod.string().nullish()
 })
 
 
@@ -1411,7 +1415,12 @@ export const SetUserPasswordResponse = zod.object({
   "success": zod.boolean()
 })
 
-
+/**
+ * @summary Clear a login lockout for a user immediately (admins only)
+ */
+export const UnlockUserParams = zod.object({
+  "id": zod.coerce.number()
+})
 /**
  * @summary Change the signed-in user's own password (verifies current password)
  */
@@ -1447,7 +1456,8 @@ export const GetAuthMeResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "preferredLanguage": zod.string(),
   "createdAt": zod.string(),
-  "mustChangePassword": zod.boolean().optional()
+  "mustChangePassword": zod.boolean().optional(),
+  "lockedUntil": zod.string().nullish()
 })
 
 
@@ -16042,3 +16052,7 @@ export const DeleteImportMappingTemplateResponse = zod.object({
   "deleted": zod.boolean()
 })
 
+
+export const UnlockUserResponse = zod.object({
+  "success": zod.boolean()
+})

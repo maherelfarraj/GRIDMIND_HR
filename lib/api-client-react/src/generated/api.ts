@@ -479,6 +479,7 @@ import type {
   TrainingSession,
   TrainingSessionInput,
   UnexcusePayrollAbsence200,
+  UnlockUser200,
   UpdateAiPermissionBody,
   UpdateInstallationReadinessBody,
   UpdateOnboardingTaskBody,
@@ -4373,6 +4374,77 @@ export const useSetUserPassword = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSetUserPasswordMutationOptions(options));
+    }
+
+export const getUnlockUserUrl = (id: number,) => {
+
+
+
+
+  return `/api/users/${id}/unlock`
+}
+
+/**
+ * @summary Clear a login lockout for a user immediately (admins only)
+ */
+export const unlockUser = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<UnlockUser200> => {
+
+  return customFetch<UnlockUser200>(getUnlockUserUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnlockUserMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlockUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlockUser>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['unlockUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlockUser>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  unlockUser(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnlockUserMutationResult = NonNullable<Awaited<ReturnType<typeof unlockUser>>>
+
+    export type UnlockUserMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Clear a login lockout for a user immediately (admins only)
+ */
+export const useUnlockUser = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlockUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unlockUser>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getUnlockUserMutationOptions(options));
     }
 
 export const getChangeMyPasswordUrl = () => {

@@ -90,7 +90,8 @@ const ALLOWED_EXTRA_PROPERTIES: Record<string, string[]> = {
     "roleNameEn"
   ],
   "SystemUser": [
-    "roleNameEn"
+    "roleNameEn",
+    "lockedUntil" // computed from in-memory login-throttle state, not a column
   ],
   "Document": [
     "employeeNameEn",

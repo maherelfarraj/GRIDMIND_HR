@@ -1071,6 +1071,8 @@ export interface SystemUser {
   preferredLanguage: string;
   createdAt: string;
   mustChangePassword?: boolean;
+  /** @nullable */
+  lockedUntil?: string | null;
 }
 
 export interface SystemUserInput {
@@ -6367,6 +6369,9 @@ export type SetUserPassword200 = {
   success: boolean;
 };
 
+export type UnlockUser200 = {
+  success: boolean;
+};
 export type ChangeMyPassword200 = {
   success: boolean;
 };

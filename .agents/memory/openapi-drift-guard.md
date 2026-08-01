@@ -9,3 +9,5 @@ description: Shrink-only baseline ratchet decision for the OpenAPI-vs-DB drift g
 **How to apply:** when a drift failure appears, fix the spec/schema — never widen the baseline; when fixing old drift, prune its baseline entry. Note: `schema-drift` is a validation command (validation skill), not a regular workflow — `configureWorkflow` changes to it silently don't persist; use `setValidationCommand`.
 
 **Known gap:** the guard only checks *response* component schemas; request-body (`*Input`) schemas are not covered, so create/edit forms can drift and send fields the server ignores.
+
+- Computed/joined response fields go in ALLOWED_EXTRA_PROPERTIES inside the drift test itself (not the baseline); watch for duplicate object keys per schema name — a later duplicate silently overwrites an earlier entry.

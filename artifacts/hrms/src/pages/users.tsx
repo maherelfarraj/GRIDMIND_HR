@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { useListUsers, useCreateUser, useGetUser, useUpdateUser, getGetUserQueryKey, useSetUserPassword } from '@workspace/api-client-react';
+import { useListUsers, useCreateUser, useGetUser, useUpdateUser, getGetUserQueryKey, useSetUserPassword, useUnlockUser, getListUsersQueryKey } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Server, Search, Shield, UserCog, MoreHorizontal, KeyRound } from 'lucide-react';
+import { Server, Search, Shield, UserCog, MoreHorizontal, KeyRound, Lock, LockOpen } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getPasswordIssues, PASSWORD_REQUIREMENTS_EN, PASSWORD_REQUIREMENTS_AR } from '@workspace/api-zod';
@@ -22,6 +23,26 @@ export default function Users() {
   const updateUser = useUpdateUser();
   const { data: userDetail } = useGetUser(1, { query: { enabled: false, queryKey: getGetUserQueryKey(1) } });
   const setUserPassword = useSetUserPassword();
+  const unlockUser = useUnlockUser();
+  const queryClient = useQueryClient();
+
+  const isLocked = (lockedUntil: string | null | undefined) =>
+    !!lockedUntil && new Date(lockedUntil).getTime() > Date.now();
+
+  const handleUnlock = (id: number, name: string) => {
+    unlockUser.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          toast({ title: t('Account unlocked', 'تم إلغاء قفل الحساب'), description: t(`${name} can sign in again immediately.`, `يمكن لـ ${name} تسجيل الدخول مرة أخرى فورًا.`) });
+          queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+        },
+        onError: () => {
+          toast({ title: t('Failed to unlock account', 'فشل إلغاء قفل الحساب'), variant: 'destructive' });
+        },
+      },
+    );
+  };
 
   const [passwordTarget, setPasswordTarget] = useState<{ id: number; name: string } | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -156,6 +177,11 @@ export default function Users() {
                             <Shield className="w-3 h-3 me-1" /> MFA
                           </Badge>
                         )}
+                        {isLocked(user.lockedUntil) && (
+                          <Badge variant="outline" className="border-red-500/30 text-red-500 bg-red-500/5 shadow-none" title={t('Locked out after repeated failed logins', 'مقفل بعد محاولات تسجيل دخول فاشلة متكررة')}>
+                            <Lock className="w-3 h-3 me-1" /> {t('Locked', 'مقفل')}
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
@@ -173,6 +199,15 @@ export default function Users() {
                             <KeyRound className="w-4 h-4 me-2" />
                             {t('Set Password', 'تعيين كلمة المرور')}
                           </DropdownMenuItem>
+                          {isLocked(user.lockedUntil) && (
+                            <DropdownMenuItem
+                              disabled={unlockUser.isPending}
+                              onClick={() => handleUnlock(user.id, lang === 'en' ? user.fullNameEn : user.fullNameAr)}
+                            >
+                              <LockOpen className="w-4 h-4 me-2" />
+                              {t('Unlock Account', 'إلغاء قفل الحساب')}
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

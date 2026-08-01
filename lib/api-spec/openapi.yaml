@@ -1077,6 +1077,28 @@ paths:
                   success: { type: boolean }
                 required: [ success ]
 
+  /users/{id}/unlock:
+    post:
+      operationId: unlockUser
+      tags: [ users ]
+      summary: Clear a login lockout for a user immediately (admins only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Lockout cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                required: [ success ]
+
   /auth/change-password:
     post:
       operationId: changeMyPassword
@@ -10593,6 +10615,7 @@ components:
         createdAt: { type: string }
         mustChangePassword:
           type: boolean
+        lockedUntil: { type: [ "string", "null" ] }
       required:
         - id
         - username

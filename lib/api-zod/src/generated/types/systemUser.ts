@@ -25,4 +25,6 @@ export interface SystemUser {
   preferredLanguage: string;
   createdAt: string;
   mustChangePassword?: boolean;
+  /** @nullable */
+  lockedUntil?: string | null;
 }

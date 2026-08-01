@@ -282,6 +282,15 @@ export function recordSuccess(username: string, ip: string): void {
   persistDelete(keys);
 }
 
+/**
+ * When this account's lockout ends (epoch ms), or null if it is not
+ * currently locked. Used by the admin user list to surface locked accounts.
+ */
+export function getLockedUntil(username: string, now: number = Date.now()): number | null {
+  const entry = entries.get(keyFor("user", username));
+  if (!entry || entry.lockedUntil === null || entry.lockedUntil <= now) return null;
+  return entry.lockedUntil;
+}
 /** How many failures remain before this account locks (for tests/diagnostics). */
 export function remainingAttempts(username: string): number {
   const entry = entries.get(keyFor("user", username));
@@ -299,4 +308,22 @@ export function resetLoginThrottle(): void {
   pendingReset = Promise.allSettled(pending)
     .then(() => db.execute(sql`DELETE FROM ${loginThrottleTable}`))
     .catch((err) => logPersistError("reset", err));
+}
+
+/**
+ * Admin unlock: clear the throttle state for an account and, optionally,
+ * the source IPs that contributed to the lockout (so a victim behind a
+ * locked IP can log back in immediately too). Returns the keys that
+ * actually had state, for the audit trail.
+ */
+export function clearLockout(username: string, ips: string[] = []): string[] {
+  const keys = [keyFor("user", username), ...ips.map((ip) => keyFor("ip", ip))];
+  const cleared: string[] = [];
+  for (const key of keys) {
+    if (entries.delete(key)) cleared.push(key);
+  }
+  // Delete every candidate row (not just in-memory hits) so persisted rows
+  // from a previous process generation are removed as well.
+  persistDelete(keys);
+  return cleared;
 }
