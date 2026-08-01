@@ -22,6 +22,7 @@ import {
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
+import { canViewPrivilegedSessions } from '@/lib/privileged-session-review';
 import {
   useGetUser,
   useListLeaveBalances,
@@ -409,6 +410,31 @@ function AdminUsersButton() {
   );
 }
 
+// Header entry to the privileged-session review screen. Rendered only for
+// roles the server allows to view privileged sessions (Security Officer,
+// Super Administrator, Read-Only Auditor); everyone else never sees it.
+function SessionReviewButton() {
+  const colors = useColors();
+  const { t } = useI18n();
+  const { user } = useAuth();
+  const router = useRouter();
+  const me = useGetUser(user?.id ?? 0, {
+    query: { enabled: !!user?.id },
+  } as any);
+  if (!canViewPrivilegedSessions(me.data?.roleNameEn)) return null;
+
+  return (
+    <Pressable
+      testID="button-session-review"
+      onPress={() => router.push('/privileged-sessions' as any)}
+      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 8 })}
+      accessibilityLabel={t('sessionReview')}
+    >
+      <Feather name="shield" size={20} color={colors.mutedForeground} />
+    </Pressable>
+  );
+}
+
 export default function HomeScreen() {
   const colors = useColors();
   const { t, lang } = useI18n();
@@ -430,6 +456,7 @@ export default function HomeScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <NotificationBell />
             <AdminUsersButton />
+            <SessionReviewButton />
             <Pressable
               testID="button-change-password"
               onPress={() => router.push('/change-password')}

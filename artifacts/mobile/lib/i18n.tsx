@@ -173,6 +173,68 @@ const strings = {
   },
   copy: { en: 'Copy', ar: 'نسخ' },
   copied: { en: 'Copied', ar: 'تم النسخ' },
+  sessionReview: { en: 'Session Review', ar: 'مراجعة الجلسات' },
+  sessionReviewSubtitle: {
+    en: 'Break-glass privileged sessions',
+    ar: 'جلسات وصول الطوارئ المميزة',
+  },
+  sessionReviewInfo: {
+    en: 'Every break-glass activation records a privileged session. Security officers must review each elevated-access window post-hoc.',
+    ar: 'كل تفعيل لوصول الطوارئ يسجل جلسة مميزة. يجب على ضباط الأمن مراجعة كل نافذة وصول مرتفع لاحقاً.',
+  },
+  awaitingReview: { en: 'Awaiting Review', ar: 'بانتظار المراجعة' },
+  reviewedSessions: { en: 'Reviewed Sessions', ar: 'الجلسات المراجعة' },
+  noSessionsPending: {
+    en: 'No sessions awaiting review',
+    ar: 'لا توجد جلسات بانتظار المراجعة',
+  },
+  noReviewedSessions: {
+    en: 'No reviewed sessions yet',
+    ar: 'لا توجد جلسات مراجعة بعد',
+  },
+  grant: { en: 'Grant', ar: 'التصريح' },
+  started: { en: 'Started', ar: 'بدأت' },
+  ended: { en: 'Ended', ar: 'انتهت' },
+  openUntil: { en: 'Open until', ar: 'مفتوحة حتى' },
+  outcomeJustified: { en: 'Justified', ar: 'مبرر' },
+  outcomeUnjustified: { en: 'Unjustified', ar: 'غير مبرر' },
+  outcomeUnderInvestigation: {
+    en: 'Under Investigation',
+    ar: 'قيد التحقيق',
+  },
+  notReviewed: { en: 'Not reviewed', ar: 'لم تُراجع' },
+  sessionActivity: { en: 'Session Activity', ar: 'نشاط الجلسة' },
+  sessionActivityHint: {
+    en: 'Audit-log actions the session holder performed during the elevated-access window.',
+    ar: 'إجراءات سجل التدقيق التي نفذها صاحب الجلسة خلال نافذة الوصول المرتفع.',
+  },
+  activityEstimateNotice: {
+    en: 'Estimated by time window: this session predates precise activity tagging, so the list shows everything this user did during the window — routine work may be mixed in.',
+    ar: 'مُقدَّر حسب النافذة الزمنية: هذه الجلسة تسبق التتبع الدقيق للنشاط، لذا تعرض القائمة كل ما قام به المستخدم خلال النافذة — وقد تتضمن أعمالاً اعتيادية.',
+  },
+  noSessionActivity: {
+    en: 'No audit-log actions recorded during this session window.',
+    ar: 'لم تُسجل أي إجراءات في سجل التدقيق خلال نافذة هذه الجلسة.',
+  },
+  activityLoadFailed: {
+    en: 'Failed to load session activity.',
+    ar: 'فشل تحميل نشاط الجلسة.',
+  },
+  loadMore: { en: 'Load more', ar: 'تحميل المزيد' },
+  reviewSession: { en: 'Review Session', ar: 'مراجعة الجلسة' },
+  reviewRecordedAs: {
+    en: 'The review is recorded under your signed-in account.',
+    ar: 'تُسجل المراجعة باسم حسابك المسجل.',
+  },
+  reviewOutcome: { en: 'Outcome', ar: 'النتيجة' },
+  reviewNotes: { en: 'Notes (optional)', ar: 'ملاحظات (اختياري)' },
+  markReviewed: {
+    en: 'Mark Reviewed',
+    ar: 'وضع علامة تمت المراجعة',
+  },
+  sessionReviewed: { en: 'Session reviewed', ar: 'تمت مراجعة الجلسة' },
+  reviewFailed: { en: 'Failed to submit review', ar: 'فشل إرسال المراجعة' },
+  sessionNotFound: { en: 'Session not found', ar: 'الجلسة غير موجودة' },
   passwordChangeRequiredHint: {
     en: 'Your account was set up with a one-time password. For security, you must choose a new password before continuing.',
     ar: 'تم إنشاء حسابك بكلمة مرور لمرة واحدة. لأسباب أمنية، يجب اختيار كلمة مرور جديدة قبل المتابعة.',

@@ -37,6 +37,8 @@ function RootLayoutNav() {
       <Stack.Screen name="notifications" />
       <Stack.Screen name="devices" />
       <Stack.Screen name="admin-users" />
+      <Stack.Screen name="privileged-sessions" />
+      <Stack.Screen name="privileged-session/[id]" />
     </Stack>
   );
 }
