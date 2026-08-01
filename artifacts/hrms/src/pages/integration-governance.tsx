@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw } from 'lucide-react';
 
 function intTypeIcon(type: string): React.ComponentType<{ className?: string }> {
   const map: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -51,6 +51,25 @@ function outcomeBadge(outcome: string) {
   if (outcome === 'success') return 'bg-emerald-900/40 text-emerald-300 border-emerald-700';
   if (outcome === 'failure' || outcome === 'error') return 'bg-red-900/40 text-red-300 border-red-700';
   return 'bg-slate-700 text-slate-300 border-slate-600';
+}
+
+function eventTypeBadge(eventType: string) {
+  if (eventType === 'retry_triggered') return 'bg-amber-900/40 text-amber-300 border-amber-700';
+  return '';
+}
+
+function parseMetadata(row: any): Record<string, any> | null {
+  if (!row?.metadataJson) return null;
+  try {
+    const m = JSON.parse(row.metadataJson);
+    return m && typeof m === 'object' ? m : null;
+  } catch { return null; }
+}
+
+/** Attempt count from test_passed/test_failed metadata, when present. */
+function attemptCount(row: any): number | null {
+  const m = parseMetadata(row);
+  return m && typeof m.attempts === 'number' && m.attempts >= 1 ? m.attempts : null;
 }
 
 function timeAgo(dateStr: string) {
@@ -194,19 +213,31 @@ function HealthSettingsDialog({ profile, onClose, onSaved }: { profile: any; onC
 function ProfileDetailDialog({ profileId, onClose }: { profileId: number | null; onClose: () => void }) {
   const { t, lang } = useLanguage();
   const [detail, setDetail] = useState<any>(null);
+  const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   useEffect(() => {
-    if (profileId == null) { setDetail(null); setError(false); return; }
+    if (profileId == null) { setDetail(null); setEvents([]); setError(false); return; }
     let cancelled = false;
-    setLoading(true); setError(false); setDetail(null);
-    apiFetch(`/api/integration-governance/connection-profiles/${profileId}`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(d => { if (!cancelled) setDetail(d); })
+    setLoading(true); setError(false); setDetail(null); setEvents([]);
+    Promise.all([
+      apiFetch(`/api/integration-governance/connection-profiles/${profileId}`)
+        .then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+      apiFetch(`/api/integration-governance/audit-log?profileId=${profileId}&pageSize=25`)
+        .then(r => r.ok ? r.json() : { data: [] })
+        .catch(() => ({ data: [] })),
+    ])
+      .then(([d, a]) => { if (!cancelled) { setDetail(d); setEvents(Array.isArray(a?.data) ? a.data : []); } })
       .catch(() => { if (!cancelled) setError(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [profileId]);
+  // Latest test event (test_passed/test_failed) carries the attempt count;
+  // retry_triggered events show recovery in action.
+  const lastTestEvent = events.find(e => e.eventType === 'test_passed' || e.eventType === 'test_failed') ?? null;
+  const lastTestAttempts = lastTestEvent ? attemptCount(lastTestEvent) : null;
+  const recoveredViaRetry = lastTestEvent?.eventType === 'test_passed' && (lastTestAttempts ?? 1) > 1;
+  const retryEvents = events.filter(e => e.eventType === 'retry_triggered').slice(0, 5);
   const testerName = detail ? (lang === 'ar' ? (detail.lastTestedByNameAr || detail.lastTestedByNameEn) : (detail.lastTestedByNameEn || detail.lastTestedByNameAr)) : null;
   return (
     <Dialog open={profileId != null} onOpenChange={v => !v && onClose()}>
@@ -259,11 +290,40 @@ function ProfileDetailDialog({ profileId, onClose }: { profileId: number | null;
                     </p>
                   ) : null}
                   {detail.lastTestMessage && <p className="text-xs text-slate-400 break-words">{detail.lastTestMessage}</p>}
+                  {lastTestAttempts != null && (
+                    <p className="text-xs flex items-center gap-1" data-testid="detail-attempts">
+                      <RotateCcw className="w-3 h-3 shrink-0 text-slate-400" />
+                      {recoveredViaRetry ? (
+                        <span className="text-emerald-300 font-medium">
+                          {t(`Recovered via retry — passed on attempt ${lastTestAttempts}`, `تعافى عبر إعادة المحاولة — نجح في المحاولة ${lastTestAttempts}`)}
+                        </span>
+                      ) : lastTestAttempts > 1 ? (
+                        <span className="text-amber-300">{t(`${lastTestAttempts} attempts`, `${lastTestAttempts} محاولات`)}</span>
+                      ) : (
+                        <span className="text-slate-400">{t('Passed/failed on first attempt', 'تم في المحاولة الأولى')}</span>
+                      )}
+                    </p>
+                  )}
                 </>
               ) : (
                 <p className="text-xs text-slate-500">{t('Never tested', 'لم يُختبر بعد')}</p>
               )}
             </div>
+            {retryEvents.length > 0 && (
+              <div className="rounded-md border border-amber-800/50 bg-amber-900/10 p-3 space-y-1.5" data-testid="detail-retry-history">
+                <p className="text-xs font-medium text-amber-300 flex items-center gap-1">
+                  <RotateCcw className="w-3 h-3 shrink-0" />
+                  {t('Recent retry attempts', 'محاولات إعادة المحاولة الأخيرة')}
+                </p>
+                {retryEvents.map(e => (
+                  <div key={e.id} className="text-xs text-slate-400">
+                    <span className="text-slate-500 whitespace-nowrap">{e.occurredAt ? timeAgo(e.occurredAt) : '—'}</span>
+                    {' — '}
+                    <span className="break-words">{e.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : null}
         <DialogFooter>
@@ -671,16 +731,37 @@ export default function IntegrationGovernance() {
                       <TableHead className="text-slate-300">{t('Outcome', 'النتيجة')}</TableHead>
                       <TableHead className="text-slate-300">{t('Profile', 'الملف')}</TableHead>
                       <TableHead className="text-slate-300">{t('Message', 'الرسالة')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Attempts', 'المحاولات')}</TableHead>
                       <TableHead className="text-slate-300">{t('When', 'متى')}</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {auditLog.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-slate-400 py-8">{t('No audit events', 'لا توجد أحداث تدقيق')}</TableCell></TableRow>
+                      {auditLog.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-slate-400 py-8">{t('No audit events', 'لا توجد أحداث تدقيق')}</TableCell></TableRow>
                       : auditLog.map(a => (
-                        <TableRow key={a.id} className="border-slate-700 hover:bg-slate-700/30">
-                          <TableCell className="text-slate-300 font-mono text-xs">{a.eventType}</TableCell>
+                        <TableRow key={a.id} className="border-slate-700 hover:bg-slate-700/30" data-testid={`audit-row-${a.id}`}>
+                          <TableCell className="text-slate-300 font-mono text-xs">
+                            {a.eventType === 'retry_triggered' ? (
+                              <Badge variant="outline" className={`text-xs font-mono ${eventTypeBadge(a.eventType)}`}>
+                                <RotateCcw className="w-3 h-3 me-1" />retry_triggered
+                              </Badge>
+                            ) : a.eventType}
+                          </TableCell>
                           <TableCell><Badge variant="outline" className={`text-xs ${outcomeBadge(a.outcome)}`}>{a.outcome}</Badge></TableCell>
                           <TableCell className="text-slate-300 text-sm">{a.profileId ?? '—'}</TableCell>
                           <TableCell className="text-slate-400 text-sm max-w-48 truncate">{a.message ?? '—'}</TableCell>
+                          <TableCell className="text-slate-300 text-sm" data-testid={`audit-attempts-${a.id}`}>
+                            {(() => {
+                              const n = attemptCount(a);
+                              if (n == null) return <span className="text-slate-500">—</span>;
+                              if (n > 1 && a.eventType === 'test_passed') return (
+                                <Badge variant="outline" className="text-xs bg-emerald-900/40 text-emerald-300 border-emerald-700">
+                                  <RotateCcw className="w-3 h-3 me-1" />{t(`Recovered on attempt ${n}`, `تعافى في المحاولة ${n}`)}
+                                </Badge>
+                              );
+                              return n > 1
+                                ? <span className="text-amber-300">{t(`${n} attempts`, `${n} محاولات`)}</span>
+                                : <span>{t('1 attempt', 'محاولة واحدة')}</span>;
+                            })()}
+                          </TableCell>
                           <TableCell className="text-slate-400 text-sm whitespace-nowrap">{a.occurredAt ? timeAgo(a.occurredAt) : '—'}</TableCell>
                         </TableRow>
                       ))}
