@@ -132,6 +132,7 @@ function NewImportTab() {
   const confirmMut = useConfirmImportPreview();
   const executeMut = useExecuteImportJob();
   const createTemplateMut = useCreateImportMappingTemplate();
+  const { data: templates = [] } = useListImportMappingTemplates();
   const [importType, setImportType] = useState('employees');
   const [csvText, setCsvText] = useState(SAMPLE_CSV);
   const [mapping, setMapping] = useState<Record<string, string>>(DEFAULT_MAPPING);
@@ -142,6 +143,37 @@ function NewImportTab() {
 
   const sourceCols = parseCsvHeaders(csvText);
   const submitting = createJobMut.isPending || confirmMut.isPending || executeMut.isPending;
+  const typeTemplates = templates.filter(tpl => tpl.importType === importType);
+
+  function handleApplyTemplate(templateId: string) {
+    const tpl = typeTemplates.find(x => String(x.id) === templateId);
+    if (!tpl) return;
+    let saved: Record<string, string>;
+    try {
+      const parsed: unknown = JSON.parse(tpl.columnMappingJson);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('bad shape');
+      saved = Object.fromEntries(
+        Object.entries(parsed as Record<string, unknown>).filter(([, v]) => typeof v === 'string'),
+      ) as Record<string, string>;
+    } catch {
+      toast({ title: t('This template could not be read', 'تعذر قراءة هذا القالب'), variant: 'destructive' });
+      return;
+    }
+    const headers = parseCsvHeaders(csvText);
+    const next: Record<string, string> = {};
+    let applied = 0;
+    headers.forEach(h => {
+      const target = saved[h];
+      if (target) { next[h] = target; applied++; }
+    });
+    setMapping(next);
+    setJob(null);
+    toast({
+      title: applied > 0
+        ? t(`Template applied — ${applied} of ${headers.length} columns mapped`, `تم تطبيق القالب — تم تعيين ${applied} من ${headers.length} أعمدة`)
+        : t('Template applied, but none of its columns match the file headers', 'تم تطبيق القالب، لكن لا يطابق أي من أعمدته رؤوس الملف'),
+    });
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -264,6 +296,21 @@ function NewImportTab() {
             <SelectContent>
               {IMPORT_TYPES.map(it => (
                 <SelectItem key={it.value} value={it.value}>{t(it.label, it.labelAr)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-slate-300">{t('Apply Saved Template', 'تطبيق قالب محفوظ')}</Label>
+          <Select value="" onValueChange={handleApplyTemplate} disabled={typeTemplates.length === 0}>
+            <SelectTrigger className="mt-1 bg-slate-800 border-slate-600 text-white" data-testid="select-mapping-template">
+              <SelectValue placeholder={typeTemplates.length === 0
+                ? t('No templates for this type', 'لا توجد قوالب لهذا النوع')
+                : t('Choose a template…', 'اختر قالبًا…')} />
+            </SelectTrigger>
+            <SelectContent>
+              {typeTemplates.map(tpl => (
+                <SelectItem key={tpl.id} value={String(tpl.id)}>{tpl.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
