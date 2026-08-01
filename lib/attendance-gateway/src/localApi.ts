@@ -36,7 +36,37 @@ export function buildLocalApi(opts: { service: GatewayService; adapter: DeviceAd
   const app = express();
   app.use(express.json({ limit: "5mb" }));
 
-  app.get("/status", async (_req, res) => { res.json(await service.status()); });
+  app.get("/status", async (_req, res) => {
+    const status = await service.status();
+    // Operator-facing one-liner so on-site troubleshooting never requires
+    // HR-core access: "N delivered batches not yet confirmed / M missing…".
+    const recon = status.lastReconcile;
+    const outcome = recon
+      ? `last reconcile at ${recon.at}: checked ${recon.checked}, ${recon.missing.length} missing${recon.missing.length > 0 ? ` (${recon.missing.join(", ")})` : ""}, ${recon.mismatched.length} mismatched${recon.mismatched.length > 0 ? ` (${recon.mismatched.join(", ")})` : ""}`
+      : "no reconcile has run yet";
+    res.json({
+      ...status,
+      delivery_confirmation: {
+        unconfirmedSentBatches: status.unconfirmedSentBatches,
+        lastReconcileAt: status.lastReconcileAt,
+        missingBatchUuids: recon?.missing ?? [],
+        mismatchedBatchUuids: recon?.mismatched ?? [],
+        summary: `${status.unconfirmedSentBatches} delivered batch${status.unconfirmedSentBatches === 1 ? "" : "es"} not yet confirmed by the server — ${outcome}`,
+      },
+    });
+  });
+  // Operator-triggered reconcile: get an immediate verdict on delivered-but-
+  // unconfirmed batches. Bypasses the local rate limit; server-side audit
+  // dedupe still applies. Mutating (server audit row) → operator token.
+  app.post("/reconcile", requireOperatorToken, async (_req, res) => {
+    try {
+      const summary = await service.reconcileNow();
+      if (!summary) { res.json({ ok: true, checked: 0, missing: [], mismatched: [], message: "no unconfirmed delivered batches to reconcile" }); return; }
+      res.json({ ok: true, ...summary });
+    } catch (e) {
+      res.status(502).json({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  });
   // Terminal batches: exhausted all delivery attempts, kept encrypted on disk.
   app.get("/terminal-batches", async (_req, res) => { res.json(await service.listTerminalBatches()); });
 

@@ -397,7 +397,28 @@ export class GatewayService {
    * Returns null when skipped (nothing to check or not yet due).
    */
   async maybeReconcile(nowMs: number = Date.now()): Promise<ReconcileSummary | null> {
-    // Prune expired entries first, even if the reconcile itself is not due.
+    await this.pruneSentLog(nowMs);
+    if (this.sentLog.length === 0) return null;
+    if (this.lastReconcileAt && nowMs - this.lastReconcileAt.getTime() < this.reconcileIntervalMs) return null;
+    return this.runReconcile(nowMs);
+  }
+
+  /**
+   * Operator-triggered reconcile: bypasses the local rate limit so an on-site
+   * operator can get a fresh verdict immediately. Server-side audit dedupe
+   * still applies (the server writes/dedupes its own audit rows), and running
+   * this also resets the local rate-limit window, so a manual check never
+   * ADDS to the automatic cadence. Returns null when the sent-log is empty
+   * (nothing to check).
+   */
+  async reconcileNow(nowMs: number = Date.now()): Promise<ReconcileSummary | null> {
+    await this.pruneSentLog(nowMs);
+    if (this.sentLog.length === 0) return null;
+    return this.runReconcile(nowMs);
+  }
+
+  /** Prune sent-log entries past the retention window (with a warning). */
+  private async pruneSentLog(nowMs: number): Promise<void> {
     const expired = this.sentLog.filter((e) => nowMs - e.sentAtMs > this.sentLogRetentionMs);
     if (expired.length > 0) {
       console.warn(
@@ -406,9 +427,9 @@ export class GatewayService {
       this.sentLog = this.sentLog.filter((e) => nowMs - e.sentAtMs <= this.sentLogRetentionMs);
       await this.persistSentLog();
     }
-    if (this.sentLog.length === 0) return null;
-    if (this.lastReconcileAt && nowMs - this.lastReconcileAt.getTime() < this.reconcileIntervalMs) return null;
+  }
 
+  private async runReconcile(nowMs: number): Promise<ReconcileSummary> {
     const known = this.sentLog.map((e) => ({ batchUuid: e.batchUuid, eventCount: e.eventCount }));
     const { status, body } = await this.hr.reconcile(known);
     if (status !== 200 || !Array.isArray(body.results)) {
