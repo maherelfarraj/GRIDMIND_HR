@@ -95,11 +95,18 @@ function ProtectedRouter() {
   }
 
   if (!user && location !== '/login') {
-    return <Redirect to="/login" />;
+    // Preserve the intended destination so login can return the user there.
+    const next = location + window.location.search;
+    return <Redirect to={next !== '/' ? `/login?next=${encodeURIComponent(next)}` : '/login'} />;
   }
 
   if (user && location === '/login') {
-    return <Redirect to="/" />;
+    const rawNext = new URLSearchParams(window.location.search).get('next') ?? '';
+    const safeNext =
+      rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.includes('/login')
+        ? rawNext
+        : '/';
+    return <Redirect to={safeNext} />;
   }
 
   if (location === '/login') {

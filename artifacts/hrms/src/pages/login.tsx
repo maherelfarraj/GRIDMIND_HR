@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 import { useLanguage } from '@/hooks/use-language';
@@ -17,6 +17,17 @@ export default function Login() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  const { sessionExpired, nextPath } = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const rawNext = params.get('next') ?? '';
+    // Only accept in-app paths — never external URLs (protects against open redirects).
+    const safeNext =
+      rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.includes('/login')
+        ? rawNext
+        : '/';
+    return { sessionExpired: params.get('expired') === '1', nextPath: safeNext };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -24,7 +35,7 @@ export default function Login() {
 
     try {
       await login(username, password);
-      setLocation('/');
+      setLocation(nextPath);
     } catch (err: any) {
       if (lang === 'ar' && err.errorAr) {
         setError(err.errorAr);
@@ -90,6 +101,15 @@ export default function Login() {
               {t('Enter your credentials to access the system', 'أدخل بيانات الاعتماد للوصول إلى النظام')}
             </p>
           </div>
+
+          {sessionExpired && !error && (
+            <Alert className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {t('Session expired — please sign in again.', 'انتهت الجلسة — يرجى تسجيل الدخول مرة أخرى.')}
+              </AlertDescription>
+            </Alert>
+          )}
 
           {error && (
             <Alert variant="destructive" className="mb-6">

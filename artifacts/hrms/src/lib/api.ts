@@ -25,7 +25,13 @@ const SESSION_KEY = 'hrms-session';
 export function handleSessionExpired(): void {
   localStorage.removeItem(SESSION_KEY);
   if (!window.location.pathname.includes('/login')) {
-    window.location.href = '/login';
+    const next = window.location.pathname + window.location.search;
+    const params = new URLSearchParams({ expired: '1' });
+    // Only preserve an in-app destination worth returning to.
+    if (next && next !== '/' && next.startsWith('/')) {
+      params.set('next', next);
+    }
+    window.location.href = `/login?${params.toString()}`;
   }
 }
 
