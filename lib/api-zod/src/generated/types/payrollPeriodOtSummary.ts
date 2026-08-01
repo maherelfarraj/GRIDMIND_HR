@@ -5,10 +5,13 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+import type { PayrollPeriodOtDepartment } from './payrollPeriodOtDepartment';
 
 export interface PayrollPeriodOtSummary {
   weekday: string;
   weekend: string;
   holiday: string;
   total: string;
+  /** Per-department OT pay split by bucket, sorted by premium (weekend + holiday) OT descending */
+  byDepartment: PayrollPeriodOtDepartment[];
 }

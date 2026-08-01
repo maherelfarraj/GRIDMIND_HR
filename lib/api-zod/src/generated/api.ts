@@ -3746,7 +3746,16 @@ export const GetPayrollPeriodOtSummaryResponse = zod.object({
   "weekday": zod.string(),
   "weekend": zod.string(),
   "holiday": zod.string(),
+  "total": zod.string(),
+  "byDepartment": zod.array(zod.object({
+  "departmentId": zod.number().nullable(),
+  "departmentNameEn": zod.string(),
+  "departmentNameAr": zod.string(),
+  "weekday": zod.string(),
+  "weekend": zod.string(),
+  "holiday": zod.string(),
   "total": zod.string()
+})).describe('Per-department OT pay split by bucket, sorted by premium (weekend + holiday) OT descending')
 })
 
 

@@ -910,6 +910,55 @@ function PeriodDetail({
                 )}
               </CardContent>
             </Card>
+
+            {/* OT by department — which teams drive weekend/holiday premium OT */}
+            {otSummary && otSummary.byDepartment.length > 0 && (
+              <Card className="lg:col-span-3">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">
+                    {t('Overtime Pay by Department', 'أجر العمل الإضافي حسب الإدارة')}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      'Sorted by premium (weekend + holiday) overtime, so the departments driving premium OT costs come first.',
+                      'مرتبة حسب العمل الإضافي المميز (عطلة نهاية الأسبوع + العطلات الرسمية)، بحيث تظهر الإدارات الأكثر تكلفة أولاً.'
+                    )}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart
+                      data={otSummary.byDepartment.map(d => ({
+                        dept: lang === 'ar' ? d.departmentNameAr : d.departmentNameEn,
+                        weekday: parseFloat(d.weekday),
+                        weekend: parseFloat(d.weekend),
+                        holiday: parseFloat(d.holiday),
+                      }))}
+                      margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
+                    >
+                      <XAxis dataKey="dept" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
+                      <Tooltip formatter={(v: number, name: string) => [`SAR ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]} />
+                      <Bar dataKey="weekday" stackId="ot" fill="#94a3b8" name={t('Weekday OT', 'إضافي أيام الأسبوع')} />
+                      <Bar dataKey="weekend" stackId="ot" fill="#f59e0b" name={t('Weekend OT', 'إضافي عطلة نهاية الأسبوع')} />
+                      <Bar dataKey="holiday" stackId="ot" fill="#ef4444" name={t('Holiday OT', 'إضافي العطلات الرسمية')} radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="flex flex-wrap gap-4 mt-2 justify-center">
+                    {[
+                      { color: '#94a3b8', label: t('Weekday OT', 'إضافي أيام الأسبوع') },
+                      { color: '#f59e0b', label: t('Weekend OT', 'إضافي عطلة نهاية الأسبوع') },
+                      { color: '#ef4444', label: t('Holiday OT', 'إضافي العطلات الرسمية') },
+                    ].map((l, i) => (
+                      <span key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: l.color }} />
+                        {l.label}
+                      </span>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>

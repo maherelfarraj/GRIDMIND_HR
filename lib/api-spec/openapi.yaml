@@ -11200,7 +11200,23 @@ components:
         weekend: { type: string }
         holiday: { type: string }
         total: { type: string }
-      required: [ weekday, weekend, holiday, total ]
+        byDepartment:
+          type: array
+          description: Per-department OT pay split by bucket, sorted by premium (weekend + holiday) OT descending
+          items: { $ref: "#/components/schemas/PayrollPeriodOtDepartment" }
+      required: [ weekday, weekend, holiday, total, byDepartment ]
+
+    PayrollPeriodOtDepartment:
+      type: object
+      properties:
+        departmentId: { type: [ "number", "null" ] }
+        departmentNameEn: { type: string }
+        departmentNameAr: { type: string }
+        weekday: { type: string }
+        weekend: { type: string }
+        holiday: { type: string }
+        total: { type: string }
+      required: [ departmentId, departmentNameEn, departmentNameAr, weekday, weekend, holiday, total ]
 
     PayrollNoShowDay:
       type: object

@@ -574,6 +574,23 @@ describe("payroll calculation engine", () => {
         parseFloat(res.body.weekday) + parseFloat(res.body.weekend) + parseFloat(res.body.holiday), 2);
     });
 
+    it("breaks OT totals down per department in the ot-summary endpoint", async () => {
+      const res = await request(app).get(`/api/payroll-periods/${periodId}/ot-summary`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.byDepartment)).toBe(true);
+
+      // Only one employee in this dedicated period has OT, so exactly one
+      // department carries the entire per-bucket totals.
+      const withOt = res.body.byDepartment.filter((d: any) => parseFloat(d.total) > 0);
+      expect(withOt.length).toBe(1);
+      const dept = withOt[0];
+      expect(dept.departmentNameEn).toBeTruthy();
+      expect(parseFloat(dept.weekday)).toBeCloseTo(parseFloat(res.body.weekday), 2);
+      expect(parseFloat(dept.weekend)).toBeCloseTo(parseFloat(res.body.weekend), 2);
+      expect(parseFloat(dept.holiday)).toBeCloseTo(parseFloat(res.body.holiday), 2);
+      expect(parseFloat(dept.total)).toBeCloseTo(parseFloat(res.body.total), 2);
+    });
+
     it("returns 404 ot-summary for a missing period", async () => {
       const res = await request(app).get(`/api/payroll-periods/999999999/ot-summary`);
       expect(res.status).toBe(404);

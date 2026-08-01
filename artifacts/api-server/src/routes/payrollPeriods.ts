@@ -5,6 +5,7 @@ import {
   overtimeRulesTable, punchEventsTable, leaveRequestsTable, leaveTypesTable,
   attendanceRecordsTable, publicHolidaysTable, employmentContractsTable,
   payrollExcusedAbsencesTable, notificationsTable, systemUsersTable, rolesTable,
+  departmentsTable,
 } from "@workspace/db";
 import type { PayrollPeriod, Employee } from "@workspace/db";
 import { eq, and, gte, lte, sql, ilike } from "drizzle-orm";
@@ -446,11 +447,71 @@ router.get("/payroll-periods/:id/ot-summary", async (req, res): Promise<void> =>
   const weekday = byCode["OT_WEEKDAY"] ?? 0;
   const weekend = byCode["OT_WEEKEND"] ?? 0;
   const holiday = byCode["OT_HOLIDAY"] ?? 0;
+
+  // Per-department breakdown: OT run lines joined to the run's employee and
+  // their department, so HR can see which teams drive premium OT costs.
+  const deptRows = await db
+    .select({
+      departmentId: employeesTable.departmentId,
+      departmentNameEn: departmentsTable.nameEn,
+      departmentNameAr: departmentsTable.nameAr,
+      codeEn: payrollRunLinesTable.codeEn,
+      total: sql<string>`coalesce(sum(${payrollRunLinesTable.amount}), 0)`,
+    })
+    .from(payrollRunLinesTable)
+    .innerJoin(payrollRunsTable, eq(payrollRunLinesTable.payrollRunId, payrollRunsTable.id))
+    .innerJoin(employeesTable, eq(payrollRunsTable.employeeId, employeesTable.id))
+    .leftJoin(departmentsTable, eq(employeesTable.departmentId, departmentsTable.id))
+    .where(and(
+      eq(payrollRunsTable.payrollPeriodId, id),
+      sql`${payrollRunLinesTable.codeEn} in ('OT_WEEKDAY', 'OT_WEEKEND', 'OT_HOLIDAY')`,
+    ))
+    .groupBy(employeesTable.departmentId, departmentsTable.nameEn, departmentsTable.nameAr, payrollRunLinesTable.codeEn);
+
+  const deptMap = new Map<number | null, {
+    departmentId: number | null;
+    departmentNameEn: string;
+    departmentNameAr: string;
+    weekday: number; weekend: number; holiday: number;
+  }>();
+  for (const r of deptRows) {
+    const key = r.departmentId ?? null;
+    let entry = deptMap.get(key);
+    if (!entry) {
+      entry = {
+        departmentId: key,
+        departmentNameEn: r.departmentNameEn ?? "Unassigned",
+        departmentNameAr: r.departmentNameAr ?? "غير محدد",
+        weekday: 0, weekend: 0, holiday: 0,
+      };
+      deptMap.set(key, entry);
+    }
+    const amount = parseFloat(r.total);
+    if (r.codeEn === "OT_WEEKDAY") entry.weekday += amount;
+    else if (r.codeEn === "OT_WEEKEND") entry.weekend += amount;
+    else if (r.codeEn === "OT_HOLIDAY") entry.holiday += amount;
+  }
+  const byDepartment = [...deptMap.values()]
+    .map(d => ({
+      departmentId: d.departmentId,
+      departmentNameEn: d.departmentNameEn,
+      departmentNameAr: d.departmentNameAr,
+      weekday: d.weekday.toFixed(2),
+      weekend: d.weekend.toFixed(2),
+      holiday: d.holiday.toFixed(2),
+      total: (d.weekday + d.weekend + d.holiday).toFixed(2),
+    }))
+    // Departments generating the most premium (weekend + holiday) OT first.
+    .sort((a, b) =>
+      (parseFloat(b.weekend) + parseFloat(b.holiday)) - (parseFloat(a.weekend) + parseFloat(a.holiday))
+      || parseFloat(b.total) - parseFloat(a.total));
+
   res.json({
     weekday: weekday.toFixed(2),
     weekend: weekend.toFixed(2),
     holiday: holiday.toFixed(2),
     total: (weekday + weekend + holiday).toFixed(2),
+    byDepartment,
   });
 });
 

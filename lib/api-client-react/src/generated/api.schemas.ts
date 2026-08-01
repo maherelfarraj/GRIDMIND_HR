@@ -1550,11 +1550,24 @@ export interface PayrollExcusedAbsence {
   recalculated?: boolean;
 }
 
+export interface PayrollPeriodOtDepartment {
+  /** @nullable */
+  departmentId: number | null;
+  departmentNameEn: string;
+  departmentNameAr: string;
+  weekday: string;
+  weekend: string;
+  holiday: string;
+  total: string;
+}
+
 export interface PayrollPeriodOtSummary {
   weekday: string;
   weekend: string;
   holiday: string;
   total: string;
+  /** Per-department OT pay split by bucket, sorted by premium (weekend + holiday) OT descending */
+  byDepartment: PayrollPeriodOtDepartment[];
 }
 
 export interface PayrollNoShowDay {
