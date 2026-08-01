@@ -609,6 +609,17 @@ export default function PilotControlCenter() {
                 {profiles.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-slate-500 text-xs py-4">{t('No profiles', 'لا توجد ملفات')}</TableCell></TableRow>}
               </TableBody>
             </Table>
+            {profiles.length > 5 && (
+              <div className="mt-2 flex items-center justify-between text-xs">
+                <span className="text-slate-400" data-testid="text-profiles-count">
+                  {t(`Showing 5 of ${profiles.length} profiles`, `عرض 5 من ${profiles.length} ملفات`)}
+                </span>
+                <Button variant="link" size="sm" className="text-indigo-400 h-auto p-0 text-xs" onClick={() => navigate('/integration-governance')} data-testid="link-all-profiles">
+                  {t('View all profiles', 'عرض جميع الملفات')}
+                  <ChevronRight className="w-3 h-3 ml-1" />
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
