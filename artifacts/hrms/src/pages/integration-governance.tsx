@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot } from 'lucide-react';
 
 function intTypeIcon(type: string): React.ComponentType<{ className?: string }> {
   const map: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -129,6 +129,68 @@ const REAL_ADAPTER_TYPES = new Set(['ldap', 'active_directory', 'smtp', 'attenda
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function isValidEmail(v: string) { return EMAIL_RE.test(v.trim()); }
 
+function HealthSettingsDialog({ profile, onClose, onSaved }: { profile: any; onClose: () => void; onSaved: () => void }) {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [enabled, setEnabled] = useState<boolean>(!!profile?.isHealthMonitoringEnabled);
+  const [interval, setIntervalMin] = useState<string>(String(profile?.healthCheckIntervalMinutes ?? 15));
+  const [threshold, setThreshold] = useState<string>(String(profile?.alertOnFailureCount ?? 3));
+  const intervalNum = parseInt(interval, 10);
+  const thresholdNum = parseInt(threshold, 10);
+  const intervalValid = Number.isInteger(intervalNum) && intervalNum >= 1 && intervalNum <= 1440;
+  const thresholdValid = Number.isInteger(thresholdNum) && thresholdNum >= 1 && thresholdNum <= 100;
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await apiFetch(`/api/integration-governance/connection-profiles/${profile.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isHealthMonitoringEnabled: enabled, healthCheckIntervalMinutes: intervalNum, alertOnFailureCount: thresholdNum }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: t('Health monitoring settings saved', 'تم حفظ إعدادات مراقبة الصحة') });
+      onSaved(); onClose();
+    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+    finally { setSaving(false); }
+  }
+  return (
+    <Dialog open={!!profile} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><HeartPulse className="w-5 h-5 text-emerald-400" />{t('Health Monitoring', 'مراقبة الصحة')}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-sm text-slate-400">{profile?.profileName}</p>
+          <div className="flex items-center justify-between rounded-md border border-slate-700 bg-slate-700/30 p-3">
+            <div>
+              <p className="text-sm text-white font-medium">{t('Automatic health checks', 'فحوصات الصحة التلقائية')}</p>
+              <p className="text-xs text-slate-400">{t('Periodically test this connection and alert admins on repeated failures', 'اختبار هذا الاتصال دورياً وتنبيه المسؤولين عند تكرار الفشل')}</p>
+            </div>
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>{t('Check interval (minutes)', 'الفاصل الزمني (دقائق)')}</Label>
+              <Input type="number" min={1} max={1440} className="mt-1 bg-slate-700 border-slate-600" value={interval} onChange={e => setIntervalMin(e.target.value)} disabled={!enabled} />
+              {!intervalValid && <p className="text-xs text-amber-400 mt-1">{t('Enter 1–1440', 'أدخل 1–1440')}</p>}
+            </div>
+            <div>
+              <Label>{t('Alert after failures', 'تنبيه بعد عدد الإخفاقات')}</Label>
+              <Input type="number" min={1} max={100} className="mt-1 bg-slate-700 border-slate-600" value={threshold} onChange={e => setThreshold(e.target.value)} disabled={!enabled} />
+              {!thresholdValid && <p className="text-xs text-amber-400 mt-1">{t('Enter 1–100', 'أدخل 1–100')}</p>}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
+          <Button onClick={handleSave} disabled={saving || !intervalValid || !thresholdValid} className="bg-blue-600 hover:bg-blue-700">{saving ? t('Saving…', 'جاري الحفظ…') : t('Save', 'حفظ')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function IntegrationGovernance() {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
@@ -142,6 +204,8 @@ export default function IntegrationGovernance() {
   const [addProfileOpen, setAddProfileOpen] = useState(false);
   const [smtpTestTarget, setSmtpTestTarget] = useState<any>(null);
   const [smtpRecipient, setSmtpRecipient] = useState('');
+  const [healthTarget, setHealthTarget] = useState<any>(null);
+  const [runningHealthChecks, setRunningHealthChecks] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -212,6 +276,35 @@ export default function IntegrationGovernance() {
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
+  async function runHealthChecksNow() {
+    setRunningHealthChecks(true);
+    try {
+      const res = await apiFetch('/api/integration-governance/health-checks/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || typeof data.checked !== 'number') {
+        toast({ title: t('Health checks failed', 'فشلت فحوصات الصحة'), description: data?.error, variant: 'destructive' });
+        return;
+      }
+      toast({
+        title: t('Health checks complete', 'اكتملت فحوصات الصحة'),
+        description: t(
+          `Checked ${data.checked} · Passed ${data.passed} · Failed ${data.failed} · Alerts ${data.alertsRaised}`,
+          `تم الفحص ${data.checked} · نجح ${data.passed} · فشل ${data.failed} · تنبيهات ${data.alertsRaised}`,
+        ),
+        ...(data.failed > 0 ? { variant: 'destructive' as const } : {}),
+      });
+      load();
+    } catch {
+      toast({ title: t('Health checks failed', 'فشلت فحوصات الصحة'), description: t('Could not reach the server.', 'تعذر الوصول إلى الخادم.'), variant: 'destructive' });
+    } finally { setRunningHealthChecks(false); }
+  }
+
+  const healthAlerts = auditLog.filter(a => a.eventType === 'health_alert').slice(0, 5);
+
   async function toggleRule(id: number, active: boolean) {
     try {
       await apiFetch(`/api/integration-governance/governance-rules/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: active }) });
@@ -241,9 +334,37 @@ export default function IntegrationGovernance() {
           {/* Connection Profiles */}
           <TabsContent value="profiles" className="mt-4 space-y-4">
             <div className="flex justify-between items-center">
-              <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={load}><RefreshCw className="w-4 h-4 me-1" />{t('Refresh', 'تحديث')}</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={load}><RefreshCw className="w-4 h-4 me-1" />{t('Refresh', 'تحديث')}</Button>
+                <Button variant="outline" size="sm" className="border-slate-600 text-emerald-300 hover:text-emerald-200" onClick={runHealthChecksNow} disabled={runningHealthChecks}>
+                  {runningHealthChecks ? <Loader2 className="w-4 h-4 me-1 animate-spin" /> : <Activity className="w-4 h-4 me-1" />}
+                  {t('Run health checks now', 'تشغيل فحوصات الصحة الآن')}
+                </Button>
+              </div>
               <Button onClick={() => setAddProfileOpen(true)} className="bg-blue-600 hover:bg-blue-700 gap-2"><span>+</span>{t('Add Profile', 'إضافة ملف')}</Button>
             </div>
+            {!loading && healthAlerts.length > 0 && (
+              <Card className="bg-slate-800 border-red-800/60">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-red-300 flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{t('Recent health alerts', 'تنبيهات الصحة الأخيرة')}</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-1.5">
+                  {healthAlerts.map(a => {
+                    const prof = profiles.find(p => p.id === a.profileId);
+                    return (
+                      <div key={a.id} className="flex items-start gap-2 text-xs">
+                        <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                        <span className="text-slate-300">
+                          <span className="text-white font-medium">{prof?.profileName ?? `#${a.profileId}`}</span>
+                          {' — '}{a.message ?? t('Health alert', 'تنبيه صحي')}
+                          {a.occurredAt && <span className="text-slate-500"> · {timeAgo(a.occurredAt)}</span>}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-36 bg-slate-700 rounded-lg" />)}</div>
             ) : profiles.length === 0 ? (
@@ -272,6 +393,20 @@ export default function IntegrationGovernance() {
                             )}
                           </div>
                         </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant="outline" className={`text-xs ${p.isHealthMonitoringEnabled ? 'text-emerald-300 border-emerald-700 bg-emerald-900/30' : 'text-slate-400 border-slate-600 bg-slate-700/40'}`}>
+                            <HeartPulse className="w-3 h-3 me-1" />
+                            {p.isHealthMonitoringEnabled
+                              ? t(`Monitored · every ${p.healthCheckIntervalMinutes ?? 15}m`, `مراقب · كل ${p.healthCheckIntervalMinutes ?? 15} د`)
+                              : t('Monitoring off', 'المراقبة متوقفة')}
+                          </Badge>
+                          {(p.consecutiveFailures ?? 0) > 0 && (
+                            <Badge variant="outline" className={`text-xs ${(p.consecutiveFailures >= (p.alertOnFailureCount ?? 3)) ? 'text-red-300 border-red-700 bg-red-900/30' : 'text-amber-300 border-amber-700 bg-amber-900/30'}`}>
+                              <AlertTriangle className="w-3 h-3 me-1" />
+                              {t(`${p.consecutiveFailures} consecutive failure${p.consecutiveFailures === 1 ? '' : 's'}`, `${p.consecutiveFailures} إخفاقات متتالية`)}
+                            </Badge>
+                          )}
+                        </div>
                         {p.lastTestResult && (
                           <div className={`rounded-md border p-2 space-y-1 ${p.lastTestResult === 'success' ? 'border-emerald-800/60 bg-emerald-900/20' : 'border-red-800/60 bg-red-900/20'}`}>
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -294,12 +429,17 @@ export default function IntegrationGovernance() {
                                 {new Date(p.lastTestedAt).toLocaleString()}
                               </p>
                             )}
-                            {(p.lastTestedByNameEn || p.lastTestedByNameAr) && (
+                            {(p.lastTestedByNameEn || p.lastTestedByNameAr) ? (
                               <p className="text-[11px] text-slate-400 flex items-center gap-1">
                                 <User className="w-3 h-3 shrink-0" />
                                 {t('Tested by', 'اختبرها')} {lang === 'ar' ? (p.lastTestedByNameAr || p.lastTestedByNameEn) : (p.lastTestedByNameEn || p.lastTestedByNameAr)}
                               </p>
-                            )}
+                            ) : p.lastTestedAt ? (
+                              <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                                <Bot className="w-3 h-3 shrink-0" />
+                                {t('Automated health check', 'فحص صحة تلقائي')}
+                              </p>
+                            ) : null}
                             {p.lastTestMessage && <p className="text-[11px] text-slate-400 break-words">{p.lastTestMessage}</p>}
                           </div>
                         )}
@@ -310,6 +450,9 @@ export default function IntegrationGovernance() {
                           {p.governanceStatus === 'pending_approval' && (
                             <Button size="sm" variant="ghost" className="text-emerald-400 hover:text-emerald-300 h-7 px-2 text-xs" onClick={() => approveProfile(p.id)}>{t('Approve', 'موافقة')}</Button>
                           )}
+                          <Button size="sm" variant="ghost" className="text-slate-300 hover:text-white h-7 px-2 text-xs" onClick={() => setHealthTarget(p)}>
+                            <Settings2 className="w-3.5 h-3.5 me-1" />{t('Health', 'الصحة')}
+                          </Button>
                           {p.status !== 'inactive' && (
                             <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 h-7 px-2 text-xs" onClick={() => setSuspendTarget(p)}>{t('Suspend', 'تعليق')}</Button>
                           )}
@@ -423,6 +566,8 @@ export default function IntegrationGovernance() {
         </Tabs>
 
         <AddProfileDialog open={addProfileOpen} onClose={() => setAddProfileOpen(false)} onSaved={load} />
+
+        {healthTarget && <HealthSettingsDialog profile={healthTarget} onClose={() => setHealthTarget(null)} onSaved={load} />}
 
         <Dialog open={!!smtpTestTarget} onOpenChange={v => !v && setSmtpTestTarget(null)}>
           <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
