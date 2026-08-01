@@ -261,6 +261,76 @@ describe("privileged session review", () => {
     }
   });
 
+  it("audit writes made while the holder's session is open are tagged with the session id", async () => {
+    const { session } = await activateBreakGlass();
+
+    // No explicit privilegedSessionId — the DB trigger must fill it in.
+    const [row] = await db.insert(auditLogsTable).values({
+      actorUserId: session.userId, action: "TEST.activity.tagged-write", entityType: "employee",
+      entityId: 45, entityLabel: "TEST tagged",
+    }).returning();
+
+    try {
+      expect(row.privilegedSessionId).toBe(session.id);
+    } finally {
+      await db.delete(auditLogsTable).where(eq(auditLogsTable.id, row.id));
+    }
+  });
+
+  it("activity prefers tagged entries and excludes untagged in-window rows when tags exist", async () => {
+    const { session } = await activateBreakGlass();
+    const officer = await loginAs("aisha.otaibi");
+
+    const started = new Date(session.startedAt);
+    const inserted = await db.insert(auditLogsTable).values([
+      { // in-window write by the holder — trigger tags it with this session
+        actorUserId: session.userId, action: "TEST.activity.tagged", entityType: "employee",
+        entityId: 46, createdAt: new Date(started.getTime() + 30_000),
+      },
+      { // in-window write by the holder that we untag below (legacy/routine row)
+        actorUserId: session.userId, action: "TEST.activity.untagged", entityType: "employee",
+        entityId: 47, createdAt: new Date(started.getTime() + 30_000),
+      },
+    ]).returning();
+    const untaggedId = inserted.find((r) => r.action === "TEST.activity.untagged")!.id;
+    await db.update(auditLogsTable).set({ privilegedSessionId: null })
+      .where(eq(auditLogsTable.id, untaggedId));
+
+    try {
+      const res = await officer.get(`/api/privileged-sessions/${session.id}/activity`);
+      expect(res.status).toBe(200);
+      const actions = res.body.map((a: any) => a.action);
+      expect(actions).toContain("TEST.activity.tagged");
+      expect(actions).not.toContain("TEST.activity.untagged");
+    } finally {
+      await db.delete(auditLogsTable).where(inArray(auditLogsTable.id, inserted.map(r => r.id)));
+    }
+  });
+
+  it("falls back to time-window correlation when a session has no tagged entries (older data)", async () => {
+    const { session } = await activateBreakGlass();
+    const officer = await loginAs("aisha.otaibi");
+
+    const started = new Date(session.startedAt);
+    const inserted = await db.insert(auditLogsTable).values({
+      actorUserId: session.userId, action: "TEST.activity.legacy", entityType: "employee",
+      entityId: 48, createdAt: new Date(started.getTime() + 30_000),
+    }).returning();
+    // Simulate pre-tagging data: strip every tag pointing at this session,
+    // including the automatic ones written when the grant was activated.
+    await db.update(auditLogsTable).set({ privilegedSessionId: null })
+      .where(eq(auditLogsTable.privilegedSessionId, session.id));
+
+    try {
+      const res = await officer.get(`/api/privileged-sessions/${session.id}/activity`);
+      expect(res.status).toBe(200);
+      const actions = res.body.map((a: any) => a.action);
+      expect(actions).toContain("TEST.activity.legacy");
+    } finally {
+      await db.delete(auditLogsTable).where(inArray(auditLogsTable.id, inserted.map(r => r.id)));
+    }
+  });
+
   it("activity endpoint is role-guarded and 404s for unknown sessions", async () => {
     const { session } = await activateBreakGlass();
 

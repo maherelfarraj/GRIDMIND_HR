@@ -111,6 +111,19 @@ router.get("/privileged-sessions/:id/activity", requireSecurityOfficer, async (r
     return;
   }
 
+  // Prefer precise attribution: entries tagged with this session's id (a DB
+  // trigger tags audit writes made while the holder's session is open).
+  const tagged = await db
+    .select()
+    .from(auditLogsTable)
+    .where(eq(auditLogsTable.privilegedSessionId, id))
+    .orderBy(desc(auditLogsTable.createdAt));
+  if (tagged.length) {
+    res.json(tagged);
+    return;
+  }
+
+  // Fallback for sessions predating tagging: time-window correlation.
   // The window closes at endedAt when the session was explicitly ended;
   // otherwise it runs to scheduledEndAt (still-open sessions show activity
   // up to the scheduled cutoff, matching what the reviewer is judging).
