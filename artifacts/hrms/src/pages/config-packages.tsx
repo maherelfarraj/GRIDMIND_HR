@@ -228,6 +228,7 @@ export default function ConfigPackages() {
   const [compareA, setCompareA] = useState('');
   const [compareB, setCompareB] = useState('');
   const [compareResult, setCompareResult] = useState<CompareEnvironmentSnapshots200 | null>(null);
+  const [unpinTarget, setUnpinTarget] = useState<EnvironmentSnapshot | null>(null);
 
   function refreshPackages() { queryClient.invalidateQueries({ queryKey: getListConfigPackagesQueryKey() }); }
   function refreshSnapshots() { queryClient.invalidateQueries({ queryKey: getListEnvironmentSnapshotsQueryKey() }); }
@@ -293,6 +294,7 @@ export default function ConfigPackages() {
   async function unpinSnapshot(id: number) {
     try {
       await unpinMut.mutateAsync({ id });
+      toast({ title: t('Snapshot unpinned', 'تم إلغاء تثبيت اللقطة') });
       refreshSnapshots();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
@@ -442,7 +444,7 @@ export default function ConfigPackages() {
                                 <Pin className="w-3 h-3 me-1" />{t('Pin', 'تثبيت')}
                               </Button>
                             ) : (
-                              <Button size="sm" variant="ghost" className="text-amber-400 hover:text-amber-300 h-7 px-2 text-xs" onClick={() => unpinSnapshot(s.id)}>
+                              <Button size="sm" variant="ghost" className="text-amber-400 hover:text-amber-300 h-7 px-2 text-xs" onClick={() => setUnpinTarget(s)}>
                                 <PinOff className="w-3 h-3 me-1" />{t('Unpin', 'إلغاء التثبيت')}
                               </Button>
                             )}
@@ -489,6 +491,23 @@ export default function ConfigPackages() {
         <CreatePackageDialog open={createOpen} onClose={() => setCreateOpen(false)} onSaved={refreshPackages} />
         <CaptureSnapshotDialog open={captureOpen} onClose={() => setCaptureOpen(false)} onSaved={refreshSnapshots} />
         <ImpactPreviewDialog open={!!impactPkg} onClose={() => setImpactPkg(null)} pkg={impactPkg} onApply={(reason) => impactPkg && applyPackage(impactPkg.id, reason)} />
+        <AlertDialog open={!!unpinTarget} onOpenChange={v => !v && setUnpinTarget(null)}>
+          <AlertDialogContent className="bg-slate-800 border-slate-700 text-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('Unpin Snapshot?', 'إلغاء تثبيت اللقطة؟')}</AlertDialogTitle>
+              <AlertDialogDescription className="text-slate-400">
+                {t(
+                  `"${unpinTarget?.snapshotName ?? ''}" will no longer be protected as a pinned reference point.`,
+                  `لن تعود "${unpinTarget?.snapshotName ?? ''}" محمية كنقطة مرجعية مثبتة.`,
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-slate-600">{t('Cancel', 'إلغاء')}</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { if (unpinTarget) unpinSnapshot(unpinTarget.id); setUnpinTarget(null); }} className="bg-amber-600 hover:bg-amber-700">{t('Unpin', 'إلغاء التثبيت')}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AnimatedPage>
   );
