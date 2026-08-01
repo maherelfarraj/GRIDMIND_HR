@@ -11,8 +11,20 @@ import app from "../app";
 const createdBackupIds: number[] = [];
 const createdRestoreTestIds: number[] = [];
 const createdFiles: string[] = [];
+const createdOffsiteUris: string[] = [];
 
 afterAll(async () => {
+  // Remove offsite copies created by this suite.
+  const { objectStorageClient } = await import("../lib/backupOffsite");
+  for (const uri of createdOffsiteUris) {
+    const m = /^gs:\/\/([^/]+)\/(.+)$/.exec(uri);
+    if (!m) continue;
+    await objectStorageClient
+      .bucket(m[1])
+      .file(m[2])
+      .delete({ ignoreNotFound: true })
+      .catch(() => undefined);
+  }
   if (createdRestoreTestIds.length) {
     await db
       .delete(restoreTestResultsTable)
@@ -51,7 +63,45 @@ describe("real backup execution", () => {
     expect(new Date(record.completedAt).getTime()).toBeGreaterThanOrEqual(
       new Date(record.startedAt).getTime()
     );
-  }, 60_000);
+
+    // Offsite copy: record stores both locations.
+    expect(record.offsiteStatus).toBe("uploaded");
+    expect(record.offsiteLocation).toMatch(/^gs:\/\/.+\/backups\/.+\.dump$/);
+    expect(record.offsiteUploadedAt).toBeTruthy();
+    expect(record.offsiteError).toBeNull();
+    createdOffsiteUris.push(record.offsiteLocation);
+  }, 120_000);
+});
+
+describe("offsite disaster recovery", () => {
+  it("restore test pulls the archive back from offsite when the local file is missing", async () => {
+    // 1. Take a backup (uploads offsite).
+    const backupRes = await request(app)
+      .post("/api/admin/backup-records/run")
+      .send({ backupType: "full", notes: "offsite DR test backup" });
+    expect(backupRes.status).toBe(201);
+    const record = backupRes.body;
+    createdBackupIds.push(record.id);
+    if (record.storageLocation) createdFiles.push(record.storageLocation);
+    if (record.offsiteLocation) createdOffsiteUris.push(record.offsiteLocation);
+    expect(record.offsiteStatus).toBe("uploaded");
+
+    // 2. Simulate a local disk loss.
+    fs.unlinkSync(record.storageLocation);
+    expect(fs.existsSync(record.storageLocation)).toBe(false);
+
+    // 3. Restore test against that specific backup must recover the archive
+    //    from offsite storage and pass.
+    const res = await request(app)
+      .post("/api/restore-tests")
+      .send({ backupRecordId: record.id });
+    expect(res.status).toBe(201);
+    createdRestoreTestIds.push(res.body.id);
+    expect(res.body.backupRecordId).toBe(record.id);
+    expect(res.body.result).toBe("pass");
+    // The archive was re-downloaded to the original local path.
+    expect(fs.existsSync(record.storageLocation)).toBe(true);
+  }, 180_000);
 });
 
 describe("real restore test", () => {

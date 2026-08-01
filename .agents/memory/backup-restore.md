@@ -6,4 +6,6 @@ The managed Postgres here allows `CREATE DATABASE` / `DROP DATABASE ... WITH (FO
 
 **Why:** avoids schema-remap hacks; pg_restore of custom dumps can't easily retarget a schema.
 
+Every completed dump is also copied offsite to the app's private object storage bucket (sidecar-authenticated GCS, `PRIVATE_OBJECT_DIR/backups/`); the record stores both locations plus offsite status/error, and restore tests re-download from offsite when the local file is gone. Upload failure never fails the backup — it's recorded on the record.
+
 **How to apply:** backup logic lives in the api-server backup service; dumps go to `BACKUP_DIR` (default `<cwd>/backups`, gitignored). Row-count checks allow a small tolerance on append-only tables (audit_logs, backup_records) because the source drifts during the test. A passing restore test marks the backup verified, which feeds the DATA_BACKUP_VERIFIED and DATA_RESTORE_TESTED go-live gates.

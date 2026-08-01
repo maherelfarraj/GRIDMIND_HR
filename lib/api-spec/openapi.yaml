@@ -11834,6 +11834,10 @@ components:
         fileSizeBytes: { type: [ "number", "null" ] }
         checksum: { type: [ "string", "null" ] }
         storageLocation: { type: [ "string", "null" ] }
+        offsiteLocation: { type: [ "string", "null" ] }
+        offsiteStatus: { type: [ "string", "null" ] }
+        offsiteError: { type: [ "string", "null" ] }
+        offsiteUploadedAt: { type: [ "string", "null" ], format: date-time }
         retentionDays: { type: number }
         isVerified: { type: boolean }
         verifiedAt: { type: [ "string", "null" ] }

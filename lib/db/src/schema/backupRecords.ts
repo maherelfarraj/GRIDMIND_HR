@@ -13,6 +13,12 @@ export const backupRecordsTable = pgTable("backup_records", {
   // SHA-256 checksum of the backup archive
   checksum: varchar("checksum", { length: 128 }),
   storageLocation: varchar("storage_location", { length: 500 }),
+  // Offsite (object storage) copy of the archive.
+  // offsite_status: "pending" | "uploaded" | "failed"
+  offsiteLocation: varchar("offsite_location", { length: 500 }),
+  offsiteStatus: varchar("offsite_status", { length: 20 }),
+  offsiteError: text("offsite_error"),
+  offsiteUploadedAt: timestamp("offsite_uploaded_at"),
   retentionDays: integer("retention_days").notNull().default(90),
   isVerified: boolean("is_verified").notNull().default(false),
   verifiedAt: timestamp("verified_at"),

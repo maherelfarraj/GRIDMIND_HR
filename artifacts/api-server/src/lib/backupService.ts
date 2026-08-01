@@ -14,6 +14,12 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+import {
+  isOffsiteConfigured,
+  uploadBackupOffsite,
+  downloadBackupFromOffsite,
+} from "./backupOffsite";
+
 // ─── Configuration ─────────────────────────────────────────────────────────────
 // Backups are written to BACKUP_DIR (defaults to <cwd>/backups). Point this at a
 // mounted offsite volume in production.
@@ -103,6 +109,41 @@ export async function runBackup(opts: {
     const stat = await fsp.stat(filePath);
     const checksum = await sha256File(filePath);
 
+    // Copy the archive offsite so a local disk failure can't destroy it.
+    // Upload failures are recorded on the backup record, never swallowed.
+    let offsite: {
+      offsiteLocation: string | null;
+      offsiteStatus: string;
+      offsiteError: string | null;
+      offsiteUploadedAt: Date | null;
+    };
+    if (!isOffsiteConfigured()) {
+      offsite = {
+        offsiteLocation: null,
+        offsiteStatus: "failed",
+        offsiteError:
+          "Offsite storage not configured (PRIVATE_OBJECT_DIR unset) — backup exists only on local disk",
+        offsiteUploadedAt: null,
+      };
+    } else {
+      try {
+        const uri = await uploadBackupOffsite(filePath);
+        offsite = {
+          offsiteLocation: uri,
+          offsiteStatus: "uploaded",
+          offsiteError: null,
+          offsiteUploadedAt: new Date(),
+        };
+      } catch (err: any) {
+        offsite = {
+          offsiteLocation: null,
+          offsiteStatus: "failed",
+          offsiteError: `Offsite upload failed: ${String(err?.message || err)}`,
+          offsiteUploadedAt: null,
+        };
+      }
+    }
+
     const [updated] = await db
       .update(backupRecordsTable)
       .set({
@@ -110,6 +151,7 @@ export async function runBackup(opts: {
         completedAt,
         fileSizeBytes: stat.size,
         checksum,
+        ...offsite,
       })
       .where(eq(backupRecordsTable.id, record.id))
       .returning();
@@ -205,9 +247,32 @@ export async function runRestoreTest(opts: {
       .where(eq(backupRecordsTable.status, "completed"))
       .orderBy(desc(backupRecordsTable.startedAt));
     backup = candidates.find(
-      (b) => b.storageLocation && fs.existsSync(b.storageLocation)
+      (b) =>
+        (b.storageLocation && fs.existsSync(b.storageLocation)) ||
+        (b.offsiteLocation && b.offsiteStatus === "uploaded")
     );
   }
+
+  // If the local file is gone but an offsite copy exists, pull it back down.
+  if (
+    backup?.storageLocation &&
+    !fs.existsSync(backup.storageLocation) &&
+    backup.offsiteLocation &&
+    backup.offsiteStatus === "uploaded"
+  ) {
+    await fsp.mkdir(path.dirname(backup.storageLocation), { recursive: true });
+    try {
+      await downloadBackupFromOffsite(backup.offsiteLocation, backup.storageLocation);
+    } catch (err: any) {
+      if (opts.backupRecordId) {
+        throw new Error(
+          `Local archive missing and offsite retrieval failed for backup ${backup.id}: ${String(err?.message || err)}`
+        );
+      }
+      // Auto-picked candidate: fall through to taking a fresh backup below.
+    }
+  }
+
   if (!backup || !backup.storageLocation || !fs.existsSync(backup.storageLocation)) {
     backup = await runBackup({
       backupType: "full",

@@ -2335,6 +2335,14 @@ export interface BackupRecord {
   checksum?: string | null;
   /** @nullable */
   storageLocation?: string | null;
+  /** @nullable */
+  offsiteLocation?: string | null;
+  /** @nullable */
+  offsiteStatus?: string | null;
+  /** @nullable */
+  offsiteError?: string | null;
+  /** @nullable */
+  offsiteUploadedAt?: string | null;
   retentionDays: number;
   isVerified: boolean;
   /** @nullable */
