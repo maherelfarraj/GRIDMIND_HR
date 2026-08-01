@@ -66,9 +66,17 @@ router.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-// POST / — create notification (system/server use)
+// POST / — create notification. Creation is a privileged operation: system
+// code paths insert directly via the DB layer, so the HTTP surface is
+// admin-only. Without this guard any authenticated caller could spoof
+// notifications (e.g. fake "security alerts" with malicious action URLs)
+// addressed to arbitrary users.
 router.post("/", async (req, res): Promise<void> => {
   try {
+    if (!isAdmin(req)) {
+      res.status(403).json({ error: "Only administrators can create notifications" });
+      return;
+    }
     const [row] = await db.insert(notificationsTable).values(req.body).returning();
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }

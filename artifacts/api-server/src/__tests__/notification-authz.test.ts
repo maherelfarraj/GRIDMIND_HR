@@ -82,6 +82,53 @@ describe("notifications authorization", () => {
     expect(row.isRead).toBe(false);
   });
 
+  it("rejects a non-admin caller creating a notification for another user", async () => {
+    // Log in as a seeded non-admin user (demo mode accepts any password).
+    const agent = request.agent(app);
+    const login = await agent.post("/api/auth/login").send({ username: "hassan.qahtani", password: "x" });
+    expect(login.status).toBe(200);
+
+    const res = await agent.post("/api/notifications").send({
+      recipientUserId: OTHER_ID,
+      notificationType: "security_alert",
+      titleEn: "SPOOFED alert",
+      bodyEn: "click here",
+      severity: "critical",
+    });
+    expect(res.status).toBe(403);
+
+    const rows = await db.select().from(notificationsTable)
+      .where(eq(notificationsTable.titleEn, "SPOOFED alert"));
+    expect(rows.length).toBe(0);
+  });
+
+  it("rejects unauthenticated notification creation with 403", async () => {
+    const res = await request(app).post("/api/notifications").send({
+      recipientUserId: OTHER_ID,
+      notificationType: "security_alert",
+      titleEn: "SPOOFED unauth alert",
+      bodyEn: "click here",
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("allows an admin to create a notification for another user", async () => {
+    const admin = request.agent(app);
+    const login = await admin.post("/api/auth/login").send({ username: "admin", password: "x" });
+    expect(login.status).toBe(200);
+
+    const res = await admin.post("/api/notifications").send({
+      recipientUserId: OTHER_ID,
+      notificationType: "authz_test",
+      titleEn: "AUTHZ TEST admin-created",
+      titleAr: "اختبار",
+      bodyEn: "authz test body",
+      bodyAr: "اختبار",
+    });
+    expect(res.status).toBe(201);
+    await db.delete(notificationsTable).where(eq(notificationsTable.id, res.body.id));
+  });
+
   it("allows marking own notification read and ignores non-writable fields", async () => {
     const res = await request(app)
       .patch(`/api/notifications/${selfNotifId}`)

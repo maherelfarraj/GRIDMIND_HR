@@ -10,6 +10,15 @@ import app from "../app";
 const TEST_RECIPIENT_USER_ID = 1;
 const createdNotificationIds: number[] = [];
 
+// Notification creation is admin-only; log in as the seeded admin user.
+// Demo mode (PILOT_AUTH=false) accepts any password.
+async function adminAgent() {
+  const agent = request.agent(app);
+  const res = await agent.post("/api/auth/login").send({ username: "admin", password: "x" });
+  if (res.status !== 200) throw new Error(`admin login failed: ${res.status}`);
+  return agent;
+}
+
 afterAll(async () => {
   if (createdNotificationIds.length) {
     await db.delete(notificationsTable)
@@ -21,7 +30,8 @@ describe("notification workflow", () => {
   let notificationId: number;
 
   it("POST /api/notifications creates a notification and returns 201", async () => {
-    const res = await request(app)
+    const admin = await adminAgent();
+    const res = await admin
       .post("/api/notifications")
       .send({
         recipientUserId: TEST_RECIPIENT_USER_ID,
@@ -73,7 +83,8 @@ describe("notification workflow", () => {
 
   it("POST /api/notifications/mark-all-read returns 200 with count", async () => {
     // Create an unread notification so mark-all-read has something to process.
-    const created = await request(app)
+    const admin = await adminAgent();
+    const created = await admin
       .post("/api/notifications")
       .send({
         recipientUserId: TEST_RECIPIENT_USER_ID,
