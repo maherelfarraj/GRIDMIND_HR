@@ -2,7 +2,7 @@
  * Health monitor — scheduled connection checks, consecutive-failure tracking,
  * and admin alerting when the failure streak reaches alertOnFailureCount.
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
 import { and, eq, inArray } from "drizzle-orm";
 import {
@@ -13,6 +13,12 @@ import {
 } from "@workspace/db";
 import app from "../app";
 import { runHealthChecksOnce } from "../lib/health-monitor";
+import { testLdapConnection } from "../lib/ldap-adapter";
+
+vi.mock("../lib/ldap-adapter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/ldap-adapter")>();
+  return { ...actual, testLdapConnection: vi.fn(actual.testLdapConnection) };
+});
 
 const createdProfileIds: number[] = [];
 
@@ -26,6 +32,7 @@ async function createProfile(overrides: Partial<typeof integrationConnectionProf
     isHealthMonitoringEnabled: true,
     healthCheckIntervalMinutes: 15,
     alertOnFailureCount: 2,
+    retryEnabled: false, // most tests exercise single-attempt behavior
     ...overrides,
   }).returning();
   createdProfileIds.push(row.id);
@@ -97,6 +104,95 @@ describe("connection health monitor", () => {
         eq(integrationAuditLogTable.eventType, "health_alert"),
       ));
     expect(auditAfter.length).toBe(1);
+  });
+
+  it("retry-then-success: recovers within the retry policy without counting a failure", async () => {
+    const profile = await createProfile({
+      integrationType: "ldap",
+      retryEnabled: true,
+      retryMaxAttempts: 3,
+      retryBackoffSeconds: 0, // keep the test fast
+      consecutiveFailures: 4,
+    });
+
+    // Only this profile may consume the mocked results below — take earlier
+    // test profiles out of the sweep.
+    const others = createdProfileIds.filter((id) => id !== profile.id);
+    if (others.length) {
+      await db.update(integrationConnectionProfilesTable)
+        .set({ isHealthMonitoringEnabled: false })
+        .where(inArray(integrationConnectionProfilesTable.id, others));
+    }
+
+    // Initial attempt fails, first retry succeeds.
+    vi.mocked(testLdapConnection)
+      .mockResolvedValueOnce({ success: false, message: "transient blip", latencyMs: 5, simulated: false })
+      .mockResolvedValueOnce({ success: true, message: "recovered", latencyMs: 5, simulated: false });
+
+    const result = await runHealthChecksOnce({ force: true });
+    const outcome = result.outcomes.find((o) => o.profileId === profile.id);
+    expect(outcome!.success).toBe(true);
+    expect(outcome!.consecutiveFailures).toBe(0);
+    expect(outcome!.alertRaised).toBe(false);
+
+    const [row] = await db.select().from(integrationConnectionProfilesTable)
+      .where(eq(integrationConnectionProfilesTable.id, profile.id));
+    expect(row.consecutiveFailures).toBe(0);
+    expect(row.lastTestResult).toBe("success");
+    expect(row.status).toBe("active");
+
+    // Exactly one retry_triggered audit event, and the sweep event is test_passed.
+    const retryEvents = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "retry_triggered"),
+      ));
+    expect(retryEvents.length).toBe(1);
+    const passedEvents = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "test_passed"),
+      ));
+    expect(passedEvents.length).toBe(1);
+  });
+
+  it("retry-exhausted: counts one failure after all retries fail and logs each retry", async () => {
+    const profile = await createProfile({
+      integrationType: "ldap", // real adapter fails every attempt (no LDAP env)
+      retryEnabled: true,
+      retryMaxAttempts: 2,
+      retryBackoffSeconds: 0,
+    });
+
+    const result = await runHealthChecksOnce({ force: true });
+    const outcome = result.outcomes.find((o) => o.profileId === profile.id);
+    expect(outcome!.success).toBe(false);
+    // Retries happen within the sweep — only ONE failure is counted.
+    expect(outcome!.consecutiveFailures).toBe(1);
+
+    const retryEvents = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "retry_triggered"),
+      ));
+    expect(retryEvents.length).toBe(2);
+    const failedEvents = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "test_failed"),
+      ));
+    expect(failedEvents.length).toBe(1);
+  });
+
+  it("does not retry when retryEnabled is false", async () => {
+    const profile = await createProfile({ integrationType: "ldap", retryEnabled: false });
+    await runHealthChecksOnce({ force: true });
+    const retryEvents = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "retry_triggered"),
+      ));
+    expect(retryEvents.length).toBe(0);
   });
 
   it("resets consecutiveFailures to 0 on a successful check", async () => {

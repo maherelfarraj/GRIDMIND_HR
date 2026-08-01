@@ -85,6 +85,50 @@ async function getAdminUserIds(): Promise<number[]> {
   return rows.map((r) => r.id);
 }
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Runs the connection test, honoring the profile's retry policy: when the
+ * initial attempt fails and retryEnabled is true, retries up to
+ * retryMaxAttempts with retryBackoffSeconds between attempts. Each retry
+ * logs a "retry_triggered" integration audit event. Only if every attempt
+ * fails does the sweep count the check as a failure.
+ */
+async function runConnectionTestWithRetry(
+  profile: IntegrationConnectionProfile,
+): Promise<{ success: boolean; message: string; latencyMs: number; simulated: boolean; attempts: number }> {
+  let attempt = await runConnectionTest(profile);
+  let attempts = 1;
+  if (attempt.success || !profile.retryEnabled) return { ...attempt, attempts };
+
+  const maxRetries = Math.max(0, profile.retryMaxAttempts);
+  const backoffMs = Math.max(0, profile.retryBackoffSeconds) * 1000;
+
+  for (let retry = 1; retry <= maxRetries; retry++) {
+    await db.insert(integrationAuditLogTable).values({
+      profileId: profile.id,
+      integrationType: profile.integrationType,
+      eventType: "retry_triggered",
+      outcome: "success",
+      message: `Health check failed ("${attempt.message}") — retry ${retry} of ${maxRetries} scheduled with ${profile.retryBackoffSeconds}s backoff`,
+      metadataJson: JSON.stringify({
+        retryAttempt: retry,
+        retryMaxAttempts: maxRetries,
+        retryBackoffSeconds: profile.retryBackoffSeconds,
+        source: "health_monitor",
+      }),
+      actorUserId: null,
+    });
+    logger.info({ profileId: profile.id, retry, maxRetries }, "Health check retry triggered");
+
+    if (backoffMs > 0) await sleep(backoffMs);
+    attempt = await runConnectionTest(profile);
+    attempts += 1;
+    if (attempt.success) break;
+  }
+  return { ...attempt, attempts };
+}
+
 function isDue(profile: IntegrationConnectionProfile, now: Date): boolean {
   if (!profile.lastTestedAt) return true;
   const intervalMs = Math.max(1, profile.healthCheckIntervalMinutes) * 60_000;
@@ -114,7 +158,7 @@ export async function runHealthChecksOnce(
   for (const profile of profiles) {
     if (!options.force && !isDue(profile, now)) continue;
 
-    const { success, message, latencyMs, simulated } = await runConnectionTest(profile);
+    const { success, message, latencyMs, simulated, attempts } = await runConnectionTestWithRetry(profile);
     const consecutiveFailures = success ? 0 : profile.consecutiveFailures + 1;
     // Alert exactly when the streak reaches the threshold (avoid re-alerting
     // on every subsequent failed sweep).
@@ -138,7 +182,7 @@ export async function runHealthChecksOnce(
       eventType: success ? "test_passed" : "test_failed",
       outcome: success ? "success" : "failure",
       message,
-      metadataJson: JSON.stringify({ latencyMs, simulated, source: "health_monitor", consecutiveFailures }),
+      metadataJson: JSON.stringify({ latencyMs, simulated, source: "health_monitor", consecutiveFailures, attempts }),
       actorUserId: null,
     });
 
