@@ -160,9 +160,8 @@ describe("Vector 1: Tampered Config Package — signature enforcement", () => {
     cleanupAuditEntityIds.push({ entityType: "config_package", entityId: res.body.id });
   });
 
-  it("POST /api/config-packages/import with no signature still imports (signature is optional)", async () => {
-    // The route only rejects when signature is PRESENT but wrong.
-    // When omitted entirely, it proceeds without a sig (documented behaviour).
+  it("POST /api/config-packages/import with no signature is rejected (unsigned imports forbidden)", async () => {
+    // Omitting the signature must NOT bypass verification.
     const payloadJson = JSON.stringify({ test: "no-sig", ts: UNIQUE });
 
     const res = await request(app)
@@ -177,12 +176,12 @@ describe("Vector 1: Tampered Config Package — signature enforcement", () => {
         },
       });
 
-    // System accepts imports without a signature in demo mode
-    expect([200, 201]).toContain(res.status);
-    if (res.body.id) {
-      createdConfigPackageIds.push(res.body.id);
-      cleanupAuditEntityIds.push({ entityType: "config_package", entityId: res.body.id });
-    }
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/unsigned|signature/i);
+
+    // Ensure nothing was persisted
+    const list = await request(app).get("/api/config-packages");
+    expect(list.body.find((p: any) => p.packageName === `SEC-TEST-NOSIG-${UNIQUE}`)).toBeUndefined();
   });
 });
 

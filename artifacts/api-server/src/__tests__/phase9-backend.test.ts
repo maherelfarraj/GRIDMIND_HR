@@ -553,6 +553,45 @@ describe("Config Package lifecycle: create → sign → export → import → ap
     createdPackageIds.push(importedPackageId);
   });
 
+  it("POST /config-packages/import — rejects unsigned package (missing signature)", async () => {
+    const exportedPkg = await request(app).get(`/api/config-packages/${packageId}`);
+    const res = await request(app)
+      .post("/api/config-packages/import")
+      .send({
+        packageJson: {
+          packageName: "Unsigned Package",
+          packageType: "branding",
+          version: "1.0.0",
+          sourceEnvironment: "development",
+          targetEnvironment: "production",
+          payloadJson: exportedPkg.body.payloadJson,
+          // no signature field at all
+          items: [],
+        },
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/unsigned|signature/i);
+    // Ensure it was NOT stored
+    const list = await request(app).get("/api/config-packages");
+    expect(list.body.find((p: any) => p.packageName === "Unsigned Package")).toBeUndefined();
+  });
+
+  it("POST /config-packages/import — rejects package with tampered signature", async () => {
+    const exportedPkg = await request(app).get(`/api/config-packages/${packageId}`);
+    const res = await request(app)
+      .post("/api/config-packages/import")
+      .send({
+        packageJson: {
+          packageName: "Tampered Package",
+          payloadJson: exportedPkg.body.payloadJson,
+          signature: "deadbeef" + exportedPkg.body.signature?.slice(8),
+          items: [],
+        },
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/signature verification failed/i);
+  });
+
   it("POST /config-packages/:id/apply — applies imported package", async () => {
     const res = await request(app).post(`/api/config-packages/${importedPackageId}/apply`);
     expect(res.status).toBe(200);

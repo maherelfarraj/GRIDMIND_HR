@@ -67,9 +67,13 @@ router.post("/config-packages/import", async (req, res): Promise<void> => {
     const pkg = typeof packageJson === "string" ? JSON.parse(packageJson) : packageJson;
     const { signature, payloadJson, ...rest } = pkg;
 
+    // Require a signature — unsigned packages must never be imported silently
+    if (!signature) {
+      return void res.status(400).json({ error: "Package is unsigned: a signature is required to import a config package" });
+    }
     // Verify signature
     const expectedSig = computeSignature(payloadJson ?? JSON.stringify(rest));
-    if (signature && signature !== expectedSig) {
+    if (signature !== expectedSig) {
       return void res.status(400).json({ error: "Signature verification failed" });
     }
 
