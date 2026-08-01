@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startHealthMonitor } from "./lib/health-monitor";
 import { startGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
+import { startBackupScheduler } from "./lib/backupScheduler";
 import { seedDemoPasswords } from "./lib/seed-passwords";
 import { rotateLegacyGatewayKeys } from "./routes/attendanceGateway";
 import { runStartupMigrations } from "./lib/startupMigrations";
@@ -47,6 +48,7 @@ async function main() {
     logger.info({ port }, "Server listening");
     startHealthMonitor();
     startGatewaySilenceMonitor();
+    startBackupScheduler();
     if (process.env.NODE_ENV !== "production") {
       // Dev/demo provisioning is best-effort and non-blocking.
       seedDemoPasswords().catch((err) => {

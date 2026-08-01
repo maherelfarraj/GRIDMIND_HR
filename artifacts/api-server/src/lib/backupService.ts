@@ -128,6 +128,56 @@ export async function runBackup(opts: {
   }
 }
 
+// ─── Retention pruning ─────────────────────────────────────────────────────────
+// Deletes dump files whose age exceeds the record's retention_days and marks the
+// records "expired". Records whose file is already gone are expired too.
+export interface PruneResult {
+  scanned: number;
+  expired: number;
+  filesDeleted: number;
+  errors: Array<{ id: number; error: string }>;
+}
+
+export async function pruneExpiredBackups(): Promise<PruneResult> {
+  const now = Date.now();
+  const candidates = await db
+    .select()
+    .from(backupRecordsTable)
+    .where(
+      sql`${backupRecordsTable.status} IN ('completed', 'verified', 'failed')`
+    );
+
+  const result: PruneResult = { scanned: candidates.length, expired: 0, filesDeleted: 0, errors: [] };
+
+  for (const rec of candidates) {
+    const anchor = rec.completedAt ?? rec.startedAt;
+    const ageMs = now - new Date(anchor).getTime();
+    const retentionMs = rec.retentionDays * 24 * 60 * 60 * 1000;
+    if (ageMs <= retentionMs) continue;
+
+    try {
+      if (rec.storageLocation && fs.existsSync(rec.storageLocation)) {
+        await fsp.unlink(rec.storageLocation);
+        result.filesDeleted++;
+      }
+      await db
+        .update(backupRecordsTable)
+        .set({
+          status: "expired",
+          notes: rec.notes
+            ? `${rec.notes} | Expired by retention pruning (retention ${rec.retentionDays}d)`
+            : `Expired by retention pruning (retention ${rec.retentionDays}d)`,
+        })
+        .where(eq(backupRecordsTable.id, rec.id));
+      result.expired++;
+    } catch (err: any) {
+      result.errors.push({ id: rec.id, error: String(err?.message || err) });
+    }
+  }
+
+  return result;
+}
+
 // ─── Real restore test into a scratch database ─────────────────────────────────
 export interface RestoreTestOutcome {
   result: "pass" | "fail";

@@ -19,6 +19,7 @@ import {
   restoreTestResultsTable,
 } from "@workspace/db";
 // restoreTestResultsTable — imported directly from pilotControl schema via @workspace/db
+import { getBackupScheduleStatus } from "../lib/backupScheduler.js";
 
 const router = Router();
 
@@ -266,17 +267,23 @@ async function evaluateGate(gateCode: string): Promise<{
     }
 
     case "BACKUP_SCHEDULE_CONFIGURED": {
-      const backups = await db
-        .select()
-        .from(backupRecordsTable)
-        .where(eq(backupRecordsTable.status, "completed"))
-        .limit(5);
-      // Check if there are recurring scheduled backups (proxy: multiple completed backups exist)
-      const passed = backups.length >= 1;
+      // Real evidence: the in-process node-cron scheduler's live status, not a
+      // proxy count of backup records.
+      const schedule = getBackupScheduleStatus();
+      const passed = schedule.enabled && schedule.valid && schedule.running;
       return {
-        status: passed ? "pass" : "warn",
-        evidenceJson: JSON.stringify({ completedBackups: backups.length, note: "Recurring schedule must be verified manually via cron or system scheduler." }),
-        blockerDescriptionEn: passed ? null : "No completed backup records found. Configure and verify a backup schedule.",
+        status: passed ? "pass" : "fail",
+        evidenceJson: JSON.stringify({
+          scheduler: schedule,
+          note: "Evidence taken directly from the API server's node-cron backup scheduler (nightly full backup + retention pruning).",
+        }),
+        blockerDescriptionEn: passed
+          ? null
+          : schedule.enabled
+            ? schedule.valid
+              ? "Backup scheduler is not running. Restart the API server to start the scheduled backup job."
+              : `BACKUP_CRON expression "${schedule.cronExpression}" is invalid — the backup scheduler could not start.`
+            : "Scheduled backups are disabled via BACKUP_SCHEDULE_ENABLED=\"false\". Enable the backup schedule before go-live.",
       };
     }
 
