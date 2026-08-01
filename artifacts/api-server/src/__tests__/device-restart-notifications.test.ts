@@ -24,6 +24,7 @@ import app from "../app";
 import {
   DEVICE_COMMAND_OUTCOME_TYPE,
   expireStaleDeviceCommandsOnce,
+  flushDeferredCommandNotifications,
 } from "../lib/deviceCommandNotifications";
 
 const sha256 = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
@@ -113,6 +114,8 @@ describe("restart outcome notifications", () => {
     const commandId = await requestRestartAndDeliver();
     const ack = await postSigned("/api/gateway/commands/ack", { acks: [{ commandId, ok: true, message: "rebooted in 4s" }] });
     expect(ack.status).toBe(200);
+    // Notification writes are deferred off the ack request path.
+    await flushDeferredCommandNotifications();
 
     const notes = await myNotifications();
     const note = notes.find((n) => n.entityId === commandId);
@@ -127,6 +130,7 @@ describe("restart outcome notifications", () => {
     const commandId = await requestRestartAndDeliver();
     const ack = await postSigned("/api/gateway/commands/ack", { acks: [{ commandId, ok: false, message: "device did not respond to reboot" }] });
     expect(ack.status).toBe(200);
+    await flushDeferredCommandNotifications();
 
     const note = (await myNotifications()).find((n) => n.entityId === commandId);
     expect(note).toBeTruthy();

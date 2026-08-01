@@ -106,6 +106,34 @@ export async function notifyCommandOutcomes(commands: CommandOutcomeRow[]): Prom
   }
 }
 
+// In-flight deferred notification writes, so tests (and graceful shutdown)
+// can await them via flushDeferredCommandNotifications().
+const pendingDeferred = new Set<Promise<void>>();
+
+/**
+ * Deferred variant for latency-sensitive signed machine endpoints
+ * (heartbeat/ack): schedules the notification insert on the next event-loop
+ * turn so a slow notifications write can never add latency to the response.
+ * Errors are already swallowed and logged inside notifyCommandOutcomes.
+ */
+export function notifyCommandOutcomesDeferred(commands: CommandOutcomeRow[]): void {
+  if (!commands.length) return;
+  const p = new Promise<void>((resolve) => {
+    setImmediate(() => {
+      notifyCommandOutcomes(commands).then(resolve, resolve);
+    });
+  });
+  pendingDeferred.add(p);
+  void p.finally(() => pendingDeferred.delete(p));
+}
+
+/** Await all deferred notification writes (test/shutdown helper). */
+export async function flushDeferredCommandNotifications(): Promise<void> {
+  while (pendingDeferred.size > 0) {
+    await Promise.all([...pendingDeferred]);
+  }
+}
+
 /**
  * Server-side expiry sweep: expire every stale PENDING/DELIVERED command
  * across ALL devices and notify the requesters. Read-path expiry (the device

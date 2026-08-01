@@ -20,7 +20,7 @@ import {
   GATEWAY_SILENCE_THRESHOLD_MS,
   effectiveSilenceThresholdMs,
 } from "../lib/gatewayDeviceAlerts.js";
-import { notifyCommandOutcomes } from "../lib/deviceCommandNotifications.js";
+import { notifyCommandOutcomesDeferred } from "../lib/deviceCommandNotifications.js";
 import {
   protectSigningKey,
   recoverSigningKey,
@@ -392,7 +392,8 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
       resultMessage: deviceCommandsTable.resultMessage,
     });
   // Tell the requester their restart expired even if they left the page.
-  await notifyCommandOutcomes(expiredCommands);
+  // Deferred: a slow notifications insert must never slow the heartbeat.
+  notifyCommandOutcomesDeferred(expiredCommands);
   const deliveredCommands = await db
     .update(deviceCommandsTable)
     .set({ status: "DELIVERED", deliveredAt: new Date(), updatedAt: new Date() })
@@ -617,7 +618,8 @@ gatewayMachineRouter.post("/gateway/commands/ack", verifyGatewaySignature, async
     results.push({ commandId: ack.commandId, status: updated.status });
     // In-app notification to the requesting operator: they should learn the
     // reboot outcome even if they navigated away from the device panel.
-    await notifyCommandOutcomes([updated]);
+    // Deferred: a slow notifications insert must never slow the ack response.
+    notifyCommandOutcomesDeferred([updated]);
     await db.insert(auditLogsTable).values({
       action: "device_command_ack",
       entityType: "device_command",
