@@ -4,7 +4,7 @@ import {
   leaveApprovalStepsTable, leaveAttachmentsTable, employeesTable, rostersTable, auditLogsTable,
   approvalsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, or, sql } from "drizzle-orm";
+import { eq, and, gte, lte, or, sql, inArray } from "drizzle-orm";
 import { ensureLeaveBalance } from "../lib/leaveBalance.js";
 import { decideLeaveStep, syncLinkedApprovalStatus } from "../lib/leaveDecision.js";
 import { getActorUserId } from "../middleware/requireAuth.js";
@@ -317,26 +317,52 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
     return;
   }
 
-  // Release any pending balance reservation
-  const year = new Date(r.startDate).getFullYear();
-  const [balance] = await db.select().from(leaveBalancesTable).where(
-    and(
-      eq(leaveBalancesTable.employeeId, r.employeeId),
-      eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
-      eq(leaveBalancesTable.year, year),
-    )
-  );
-  if (balance && parseFloat(r.totalDays) > 0) {
-    const newPending = Math.max(0, parseFloat(balance.pending) - parseFloat(r.totalDays));
-    await db.update(leaveBalancesTable)
-      .set({ pending: String(newPending), updatedAt: new Date() })
-      .where(eq(leaveBalancesTable.id, balance.id));
-  }
+  // Task #179: run the cancel atomically. The status change is a conditional
+  // claim (WHERE status still cancellable) so two concurrent cancels — or a
+  // cancel racing a decide — can't both win and release the pending
+  // reservation twice.
+  let updated: typeof leaveRequestsTable.$inferSelect;
+  try {
+    updated = await db.transaction(async (tx) => {
+      const [claimed] = await tx.update(leaveRequestsTable)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(and(
+          eq(leaveRequestsTable.id, id),
+          inArray(leaveRequestsTable.status, ["draft", "submitted", "under_review"]),
+        ))
+        .returning();
+      if (!claimed) {
+        throw Object.assign(
+          new Error("Request was already decided or cancelled"),
+          { httpStatus: 409 },
+        );
+      }
 
-  const [updated] = await db.update(leaveRequestsTable)
-    .set({ status: "cancelled", updatedAt: new Date() })
-    .where(eq(leaveRequestsTable.id, id))
-    .returning();
+      // Release the pending reservation in a single atomic conditional update;
+      // GREATEST keeps pending from going negative.
+      if (parseFloat(r.totalDays) > 0) {
+        const year = new Date(r.startDate).getFullYear();
+        await tx.update(leaveBalancesTable)
+          .set({
+            pending: sql`GREATEST(${leaveBalancesTable.pending} - ${r.totalDays}::numeric, 0)`,
+            updatedAt: new Date(),
+          })
+          .where(and(
+            eq(leaveBalancesTable.employeeId, r.employeeId),
+            eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
+            eq(leaveBalancesTable.year, year),
+          ));
+      }
+
+      return claimed;
+    });
+  } catch (err: any) {
+    if (err?.httpStatus) {
+      res.status(err.httpStatus).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 
   // Task #13: keep the /approvals queue entry in sync
   await syncLinkedApprovalStatus(id, "cancelled");

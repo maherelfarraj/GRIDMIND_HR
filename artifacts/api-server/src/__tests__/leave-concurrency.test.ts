@@ -332,6 +332,109 @@ afterAll(async () => {
   await cleanupProvision();
 });
 
+// ---------------------------------------------------------------------------
+// Task #179 — cancel-route concurrency.
+// Two concurrent cancels of the same submitted request must release the
+// pending reservation exactly once (one 200, one 409).
+// ---------------------------------------------------------------------------
+let cxlEmployeeId: number;
+let cxlLeaveTypeId: number;
+let cxlBalanceId: number;
+const cxlRequestIds: number[] = [];
+const CXL_UNIQ = `T179-${Date.now()}`;
+
+async function cleanupCancel() {
+  if (cxlRequestIds.length) {
+    await db.delete(auditLogsTable).where(
+      and(eq(auditLogsTable.entityType, "leave_request"), inArray(auditLogsTable.entityId, cxlRequestIds)),
+    );
+    await db.delete(leaveApprovalStepsTable).where(inArray(leaveApprovalStepsTable.leaveRequestId, cxlRequestIds));
+    await db.delete(leaveAttachmentsTable).where(inArray(leaveAttachmentsTable.leaveRequestId, cxlRequestIds));
+    await db.delete(leaveRequestsTable).where(inArray(leaveRequestsTable.id, cxlRequestIds));
+  }
+  if (cxlBalanceId) await db.delete(leaveBalancesTable).where(eq(leaveBalancesTable.id, cxlBalanceId));
+  if (cxlEmployeeId) await db.delete(rostersTable).where(eq(rostersTable.employeeId, cxlEmployeeId));
+  if (cxlLeaveTypeId) await db.delete(leaveTypesTable).where(eq(leaveTypesTable.id, cxlLeaveTypeId));
+  if (cxlEmployeeId) await db.delete(employeesTable).where(eq(employeesTable.id, cxlEmployeeId));
+}
+
+beforeAll(async () => {
+  const [dept] = await db.select().from(departmentsTable).limit(1);
+  const [emp] = await db.insert(employeesTable).values({
+    employeeNumber: CXL_UNIQ,
+    firstNameEn: "Cancel", lastNameEn: "Race",
+    firstNameAr: "اختبار", lastNameAr: "إلغاء",
+    nationalId: CXL_UNIQ,
+    jobTitleEn: "Tester", jobTitleAr: "مختبر",
+    departmentId: dept?.id ?? 1,
+    roleId: 1,
+    email: `${CXL_UNIQ.toLowerCase()}@test.local`,
+    hireDate: "2020-01-01",
+    nationality: "SA",
+    status: "active",
+  }).returning();
+  cxlEmployeeId = emp.id;
+
+  const [lt] = await db.insert(leaveTypesTable).values({
+    codeEn: CXL_UNIQ.slice(0, 20),
+    nameEn: `Annual (${CXL_UNIQ})`, nameAr: "سنوية",
+    category: "general",
+  }).returning();
+  cxlLeaveTypeId = lt.id;
+
+  // One submitted 3-day request holding a pending reservation of 3.
+  const [bal] = await db.insert(leaveBalancesTable).values({
+    employeeId: cxlEmployeeId, leaveTypeId: cxlLeaveTypeId, year: YEAR,
+    openingBalance: "10", accrued: "0", used: "0", pending: "3",
+    adjustment: "0", carriedOver: "0",
+  }).returning();
+  cxlBalanceId = bal.id;
+
+  const [req] = await db.insert(leaveRequestsTable).values({
+    requestNumber: `${CXL_UNIQ}-0`,
+    employeeId: cxlEmployeeId, leaveTypeId: cxlLeaveTypeId,
+    startDate: `${YEAR}-09-10`, endDate: `${YEAR}-09-12`,
+    totalDays: "3",
+    status: "submitted",
+    currentStepNumber: 1,
+    totalApprovalSteps: 2,
+  } as any).returning();
+  cxlRequestIds.push(req.id);
+});
+
+afterAll(async () => {
+  await cleanupCancel();
+});
+
+describe("concurrent leave cancellations (Task #179)", () => {
+  it("releases the pending reservation exactly once when two cancels race", async () => {
+    const [resA, resB] = await Promise.all(
+      [0, 1].map(() =>
+        fetch(`${baseUrl}/leave-requests/${cxlRequestIds[0]}/cancel`, { method: "POST" }),
+      ),
+    );
+
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses[0]).toBe(200);
+    expect(statuses[1]).toBe(409);
+
+    // Pending released once: 3 → 0, never negative / double-released.
+    const [bal] = await db.select().from(leaveBalancesTable).where(eq(leaveBalancesTable.id, cxlBalanceId));
+    expect(parseFloat(bal.pending)).toBe(0);
+
+    const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, cxlRequestIds[0]));
+    expect(r.status).toBe("cancelled");
+  });
+
+  it("returns 409 when cancelling an already-cancelled request", async () => {
+    const res = await fetch(`${baseUrl}/leave-requests/${cxlRequestIds[0]}/cancel`, { method: "POST" });
+    // Pre-transaction status check catches it with 400, or the conditional claim with 409.
+    expect([400, 409]).toContain(res.status);
+    const [bal] = await db.select().from(leaveBalancesTable).where(eq(leaveBalancesTable.id, cxlBalanceId));
+    expect(parseFloat(bal.pending)).toBe(0);
+  });
+});
+
 describe("concurrent first-time submissions with no existing balance row (Task #19)", () => {
   it("auto-provisions exactly one balance row and lets only one submission through", async () => {
     const [resA, resB] = await Promise.all(
