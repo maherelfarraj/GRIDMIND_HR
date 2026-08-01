@@ -15,6 +15,7 @@ export interface PayComponentInput {
   value?: number;
   /** @nullable */
   percentageBase?: string | null;
+  isRecurring?: boolean;
   isTaxable?: boolean;
   isMandatory?: boolean;
   applicableTo?: string;

@@ -15,7 +15,7 @@ router.get("/pay-components", async (req, res): Promise<void> => {
 router.post("/pay-components", async (req, res): Promise<void> => {
   const {
     codeEn, nameEn, nameAr, type, calculationMethod, value,
-    percentageBase, isTaxable, isMandatory, applicableTo, isActive, sortOrder, notes,
+    percentageBase, isRecurring, isTaxable, isMandatory, applicableTo, isActive, sortOrder, notes,
   } = req.body;
   if (!codeEn || !nameEn || !nameAr || !type) {
     res.status(400).json({ error: "codeEn, nameEn, nameAr, type are required" });
@@ -26,6 +26,7 @@ router.post("/pay-components", async (req, res): Promise<void> => {
     calculationMethod: calculationMethod ?? "fixed",
     value: String(value ?? "0"),
     percentageBase: percentageBase ?? null,
+    isRecurring: isRecurring ?? true,
     isTaxable: isTaxable ?? false,
     isMandatory: isMandatory ?? false,
     applicableTo: applicableTo ?? "all",
@@ -47,7 +48,7 @@ router.patch("/pay-components/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const {
     nameEn, nameAr, type, calculationMethod, value,
-    percentageBase, isTaxable, isMandatory, applicableTo, isActive, sortOrder, notes,
+    percentageBase, isRecurring, isTaxable, isMandatory, applicableTo, isActive, sortOrder, notes,
   } = req.body;
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (nameEn !== undefined) updateData.nameEn = nameEn;
@@ -56,6 +57,7 @@ router.patch("/pay-components/:id", async (req, res): Promise<void> => {
   if (calculationMethod !== undefined) updateData.calculationMethod = calculationMethod;
   if (value !== undefined) updateData.value = String(value);
   if (percentageBase !== undefined) updateData.percentageBase = percentageBase;
+  if (isRecurring !== undefined) updateData.isRecurring = isRecurring;
   if (isTaxable !== undefined) updateData.isTaxable = isTaxable;
   if (isMandatory !== undefined) updateData.isMandatory = isMandatory;
   if (applicableTo !== undefined) updateData.applicableTo = applicableTo;

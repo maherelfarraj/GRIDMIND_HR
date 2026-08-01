@@ -1397,6 +1397,7 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
+
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1411,6 +1412,7 @@ export const SetUserPasswordResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
+
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -2425,12 +2427,21 @@ export const AnnualLeaveResetResponse = zod.object({
   "year": zod.number()
 })
 
+
 /**
  * @summary Bulk-provision balances for all active employees for a target year
  */
 export const ProvisionLeaveYearBody = zod.object({
   "year": zod.number()
 })
+
+export const ProvisionLeaveYearResponse = zod.object({
+  "created": zod.number(),
+  "skipped": zod.number(),
+  "year": zod.number()
+})
+
+
 /**
  * @summary List leave requests
  */
@@ -3315,6 +3326,7 @@ export const ListPayComponentsResponseItem = zod.object({
   "calculationMethod": zod.string(),
   "value": zod.string(),
   "percentageBase": zod.string().nullish(),
+  "isRecurring": zod.boolean(),
   "isTaxable": zod.boolean(),
   "isMandatory": zod.boolean(),
   "applicableTo": zod.string(),
@@ -3338,6 +3350,7 @@ export const CreatePayComponentBody = zod.object({
   "calculationMethod": zod.string().optional(),
   "value": zod.number().optional(),
   "percentageBase": zod.string().nullish(),
+  "isRecurring": zod.boolean().optional(),
   "isTaxable": zod.boolean().optional(),
   "isMandatory": zod.boolean().optional(),
   "applicableTo": zod.string().optional(),
@@ -3355,6 +3368,7 @@ export const CreatePayComponentResponse = zod.object({
   "calculationMethod": zod.string(),
   "value": zod.string(),
   "percentageBase": zod.string().nullish(),
+  "isRecurring": zod.boolean(),
   "isTaxable": zod.boolean(),
   "isMandatory": zod.boolean(),
   "applicableTo": zod.string(),
@@ -3382,6 +3396,7 @@ export const GetPayComponentResponse = zod.object({
   "calculationMethod": zod.string(),
   "value": zod.string(),
   "percentageBase": zod.string().nullish(),
+  "isRecurring": zod.boolean(),
   "isTaxable": zod.boolean(),
   "isMandatory": zod.boolean(),
   "applicableTo": zod.string(),
@@ -3408,6 +3423,7 @@ export const UpdatePayComponentBody = zod.object({
   "calculationMethod": zod.string().optional(),
   "value": zod.number().optional(),
   "percentageBase": zod.string().nullish(),
+  "isRecurring": zod.boolean().optional(),
   "isTaxable": zod.boolean().optional(),
   "isMandatory": zod.boolean().optional(),
   "applicableTo": zod.string().optional(),
@@ -3425,6 +3441,7 @@ export const UpdatePayComponentResponse = zod.object({
   "calculationMethod": zod.string(),
   "value": zod.string(),
   "percentageBase": zod.string().nullish(),
+  "isRecurring": zod.boolean(),
   "isTaxable": zod.boolean(),
   "isMandatory": zod.boolean(),
   "applicableTo": zod.string(),
@@ -15992,8 +16009,3 @@ export const DeleteImportMappingTemplateResponse = zod.object({
 })
 
 
-export const ProvisionLeaveYearResponse = zod.object({
-  "created": zod.number(),
-  "skipped": zod.number(),
-  "year": zod.number()
-})

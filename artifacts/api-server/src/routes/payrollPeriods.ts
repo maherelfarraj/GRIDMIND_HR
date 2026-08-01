@@ -510,8 +510,15 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     let compSortOrder = 10;
     for (const comp of components.filter(c => c.applicableTo === "all" || c.applicableTo === "commercial")) {
       let amount = 0;
+      let compProrated = false;
       if (comp.calculationMethod === "fixed") {
         amount = parseFloat(comp.value);
+        // Recurring fixed components (monthly stipends) are prorated to the
+        // employed portion of the period; one-time payments are paid in full.
+        if (comp.isRecurring && isProrated) {
+          amount = amount * prorationFactor;
+          compProrated = true;
+        }
       } else if (comp.calculationMethod === "percentage") {
         const base = comp.percentageBase === "gross_salary"
           ? proratedBase + proratedHousing + proratedTransport
@@ -520,7 +527,9 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       }
       if (amount > 0) {
         lines.push({
-          codeEn: comp.codeEn, nameEn: comp.nameEn, nameAr: comp.nameAr,
+          codeEn: comp.codeEn,
+          nameEn: compProrated ? `${comp.nameEn}${prorationLabelEn}` : comp.nameEn,
+          nameAr: compProrated ? `${comp.nameAr}${prorationLabelAr}` : comp.nameAr,
           type: comp.type, amount: Math.round(amount * 100) / 100,
           sortOrder: compSortOrder++,
           payComponentId: comp.id,

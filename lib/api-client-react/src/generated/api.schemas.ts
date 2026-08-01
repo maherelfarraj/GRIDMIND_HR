@@ -1191,6 +1191,7 @@ export interface AnnualLeaveResetInput {
 export interface ProvisionLeaveYearInput {
   year: number;
 }
+
 export interface LeaveApprovalStep {
   id: number;
   leaveRequestId: number;
@@ -1424,6 +1425,7 @@ export interface PayComponent {
   value: string;
   /** @nullable */
   percentageBase?: string | null;
+  isRecurring: boolean;
   isTaxable: boolean;
   isMandatory: boolean;
   applicableTo: string;
@@ -1444,6 +1446,7 @@ export interface PayComponentInput {
   value?: number;
   /** @nullable */
   percentageBase?: string | null;
+  isRecurring?: boolean;
   isTaxable?: boolean;
   isMandatory?: boolean;
   applicableTo?: string;
@@ -6455,6 +6458,7 @@ export type ProvisionLeaveYear200 = {
   skipped: number;
   year: number;
 };
+
 export type ListLeaveRequestsParams = {
 employeeId?: number;
 status?: string;
@@ -7821,3 +7825,4 @@ export type CreateImportMappingTemplateBody = {
 export type DeleteImportMappingTemplate200 = {
   deleted: boolean;
 };
+

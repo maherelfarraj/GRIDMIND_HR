@@ -34,7 +34,7 @@ const CALC_METHODS = [
 const EMPTY_FORM = {
   codeEn: '', nameEn: '', nameAr: '', type: 'earning',
   calculationMethod: 'fixed', value: '', percentageBase: '',
-  isTaxable: false, isMandatory: false, applicableTo: 'all',
+  isRecurring: true, isTaxable: false, isMandatory: false, applicableTo: 'all',
   isActive: true, sortOrder: 0, notes: '',
 };
 
@@ -68,7 +68,7 @@ export default function PayComponents() {
     setForm({
       codeEn: c.codeEn, nameEn: c.nameEn, nameAr: c.nameAr, type: c.type,
       calculationMethod: c.calculationMethod, value: c.value,
-      percentageBase: c.percentageBase ?? '', isTaxable: c.isTaxable,
+      percentageBase: c.percentageBase ?? '', isRecurring: c.isRecurring, isTaxable: c.isTaxable,
       isMandatory: c.isMandatory, applicableTo: c.applicableTo,
       isActive: c.isActive, sortOrder: c.sortOrder, notes: c.notes ?? '',
     });
@@ -207,6 +207,7 @@ export default function PayComponents() {
                         <div className="flex gap-1 flex-wrap">
                           {c.isMandatory && <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-400 border-amber-500/20">{t('Mandatory', 'إلزامي')}</Badge>}
                           {c.isTaxable && <Badge variant="outline" className="text-xs bg-violet-500/10 text-violet-400 border-violet-500/20">{t('Taxable', 'خاضع للضريبة')}</Badge>}
+                          {!c.isRecurring && <Badge variant="outline" className="text-xs bg-sky-500/10 text-sky-400 border-sky-500/20">{t('One-time', 'لمرة واحدة')}</Badge>}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground capitalize">{c.applicableTo}</TableCell>
@@ -310,6 +311,10 @@ export default function PayComponents() {
               <div className="flex items-center gap-3 col-span-2">
                 <Switch checked={form.isTaxable} onCheckedChange={v => setForm(f => ({ ...f, isTaxable: v }))} id="taxable" />
                 <Label htmlFor="taxable">{t('Taxable', 'خاضع للضريبة')}</Label>
+              </div>
+              <div className="flex items-center gap-3 col-span-2">
+                <Switch checked={form.isRecurring} onCheckedChange={v => setForm(f => ({ ...f, isRecurring: v }))} id="recurring" />
+                <Label htmlFor="recurring">{t('Recurring (prorated for partial employment)', 'متكرر (يُحتسب نسبياً عند التوظيف الجزئي)')}</Label>
               </div>
             </div>
             <DialogFooter>

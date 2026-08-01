@@ -7,7 +7,12 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
-import { inArray, eq, and } from "drizzle-orm";
+import { readFileSync } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { inArray, eq, and, sql as sqlRaw } from "drizzle-orm";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import {
   db,
   payrollPeriodsTable,
@@ -19,6 +24,7 @@ import {
   auditLogsTable,
   employmentContractsTable,
   systemConfigTable,
+  payComponentsTable,
 } from "@workspace/db";
 import app from "../app";
 import { WEEKEND_CONFIG_KEY } from "../routes/payrollPeriods.js";
@@ -42,6 +48,13 @@ const WORKDAYS = ["2024-03-03", "2024-03-04", "2024-03-05", "2024-03-06", "2024-
 const HIRE_DATE_MID = "2024-03-05";
 // Mid-period leaver: terminated Tue 2024-03-05 → employed 3 of 5 workdays (03, 04, 05).
 const TERMINATION_DATE = "2024-03-05";
+
+// Fixed pay components: a recurring stipend (prorated) and a one-time payment (not prorated).
+const STIPEND_CODE = `T-STIP-${SUFFIX}`;
+const ONETIME_CODE = `T-ONCE-${SUFFIX}`;
+const STIPEND_AMOUNT = 500;
+const ONETIME_AMOUNT = 300;
+const componentIds: number[] = [];
 
 let gradeId: number;
 let empFullId: number;
@@ -164,6 +177,22 @@ beforeAll(async () => {
   await addPunches(empLeaverId, WORKDAYS.slice(0, 3)); // 03, 04, 05
   await addPunches(empRehireId, WORKDAYS);
 
+  // Fixed pay components — recurring stipend vs one-time payment.
+  const [stipend] = await db.insert(payComponentsTable).values({
+    codeEn: STIPEND_CODE,
+    nameEn: "TEST Recurring Stipend", nameAr: "بدل شهري اختبار",
+    type: "earning", calculationMethod: "fixed", value: String(STIPEND_AMOUNT),
+    isRecurring: true, applicableTo: "all", isActive: true,
+  }).returning();
+  componentIds.push(stipend.id);
+  const [onetime] = await db.insert(payComponentsTable).values({
+    codeEn: ONETIME_CODE,
+    nameEn: "TEST One-Time Payment", nameAr: "دفعة لمرة واحدة اختبار",
+    type: "earning", calculationMethod: "fixed", value: String(ONETIME_AMOUNT),
+    isRecurring: false, applicableTo: "all", isActive: true,
+  }).returning();
+  componentIds.push(onetime.id);
+
   const [period] = await db.insert(payrollPeriodsTable).values({
     periodCode: `T-PRPP-${SUFFIX}`,
     nameEn: "TEST Prorate Period", nameAr: "فترة اختبار التناسب",
@@ -205,6 +234,7 @@ afterAll(async () => {
   const empIds = [empFullId, empHireId, empLeaverId, empRehireId].filter(Boolean);
   if (empIds.length) await db.delete(employeesTable).where(inArray(employeesTable.id, empIds));
   if (gradeId) await db.delete(salaryGradesTable).where(eq(salaryGradesTable.id, gradeId));
+  if (componentIds.length) await db.delete(payComponentsTable).where(inArray(payComponentsTable.id, componentIds));
 });
 
 type Line = { codeEn: string; nameEn: string; amount: string; type: string };
@@ -279,6 +309,68 @@ describe("payroll proration for mid-period hires and leavers", () => {
     expect(run.absentDays).toBe(0);
     const { run: full } = await getRunAndLines(empFullId);
     expect(parseFloat(run.netSalary)).toBeCloseTo(parseFloat(full.netSalary), 2);
+  });
+
+  it("prorates a fixed recurring stipend for a mid-period hire but pays a one-time component in full", async () => {
+    const { lines } = await getRunAndLines(empHireId);
+    const factor = 3 / 5;
+    const stipend = lines.find(l => l.codeEn === STIPEND_CODE)!;
+    const onetime = lines.find(l => l.codeEn === ONETIME_CODE)!;
+    expect(stipend).toBeDefined();
+    expect(onetime).toBeDefined();
+    expect(parseFloat(stipend.amount)).toBeCloseTo(round2(STIPEND_AMOUNT * factor), 2);
+    expect(stipend.nameEn).toContain("Prorated 3/5 days");
+    expect(parseFloat(onetime.amount)).toBeCloseTo(ONETIME_AMOUNT, 2);
+    expect(onetime.nameEn).not.toContain("Prorated");
+  });
+
+  it("pays a full-period employee the fixed recurring stipend in full", async () => {
+    const { lines } = await getRunAndLines(empFullId);
+    const stipend = lines.find(l => l.codeEn === STIPEND_CODE)!;
+    expect(parseFloat(stipend.amount)).toBeCloseTo(STIPEND_AMOUNT, 2);
+    expect(stipend.nameEn).not.toContain("Prorated");
+  });
+
+  it("persists the isRecurring flag through the pay-components API", async () => {
+    const code = `T-API-${SUFFIX}`;
+    const created = await request(app).post("/api/pay-components").send({
+      codeEn: code, nameEn: "TEST API One-Time", nameAr: "اختبار لمرة واحدة",
+      type: "earning", calculationMethod: "fixed", value: 100,
+      isRecurring: false, isActive: false,
+    });
+    expect(created.status).toBe(201);
+    componentIds.push(created.body.id);
+    expect(created.body.isRecurring).toBe(false);
+
+    const patched = await request(app).patch(`/api/pay-components/${created.body.id}`).send({ isRecurring: true });
+    expect(patched.status).toBe(200);
+    expect(patched.body.isRecurring).toBe(true);
+
+    // Default is recurring when the flag is omitted.
+    const defaulted = await request(app).post("/api/pay-components").send({
+      codeEn: `${code}-D`, nameEn: "TEST API Default", nameAr: "اختبار افتراضي",
+      type: "earning", calculationMethod: "fixed", value: 100, isActive: false,
+    });
+    expect(defaulted.status).toBe(201);
+    componentIds.push(defaulted.body.id);
+    expect(defaulted.body.isRecurring).toBe(true);
+  });
+
+  it("applies the is_recurring startup migration idempotently", async () => {
+    // The committed migration must be safe to re-run against an already
+    // migrated database (the startup runner executes every file on every boot).
+    const migrationPath = path.resolve(__dirname, "../../../../lib/db/migrations/004_pay_components_is_recurring.sql");
+    const ddl = readFileSync(migrationPath, "utf8");
+    await db.execute(sqlRaw.raw(ddl));
+    await db.execute(sqlRaw.raw(ddl));
+    const result = await db.execute(sqlRaw`
+      SELECT column_default, is_nullable FROM information_schema.columns
+      WHERE table_name = 'pay_components' AND column_name = 'is_recurring'
+    `);
+    const rows = result.rows as { column_default: string; is_nullable: string }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].column_default).toBe("true");
+    expect(rows[0].is_nullable).toBe("NO");
   });
 
   it("hire and leaver with the same employed-day count net the same pay", async () => {

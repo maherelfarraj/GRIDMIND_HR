@@ -12,6 +12,9 @@ export const payComponentsTable = pgTable("pay_components", {
   value: numeric("value", { precision: 10, scale: 4 }).notNull().default("0"),
   // base_salary | gross_salary (for percentage-based)
   percentageBase: varchar("percentage_base", { length: 30 }),
+  // Recurring components (e.g. monthly stipends) are prorated for partial
+  // employment; one-time components (isRecurring = false) are paid in full.
+  isRecurring: boolean("is_recurring").notNull().default(true),
   isTaxable: boolean("is_taxable").notNull().default(false),
   isMandatory: boolean("is_mandatory").notNull().default(false),
   // all | commercial | government | military

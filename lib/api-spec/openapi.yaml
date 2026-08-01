@@ -10940,6 +10940,7 @@ components:
         calculationMethod: { type: string }
         value: { type: string }
         percentageBase: { type: [ "string", "null" ] }
+        isRecurring: { type: boolean }
         isTaxable: { type: boolean }
         isMandatory: { type: boolean }
         applicableTo: { type: string }
@@ -10950,7 +10951,7 @@ components:
         updatedAt:
           type: string
           format: date-time
-      required: [ id, codeEn, nameEn, nameAr, type, calculationMethod, value, isTaxable, isMandatory, applicableTo, isActive, sortOrder, createdAt ]
+      required: [ id, codeEn, nameEn, nameAr, type, calculationMethod, value, isRecurring, isTaxable, isMandatory, applicableTo, isActive, sortOrder, createdAt ]
 
     PayComponentInput:
       type: object
@@ -10962,6 +10963,7 @@ components:
         calculationMethod: { type: string }
         value: { type: number }
         percentageBase: { type: [ "string", "null" ] }
+        isRecurring: { type: boolean }
         isTaxable: { type: boolean }
         isMandatory: { type: boolean }
         applicableTo: { type: string }
