@@ -5750,13 +5750,19 @@ export const ListPrivilegedSessionsResponse = zod.array(ListPrivilegedSessionsRe
 
 
 /**
- * @summary Audit-log actions performed by the session holder during the elevated-access window
+ * @summary Audit-log actions performed by the session holder during the elevated-access window (paginated)
  */
 export const GetPrivilegedSessionActivityParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const GetPrivilegedSessionActivityResponseItem = zod.object({
+export const GetPrivilegedSessionActivityQueryParams = zod.object({
+  "limit": zod.coerce.number().int().nullish(),
+  "offset": zod.coerce.number().int().nullish()
+})
+
+export const GetPrivilegedSessionActivityResponse = zod.object({
+  "items": zod.array(zod.object({
   "id": zod.number(),
   "actorUserId": zod.number().nullish(),
   "actorUserName": zod.string().nullish(),
@@ -5768,8 +5774,11 @@ export const GetPrivilegedSessionActivityResponseItem = zod.object({
   "ipAddress": zod.string().nullish(),
   "userAgent": zod.string().nullish(),
   "createdAt": zod.string()
+})),
+  "total": zod.number(),
+  "limit": zod.number(),
+  "offset": zod.number()
 })
-export const GetPrivilegedSessionActivityResponse = zod.array(GetPrivilegedSessionActivityResponseItem)
 
 
 /**

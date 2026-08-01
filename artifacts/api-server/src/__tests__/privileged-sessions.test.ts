@@ -252,10 +252,30 @@ describe("privileged session review", () => {
     try {
       const res = await officer.get(`/api/privileged-sessions/${session.id}/activity`);
       expect(res.status).toBe(200);
-      const actions = res.body.map((a: any) => a.action);
+      const actions = res.body.items.map((a: any) => a.action);
       expect(actions).toContain("TEST.activity.inside");
       expect(actions).not.toContain("TEST.activity.before");
       expect(actions).not.toContain("TEST.activity.other-actor");
+      expect(res.body.total).toBe(res.body.items.length);
+
+      // pagination: caps the page, reports the full count, and offsets pick
+      // up where the previous page ended (newest first).
+      const page1 = await officer.get(`/api/privileged-sessions/${session.id}/activity?limit=1&offset=0`);
+      expect(page1.status).toBe(200);
+      expect(page1.body.items.length).toBe(1);
+      expect(page1.body.total).toBe(res.body.total);
+      expect(page1.body.limit).toBe(1);
+      expect(page1.body.offset).toBe(0);
+      const page2 = await officer.get(`/api/privileged-sessions/${session.id}/activity?limit=1&offset=1`);
+      if (res.body.total > 1) {
+        expect(page2.body.items.length).toBe(1);
+        expect(page2.body.items[0].id).not.toBe(page1.body.items[0].id);
+      }
+
+      // absurd limits are clamped rather than honored
+      const clamped = await officer.get(`/api/privileged-sessions/${session.id}/activity?limit=999999`);
+      expect(clamped.status).toBe(200);
+      expect(clamped.body.limit).toBeLessThanOrEqual(200);
     } finally {
       await db.delete(auditLogsTable).where(inArray(auditLogsTable.id, inserted.map(r => r.id)));
     }
@@ -299,7 +319,7 @@ describe("privileged session review", () => {
     try {
       const res = await officer.get(`/api/privileged-sessions/${session.id}/activity`);
       expect(res.status).toBe(200);
-      const actions = res.body.map((a: any) => a.action);
+      const actions = res.body.items.map((a: any) => a.action);
       expect(actions).toContain("TEST.activity.tagged");
       expect(actions).not.toContain("TEST.activity.untagged");
     } finally {
@@ -324,7 +344,7 @@ describe("privileged session review", () => {
     try {
       const res = await officer.get(`/api/privileged-sessions/${session.id}/activity`);
       expect(res.status).toBe(200);
-      const actions = res.body.map((a: any) => a.action);
+      const actions = res.body.items.map((a: any) => a.action);
       expect(actions).toContain("TEST.activity.legacy");
     } finally {
       await db.delete(auditLogsTable).where(inArray(auditLogsTable.id, inserted.map(r => r.id)));

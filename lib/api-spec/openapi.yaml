@@ -3347,13 +3347,25 @@ paths:
     get:
       operationId: getPrivilegedSessionActivity
       tags: [security]
-      summary: Audit-log actions performed by the session holder during the elevated-access window
+      summary: Audit-log actions performed by the session holder during the elevated-access window (paginated)
+      parameters:
+        - { name: limit, in: query, schema: { type: ["integer", "null"] } }
+        - { name: offset, in: query, schema: { type: ["integer", "null"] } }
       responses:
         '200':
-          description: Audit-log entries recorded between startedAt and endedAt/scheduledEndAt
+          description: Paginated audit-log entries recorded between startedAt and endedAt/scheduledEndAt, newest first
           content:
             application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditLog' }
+                  total: { type: integer }
+                  limit: { type: integer }
+                  offset: { type: integer }
+                required: [items, total, limit, offset]
 
   /privileged-sessions/{id}/review:
     parameters:

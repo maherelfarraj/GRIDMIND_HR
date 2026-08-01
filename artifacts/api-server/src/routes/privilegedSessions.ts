@@ -1,12 +1,17 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { db, privilegedSessionsTable, systemUsersTable, rolesTable, auditLogsTable } from "@workspace/db";
-import { eq, and, isNull, isNotNull, desc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, desc, gte, lte, sql, type SQL } from "drizzle-orm";
 import { getActorUserId } from "../middleware/requireAuth.js";
 import { isAuthEnforced } from "../lib/authMode.js";
 
 const router = Router();
 
 const REVIEW_OUTCOMES = ["justified", "unjustified", "under_investigation"] as const;
+
+// Activity pagination: default keeps the review dialog snappy; the cap stops
+// a crafted ?limit= from pulling an unbounded window in one response.
+const DEFAULT_ACTIVITY_PAGE_SIZE = 50;
+const MAX_ACTIVITY_PAGE_SIZE = 200;
 
 // Roles allowed to see and review privileged sessions. Elevated-access
 // records expose who touched what under break-glass — audit-sensitive data.
@@ -103,6 +108,8 @@ router.get("/privileged-sessions", requireSecurityOfficer, async (req, res): Pro
 // GET /privileged-sessions/:id/activity — audit-log actions the session's
 // holder performed during the elevated-access window, so reviewers can see
 // what was actually done under break-glass, not just the time window.
+// Paginated: a long/busy window can span thousands of audit rows, so results
+// are capped per request and the total is reported for "N of total" UIs.
 router.get("/privileged-sessions/:id/activity", requireSecurityOfficer, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const [session] = await db.select().from(privilegedSessionsTable).where(eq(privilegedSessionsTable.id, id));
@@ -111,14 +118,31 @@ router.get("/privileged-sessions/:id/activity", requireSecurityOfficer, async (r
     return;
   }
 
-  // Prefer precise attribution: entries tagged with this session's id (a DB
-  // trigger tags audit writes made while the holder's session is open).
-  const tagged = await db
-    .select()
-    .from(auditLogsTable)
-    .where(eq(auditLogsTable.privilegedSessionId, id))
-    .orderBy(desc(auditLogsTable.createdAt));
-  if (tagged.length) {
+  const rawLimit = parseInt(String(req.query.limit ?? ""), 10);
+  const rawOffset = parseInt(String(req.query.offset ?? ""), 10);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), MAX_ACTIVITY_PAGE_SIZE) : DEFAULT_ACTIVITY_PAGE_SIZE;
+  const offset = Number.isFinite(rawOffset) ? Math.max(rawOffset, 0) : 0;
+
+  const paginated = async (where: SQL | undefined) => {
+    const [items, [{ count: total }]] = await Promise.all([
+      db
+        .select()
+        .from(auditLogsTable)
+        .where(where)
+        .orderBy(desc(auditLogsTable.createdAt), desc(auditLogsTable.id))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: sql<number>`count(*)::int` }).from(auditLogsTable).where(where),
+    ]);
+    return { items, total, limit, offset };
+  };
+
+  // Prefer precise attribution: entries tagged with this session's id show
+  // exactly the break-glass actions, not the holder's routine work in the
+  // same window.
+  const taggedWhere = eq(auditLogsTable.privilegedSessionId, id);
+  const tagged = await paginated(taggedWhere);
+  if (tagged.total > 0) {
     res.json(tagged);
     return;
   }
@@ -134,12 +158,7 @@ router.get("/privileged-sessions/:id/activity", requireSecurityOfficer, async (r
   ];
   if (windowEnd) conditions.push(lte(auditLogsTable.createdAt, windowEnd));
 
-  const logs = await db
-    .select()
-    .from(auditLogsTable)
-    .where(and(...conditions))
-    .orderBy(desc(auditLogsTable.createdAt));
-  res.json(logs);
+  res.json(await paginated(and(...conditions)));
 });
 
 // POST /privileged-sessions/:id/review — mark a session reviewed.

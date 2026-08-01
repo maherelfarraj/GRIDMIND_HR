@@ -6620,6 +6620,24 @@ reviewed?: boolean;
 breakGlassAccessId?: number;
 };
 
+export type GetPrivilegedSessionActivityParams = {
+/**
+ * @nullable
+ */
+limit?: number | null;
+/**
+ * @nullable
+ */
+offset?: number | null;
+};
+
+export type GetPrivilegedSessionActivity200 = {
+  items: AuditLog[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export type ListBackupRecordsParams = {
 status?: string;
 backupType?: string;

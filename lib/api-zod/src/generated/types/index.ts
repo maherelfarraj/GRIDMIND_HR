@@ -222,6 +222,8 @@ export * from './getOrganization200';
 export * from './getOrganization200Stats';
 export * from './getOrganizationEmployeesCount200';
 export * from './getOrgUnitTreeParams';
+export * from './getPrivilegedSessionActivity200';
+export * from './getPrivilegedSessionActivityParams';
 export * from './getRosterSummaryParams';
 export * from './getShiftRosterParams';
 export * from './goalCycle';

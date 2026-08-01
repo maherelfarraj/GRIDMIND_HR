@@ -63,7 +63,6 @@ import type {
   AttendanceDeviceUpdate,
   AttendanceOverview,
   AttendanceRecord,
-  AuditLog,
   AuditLogList,
   AuthUser,
   BackgroundCheck,
@@ -200,6 +199,8 @@ import type {
   GetOrgUnitTreeParams,
   GetOrganization200,
   GetOrganizationEmployeesCount200,
+  GetPrivilegedSessionActivity200,
+  GetPrivilegedSessionActivityParams,
   GetRosterSummaryParams,
   GetShiftRosterParams,
   GoalCycle,
@@ -13975,20 +13976,29 @@ export function useListPrivilegedSessions<TData = Awaited<ReturnType<typeof list
 
 
 
-export const getGetPrivilegedSessionActivityUrl = (id: number,) => {
+export const getGetPrivilegedSessionActivityUrl = (id: number,
+    params?: GetPrivilegedSessionActivityParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/privileged-sessions/${id}/activity`
+  return stringifiedParams.length > 0 ? `/api/privileged-sessions/${id}/activity?${stringifiedParams}` : `/api/privileged-sessions/${id}/activity`
 }
 
 /**
- * @summary Audit-log actions performed by the session holder during the elevated-access window
+ * @summary Audit-log actions performed by the session holder during the elevated-access window (paginated)
  */
-export const getPrivilegedSessionActivity = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<AuditLog[]> => {
+export const getPrivilegedSessionActivity = async (id: number,
+    params?: GetPrivilegedSessionActivityParams, options?: Parameters<typeof customFetch>[1]): Promise<GetPrivilegedSessionActivity200> => {
 
-  return customFetch<AuditLog[]>(getGetPrivilegedSessionActivityUrl(id),
+  return customFetch<GetPrivilegedSessionActivity200>(getGetPrivilegedSessionActivityUrl(id,params),
   {
     ...options,
     method: 'GET'
@@ -14001,23 +14011,25 @@ export const getPrivilegedSessionActivity = async (id: number, options?: Paramet
 
 
 
-export const getGetPrivilegedSessionActivityQueryKey = (id: number,) => {
+export const getGetPrivilegedSessionActivityQueryKey = (id: number,
+    params?: GetPrivilegedSessionActivityParams,) => {
     return [
-    `/api/privileged-sessions/${id}/activity`
+    `/api/privileged-sessions/${id}/activity`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetPrivilegedSessionActivityQueryOptions = <TData = Awaited<ReturnType<typeof getPrivilegedSessionActivity>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPrivilegedSessionActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetPrivilegedSessionActivityQueryOptions = <TData = Awaited<ReturnType<typeof getPrivilegedSessionActivity>>, TError = ErrorType<unknown>>(id: number,
+    params?: GetPrivilegedSessionActivityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPrivilegedSessionActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetPrivilegedSessionActivityQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getGetPrivilegedSessionActivityQueryKey(id,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPrivilegedSessionActivity>>> = ({ signal }) => getPrivilegedSessionActivity(id, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPrivilegedSessionActivity>>> = ({ signal }) => getPrivilegedSessionActivity(id,params, { signal, ...requestOptions });
 
 
 
@@ -14031,15 +14043,16 @@ export type GetPrivilegedSessionActivityQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Audit-log actions performed by the session holder during the elevated-access window
+ * @summary Audit-log actions performed by the session holder during the elevated-access window (paginated)
  */
 
 export function useGetPrivilegedSessionActivity<TData = Awaited<ReturnType<typeof getPrivilegedSessionActivity>>, TError = ErrorType<unknown>>(
- id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPrivilegedSessionActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ id: number,
+    params?: GetPrivilegedSessionActivityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPrivilegedSessionActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetPrivilegedSessionActivityQueryOptions(id,options)
+  const queryOptions = getGetPrivilegedSessionActivityQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

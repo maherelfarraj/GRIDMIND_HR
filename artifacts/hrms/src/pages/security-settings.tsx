@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { ACTIVITY_PAGE_SIZE, appendActivityPage, emptyActivityState, hasMoreActivity, nextActivityOffset } from '@/lib/session-activity';
 import { useLanguage } from '@/hooks/use-language';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListDualAuthRequests, useCreateDualAuthRequest, useApproveDualAuthRequest, useRejectDualAuthRequest,
   useListBreakGlassAccess, useRequestBreakGlassAccess, useRevokeBreakGlassAccess,
-  useListPrivilegedSessions, useReviewPrivilegedSession, useGetPrivilegedSessionActivity,
+  useListPrivilegedSessions, useReviewPrivilegedSession, getPrivilegedSessionActivity,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -452,13 +453,45 @@ function outcomeBadge(o: string | null | undefined) {
 // window — reviewers see what was actually touched, not just the time window.
 function SessionActivityList({ sessionId }: { sessionId: number }) {
   const { t } = useLanguage();
-  const { data: activity, isLoading } = useGetPrivilegedSessionActivity(sessionId);
+  // Long elevated-access windows can hold thousands of audit rows — fetch
+  // fixed-size pages (offset = rows already loaded) and append on demand,
+  // so progress is made past the server's per-request cap.
+  const [state, setState] = useState(emptyActivityState);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  const loadPage = useCallback(async (offset: number) => {
+    setIsFetching(true);
+    setLoadError(false);
+    try {
+      const page = await getPrivilegedSessionActivity(sessionId, { limit: ACTIVITY_PAGE_SIZE, offset });
+      setState((prev) => appendActivityPage(offset === 0 ? emptyActivityState() : prev, page));
+    } catch {
+      setLoadError(true);
+    } finally {
+      setIsFetching(false);
+      setIsLoading(false);
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    setState(emptyActivityState());
+    setIsLoading(true);
+    void loadPage(0);
+  }, [loadPage]);
 
   if (isLoading) return <div className="space-y-2">{[...Array(3)].map((_,i) => <Skeleton key={i} className="h-8" />)}</div>;
-  if (!activity || activity.length === 0) {
+  if (loadError && state.items.length === 0) {
+    return <div className="text-xs text-red-500 py-2">{t('Failed to load session activity.','فشل تحميل نشاط الجلسة.')}</div>;
+  }
+  const activity = state.items;
+  const total = state.total;
+  if (activity.length === 0) {
     return <div className="text-xs text-gray-400 py-2">{t('No audit-log actions recorded during this session window.','لم تُسجل أي إجراءات في سجل التدقيق خلال نافذة هذه الجلسة.')}</div>;
   }
   return (
+    <div className="space-y-1.5">
     <div className="max-h-56 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/50">
       {activity.map((a) => (
         <div key={a.id} className="px-3 py-2 text-xs">
@@ -471,6 +504,19 @@ function SessionActivityList({ sessionId }: { sessionId: number }) {
           </div>
         </div>
       ))}
+    </div>
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px] text-gray-400">
+        {t(`Showing ${activity.length} of ${total} actions`, `عرض ${activity.length} من ${total} إجراء`)}
+      </span>
+      {hasMoreActivity(state) && (
+        <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]" disabled={isFetching}
+          onClick={() => void loadPage(nextActivityOffset(state))}>
+          {isFetching && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+          {loadError ? t('Retry','إعادة المحاولة') : t('Load more','تحميل المزيد')}
+        </Button>
+      )}
+    </div>
     </div>
   );
 }
