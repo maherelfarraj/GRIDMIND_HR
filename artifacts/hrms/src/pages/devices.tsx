@@ -190,9 +190,16 @@ export default function Devices() {
     }
   };
 
+  // Filter on the computed connectivity verdict (gateway heartbeats / last
+  // sync), not the stored `status` column — "Online" must never show a stale
+  // device.
   const filteredDevices = devices?.filter(d => {
-    if (filterStatus === 'all') return true;
-    return d.status === filterStatus;
+    switch (filterStatus) {
+      case 'online': return d.isOnline;
+      case 'stale': return !d.isOnline && d.isStale;
+      case 'no-contact': return !d.isOnline && !d.isStale;
+      default: return true;
+    }
   });
 
   const handleDeviceSelect = async (id: number) => {
@@ -299,22 +306,25 @@ export default function Devices() {
                 variant={filterStatus === 'online' ? 'default' : 'outline'} 
                 size="sm"
                 onClick={() => setFilterStatus('online')}
+                data-testid="button-filter-online"
               >
                 {t('Online', 'متصل')}
               </Button>
               <Button 
-                variant={filterStatus === 'offline' ? 'default' : 'outline'} 
+                variant={filterStatus === 'stale' ? 'default' : 'outline'} 
                 size="sm"
-                onClick={() => setFilterStatus('offline')}
+                onClick={() => setFilterStatus('stale')}
+                data-testid="button-filter-stale"
               >
-                {t('Offline', 'غير متصل')}
+                {t('Stale', 'منقطع')}
               </Button>
               <Button 
-                variant={filterStatus === 'error' ? 'default' : 'outline'} 
+                variant={filterStatus === 'no-contact' ? 'default' : 'outline'} 
                 size="sm"
-                onClick={() => setFilterStatus('error')}
+                onClick={() => setFilterStatus('no-contact')}
+                data-testid="button-filter-no-contact"
               >
-                {t('Error', 'خطأ')}
+                {t('No contact', 'لا اتصال')}
               </Button>
             </div>
           </CardHeader>
