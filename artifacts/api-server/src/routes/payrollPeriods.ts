@@ -4,7 +4,7 @@ import {
   employeesTable, salaryGradesTable, payComponentsTable, auditLogsTable,
   overtimeRulesTable, punchEventsTable, leaveRequestsTable, leaveTypesTable,
   attendanceRecordsTable, publicHolidaysTable, employmentContractsTable,
-  payrollExcusedAbsencesTable,
+  payrollExcusedAbsencesTable, notificationsTable, systemUsersTable,
 } from "@workspace/db";
 import type { PayrollPeriod, Employee } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
@@ -183,6 +183,86 @@ async function loadHolidayRows(): Promise<HolidayRow[]> {
   }).from(publicHolidaysTable);
 }
 
+// Notification type used to warn employees/managers about detected unexcused
+// no-show days before pay is docked.
+const NO_SHOW_NOTIFICATION_TYPE = "payroll_no_show";
+
+/**
+ * Notify an employee (and their manager, when one is mapped to a system user)
+ * about unexcused no-show days detected during payroll calculation, so they
+ * can dispute them before the period is approved and closed.
+ *
+ * Duplicate-safe across recalculations: existing payroll_no_show notifications
+ * for the same period + recipient are scanned for the dates already announced
+ * for this employee (bodies embed a stable `[employeeNumber]` marker plus the
+ * ISO dates), and a new notification is only created for dates not yet
+ * notified to that recipient.
+ */
+async function notifyUnexcusedNoShows(
+  period: PayrollPeriod,
+  emp: Pick<Employee, "id" | "employeeNumber" | "firstNameEn" | "lastNameEn" | "firstNameAr" | "lastNameAr" | "managerId">,
+  unexcusedDates: string[],
+  userIdByEmployeeId: Map<number, number>,
+): Promise<void> {
+  if (unexcusedDates.length === 0) return;
+
+  const empUserId = userIdByEmployeeId.get(emp.id) ?? null;
+  const managerUserId = emp.managerId != null ? (userIdByEmployeeId.get(emp.managerId) ?? null) : null;
+
+  const marker = `[${emp.employeeNumber}]`;
+  const nameEn = `${emp.firstNameEn} ${emp.lastNameEn}`;
+  const nameAr = `${emp.firstNameAr} ${emp.lastNameAr}`;
+
+  const recipients: { userId: number; isManager: boolean }[] = [];
+  if (empUserId != null) recipients.push({ userId: empUserId, isManager: false });
+  if (managerUserId != null && managerUserId !== empUserId) recipients.push({ userId: managerUserId, isManager: true });
+
+  for (const r of recipients) {
+    const existing = await db.select({ bodyEn: notificationsTable.bodyEn }).from(notificationsTable)
+      .where(and(
+        eq(notificationsTable.recipientUserId, r.userId),
+        eq(notificationsTable.notificationType, NO_SHOW_NOTIFICATION_TYPE),
+        eq(notificationsTable.entityType, "payroll_period"),
+        eq(notificationsTable.entityId, period.id),
+      ));
+    const alreadyNotified = new Set<string>();
+    for (const row of existing) {
+      if (!row.bodyEn.includes(marker)) continue;
+      for (const m of row.bodyEn.match(/\d{4}-\d{2}-\d{2}/g) ?? []) alreadyNotified.add(m);
+    }
+    const newDates = unexcusedDates.filter(d => !alreadyNotified.has(d));
+    if (newDates.length === 0) continue;
+
+    const dateList = newDates.join(", ");
+    const bodyEn = r.isManager
+      ? `Unexcused no-show day(s) detected for ${nameEn} ${marker} in payroll period ${period.nameEn}: ${dateList}. Pay will be deducted unless HR excuses these days before the period is approved and closed.`
+      : `Unexcused no-show day(s) ${marker} were detected for you in payroll period ${period.nameEn}: ${dateList}. Pay will be deducted for these days unless HR excuses them before the period is approved and closed. Contact HR if you believe this is incorrect.`;
+    const bodyAr = r.isManager
+      ? `تم رصد أيام غياب بدون عذر للموظف ${nameAr} ${marker} في فترة الرواتب ${period.nameAr}: ${dateList}. سيتم خصم الأجر ما لم تعذرها الموارد البشرية قبل اعتماد الفترة وإغلاقها.`
+      : `تم رصد أيام غياب بدون عذر ${marker} لك في فترة الرواتب ${period.nameAr}: ${dateList}. سيتم خصم الأجر عن هذه الأيام ما لم تعذرها الموارد البشرية قبل اعتماد الفترة وإغلاقها. يرجى التواصل مع الموارد البشرية إذا كان ذلك غير صحيح.`;
+
+    await db.insert(notificationsTable).values({
+      recipientUserId: r.userId,
+      recipientEmployeeId: r.isManager ? emp.managerId : emp.id,
+      notificationType: NO_SHOW_NOTIFICATION_TYPE,
+      titleEn: r.isManager
+        ? `No-show days detected for ${nameEn} — pay deduction pending`
+        : "No-show days detected — pay deduction pending",
+      titleAr: r.isManager
+        ? `تم رصد أيام غياب للموظف ${nameAr} — خصم أجر معلق`
+        : "تم رصد أيام غياب — خصم أجر معلق",
+      bodyEn,
+      bodyAr,
+      severity: "warning",
+      actionUrl: "/payroll",
+      actionLabelEn: "Review payroll period",
+      entityType: "payroll_period",
+      entityId: period.id,
+      requiresAction: true,
+    });
+  }
+}
+
 // Fallback duration (hours) for an overtime session whose OVERTIME_START punch
 // has no matching OVERTIME_END punch — the historical per-session approximation.
 const DEFAULT_OT_SESSION_HOURS = 2;
@@ -354,6 +434,9 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
   const gradeMap = Object.fromEntries(grades.map(g => [g.gradeCode, g]));
   let totalGross = 0, totalDeductions = 0, totalNet = 0, exceptionCount = 0;
   const runs = [];
+  // Employees with unexcused no-show days — notified after the run loop so
+  // repeated recalculations stay duplicate-free (see notifyUnexcusedNoShows).
+  const noShowAlerts: { emp: Employee; dates: string[] }[] = [];
 
   for (const emp of employees) {
     // Per-employee holiday set filtered to their sector
@@ -493,9 +576,11 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     );
     // Days HR marked as excused for this period are not deducted.
     const excusedSet = excusedByEmp.get(emp.id);
-    const noShowDays = excusedSet
-      ? noShowDates.filter(d => !excusedSet.has(d)).length
-      : noShowDates.length;
+    const unexcusedNoShowDates = excusedSet
+      ? noShowDates.filter(d => !excusedSet.has(d))
+      : noShowDates;
+    const noShowDays = unexcusedNoShowDates.length;
+    if (noShowDays > 0) noShowAlerts.push({ emp, dates: unexcusedNoShowDates });
 
     const deductedNoShowDays = Math.max(0, Math.min(noShowDays, employedWorkingDays - deductedLeaveDays));
     const absenceDeductionAmount = Math.round(deductedNoShowDays * dailyRate * 100) / 100;
@@ -587,6 +672,21 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     totalDeductions += totalDeductionsEmp;
     totalNet += netSalary;
     runs.push(run);
+  }
+
+  // Warn affected employees (and their managers) about unexcused no-show days
+  // so they can dispute the deduction before the period is approved and closed.
+  if (noShowAlerts.length > 0) {
+    const activeUsers = await db.select({ id: systemUsersTable.id, employeeId: systemUsersTable.employeeId })
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.isActive, true));
+    const userIdByEmployeeId = new Map<number, number>();
+    for (const u of activeUsers) {
+      if (u.employeeId != null && !userIdByEmployeeId.has(u.employeeId)) userIdByEmployeeId.set(u.employeeId, u.id);
+    }
+    for (const alert of noShowAlerts) {
+      await notifyUnexcusedNoShows(period, alert.emp, alert.dates, userIdByEmployeeId);
+    }
   }
 
   // Update period aggregate totals (column names: totalGrossSalary, totalNetSalary, totalDeductions)
