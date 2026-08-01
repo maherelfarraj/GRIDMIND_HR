@@ -128,3 +128,62 @@ describe("login throttle persistence", () => {
     expect((await persistedRows()).find((r) => r.key === "user:expired-user")).toBeUndefined();
   });
 });
+
+describe("login throttle stale-row cleanup", () => {
+  it("cleanup deletes expired lockouts and idle sub-threshold rows, keeps fresh ones", async () => {
+    const now = Date.now();
+    const staleTime = now - LOCKOUT_MS * 3;
+
+    // Expired lockout (memory + DB).
+    for (let i = 0; i < MAX_FAILURES; i++) throttle.recordFailure("clean-locked", "198.51.100.1", staleTime);
+    // Idle sub-threshold counter (memory + DB).
+    throttle.recordFailure("clean-idle", "198.51.100.2", staleTime);
+    // Fresh sub-threshold counter — must survive.
+    throttle.recordFailure("clean-fresh", "198.51.100.3", now);
+    await throttle.flushLoginThrottle();
+
+    await throttle.cleanupLoginThrottle(now);
+    await throttle.flushLoginThrottle();
+
+    const keys = (await persistedRows()).map((r) => r.key);
+    expect(keys.some((k) => k.includes("clean-locked"))).toBe(false);
+    expect(keys.some((k) => k.includes("clean-idle"))).toBe(false);
+    expect(keys).toContain("user:clean-fresh");
+    // In-memory state pruned too: counters start fresh for the stale keys.
+    expect(throttle.remainingAttempts("clean-locked")).toBe(MAX_FAILURES);
+    expect(throttle.remainingAttempts("clean-idle")).toBe(MAX_FAILURES);
+    expect(throttle.remainingAttempts("clean-fresh")).toBe(MAX_FAILURES - 1);
+  });
+
+  it("cleanup sweeps stale rows the process never loaded into memory", async () => {
+    const now = Date.now();
+    await db.insert(loginThrottleTable).values({
+      key: "user:orphan-stale",
+      failures: 1,
+      lockedUntil: null,
+      updatedAt: new Date(now - LOCKOUT_MS * 2),
+    });
+
+    await throttle.cleanupLoginThrottle(now);
+    await throttle.flushLoginThrottle();
+
+    expect((await persistedRows()).find((r) => r.key === "user:orphan-stale")).toBeUndefined();
+  });
+
+  it("hydration drops idle sub-threshold rows instead of loading them", async () => {
+    const now = Date.now();
+    await db.insert(loginThrottleTable).values({
+      key: "user:hydrate-stale",
+      failures: MAX_FAILURES - 1,
+      lockedUntil: null,
+      updatedAt: new Date(now - LOCKOUT_MS * 2),
+    });
+
+    throttle = await reimportThrottle();
+    await throttle.loginThrottleReady;
+    await throttle.flushLoginThrottle();
+
+    expect(throttle.remainingAttempts("hydrate-stale")).toBe(MAX_FAILURES);
+    expect((await persistedRows()).find((r) => r.key === "user:hydrate-stale")).toBeUndefined();
+  });
+});

@@ -33,9 +33,21 @@ export const MAX_FAILURES = Number(process.env.LOGIN_MAX_FAILURES) || 5;
 export const IP_MAX_FAILURES = Number(process.env.LOGIN_IP_MAX_FAILURES) || 20;
 export const LOCKOUT_MS = Number(process.env.LOGIN_LOCKOUT_MS) || 15 * 60 * 1000;
 
+/**
+ * Rows (and in-memory entries) not touched for this long are considered
+ * stale and eligible for cleanup. Sub-threshold failure rows (e.g. one
+ * wrong password from a scanning IP) never expire on their own, so
+ * without this the table grows unboundedly. A window of one lockout
+ * period is safe: any entry idle that long would have its counter treated
+ * as irrelevant by an operator anyway, and active lockouts always have
+ * lockedUntil <= touched + LOCKOUT_MS, so no live lockout can be stale.
+ */
+export const STALE_MS = LOCKOUT_MS;
+
 interface Entry {
   failures: number;
   lockedUntil: number | null; // epoch ms
+  touchedAt: number; // epoch ms of last mutation (for stale cleanup)
 }
 
 const entries = new Map<string, Entry>();
@@ -118,8 +130,17 @@ export async function hydrateLoginThrottle(now: number = Date.now()): Promise<vo
         expired.push(row.key);
         continue;
       }
+      if (row.lockedUntil === null && row.updatedAt.getTime() <= now - STALE_MS) {
+        // Sub-threshold counter that has sat idle past the stale window.
+        expired.push(row.key);
+        continue;
+      }
       if (!entries.has(row.key) && !writeQueues.has(row.key)) {
-        entries.set(row.key, { failures: row.failures, lockedUntil: row.lockedUntil });
+        entries.set(row.key, {
+          failures: row.failures,
+          lockedUntil: row.lockedUntil,
+          touchedAt: row.updatedAt.getTime(),
+        });
       }
     }
     persistDelete(expired);
@@ -130,6 +151,61 @@ export async function hydrateLoginThrottle(now: number = Date.now()): Promise<vo
 
 /** Resolves once persisted state has been loaded (never rejects). */
 export const loginThrottleReady: Promise<void> = hydrateLoginThrottle();
+
+// ---------------------------------------------------------------------------
+// Periodic stale-row cleanup
+// ---------------------------------------------------------------------------
+
+/**
+ * Remove throttle state that no longer matters:
+ *  - entries whose lockout has expired, and
+ *  - sub-threshold entries not touched within STALE_MS.
+ *
+ * Cleans both the in-memory map and the persisted table so neither grows
+ * unboundedly under scanning traffic (one wrong password per unique
+ * IP/username otherwise lives forever). DB deletes go through the same
+ * per-key write queue, so a delete can never overtake a pending upsert
+ * for the same key. Rows unknown to this process (e.g. written by a
+ * previous incarnation and skipped during hydration) are swept via a
+ * direct key scan of the table.
+ */
+export async function cleanupLoginThrottle(now: number = Date.now()): Promise<void> {
+  // In-memory sweep (synchronous — no await between read and delete).
+  const staleKeys: string[] = [];
+  for (const [key, entry] of entries) {
+    const lockoutExpired = entry.lockedUntil !== null && entry.lockedUntil <= now;
+    const idle = entry.lockedUntil === null && entry.touchedAt <= now - STALE_MS;
+    if (lockoutExpired || idle) {
+      entries.delete(key);
+      staleKeys.push(key);
+    }
+  }
+  persistDelete(staleKeys);
+
+  // Persisted sweep for rows not represented in memory.
+  try {
+    const rows = await db
+      .select({ key: loginThrottleTable.key })
+      .from(loginThrottleTable)
+      .where(
+        sql`(${loginThrottleTable.lockedUntil} IS NOT NULL AND ${loginThrottleTable.lockedUntil} <= ${now})
+            OR (${loginThrottleTable.lockedUntil} IS NULL AND ${loginThrottleTable.updatedAt} <= ${new Date(now - STALE_MS)})`,
+      );
+    // Skip keys with live in-memory state (it is newer than the stale row).
+    persistDelete(rows.map((r) => r.key).filter((key) => !entries.has(key)));
+  } catch (err) {
+    logPersistError("cleanup", err);
+  }
+}
+
+/** How often the periodic cleanup runs. */
+export const CLEANUP_INTERVAL_MS = Math.min(STALE_MS, 15 * 60 * 1000);
+
+// unref() so the timer never keeps the process (or test runner) alive.
+const cleanupTimer = setInterval(() => {
+  void cleanupLoginThrottle();
+}, CLEANUP_INTERVAL_MS);
+cleanupTimer.unref();
 
 // ---------------------------------------------------------------------------
 // Throttle logic (unchanged semantics)
@@ -164,7 +240,7 @@ export function isLockedOut(
 
 /** Returns true when this bump newly triggered a lockout for the key. */
 function bump(key: string, max: number, now: number): boolean {
-  const entry = entries.get(key) ?? { failures: 0, lockedUntil: null };
+  const entry = entries.get(key) ?? { failures: 0, lockedUntil: null, touchedAt: now };
   // If a previous lockout expired, start counting fresh.
   if (entry.lockedUntil !== null && entry.lockedUntil <= now) {
     entry.failures = 0;
@@ -172,6 +248,7 @@ function bump(key: string, max: number, now: number): boolean {
   }
   const wasLocked = entry.lockedUntil !== null;
   entry.failures += 1;
+  entry.touchedAt = now;
   if (entry.failures >= max) {
     entry.lockedUntil = now + LOCKOUT_MS;
   }
