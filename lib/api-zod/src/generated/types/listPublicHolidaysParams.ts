@@ -5,8 +5,19 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListPublicHolidaysScope } from './listPublicHolidaysScope';
 
 export type ListPublicHolidaysParams = {
+/**
+ * Resolve holidays for this display year — recurring holidays appear remapped to it regardless of their stored year.
+ */
 year?: number;
+/**
+ * Exact stored-sector filter for admin/config views.
+ */
 applicableTo?: string;
+/**
+ * "mine" filters to holidays applicable to the calling user's employee sector ("all" always included).
+ */
+scope?: ListPublicHolidaysScope;
 };

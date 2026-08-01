@@ -898,7 +898,7 @@ function CalendarTab() {
   const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
   const { data: calEntries } = useGetLeaveCalendar({ startDate, endDate });
-  const { data: holidays } = useListPublicHolidays({ year });
+  const { data: holidays } = useListPublicHolidays({ year, scope: 'mine' });
 
   function prevMonth() {
     if (month === 0) { setMonth(11); setYear(y => y - 1); }

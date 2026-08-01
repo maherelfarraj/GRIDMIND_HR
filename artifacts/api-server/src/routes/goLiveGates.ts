@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { resolveHolidaysForDisplay } from "../lib/holidays";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
 import {
   db,
@@ -160,10 +161,9 @@ async function evaluateGate(gateCode: string): Promise<{
     }
 
     case "HOLIDAYS_CONFIGURED": {
-      const holidays = await db
-        .select()
-        .from(publicHolidaysTable)
-        .where(eq(publicHolidaysTable.year, currentYear));
+      // Recurring holidays count for every year, whatever year they were stored under.
+      const holidayRows = await db.select().from(publicHolidaysTable);
+      const holidays = resolveHolidaysForDisplay(holidayRows, { year: currentYear });
       const passed = holidays.length >= 1;
       return {
         status: passed ? "pass" : "fail",

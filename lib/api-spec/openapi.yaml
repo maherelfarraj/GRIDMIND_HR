@@ -2068,10 +2068,16 @@ paths:
       parameters:
         - name: year
           in: query
+          description: Resolve holidays for this display year — recurring holidays appear remapped to it regardless of their stored year.
           schema: { type: number }
         - name: applicableTo
           in: query
+          description: Exact stored-sector filter for admin/config views.
           schema: { type: string }
+        - name: scope
+          in: query
+          description: '"mine" filters to holidays applicable to the calling user''s employee sector ("all" always included).'
+          schema: { type: string, enum: [mine] }
       responses:
         "200":
           description: OK

@@ -370,6 +370,7 @@ export * from './listProbationRecordsParams';
 export * from './listPromotionRecommendations200';
 export * from './listPromotionRecommendationsParams';
 export * from './listPublicHolidaysParams';
+export * from './listPublicHolidaysScope';
 export * from './listPunchEventsParams';
 export * from './listReportDefinitionsParams';
 export * from './listReportOutputsParams';

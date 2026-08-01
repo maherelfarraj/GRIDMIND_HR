@@ -96,7 +96,6 @@ function buildHolidaySet(
   }
   return set;
 }
-
 type ApprovedLeave = { employeeId: number; startDate: string; endDate: string; halfDay: boolean | null; category: string };
 type PunchEventLite = { employeeId: number; eventTime: Date };
 type AttendanceLite = { employeeId: number; date: string; status: string };
@@ -833,8 +832,13 @@ router.get("/payroll-periods/:id/no-shows", async (req, res): Promise<void> => {
 
   const entries = [];
   for (const emp of employees) {
-    const empHolidaySet = buildHolidaySet(holidayRows, startYear, endYear, emp.organizationType ?? "commercial");
-    const eligibleWorkdays = eligibleNoShowWorkdays(period, weekendDays, empHolidaySet);
+  const empHolidaySet = buildHolidaySet(
+    holidayRows,
+    parseInt(period.startDate.slice(0, 4), 10),
+    parseInt(period.endDate.slice(0, 4), 10),
+    emp.organizationType ?? "commercial",
+  );
+  const eligibleWorkdays = eligibleNoShowWorkdays(period, weekendDays, empHolidaySet);
     const dates = computeNoShowDates(emp, eligibleWorkdays, punchEvents, attendanceRecords, approvedLeaves, period);
     if (dates.length === 0) continue;
     entries.push({

@@ -1403,7 +1403,6 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
-
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1418,7 +1417,6 @@ export const SetUserPasswordResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
-
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -3111,8 +3109,9 @@ export const DeleteLeaveDelegationResponse = zod.void()
  * @summary List public holidays
  */
 export const ListPublicHolidaysQueryParams = zod.object({
-  "year": zod.coerce.number().optional(),
-  "applicableTo": zod.coerce.string().optional()
+  "year": zod.coerce.number().optional().describe('Resolve holidays for this display year — recurring holidays appear remapped to it regardless of their stored year.'),
+  "applicableTo": zod.coerce.string().optional().describe('Exact stored-sector filter for admin\/config views.'),
+  "scope": zod.enum(['mine']).optional().describe('\"mine\" filters to holidays applicable to the calling user\'s employee sector (\"all\" always included).')
 })
 
 export const ListPublicHolidaysResponseItem = zod.object({
@@ -16042,5 +16041,4 @@ export const DeleteImportMappingTemplateParams = zod.object({
 export const DeleteImportMappingTemplateResponse = zod.object({
   "deleted": zod.boolean()
 })
-
 
