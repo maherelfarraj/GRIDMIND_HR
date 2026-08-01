@@ -147,6 +147,8 @@ const strings = {
   noUsers: { en: 'No users found', ar: 'لم يتم العثور على مستخدمين' },
   inactive: { en: 'Inactive', ar: 'غير نشط' },
   locked: { en: 'Locked', ar: 'مقفل' },
+  unlock: { en: 'Unlock', ar: 'إلغاء القفل' },
+  unlockFailed: { en: 'Failed to unlock account', ar: 'فشل إلغاء قفل الحساب' },
   mustChangePasswordBadge: {
     en: 'Must change password',
     ar: 'يجب تغيير كلمة المرور',

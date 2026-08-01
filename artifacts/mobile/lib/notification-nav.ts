@@ -12,9 +12,18 @@ export interface NotificationLike {
 }
 
 /** Web actionUrl path → mobile expo-router route. */
-const WEB_TO_MOBILE_ROUTES: Array<{ webPath: string; mobileRoute: string }> = [
+const WEB_TO_MOBILE_ROUTES: Array<{
+  webPath: string;
+  mobileRoute: string;
+  /** Carry the web URL's query string over to the mobile route (e.g. the
+   * `highlight` param on security-lockout alerts). */
+  preserveQuery?: boolean;
+}> = [
   // device_command_outcome (restart acknowledged/failed/expired)
   { webPath: '/attendance-devices', mobileRoute: '/devices' },
+  // security_alert lockouts deep-link to /users?highlight=<username>; the
+  // mobile users screen honors the same highlight param.
+  { webPath: '/users', mobileRoute: '/admin-users', preserveQuery: true },
 ];
 
 /**
@@ -27,8 +36,12 @@ export function mobileRouteForNotification(
   const url = n.actionUrl;
   if (!url || !url.startsWith('/')) return null;
   const path = url.split(/[?#]/)[0];
-  for (const { webPath, mobileRoute } of WEB_TO_MOBILE_ROUTES) {
+  for (const { webPath, mobileRoute, preserveQuery } of WEB_TO_MOBILE_ROUTES) {
     if (path === webPath || path.startsWith(`${webPath}/`)) {
+      if (preserveQuery) {
+        const queryMatch = url.match(/\?[^#]*/);
+        return queryMatch ? `${mobileRoute}${queryMatch[0]}` : mobileRoute;
+      }
       return mobileRoute;
     }
   }

@@ -29,6 +29,20 @@ describe('mobileRouteForNotification', () => {
     ).toBe('/devices');
   });
 
+  it('maps lockout security alerts to the mobile users screen, keeping the highlight param', () => {
+    expect(
+      mobileRouteForNotification({ actionUrl: '/users?highlight=jdoe' }),
+    ).toBe('/admin-users?highlight=jdoe');
+    expect(
+      mobileRouteForNotification({ actionUrl: '/users?highlight=j%40doe' }),
+    ).toBe('/admin-users?highlight=j%40doe');
+    expect(mobileRouteForNotification({ actionUrl: '/users' })).toBe('/admin-users');
+  });
+
+  it('does not treat similarly-prefixed paths as the users screen', () => {
+    expect(mobileRouteForNotification({ actionUrl: '/users-archive' })).toBeNull();
+  });
+
   it('returns null for unmapped, external or missing URLs', () => {
     expect(mobileRouteForNotification({ actionUrl: '/payroll' })).toBeNull();
     expect(

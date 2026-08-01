@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FlatList, Modal, Pressable, RefreshControl, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import {
@@ -20,10 +20,11 @@ import {
   useGetUser,
   useIssueOneTimePassword,
   useListUsers,
+  useUnlockUser,
 } from '@workspace/api-client-react';
 import type { SystemUser } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
-import { Redirect } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
 /**
  * Show-once one-time-password result. Lives only in component state — it is
@@ -39,9 +40,15 @@ interface IssuedOtp {
 function UserRow({
   item,
   onIssue,
+  onUnlock,
+  unlockPending,
+  highlighted,
 }: {
   item: SystemUser;
   onIssue: (user: SystemUser) => void;
+  onUnlock: (user: SystemUser) => void;
+  unlockPending: boolean;
+  highlighted: boolean;
 }) {
   const colors = useColors();
   const { lang, t } = useI18n();
@@ -51,7 +58,16 @@ function UserRow({
     : false;
 
   return (
-    <Card style={{ marginBottom: 12 }}>
+    <Card
+      style={{
+        marginBottom: 12,
+        // Deep-link highlight: security alerts land here with the affected
+        // account marked so the admin can verify and unlock at a glance.
+        ...(highlighted
+          ? { borderWidth: 2, borderColor: colors.warning }
+          : {}),
+      }}
+    >
       <View
         style={{
           flexDirection: 'row',
@@ -91,7 +107,7 @@ function UserRow({
           )}
         </View>
       </View>
-      <View style={{ marginTop: 12 }}>
+      <View style={{ marginTop: 12, flexDirection: 'row', gap: 10 }}>
         <AppButton
           testID={`button-issue-otp-${item.id}`}
           label={t('issueOtp')}
@@ -100,6 +116,16 @@ function UserRow({
           variant="outline"
           onPress={() => onIssue(item)}
         />
+        {locked && (
+          <AppButton
+            testID={`button-unlock-${item.id}`}
+            label={t('unlock')}
+            icon="unlock"
+            small
+            loading={unlockPending}
+            onPress={() => onUnlock(item)}
+          />
+        )}
       </View>
     </Card>
   );
@@ -110,6 +136,15 @@ export default function AdminUsersScreen() {
   const { t } = useI18n();
   const { user, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
+
+  // Deep-link support: lockout security alerts navigate here as
+  // /admin-users?highlight=<username> (mapped from the web actionUrl), so
+  // the admin lands with the affected account visible and highlighted.
+  const { highlight } = useLocalSearchParams<{ highlight?: string }>();
+  const highlightUsername =
+    typeof highlight === 'string' && highlight.length > 0 ? highlight : null;
+  const listRef = useRef<FlatList<SystemUser>>(null);
+  const scrolledRef = useRef(false);
 
   // Route-level gate: this screen is reachable by direct navigation/deep link,
   // so it must not rely on the Home entry point being hidden. Confirm the
@@ -123,6 +158,18 @@ export default function AdminUsersScreen() {
   const users = useListUsers({ query: { enabled: isAdmin } } as any);
   const items = users.data ?? [];
 
+  // Scroll the highlighted account into view once the list has data.
+  useEffect(() => {
+    if (scrolledRef.current || !highlightUsername || items.length === 0) return;
+    const index = items.findIndex((u) => u.username === highlightUsername);
+    if (index < 0) return;
+    scrolledRef.current = true;
+    // Defer a tick so the FlatList has laid out before scrolling.
+    setTimeout(() => {
+      listRef.current?.scrollToIndex({ index, viewPosition: 0.3, animated: true });
+    }, 250);
+  }, [items, highlightUsername]);
+
   // Two-step UX (mirrors the web users screen):
   // 1) confirmTarget — admin picked a user; show consequences and ask to confirm.
   // 2) issuedOtp — server returned the plaintext exactly once; display it with
@@ -131,6 +178,23 @@ export default function AdminUsersScreen() {
   const [issuedOtp, setIssuedOtp] = useState<IssuedOtp | null>(null);
   const [copied, setCopied] = useState(false);
   const [issueError, setIssueError] = useState(false);
+  const [unlockError, setUnlockError] = useState(false);
+  const [unlockingId, setUnlockingId] = useState<number | null>(null);
+
+  // Unlock uses the existing POST /users/:id/unlock endpoint; on success the
+  // list refetches so the "Locked" badge and button clear immediately.
+  const unlockUser = useUnlockUser({
+    mutation: {
+      onSuccess: () => {
+        setUnlockingId(null);
+        queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+      },
+      onError: () => {
+        setUnlockingId(null);
+        setUnlockError(true);
+      },
+    },
+  });
 
   const issueOtp = useIssueOneTimePassword({
     mutation: {
@@ -179,14 +243,36 @@ export default function AdminUsersScreen() {
         subtitle={t('userAdminSubtitle')}
         right={<LangToggle />}
       />
+      {unlockError && (
+        <Text
+          testID="text-unlock-error"
+          style={{
+            color: colors.destructive,
+            fontSize: 13,
+            fontFamily: 'Inter_500Medium',
+            paddingHorizontal: 20,
+            paddingBottom: 8,
+          }}
+        >
+          {t('unlockFailed')}
+        </Text>
+      )}
       {authLoading || me.isLoading || users.isLoading ? (
         <LoadingView />
       ) : users.isError ? (
         <ErrorView onRetry={() => users.refetch()} />
       ) : (
         <FlatList
+          ref={listRef}
           data={items}
           keyExtractor={(u) => String(u.id)}
+          onScrollToIndexFailed={({ index }) => {
+            // Long lists may not have measured yet — approximate, then retry.
+            listRef.current?.scrollToOffset({ offset: index * 120, animated: true });
+            setTimeout(() => {
+              listRef.current?.scrollToIndex({ index, viewPosition: 0.3, animated: true });
+            }, 300);
+          }}
           scrollEnabled={items.length > 0}
           contentContainerStyle={{
             paddingHorizontal: 20,
@@ -204,6 +290,13 @@ export default function AdminUsersScreen() {
           renderItem={({ item }) => (
             <UserRow
               item={item}
+              highlighted={item.username === highlightUsername}
+              unlockPending={unlockUser.isPending && unlockingId === item.id}
+              onUnlock={(u) => {
+                setUnlockError(false);
+                setUnlockingId(u.id);
+                unlockUser.mutate({ id: u.id });
+              }}
               onIssue={(u) => {
                 setIssueError(false);
                 setConfirmTarget(u);
