@@ -92,8 +92,25 @@ async function verifyGatewaySignature(req: GatewayRequest, res: Response, next: 
   try {
     ({ signingKey, legacy, needsRewrap } = recoverSigningKey(reg.secretHash));
   } catch {
+    // Persist the verdict so the admin gateway page can show a
+    // "credential unusable — re-register" status instead of the gateway
+    // just silently 401ing forever.
+    if (!reg.credentialUnusable) {
+      await db
+        .update(gatewayRegistrationsTable)
+        .set({ credentialUnusable: true, updatedAt: new Date() })
+        .where(and(eq(gatewayRegistrationsTable.id, reg.id), eq(gatewayRegistrationsTable.secretHash, reg.secretHash)));
+    }
     res.status(401).json({ error: "Gateway credential unusable — re-register the gateway", errorAr: "بيانات اعتماد البوابة غير صالحة" });
     return;
+  }
+  // Self-heal: the stored credential decrypts again (e.g. the pepper was
+  // restored or the row was re-wrapped), so clear a stale unusable flag.
+  if (reg.credentialUnusable) {
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ credentialUnusable: false, updatedAt: new Date() })
+      .where(eq(gatewayRegistrationsTable.id, reg.id));
   }
   const bodyHash = sha256(req.rawBody ?? Buffer.from(""));
   const expected = createHmac("sha256", signingKey).update(`${timestamp}.${bodyHash}`).digest("hex");
@@ -177,6 +194,48 @@ export async function rewrapGatewayKeysForPepperRotation(): Promise<{
     result.rewrapped += updated.length;
   }
   return result;
+}
+
+/**
+ * Startup sweep: persist a per-registration "credential unusable" verdict so
+ * the admin gateway page can mark registrations whose stored envelope cannot
+ * be decrypted (tampering or a lost pepper) and clear the mark once the
+ * envelope decrypts again (e.g. after re-registration or pepper recovery).
+ * Legacy plaintext rows are always usable. Idempotent; safe at every start.
+ */
+export async function sweepUnusableGatewayCredentials(): Promise<{
+  marked: number[];
+  cleared: number[];
+}> {
+  const rows = await db
+    .select({
+      id: gatewayRegistrationsTable.id,
+      secretHash: gatewayRegistrationsTable.secretHash,
+      credentialUnusable: gatewayRegistrationsTable.credentialUnusable,
+    })
+    .from(gatewayRegistrationsTable);
+  const marked: number[] = [];
+  const cleared: number[] = [];
+  for (const row of rows) {
+    let unusable = false;
+    if (isProtectedEnvelope(row.secretHash)) {
+      try {
+        recoverSigningKey(row.secretHash);
+      } catch {
+        unusable = true;
+      }
+    }
+    if (unusable === row.credentialUnusable) continue;
+    // secretHash guard: skip if a concurrent request already replaced the
+    // credential (its own path will set the flag correctly).
+    const updated = await db
+      .update(gatewayRegistrationsTable)
+      .set({ credentialUnusable: unusable, updatedAt: new Date() })
+      .where(and(eq(gatewayRegistrationsTable.id, row.id), eq(gatewayRegistrationsTable.secretHash, row.secretHash)))
+      .returning({ id: gatewayRegistrationsTable.id });
+    if (updated.length) (unusable ? marked : cleared).push(row.id);
+  }
+  return { marked, cleared };
 }
 
 /**

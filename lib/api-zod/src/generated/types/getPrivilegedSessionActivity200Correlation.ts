@@ -9,10 +9,9 @@
 /**
  * "tagged" when entries are precisely attributed to this session via audit tagging; "time-window" when the list is an estimate of everything the holder did during the window (sessions predating tagging), which may include routine work.
  */
-export type GetPrivilegedSessionActivity200Correlation =
-  (typeof GetPrivilegedSessionActivity200Correlation)[keyof typeof GetPrivilegedSessionActivity200Correlation];
+export type GetPrivilegedSessionActivity200Correlation = typeof GetPrivilegedSessionActivity200Correlation[keyof typeof GetPrivilegedSessionActivity200Correlation];
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
+
 export const GetPrivilegedSessionActivity200Correlation = {
   tagged: 'tagged',
   'time-window': 'time-window',

@@ -9581,6 +9581,9 @@ components:
         lastHeartbeatAt: { type: [ "string", "null" ] }
         clockDriftMs: { type: [ "number", "null" ] }
         driftAlert: { type: boolean }
+        credentialUnusable:
+          type: boolean
+          description: Stored credential envelope cannot be decrypted (tampering or a lost pepper) — the gateway must be re-registered; clears automatically once the stored credential decrypts again.
         adapterConnStatus:
           type: [ "string", "null" ]
           enum: [ REACHABLE, AUTH_FAILED, UNREACHABLE, NOT_CONFIGURED, null ]

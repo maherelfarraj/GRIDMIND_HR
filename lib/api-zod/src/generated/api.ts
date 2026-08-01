@@ -5816,7 +5816,7 @@ export const GetPrivilegedSessionActivityResponse = zod.object({
   "total": zod.number(),
   "limit": zod.number(),
   "offset": zod.number(),
-  "correlation": zod.enum(['tagged', 'time-window'])
+  "correlation": zod.enum(['tagged', 'time-window']).describe('\"tagged\" when entries are precisely attributed to this session via audit tagging; \"time-window\" when the list is an estimate of everything the holder did during the window (sessions predating tagging), which may include routine work.')
 })
 
 

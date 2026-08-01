@@ -29,6 +29,8 @@ export interface GatewayRegistration {
   /** @nullable */
   clockDriftMs?: number | null;
   driftAlert?: boolean;
+  /** Stored credential envelope cannot be decrypted (tampering or a lost pepper) — the gateway must be re-registered; clears automatically once the stored credential decrypts again. */
+  credentialUnusable?: boolean;
   /** @nullable */
   adapterConnStatus?: GatewayRegistrationAdapterConnStatus;
   /** @nullable */

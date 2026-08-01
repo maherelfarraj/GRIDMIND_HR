@@ -5,7 +5,7 @@ import { startGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
 import { startBackupScheduler } from "./lib/backupScheduler";
 import { startPrivilegedSessionSweeper } from "./lib/privilegedSessionSweeper";
 import { seedDemoPasswords } from "./lib/seed-passwords";
-import { rotateLegacyGatewayKeys, rewrapGatewayKeysForPepperRotation, getPepperRotationStatus } from "./routes/attendanceGateway";
+import { rotateLegacyGatewayKeys, rewrapGatewayKeysForPepperRotation, getPepperRotationStatus, sweepUnusableGatewayCredentials } from "./routes/attendanceGateway";
 import { runStartupMigrations } from "./lib/startupMigrations";
 
 const rawPort = process.env["PORT"];
@@ -90,6 +90,24 @@ async function main() {
       })
       .catch((err) => {
         logger.error({ err }, "Failed to re-wrap gateway key envelopes for pepper rotation");
+      })
+      // After rotation/rewrap settle, persist the credential-unusable verdict
+      // per registration so the admin gateway page can surface
+      // "credential unusable — re-register" instead of a silent 401 loop.
+      .then(() => sweepUnusableGatewayCredentials())
+      .then(({ marked, cleared }) => {
+        if (marked.length > 0) {
+          logger.error(
+            { registrationIds: marked },
+            "Marked gateway registrations with unrecoverable credential envelopes — visible on the admin gateway page; these gateways must be re-registered",
+          );
+        }
+        if (cleared.length > 0) {
+          logger.info({ registrationIds: cleared }, "Cleared credential-unusable flag on gateway registrations whose envelopes decrypt again");
+        }
+      })
+      .catch((err) => {
+        logger.error({ err }, "Failed to sweep gateway registrations for unusable credentials");
       });
   });
 }

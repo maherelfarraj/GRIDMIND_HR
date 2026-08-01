@@ -20,7 +20,7 @@ import {
   rewrapEnvelope,
   isProtectedEnvelope,
 } from "../lib/gatewayKeyVault.js";
-import { rewrapGatewayKeysForPepperRotation, getPepperRotationStatus } from "../routes/attendanceGateway.js";
+import { rewrapGatewayKeysForPepperRotation, getPepperRotationStatus, sweepUnusableGatewayCredentials } from "../routes/attendanceGateway.js";
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 
@@ -194,6 +194,59 @@ describe("startup re-wrap + end-to-end gateway auth across a pepper rotation", (
       .update(gatewayRegistrationsTable)
       .set({ secretHash: protectSigningKey(signingKey) })
       .where(eq(gatewayRegistrationsTable.id, regId));
+  });
+
+  it("persists credential-unusable via the sweep, surfaces it on the admin list, and clears it after re-registration", async () => {
+    // Break the row: envelope under a forgotten pepper.
+    setPeppers("some-forgotten-pepper", undefined);
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ secretHash: protectSigningKey(signingKey), credentialUnusable: false })
+      .where(eq(gatewayRegistrationsTable.id, regId));
+
+    setPeppers(NEW_PEPPER, OLD_PEPPER);
+    const { marked } = await sweepUnusableGatewayCredentials();
+    expect(marked).toContain(regId);
+    let [row] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, regId));
+    expect(row.credentialUnusable).toBe(true);
+
+    // "Re-registration": the stored credential is replaced with a good
+    // envelope; the next sweep clears the flag automatically.
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ secretHash: protectSigningKey(signingKey) })
+      .where(eq(gatewayRegistrationsTable.id, regId));
+    const { cleared } = await sweepUnusableGatewayCredentials();
+    expect(cleared).toContain(regId);
+    [row] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, regId));
+    expect(row.credentialUnusable).toBe(false);
+  });
+
+  it("marks credential-unusable at request verification and self-heals on the next good request", async () => {
+    // Break the row again, without running any sweep.
+    setPeppers("some-forgotten-pepper", undefined);
+    const badEnvelope = protectSigningKey(signingKey);
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ secretHash: badEnvelope, credentialUnusable: false })
+      .where(eq(gatewayRegistrationsTable.id, regId));
+
+    setPeppers(NEW_PEPPER, OLD_PEPPER);
+    const res = await heartbeat();
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/credential unusable/i);
+    let [row] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, regId));
+    expect(row.credentialUnusable).toBe(true);
+
+    // Restore a decryptable envelope; a successful request clears the flag.
+    setPeppers(NEW_PEPPER, undefined);
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ secretHash: protectSigningKey(signingKey) })
+      .where(eq(gatewayRegistrationsTable.id, regId));
+    expect((await heartbeat()).status).toBe(200);
+    [row] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, regId));
+    expect(row.credentialUnusable).toBe(false);
   });
 
   it("getPepperRotationStatus: closed window when PREVIOUS is unset", async () => {

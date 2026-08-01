@@ -32,6 +32,11 @@ export const gatewayRegistrationsTable = pgTable("gateway_registrations", {
   // wrapped with a server-side pepper stored outside the database. Legacy rows
   // may still hold the bare sha256 hex until rotated.
   secretHash: text("secret_hash").notNull(),
+  // Set when the stored credential envelope cannot be decrypted (tampering
+  // or a lost pepper) — detected by the startup sweep or by request
+  // verification. Cleared automatically once the stored credential decrypts
+  // again (i.e. after the gateway is re-registered / the row is re-wrapped).
+  credentialUnusable: boolean("credential_unusable").notNull().default(false),
   status: varchar("status", { length: 20 }).notNull().default("ACTIVE"), // ACTIVE | REVOKED
   registeredByUserId: integer("registered_by_user_id").notNull().references(() => systemUsersTable.id),
   lastSeenAt: timestamp("last_seen_at"),

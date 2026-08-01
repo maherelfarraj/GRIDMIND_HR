@@ -25,6 +25,8 @@ interface GatewayRegistration {
   deviceId: number | null;
   adapterType: 'ZKTECO' | 'SUPREMA' | 'ZKTECO_NATIVE' | 'SUPREMA_NATIVE' | 'GENERIC_REST' | 'CSV' | 'SIMULATOR';
   status: 'ACTIVE' | 'REVOKED';
+  /** Stored credential envelope cannot be decrypted — gateway must be re-registered. */
+  credentialUnusable: boolean;
   lastSeenAt: string | null;
   lastHeartbeatAt: string | null;
   clockDriftMs: number | null;
@@ -592,12 +594,27 @@ export default function AttendanceGateway() {
                       {getAdapterBadge(reg.adapterType)}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={reg.status === 'ACTIVE' ? 'default' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {reg.status}
-                      </Badge>
+                      <div className="space-y-1">
+                        <Badge
+                          variant={reg.status === 'ACTIVE' ? 'default' : 'secondary'}
+                          className="text-xs"
+                        >
+                          {reg.status}
+                        </Badge>
+                        {reg.credentialUnusable && (
+                          <Badge
+                            variant="outline"
+                            className="text-xs gap-1 bg-rose-500/10 text-rose-500 border-rose-500/20"
+                            title={t(
+                              'The stored credential for this gateway cannot be decrypted (tampering or a lost server key). Every request from it is rejected. Revoke it and register a new gateway.',
+                              'تعذر فك تشفير بيانات اعتماد هذه البوابة (تلاعب أو فقدان مفتاح الخادم). يتم رفض كل طلباتها. قم بإلغائها وتسجيل بوابة جديدة.',
+                            )}
+                          >
+                            <AlertTriangle className="w-3 h-3" />
+                            {t('Credential unusable — re-register', 'بيانات الاعتماد غير صالحة — أعد التسجيل')}
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
