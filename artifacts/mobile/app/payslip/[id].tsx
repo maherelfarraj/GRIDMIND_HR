@@ -1,5 +1,13 @@
 import React from 'react';
-import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import {
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
+import { sharePayslip } from '@/lib/payslip-share';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, ErrorView, LoadingView, SectionTitle } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
@@ -149,6 +157,28 @@ export default function PayslipDetailScreen() {
           {t('payslipDetail')}
           {periodName ? ` · ${periodName}` : ''}
         </Text>
+        {data ? (
+          <Pressable
+            testID="button-share-payslip"
+            onPress={async () => {
+              const ok = await sharePayslip(data, lang, t);
+              if (!ok) {
+                if (Platform.OS === 'web') {
+                  window.alert(t('shareFailed'));
+                } else {
+                  Alert.alert(t('shareFailed'));
+                }
+              }
+            }}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.6 : 1,
+              padding: 8,
+            })}
+            accessibilityLabel={t('sharePayslip')}
+          >
+            <Feather name="share-2" size={20} color={colors.primary} />
+          </Pressable>
+        ) : null}
         <Pressable
           testID="button-close-payslip"
           onPress={() => router.back()}
