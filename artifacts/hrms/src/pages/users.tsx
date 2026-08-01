@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearch } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
 import { useListUsers, useCreateUser, useGetUser, useUpdateUser, getGetUserQueryKey, useSetUserPassword, useUnlockUser, useIssueOneTimePassword, getListUsersQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -28,6 +29,20 @@ export default function Users() {
 
   const isLocked = (lockedUntil: string | null | undefined) =>
     !!lockedUntil && new Date(lockedUntil).getTime() > Date.now();
+
+  // Deep-link support: security alerts link here as /users?highlight=<username>
+  // so the admin lands with the affected (locked) account highlighted and
+  // scrolled into view — verify, then unlock from the row's action menu.
+  const search = useSearch();
+  const highlightUsername = new URLSearchParams(search).get('highlight');
+  const highlightRowRef = useRef<HTMLTableRowElement | null>(null);
+  const scrolledRef = useRef(false);
+  useEffect(() => {
+    if (!scrolledRef.current && highlightRowRef.current) {
+      highlightRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      scrolledRef.current = true;
+    }
+  }, [usersData, highlightUsername]);
 
   const handleUnlock = (id: number, name: string) => {
     unlockUser.mutate(
@@ -192,7 +207,12 @@ export default function Users() {
                 </TableRow>
               ) : (
                 usersData.map((user) => (
-                  <TableRow key={user.id}>
+                  <TableRow
+                    key={user.id}
+                    ref={user.username === highlightUsername ? highlightRowRef : undefined}
+                    data-testid={`row-user-${user.id}`}
+                    className={user.username === highlightUsername ? 'bg-amber-500/10 hover:bg-amber-500/15' : undefined}
+                  >
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium text-foreground">

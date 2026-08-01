@@ -50,8 +50,10 @@ async function notifyAdminsOfLockout(username: string, ip: string, scope: string
       bodyEn: `Repeated failed login attempts triggered a temporary lockout (scope: ${scope}) for account "${username}" from IP ${ip}. Review the audit trail and consider resetting the password or disabling the account.`,
       bodyAr: `أدت محاولات تسجيل الدخول الفاشلة المتكررة إلى قفل مؤقت (النطاق: ${scope}) للحساب "${username}" من عنوان IP ‏${ip}. راجع سجل التدقيق وفكر في إعادة تعيين كلمة المرور أو تعطيل الحساب.`,
       severity: "urgent",
-      actionUrl: "/audit",
-      actionLabelEn: "View audit trail",
+      // Deep-link straight to the System Users page with the locked account
+      // highlighted, so the admin can verify and unlock in one click.
+      actionUrl: `/users?highlight=${encodeURIComponent(username)}`,
+      actionLabelEn: "Review & unlock account",
       entityType: "auth",
       requiresAction: true,
     })));

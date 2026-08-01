@@ -225,7 +225,7 @@ describe("failed-login audit trail", () => {
 });
 
 describe("lockout admin notifications", () => {
-  it("notifies admins with account name, source IP, and a link to the audit trail", async () => {
+  it("notifies admins with account name, source IP, and a link to unlock the account", async () => {
     await exhaustFailures(USERNAME2);
     // Extra attempt while locked must not add another notification.
     expect((await loginAttempt(USERNAME2, PASSWORD)).status).toBe(429);
@@ -241,7 +241,7 @@ describe("lockout admin notifications", () => {
     expect(n.bodyEn).toContain(USERNAME2);
     expect(n.bodyEn).toMatch(/IP\s+\S+/);
     expect(n.severity).toBe("urgent");
-    expect(n.actionUrl).toBe("/audit");
+    expect(n.actionUrl).toBe(`/users?highlight=${encodeURIComponent(USERNAME2)}`);
     expect(n.requiresAction).toBe(true);
   });
 });
