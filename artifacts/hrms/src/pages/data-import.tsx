@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -165,6 +166,8 @@ function NewImportTab() {
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [templateName, setTemplateName] = useState('');
 
   const sourceCols = parseCsvHeaders(csvText);
   const submitting = createJobMut.isPending || confirmMut.isPending || executeMut.isPending;
@@ -330,11 +333,19 @@ function NewImportTab() {
     }
   }
 
-  async function handleSaveTemplate() {
+  function handleSaveTemplate() {
+    setTemplateName(`${importType} mapping ${new Date().toISOString().slice(0, 10)}`);
+    setSaveDialogOpen(true);
+  }
+
+  async function handleConfirmSaveTemplate() {
+    const name = templateName.trim();
+    if (!name) return;
     try {
       await createTemplateMut.mutateAsync({
-        data: { name: `${importType} mapping ${new Date().toISOString().slice(0, 10)}`, importType, columnMappingJson: mapping },
+        data: { name, importType, columnMappingJson: mapping },
       });
+      setSaveDialogOpen(false);
       toast({ title: t('Template saved', 'تم حفظ القالب') });
       queryClient.invalidateQueries({ queryKey: getListImportMappingTemplatesQueryKey() });
     } catch {
@@ -488,6 +499,43 @@ function NewImportTab() {
           </Button>
         )}
       </div>
+
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('Save Mapping Template', 'حفظ قالب التعيين')}</DialogTitle>
+          </DialogHeader>
+          <div>
+            <Label htmlFor="template-name" className="text-slate-300">{t('Template Name', 'اسم القالب')}</Label>
+            <Input
+              id="template-name"
+              className="mt-1 bg-slate-700 border-slate-600 text-white"
+              value={templateName}
+              onChange={e => setTemplateName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && templateName.trim() && !createTemplateMut.isPending) handleConfirmSaveTemplate(); }}
+              autoFocus
+              data-testid="input-template-name"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="border-slate-600 text-slate-300"
+              onClick={() => setSaveDialogOpen(false)}
+            >
+              {t('Cancel', 'إلغاء')}
+            </Button>
+            <Button
+              className="bg-primary hover:bg-primary/90"
+              onClick={handleConfirmSaveTemplate}
+              disabled={!templateName.trim() || createTemplateMut.isPending}
+              data-testid="button-confirm-save-template"
+            >
+              {createTemplateMut.isPending ? t('Saving…', 'جاري الحفظ…') : t('Save', 'حفظ')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {job && (
         <Card className="bg-slate-800 border-slate-700">
