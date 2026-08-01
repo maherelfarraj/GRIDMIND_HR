@@ -13,6 +13,8 @@ import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { CreateDeviceBody, UpdateDeviceBody } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { GATEWAY_SILENCE_THRESHOLD_MS } from "../lib/gatewayDeviceAlerts.js";
+import { notifyCommandOutcomes, DEVICE_COMMAND_TTL_MS } from "../lib/deviceCommandNotifications.js";
+export { DEVICE_COMMAND_TTL_MS };
 
 const router = Router();
 
@@ -22,9 +24,6 @@ router.use("/devices", requireAuth);
 
 // Window (days) used for the activity-based uptime proxy and error log scan.
 const UPTIME_WINDOW_DAYS = 7;
-
-/** A queued command not delivered/acked within this window is expired. */
-export const DEVICE_COMMAND_TTL_MS = 15 * 60 * 1000;
 
 function parseId(raw: string | string[]): number {
   return parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
@@ -56,14 +55,25 @@ function serializeCommand(c: typeof deviceCommandsTable.$inferSelect) {
 
 /** Expire stale PENDING/DELIVERED commands for a device so the queue can't wedge. */
 async function expireStaleCommands(deviceId: number): Promise<void> {
-  await db
+  const expired = await db
     .update(deviceCommandsTable)
     .set({ status: "EXPIRED", resultMessage: "Not acknowledged within the delivery window", updatedAt: new Date() })
     .where(and(
       eq(deviceCommandsTable.deviceId, deviceId),
       inArray(deviceCommandsTable.status, ["PENDING", "DELIVERED"]),
       lt(deviceCommandsTable.createdAt, new Date(Date.now() - DEVICE_COMMAND_TTL_MS)),
-    ));
+    ))
+    .returning({
+      id: deviceCommandsTable.id,
+      deviceId: deviceCommandsTable.deviceId,
+      command: deviceCommandsTable.command,
+      status: deviceCommandsTable.status,
+      requestedByUserId: deviceCommandsTable.requestedByUserId,
+      resultMessage: deviceCommandsTable.resultMessage,
+    });
+  // The requester should hear about the expiry even if this read-path expiry
+  // happened to be triggered by someone else viewing the device.
+  await notifyCommandOutcomes(expired);
 }
 
 router.get("/devices", async (req, res): Promise<void> => {

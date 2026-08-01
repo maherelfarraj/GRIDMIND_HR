@@ -1,6 +1,7 @@
 import { and, eq, gte, ilike, inArray } from "drizzle-orm";
 import { db, gatewayRegistrationsTable, notificationsTable, systemUsersTable, rolesTable } from "@workspace/db";
 import { logger } from "./logger.js";
+import { expireStaleDeviceCommandsOnce } from "./deviceCommandNotifications.js";
 
 /**
  * Gateway device warning notifications.
@@ -365,6 +366,13 @@ export function startGatewaySilenceMonitor(): void {
         }
       })
       .catch((err) => logger.error({ err }, "Gateway silence sweep failed"))
+      // Server-side command expiry: stale restart commands must expire (and
+      // notify their requester) even when nobody has the device page open.
+      .then(() => expireStaleDeviceCommandsOnce())
+      .then((expired) => {
+        if (expired > 0) logger.info({ expired }, "Stale device commands expired by sweep");
+      })
+      .catch((err) => logger.error({ err }, "Device command expiry sweep failed"))
       .finally(() => { silenceSweeping = false; });
   }, SILENCE_SWEEP_INTERVAL_MS);
   silenceTimer.unref?.();

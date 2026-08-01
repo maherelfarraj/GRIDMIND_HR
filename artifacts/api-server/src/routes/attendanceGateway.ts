@@ -14,6 +14,7 @@ import { and, eq, desc, gte, inArray, lt } from "drizzle-orm";
 import { DEVICE_COMMAND_TTL_MS } from "./devices.js";
 import { materializePunch } from "../lib/attendanceMaterializer.js";
 import { processGatewayWarningTransitions, GATEWAY_SILENCE_THRESHOLD_MS, effectiveSilenceThresholdMs } from "../lib/gatewayDeviceAlerts.js";
+import { notifyCommandOutcomes } from "../lib/deviceCommandNotifications.js";
 import {
   protectSigningKey,
   recoverSigningKey,
@@ -271,14 +272,24 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
   // PENDING → DELIVERED and returning the rows in one atomic UPDATE means a
   // fresh command is handed to exactly one heartbeat response.
   const commandCutoff = new Date(Date.now() - DEVICE_COMMAND_TTL_MS);
-  await db
+  const expiredCommands = await db
     .update(deviceCommandsTable)
     .set({ status: "EXPIRED", resultMessage: "Not delivered within the delivery window", updatedAt: new Date() })
     .where(and(
       eq(deviceCommandsTable.registrationId, reg.id),
       eq(deviceCommandsTable.status, "PENDING"),
       lt(deviceCommandsTable.createdAt, commandCutoff),
-    ));
+    ))
+    .returning({
+      id: deviceCommandsTable.id,
+      deviceId: deviceCommandsTable.deviceId,
+      command: deviceCommandsTable.command,
+      status: deviceCommandsTable.status,
+      requestedByUserId: deviceCommandsTable.requestedByUserId,
+      resultMessage: deviceCommandsTable.resultMessage,
+    });
+  // Tell the requester their restart expired even if they left the page.
+  await notifyCommandOutcomes(expiredCommands);
   const deliveredCommands = await db
     .update(deviceCommandsTable)
     .set({ status: "DELIVERED", deliveredAt: new Date(), updatedAt: new Date() })
@@ -489,6 +500,9 @@ gatewayMachineRouter.post("/gateway/commands/ack", verifyGatewaySignature, async
       continue;
     }
     results.push({ commandId: ack.commandId, status: updated.status });
+    // In-app notification to the requesting operator: they should learn the
+    // reboot outcome even if they navigated away from the device panel.
+    await notifyCommandOutcomes([updated]);
     await db.insert(auditLogsTable).values({
       action: "device_command_ack",
       entityType: "device_command",
