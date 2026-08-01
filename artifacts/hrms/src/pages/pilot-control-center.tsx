@@ -26,7 +26,7 @@ interface Defect { id: number; defectCode: string; module: string; severity: str
 interface Migration { id: number; itemName: string; priority: string; status: string; progressPct: number; recordsMigrated: number; totalRecords: number; sourceSystem: string; isGoLiveBlocker: boolean; }
 interface BackupStatus { lastBackup?: { performedAt: string; backupType: string; status: string; }; lastRestoreTest?: { testedAt: string; result: string; durationSeconds: number; }; }
 interface UATSummary { roles: { role: string; coverage: string }[]; }
-interface ConnectionProfile { id: number; profileName: string; systemType: string; connectionStatus: string; lastTestedAt?: string; }
+interface ConnectionProfile { id: number; profileName: string; systemType: string; connectionStatus: string; lastTestedAt?: string; lastTestedByNameEn?: string | null; lastTestedByNameAr?: string | null; }
 interface Device { id: number; name: string; deviceCode: string; status: string; lastHeartbeat?: string; }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -146,7 +146,7 @@ function OverrideGateDialog({ gate, open, onClose, onDone }: { gate: GoLiveGate 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PilotControlCenter() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
@@ -592,7 +592,18 @@ export default function PilotControlCenter() {
                     <TableCell className="text-white text-xs">{p.profileName}</TableCell>
                     <TableCell className="text-slate-400 text-xs">{p.systemType}</TableCell>
                     <TableCell><Badge className={`text-xs ${p.connectionStatus === 'connected' ? 'bg-emerald-900 text-emerald-300' : 'bg-red-900 text-red-300'}`}>{p.connectionStatus}</Badge></TableCell>
-                    <TableCell className="text-slate-400 text-xs">{p.lastTestedAt ? new Date(p.lastTestedAt).toLocaleDateString() : '—'}</TableCell>
+                    <TableCell className="text-slate-400 text-xs">
+                      {p.lastTestedAt ? (
+                        <div>
+                          <span>{new Date(p.lastTestedAt).toLocaleDateString()}</span>
+                          <p className="text-[11px] text-slate-500">
+                            {(p.lastTestedByNameEn || p.lastTestedByNameAr)
+                              ? `${t('Tested by', 'اختبرها')} ${lang === 'ar' ? (p.lastTestedByNameAr || p.lastTestedByNameEn) : (p.lastTestedByNameEn || p.lastTestedByNameAr)}`
+                              : t('Automated health check', 'فحص صحة تلقائي')}
+                          </p>
+                        </div>
+                      ) : '—'}
+                    </TableCell>
                   </TableRow>
                 ))}
                 {profiles.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-slate-500 text-xs py-4">{t('No profiles', 'لا توجد ملفات')}</TableCell></TableRow>}
