@@ -12,6 +12,7 @@ router.get("/attendance", async (req, res): Promise<void> => {
   const conditions = [];
   if (q.employeeId) conditions.push(eq(attendanceRecordsTable.employeeId, q.employeeId));
   if (q.departmentId) conditions.push(eq(attendanceRecordsTable.departmentId, q.departmentId));
+  if (q.date) conditions.push(eq(attendanceRecordsTable.date, q.date));
   if (q.from) conditions.push(gte(attendanceRecordsTable.date, q.from));
   if (q.to) conditions.push(lte(attendanceRecordsTable.date, q.to));
 

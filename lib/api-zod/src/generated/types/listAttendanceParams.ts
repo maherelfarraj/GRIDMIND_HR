@@ -18,6 +18,10 @@ departmentId?: number | null;
 /**
  * @nullable
  */
+date?: string | null;
+/**
+ * @nullable
+ */
 from?: string | null;
 /**
  * @nullable

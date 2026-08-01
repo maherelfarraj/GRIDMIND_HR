@@ -961,6 +961,7 @@ export const ListAuditLogsResponse = zod.object({
 export const ListAttendanceQueryParams = zod.object({
   "employeeId": zod.coerce.number().int().nullish(),
   "departmentId": zod.coerce.number().int().nullish(),
+  "date": zod.coerce.string().nullish(),
   "from": zod.coerce.string().nullish(),
   "to": zod.coerce.string().nullish(),
   "page": zod.coerce.number().int().nullish(),

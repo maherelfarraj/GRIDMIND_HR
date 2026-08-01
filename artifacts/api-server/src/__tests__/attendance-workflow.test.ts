@@ -91,6 +91,27 @@ describe("punch-in / punch-out workflow", () => {
     expect(Array.isArray(res.body)).toBe(true);
   });
 
+  it("GET /api/attendance?date=&departmentId= filters on the server", async () => {
+    const all = await request(app).get("/api/attendance?limit=50");
+    expect(all.status).toBe(200);
+    expect(Array.isArray(all.body)).toBe(true);
+    const sample = all.body[0];
+    if (!sample) return; // no seeded data — nothing to assert against
+
+    const byDate = await request(app).get(`/api/attendance?date=${sample.date}&limit=200`);
+    expect(byDate.status).toBe(200);
+    expect(byDate.body.length).toBeGreaterThan(0);
+    for (const r of byDate.body) expect(r.date).toBe(sample.date);
+
+    const byBoth = await request(app)
+      .get(`/api/attendance?date=${sample.date}&departmentId=${sample.departmentId}&limit=200`);
+    expect(byBoth.status).toBe(200);
+    for (const r of byBoth.body) {
+      expect(r.date).toBe(sample.date);
+      expect(r.departmentId).toBe(sample.departmentId);
+    }
+  });
+
   // NOTE: POST /api/attendance/:id/correction enforces req.session?.userId and
   // returns 401 when no session is present. In demo mode there is no session
   // cookie mechanism wired to supertest, so these tests are skipped.

@@ -62,27 +62,22 @@ export default function Attendance() {
   const filterDate = params.get('date');
 
   const { data: departments } = useListDepartments();
-  const { data: rawAttendanceData, isLoading: loadingAttendance } = useListAttendance();
+  const { data: attendanceData, isLoading: loadingAttendance } = useListAttendance({
+    departmentId: filterDepartmentId ?? undefined,
+    date: filterDate ?? undefined,
+  });
   const { data: summaryData, isLoading: loadingSummary } = useGetAttendanceDailySummary();
-
-  const attendanceData = useMemo(() => {
-    if (!rawAttendanceData) return rawAttendanceData;
-    return rawAttendanceData.filter((r) =>
-      (filterDepartmentId == null || r.departmentId === filterDepartmentId) &&
-      (filterDate == null || r.date === filterDate)
-    );
-  }, [rawAttendanceData, filterDepartmentId, filterDate]);
 
   const filterDepartmentName = useMemo(() => {
     if (filterDepartmentId == null) return null;
     const dept = departments?.find((d) => d.id === filterDepartmentId);
     if (dept) return lang === 'ar' ? dept.nameAr : dept.nameEn;
     return (
-      rawAttendanceData?.find((r) => r.departmentId === filterDepartmentId)?.departmentNameEn ??
+      attendanceData?.find((r) => r.departmentId === filterDepartmentId)?.departmentNameEn ??
       summaryData?.find((s) => s.departmentId === filterDepartmentId)?.[lang === 'ar' ? 'departmentNameAr' : 'departmentNameEn'] ??
       `#${filterDepartmentId}`
     );
-  }, [filterDepartmentId, rawAttendanceData, summaryData, lang]);
+  }, [filterDepartmentId, attendanceData, summaryData, lang]);
 
   const clearFilters = () => navigate('/attendance', { replace: true });
 

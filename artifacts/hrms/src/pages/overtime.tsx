@@ -79,7 +79,9 @@ export default function Overtime() {
     queryFn: () => apiFetch('/api/overtime-rules', { credentials: 'include' }).then(r => r.json()),
   });
 
-  const { data: attendanceData, isLoading: loadingAttendance } = useListAttendance();
+  const { data: attendanceData, isLoading: loadingAttendance } = useListAttendance({
+    departmentId: filterDepartmentId ?? undefined,
+  });
 
   const createRule = useMutation({
     mutationFn: (data: typeof defaultRuleForm) =>
@@ -104,10 +106,7 @@ export default function Overtime() {
   });
 
   // OT Records
-  const otRecords = attendanceData?.filter(r =>
-    (r.overtimeMinutes ?? 0) > 0 &&
-    (filterDepartmentId == null || r.departmentId === filterDepartmentId)
-  ) ?? [];
+  const otRecords = attendanceData?.filter(r => (r.overtimeMinutes ?? 0) > 0) ?? [];
 
   const filterDepartmentName = useMemo(() => {
     if (filterDepartmentId == null) return null;

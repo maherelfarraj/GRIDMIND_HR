@@ -735,6 +735,10 @@ paths:
           schema:
             type: [ "integer", "null" ]
         - in: query
+          name: date
+          schema:
+            type: [ "string", "null" ]
+        - in: query
           name: from
           schema:
             type: [ "string", "null" ]
