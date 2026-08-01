@@ -8,7 +8,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { testLdapConnection, type AdapterResult } from "../lib/ldap-adapter.js";
 import { testSmtpConnection } from "../lib/smtp-adapter.js";
 import { testDeviceConnection } from "../lib/device-adapter.js";
-import { runHealthChecksOnce } from "../lib/health-monitor.js";
+import { runHealthChecksOnce, raiseHealthRecoveryIfAlerted } from "../lib/health-monitor.js";
 
 const router = Router();
 
@@ -176,6 +176,13 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
       metadataJson: JSON.stringify({ latencyMs, simulated }),
       actorUserId,
     });
+
+    // A manual test clears the streak on success too — if the profile had an
+    // outstanding health alert, raise the same recovery notice as the
+    // scheduled monitor (atomic claim — no duplicates if a sweep races this).
+    if (success) {
+      await raiseHealthRecoveryIfAlerted(profile, { message, latencyMs, simulated, actorUserId });
+    }
 
     res.json({ success, message, latencyMs, simulated, testedAt: testedAt.toISOString() });
   } catch (err: any) { res.status(500).json({ error: err.message }); }

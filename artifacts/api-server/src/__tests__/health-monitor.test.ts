@@ -208,6 +208,191 @@ describe("connection health monitor", () => {
     expect(row.status).toBe("active");
   });
 
+  it("notifies admins with a recovery notice after a previously-alerted profile passes", async () => {
+    // Profile with an outstanding health alert → next successful check recovers.
+    const profile = await createProfile({ integrationType: "internal_api", consecutiveFailures: 3 });
+    await db.insert(integrationAuditLogTable).values({
+      profileId: profile.id, integrationType: profile.integrationType,
+      eventType: "health_alert", outcome: "failure", message: "seeded alert", actorUserId: null,
+    });
+
+    const result = await runHealthChecksOnce({ force: true });
+    const outcome = result.outcomes.find((o) => o.profileId === profile.id);
+    expect(outcome!.success).toBe(true);
+    expect(outcome!.consecutiveFailures).toBe(0);
+    expect(outcome!.recoveryRaised).toBe(true);
+    expect(result.recoveriesRaised).toBeGreaterThanOrEqual(1);
+
+    // health_recovered audit event recorded
+    const auditRows = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "health_recovered"),
+      ));
+    expect(auditRows.length).toBe(1);
+    expect(auditRows[0].outcome).toBe("success");
+
+    // Admin notifications surfaced with success severity
+    const notifs = await db.select().from(notificationsTable)
+      .where(and(
+        eq(notificationsTable.entityType, "connection_profile"),
+        eq(notificationsTable.entityId, profile.id),
+      ));
+    expect(notifs.length).toBeGreaterThan(0);
+    expect(notifs[0].severity).toBe("success");
+    expect(notifs[0].bodyEn).toContain(profile.profileName);
+    expect(notifs[0].bodyEn).toContain("recovered");
+
+    // A second successful sweep must not raise a duplicate recovery notice.
+    const again = await runHealthChecksOnce({ force: true });
+    const outcome2 = again.outcomes.find((o) => o.profileId === profile.id);
+    expect(outcome2!.recoveryRaised).toBe(false);
+    const auditAfter = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "health_recovered"),
+      ));
+    expect(auditAfter.length).toBe(1);
+  });
+
+  it("does not raise a recovery notice for profiles that never crossed the threshold", async () => {
+    const profile = await createProfile({ integrationType: "internal_api", consecutiveFailures: 1 }); // below threshold of 2
+
+    const result = await runHealthChecksOnce({ force: true });
+    const outcome = result.outcomes.find((o) => o.profileId === profile.id);
+    expect(outcome!.success).toBe(true);
+    expect(outcome!.consecutiveFailures).toBe(0);
+    expect(outcome!.recoveryRaised).toBe(false);
+
+    const auditRows = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "health_recovered"),
+      ));
+    expect(auditRows.length).toBe(0);
+  });
+
+  it("fail-to-threshold then recover: full loop", async () => {
+    // ldap fails (no env) → two failed sweeps reach the threshold; then flip to
+    // a simulated-success type to recover.
+    const profile = await createProfile({ integrationType: "ldap", alertOnFailureCount: 2 });
+
+    await runHealthChecksOnce({ force: true });
+    const second = await runHealthChecksOnce({ force: true });
+    expect(second.outcomes.find((o) => o.profileId === profile.id)!.alertRaised).toBe(true);
+
+    await db.update(integrationConnectionProfilesTable)
+      .set({ integrationType: "internal_api" })
+      .where(eq(integrationConnectionProfilesTable.id, profile.id));
+
+    const third = await runHealthChecksOnce({ force: true });
+    const outcome = third.outcomes.find((o) => o.profileId === profile.id);
+    expect(outcome!.success).toBe(true);
+    expect(outcome!.recoveryRaised).toBe(true);
+
+    const recoveredEvents = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "health_recovered"),
+      ));
+    expect(recoveredEvents.length).toBe(1);
+  });
+
+  it("does not raise a false recovery when the threshold was raised after failures (no actual alert)", async () => {
+    // Failures accrued but never reached the (new, higher) threshold — no
+    // health_alert audit event exists, so success must not raise a recovery.
+    const profile = await createProfile({ integrationType: "internal_api", consecutiveFailures: 5, alertOnFailureCount: 10 });
+
+    const result = await runHealthChecksOnce({ force: true });
+    const outcome = result.outcomes.find((o) => o.profileId === profile.id);
+    expect(outcome!.success).toBe(true);
+    expect(outcome!.recoveryRaised).toBe(false);
+
+    const auditRows = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "health_recovered"),
+      ));
+    expect(auditRows.length).toBe(0);
+  });
+
+  it("manual test success also raises the recovery notice for an alerted profile", async () => {
+    const profile = await createProfile({ integrationType: "internal_api", consecutiveFailures: 4 });
+    await db.insert(integrationAuditLogTable).values({
+      profileId: profile.id, integrationType: profile.integrationType,
+      eventType: "health_alert", outcome: "failure", message: "seeded alert", actorUserId: null,
+    });
+
+    const res = await request(app)
+      .post(`/api/integration-governance/connection-profiles/${profile.id}/test`)
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const recoveredEvents = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "health_recovered"),
+      ));
+    expect(recoveredEvents.length).toBe(1);
+
+    const notifs = await db.select().from(notificationsTable)
+      .where(and(
+        eq(notificationsTable.entityType, "connection_profile"),
+        eq(notificationsTable.entityId, profile.id),
+      ));
+    expect(notifs.length).toBeGreaterThan(0);
+    expect(notifs[0].severity).toBe("success");
+
+    // A second manual success does not duplicate the recovery.
+    await request(app)
+      .post(`/api/integration-governance/connection-profiles/${profile.id}/test`)
+      .send({});
+    const after = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "health_recovered"),
+      ));
+    expect(after.length).toBe(1);
+  });
+
+  it("concurrent successful checks raise exactly one recovery notice", async () => {
+    const profile = await createProfile({ integrationType: "internal_api", consecutiveFailures: 3 });
+    await db.insert(integrationAuditLogTable).values({
+      profileId: profile.id, integrationType: profile.integrationType,
+      eventType: "health_alert", outcome: "failure", message: "seeded alert", actorUserId: null,
+    });
+
+    // A manual test racing another manual test (same shape as a sweep racing
+    // a manual test — both go through the same atomic claim).
+    const [a, b] = await Promise.all([
+      request(app).post(`/api/integration-governance/connection-profiles/${profile.id}/test`).send({}),
+      request(app).post(`/api/integration-governance/connection-profiles/${profile.id}/test`).send({}),
+    ]);
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    expect(a.body.success).toBe(true);
+    expect(b.body.success).toBe(true);
+
+    const recoveredEvents = await db.select().from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        eq(integrationAuditLogTable.eventType, "health_recovered"),
+      ));
+    expect(recoveredEvents.length).toBe(1);
+
+    // Exactly one notification per admin recipient — no duplicates.
+    const notifs = await db.select().from(notificationsTable)
+      .where(and(
+        eq(notificationsTable.entityType, "connection_profile"),
+        eq(notificationsTable.entityId, profile.id),
+      ));
+    const perRecipient = new Map<number, number>();
+    for (const n of notifs) perRecipient.set(n.recipientUserId, (perRecipient.get(n.recipientUserId) ?? 0) + 1);
+    expect(notifs.length).toBeGreaterThan(0);
+    for (const count of perRecipient.values()) expect(count).toBe(1);
+  });
+
   it("skips profiles without monitoring enabled and suspended profiles", async () => {
     const off = await createProfile({ isHealthMonitoringEnabled: false });
     const suspended = await createProfile({ governanceStatus: "suspended" });

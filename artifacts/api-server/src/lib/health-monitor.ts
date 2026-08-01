@@ -8,7 +8,7 @@
  * Air-gap safe: uses only the local adapters (LDAP/AD, SMTP, attendance
  * device) and the local DB. No external cloud dependencies.
  */
-import { and, eq, ilike, ne } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, ne } from "drizzle-orm";
 import {
   db,
   integrationConnectionProfilesTable,
@@ -33,6 +33,7 @@ export interface HealthCheckOutcome {
   latencyMs: number;
   consecutiveFailures: number;
   alertRaised: boolean;
+  recoveryRaised: boolean;
 }
 
 export interface HealthMonitorRunResult {
@@ -40,6 +41,7 @@ export interface HealthMonitorRunResult {
   passed: number;
   failed: number;
   alertsRaised: number;
+  recoveriesRaised: number;
   outcomes: HealthCheckOutcome[];
 }
 
@@ -86,6 +88,99 @@ async function getAdminUserIds(): Promise<number[]> {
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Atomically claims and closes an outstanding health alert for a profile.
+ *
+ * The alerted state is derived from the audit trail (its most recent
+ * health_alert / health_recovered event is a health_alert), NOT from
+ * comparing the failure count against the current threshold — so recovery
+ * notices fire only when an alert was actually raised, even if the threshold
+ * has been edited since.
+ *
+ * Runs inside a transaction that takes a row lock on the profile before
+ * re-checking the alert state, so concurrent successful checks (scheduled
+ * sweep overlapping a manual test, or two manual tests) serialize and only
+ * one of them emits the "health_recovered" audit event + admin notifications.
+ *
+ * Returns true when this call raised the recovery notice. Shared by the
+ * scheduled health monitor and the manual connection-test endpoint so a
+ * recovery is never silently lost, whichever path clears the streak.
+ */
+export async function raiseHealthRecoveryIfAlerted(
+  profile: IntegrationConnectionProfile,
+  details: { message: string; latencyMs: number; simulated: boolean; actorUserId?: number | null },
+): Promise<boolean> {
+  const raised = await db.transaction(async (tx) => {
+    // Serialize concurrent recovery attempts on this profile.
+    await tx
+      .select({ id: integrationConnectionProfilesTable.id })
+      .from(integrationConnectionProfilesTable)
+      .where(eq(integrationConnectionProfilesTable.id, profile.id))
+      .for("update");
+
+    // Re-check the outstanding-alert state under the lock.
+    const [latest] = await tx
+      .select({ eventType: integrationAuditLogTable.eventType })
+      .from(integrationAuditLogTable)
+      .where(and(
+        eq(integrationAuditLogTable.profileId, profile.id),
+        inArray(integrationAuditLogTable.eventType, ["health_alert", "health_recovered"]),
+      ))
+      .orderBy(desc(integrationAuditLogTable.id))
+      .limit(1);
+    if (latest?.eventType !== "health_alert") return false;
+
+    const recoveryMessage = `Connection "${profile.profileName}" (${profile.integrationType}) has recovered after ${profile.consecutiveFailures} consecutive failed health checks. Latest check passed: ${details.message}`;
+
+    await tx.insert(integrationAuditLogTable).values({
+      profileId: profile.id,
+      integrationType: profile.integrationType,
+      eventType: "health_recovered",
+      outcome: "success",
+      message: recoveryMessage,
+      metadataJson: JSON.stringify({
+        previousConsecutiveFailures: profile.consecutiveFailures,
+        alertOnFailureCount: profile.alertOnFailureCount,
+        latencyMs: details.latencyMs,
+        simulated: details.simulated,
+        source: details.actorUserId ? "manual_test" : "health_monitor",
+      }),
+      actorUserId: details.actorUserId ?? null,
+    });
+
+    const adminRows = await tx
+      .select({ id: systemUsersTable.id })
+      .from(systemUsersTable)
+      .innerJoin(rolesTable, eq(systemUsersTable.roleId, rolesTable.id))
+      .where(and(eq(systemUsersTable.isActive, true), ilike(rolesTable.nameEn, "%admin%")));
+    if (adminRows.length) {
+      await tx.insert(notificationsTable).values(adminRows.map(({ id: userId }) => ({
+        recipientUserId: userId,
+        notificationType: "security_alert",
+        titleEn: `Integration recovered: ${profile.profileName}`,
+        titleAr: `تعافى التكامل: ${profile.profileNameAr}`,
+        bodyEn: recoveryMessage,
+        bodyAr: `تعافى الاتصال "${profile.profileNameAr}" (${profile.integrationType}) بعد ${profile.consecutiveFailures} فحوصات صحية فاشلة متتالية.`,
+        severity: "success",
+        actionUrl: "/integration-governance",
+        actionLabelEn: "View connection profiles",
+        entityType: "connection_profile",
+        entityId: profile.id,
+        requiresAction: false,
+      })));
+    }
+    return true;
+  });
+
+  if (raised) {
+    logger.info(
+      { profileId: profile.id, previousConsecutiveFailures: profile.consecutiveFailures },
+      "Integration health recovery notice raised",
+    );
+  }
+  return raised;
+}
 
 /**
  * Runs the connection test, honoring the profile's retry policy: when the
@@ -154,6 +249,7 @@ export async function runHealthChecksOnce(
 
   const outcomes: HealthCheckOutcome[] = [];
   let alertsRaised = 0;
+  let recoveriesRaised = 0;
 
   for (const profile of profiles) {
     if (!options.force && !isDue(profile, now)) continue;
@@ -220,11 +316,19 @@ export async function runHealthChecksOnce(
       logger.warn({ profileId: profile.id, consecutiveFailures }, "Integration health alert raised");
     }
 
+    // Recovery closes the loop: raised only when this profile has an actual
+    // outstanding health alert (atomic claim — safe against a concurrent
+    // manual test racing this sweep).
+    const recoveryRaised = success
+      ? await raiseHealthRecoveryIfAlerted(profile, { message, latencyMs, simulated })
+      : false;
+    if (recoveryRaised) recoveriesRaised += 1;
+
     outcomes.push({
       profileId: profile.id,
       profileName: profile.profileName,
       integrationType: profile.integrationType,
-      success, simulated, message, latencyMs, consecutiveFailures, alertRaised,
+      success, simulated, message, latencyMs, consecutiveFailures, alertRaised, recoveryRaised,
     });
   }
 
@@ -233,6 +337,7 @@ export async function runHealthChecksOnce(
     passed: outcomes.filter((o) => o.success).length,
     failed: outcomes.filter((o) => !o.success).length,
     alertsRaised,
+    recoveriesRaised,
     outcomes,
   };
 }
