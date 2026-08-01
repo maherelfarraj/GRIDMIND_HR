@@ -37965,6 +37965,77 @@ export const useCreateImportMappingTemplate = <TError = ErrorType<unknown>,
       return useMutation(getCreateImportMappingTemplateMutationOptions(options));
     }
 
+export const getMarkImportMappingTemplateUsedUrl = (id: number,) => {
+
+
+
+
+  return `/api/import-mapping-templates/${id}/use`
+}
+
+/**
+ * @summary Record that a mapping template was applied (bumps usage count)
+ */
+export const markImportMappingTemplateUsed = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ImportMappingTemplate> => {
+
+  return customFetch<ImportMappingTemplate>(getMarkImportMappingTemplateUsedUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkImportMappingTemplateUsedMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markImportMappingTemplateUsed>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markImportMappingTemplateUsed>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['markImportMappingTemplateUsed'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markImportMappingTemplateUsed>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  markImportMappingTemplateUsed(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkImportMappingTemplateUsedMutationResult = NonNullable<Awaited<ReturnType<typeof markImportMappingTemplateUsed>>>
+
+    export type MarkImportMappingTemplateUsedMutationError = ErrorType<void>
+
+    /**
+ * @summary Record that a mapping template was applied (bumps usage count)
+ */
+export const useMarkImportMappingTemplateUsed = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markImportMappingTemplateUsed>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markImportMappingTemplateUsed>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getMarkImportMappingTemplateUsedMutationOptions(options));
+    }
+
 export const getDeleteImportMappingTemplateUrl = (id: number,) => {
 
 

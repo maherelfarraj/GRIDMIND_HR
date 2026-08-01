@@ -9544,6 +9544,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/ImportMappingTemplate"
 
+  /import-mapping-templates/{id}/use:
+    post:
+      operationId: markImportMappingTemplateUsed
+      tags: [dataImport]
+      summary: Record that a mapping template was applied (bumps usage count)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Updated template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportMappingTemplate"
+        "404":
+          description: Not found
+
   /import-mapping-templates/{id}:
     delete:
       operationId: deleteImportMappingTemplate
@@ -15656,6 +15673,7 @@ components:
         createdByUserId: { type: [ "integer", "null" ] }
         isDefault: { type: boolean }
         usageCount: { type: integer }
+        lastUsedAt: { type: [ "string", "null" ] }
         createdAt: { type: string }
         updatedAt: { type: string }
       required: [ id, name, importType, columnMappingJson, isDefault, usageCount, createdAt, updatedAt ]

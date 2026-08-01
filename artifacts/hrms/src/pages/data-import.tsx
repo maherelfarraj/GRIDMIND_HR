@@ -4,7 +4,7 @@ import {
   useListImportJobs, useCreateImportJob, useConfirmImportPreview,
   useExecuteImportJob, useRollbackImportJob,
   useListImportMappingTemplates, useCreateImportMappingTemplate,
-  useDeleteImportMappingTemplate,
+  useDeleteImportMappingTemplate, useMarkImportMappingTemplateUsed,
   getListImportJobsQueryKey, getListImportMappingTemplatesQueryKey,
 } from '@workspace/api-client-react';
 import type {
@@ -154,6 +154,7 @@ function NewImportTab() {
   const confirmMut = useConfirmImportPreview();
   const executeMut = useExecuteImportJob();
   const createTemplateMut = useCreateImportMappingTemplate();
+  const markUsedMut = useMarkImportMappingTemplateUsed();
   const { data: templates = [] } = useListImportMappingTemplates();
   const [importType, setImportType] = useState('employees');
   const [csvText, setCsvText] = useState(SAMPLE_CSV);
@@ -192,6 +193,11 @@ function NewImportTab() {
     });
     setMapping(next);
     setJob(null);
+    // Record the use server-side so admins can see which templates are active.
+    markUsedMut.mutate(
+      { id: tpl.id },
+      { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListImportMappingTemplatesQueryKey() }) },
+    );
     toast({
       title: applied > 0
         ? t(`Template applied — ${applied} of ${headers.length} columns mapped`, `تم تطبيق القالب — تم تعيين ${applied} من ${headers.length} أعمدة`)
@@ -631,6 +637,11 @@ function TemplatesTab() {
           <div>
             <div className="text-white font-medium">{tpl.name}</div>
             <div className="text-slate-400 text-xs mt-0.5">{t('Type:', 'النوع:')} {tpl.importType}</div>
+            <div className="text-slate-400 text-xs mt-0.5" data-testid={`text-template-usage-${tpl.id}`}>
+              {tpl.usageCount === 0
+                ? t('Never used', 'لم يُستخدم أبدًا')
+                : `${t('Used', 'استُخدم')} ${tpl.usageCount} ${t(tpl.usageCount === 1 ? 'time' : 'times', tpl.usageCount === 1 ? 'مرة' : 'مرات')}${tpl.lastUsedAt ? ` — ${t('last used', 'آخر استخدام')} ${new Date(tpl.lastUsedAt).toLocaleDateString()}` : ''}`}
+            </div>
           </div>
           <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300" onClick={() => handleDelete(tpl)}>
             <Trash2 className="w-4 h-4" />

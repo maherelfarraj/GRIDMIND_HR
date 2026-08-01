@@ -73,6 +73,7 @@ export const importMappingTemplatesTable = pgTable("import_mapping_templates", {
   createdByUserId: integer("created_by_user_id"),
   isDefault: boolean("is_default").notNull().default(false),
   usageCount: integer("usage_count").notNull().default(0),
+  lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

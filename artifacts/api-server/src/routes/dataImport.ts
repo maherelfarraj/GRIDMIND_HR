@@ -490,6 +490,29 @@ router.post("/import-mapping-templates", async (req, res): Promise<void> => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /import-mapping-templates/:id/use — record that a template was applied
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/import-mapping-templates/:id/use", async (req, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const now = new Date();
+    const [row] = await db
+      .update(importMappingTemplatesTable)
+      .set({
+        usageCount: sql`${importMappingTemplatesTable.usageCount} + 1`,
+        lastUsedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(importMappingTemplatesTable.id, id))
+      .returning();
+    if (!row) return void res.status(404).json({ error: "Template not found" });
+    res.json(row);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DELETE /import-mapping-templates/:id
 // ─────────────────────────────────────────────────────────────────────────────
 router.delete("/import-mapping-templates/:id", async (req, res): Promise<void> => {

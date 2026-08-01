@@ -214,6 +214,22 @@ describe("Data Import — Mapping Templates", () => {
     expect(res.body.some((t: any) => t.id === templateId)).toBe(true);
   });
 
+  it("POST /api/import-mapping-templates/:id/use increments usage count and sets lastUsedAt", async () => {
+    const res = await request(app).post(`/api/import-mapping-templates/${templateId}/use`);
+    expect(res.status).toBe(200);
+    expect(res.body.usageCount).toBe(1);
+    expect(res.body.lastUsedAt).toBeTruthy();
+
+    const again = await request(app).post(`/api/import-mapping-templates/${templateId}/use`);
+    expect(again.status).toBe(200);
+    expect(again.body.usageCount).toBe(2);
+  });
+
+  it("POST /api/import-mapping-templates/:id/use returns 404 for unknown template", async () => {
+    const res = await request(app).post("/api/import-mapping-templates/999999/use");
+    expect(res.status).toBe(404);
+  });
+
   it("DELETE /api/import-mapping-templates/:id deletes template", async () => {
     const res = await request(app).delete(`/api/import-mapping-templates/${templateId}`);
     expect(res.status).toBe(200);

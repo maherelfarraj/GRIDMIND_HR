@@ -16108,6 +16108,7 @@ export const ListImportMappingTemplatesResponseItem = zod.object({
   "createdByUserId": zod.number().nullish(),
   "isDefault": zod.boolean(),
   "usageCount": zod.number(),
+  "lastUsedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -16132,6 +16133,28 @@ export const CreateImportMappingTemplateResponse = zod.object({
   "createdByUserId": zod.number().nullish(),
   "isDefault": zod.boolean(),
   "usageCount": zod.number(),
+  "lastUsedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Record that a mapping template was applied (bumps usage count)
+ */
+export const MarkImportMappingTemplateUsedParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const MarkImportMappingTemplateUsedResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "importType": zod.string(),
+  "columnMappingJson": zod.string(),
+  "createdByUserId": zod.number().nullish(),
+  "isDefault": zod.boolean(),
+  "usageCount": zod.number(),
+  "lastUsedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })

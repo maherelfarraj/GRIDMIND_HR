@@ -15,6 +15,8 @@ export interface ImportMappingTemplate {
   createdByUserId?: number | null;
   isDefault: boolean;
   usageCount: number;
+  /** @nullable */
+  lastUsedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
