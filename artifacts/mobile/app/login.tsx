@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Image,
   Platform,
@@ -40,6 +40,27 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Seconds remaining in an active lockout window (null = not locked out).
+  // Drives a live countdown in the error message and disables the login
+  // button until the wait is over.
+  const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState<number | null>(
+    null,
+  );
+
+  // Tick the lockout countdown once per second; when it reaches zero, clear
+  // the lockout message and re-enable the login button.
+  useEffect(() => {
+    if (lockoutSecondsLeft === null) return;
+    if (lockoutSecondsLeft <= 0) {
+      setLockoutSecondsLeft(null);
+      setError(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setLockoutSecondsLeft((s) => (s === null ? null : s - 1));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [lockoutSecondsLeft]);
 
   if (user) return <Redirect href="/(tabs)" />;
 
@@ -67,13 +88,15 @@ export default function LoginScreen() {
           (lang === 'ar' ? data.errorAr : data.error) ??
           data.error ??
           t('lockoutError');
-        const retry =
-          typeof data.retryAfterSeconds === 'number' && data.retryAfterSeconds > 0
-            ? lang === 'ar'
-              ? ` ${'يمكنك المحاولة مرة أخرى بعد'} ${formatRetryDuration(data.retryAfterSeconds, 'ar')}.`
-              : ` You can try again in ${formatRetryDuration(data.retryAfterSeconds, 'en')}.`
-            : '';
-        setError(message + retry);
+        setError(message);
+        if (
+          typeof data.retryAfterSeconds === 'number' &&
+          data.retryAfterSeconds > 0
+        ) {
+          // Start the live countdown; the retry hint is rendered from
+          // lockoutSecondsLeft so it ticks down each second.
+          setLockoutSecondsLeft(Math.ceil(data.retryAfterSeconds));
+        }
       } else {
         setError(t('loginError'));
       }
@@ -178,6 +201,11 @@ export default function LoginScreen() {
             }}
           >
             {error}
+            {lockoutSecondsLeft !== null && lockoutSecondsLeft > 0
+              ? lang === 'ar'
+                ? ` يمكنك المحاولة مرة أخرى بعد ${formatRetryDuration(lockoutSecondsLeft, 'ar')}.`
+                : ` You can try again in ${formatRetryDuration(lockoutSecondsLeft, 'en')}.`
+              : null}
           </Text>
         ) : null}
 
@@ -186,7 +214,11 @@ export default function LoginScreen() {
           label={t('login')}
           onPress={handleLogin}
           loading={loading}
-          disabled={!username.trim() || !password}
+          disabled={
+            !username.trim() ||
+            !password ||
+            (lockoutSecondsLeft !== null && lockoutSecondsLeft > 0)
+          }
           icon="log-in"
         />
       </KeyboardAwareScrollViewCompat>
