@@ -335,6 +335,7 @@ export default function HomeScreen() {
   const colors = useColors();
   const { t, lang } = useI18n();
   const { user, logout } = useAuth();
+  const router = useRouter();
 
   const displayName = user
     ? lang === 'ar' && user.fullNameAr
@@ -349,6 +350,17 @@ export default function HomeScreen() {
         subtitle={displayName}
         right={
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Pressable
+              testID="button-change-password"
+              onPress={() => router.push('/change-password')}
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.6 : 1,
+                padding: 8,
+              })}
+              accessibilityLabel={t('changePassword')}
+            >
+              <Feather name="lock" size={20} color={colors.mutedForeground} />
+            </Pressable>
             <Pressable
               testID="button-signout"
               onPress={logout}

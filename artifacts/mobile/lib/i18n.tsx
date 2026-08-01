@@ -85,6 +85,39 @@ const strings = {
   presentDays: { en: 'Present Days', ar: 'أيام الحضور' },
   exceptionNote: { en: 'Exception', ar: 'استثناء' },
   noLines: { en: 'No line items', ar: 'لا توجد بنود' },
+  changePassword: { en: 'Change Password', ar: 'تغيير كلمة المرور' },
+  currentPassword: { en: 'Current Password', ar: 'كلمة المرور الحالية' },
+  newPassword: { en: 'New Password', ar: 'كلمة المرور الجديدة' },
+  confirmNewPassword: {
+    en: 'Confirm New Password',
+    ar: 'تأكيد كلمة المرور الجديدة',
+  },
+  passwordsDoNotMatch: {
+    en: 'New passwords do not match',
+    ar: 'كلمتا المرور الجديدتان غير متطابقتين',
+  },
+  wrongCurrentPassword: {
+    en: 'Current password is incorrect',
+    ar: 'كلمة المرور الحالية غير صحيحة',
+  },
+  weakPassword: {
+    en: 'New password does not meet the password requirements',
+    ar: 'كلمة المرور الجديدة لا تفي بمتطلبات كلمة المرور',
+  },
+  changePasswordFailed: {
+    en: 'Could not change password. Please try again.',
+    ar: 'تعذر تغيير كلمة المرور. يرجى المحاولة مرة أخرى.',
+  },
+  passwordChanged: { en: 'Password changed', ar: 'تم تغيير كلمة المرور' },
+  passwordChangedHint: {
+    en: 'Use your new password the next time you sign in.',
+    ar: 'استخدم كلمة المرور الجديدة عند تسجيل الدخول في المرة القادمة.',
+  },
+  passwordPolicyHint: {
+    en: 'At least 8 characters, including at least 3 of: lowercase, uppercase, numbers, symbols.',
+    ar: '8 أحرف على الأقل، تتضمن 3 أنواع على الأقل من: أحرف صغيرة، أحرف كبيرة، أرقام، رموز.',
+  },
+  done: { en: 'Done', ar: 'تم' },
 } as const;
 
 export type StringKey = keyof typeof strings;
