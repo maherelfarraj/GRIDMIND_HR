@@ -18,7 +18,9 @@ import {
   protectSigningKey,
   recoverSigningKey,
   rotateLegacyValue,
+  rewrapEnvelope,
   isLegacyStoredKey,
+  isProtectedEnvelope,
 } from "../lib/gatewayKeyVault.js";
 
 /**
@@ -80,8 +82,9 @@ async function verifyGatewaySignature(req: GatewayRequest, res: Response, next: 
   // signatures. Legacy plaintext rows are accepted once, then rotated.
   let signingKey: string;
   let legacy = false;
+  let needsRewrap = false;
   try {
-    ({ signingKey, legacy } = recoverSigningKey(reg.secretHash));
+    ({ signingKey, legacy, needsRewrap } = recoverSigningKey(reg.secretHash));
   } catch {
     res.status(401).json({ error: "Gateway credential unusable — re-register the gateway", errorAr: "بيانات اعتماد البوابة غير صالحة" });
     return;
@@ -94,12 +97,16 @@ async function verifyGatewaySignature(req: GatewayRequest, res: Response, next: 
     res.status(401).json({ error: "Invalid gateway signature", errorAr: "توقيع البوابة غير صالح" });
     return;
   }
-  if (legacy) {
+  if (legacy || needsRewrap) {
     // Lazy rotation: replace the plaintext signing key with its envelope the
-    // first time the registration is seen after the hardening deploy.
+    // first time the registration is seen after the hardening deploy, and
+    // re-wrap envelopes still encrypted under the PREVIOUS pepper during a
+    // pepper-rotation window. The secretHash guard makes this a no-op if a
+    // concurrent request already rotated the row.
+    const upgraded = legacy ? rotateLegacyValue(reg.secretHash) : rewrapEnvelope(reg.secretHash);
     await db
       .update(gatewayRegistrationsTable)
-      .set({ secretHash: rotateLegacyValue(reg.secretHash), updatedAt: new Date() })
+      .set({ secretHash: upgraded, updatedAt: new Date() })
       .where(and(eq(gatewayRegistrationsTable.id, reg.id), eq(gatewayRegistrationsTable.secretHash, reg.secretHash)));
   }
   req.gatewayRegistration = reg;
@@ -126,6 +133,44 @@ export async function rotateLegacyGatewayKeys(): Promise<number> {
     rotated += result.length;
   }
   return rotated;
+}
+
+/**
+ * Pepper-rotation path: when GATEWAY_KEY_PEPPER_PREVIOUS is set, re-wrap
+ * every envelope still encrypted under the previous pepper so registered
+ * gateways keep authenticating across the rotation without re-registration.
+ * Idempotent; envelopes already under the current pepper are skipped
+ * (recoverSigningKey reports needsRewrap=false for them). Unrecoverable or
+ * tampered envelopes are left untouched (they fail closed at verification)
+ * and reported so operators can act.
+ */
+export async function rewrapGatewayKeysForPepperRotation(): Promise<{
+  rewrapped: number;
+  unrecoverable: number[];
+}> {
+  const result = { rewrapped: 0, unrecoverable: [] as number[] };
+  if (!process.env.GATEWAY_KEY_PEPPER_PREVIOUS) return result;
+  const rows = await db
+    .select({ id: gatewayRegistrationsTable.id, secretHash: gatewayRegistrationsTable.secretHash })
+    .from(gatewayRegistrationsTable);
+  for (const row of rows) {
+    if (!isProtectedEnvelope(row.secretHash)) continue;
+    let needsRewrap: boolean;
+    try {
+      ({ needsRewrap } = recoverSigningKey(row.secretHash));
+    } catch {
+      result.unrecoverable.push(row.id);
+      continue;
+    }
+    if (!needsRewrap) continue;
+    const updated = await db
+      .update(gatewayRegistrationsTable)
+      .set({ secretHash: rewrapEnvelope(row.secretHash), updatedAt: new Date() })
+      .where(and(eq(gatewayRegistrationsTable.id, row.id), eq(gatewayRegistrationsTable.secretHash, row.secretHash)))
+      .returning({ id: gatewayRegistrationsTable.id });
+    result.rewrapped += updated.length;
+  }
+  return result;
 }
 
 /** Compute + persist gateway↔server clock drift from the reported device time. */

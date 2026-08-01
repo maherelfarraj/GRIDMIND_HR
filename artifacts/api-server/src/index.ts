@@ -5,7 +5,7 @@ import { startGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
 import { startBackupScheduler } from "./lib/backupScheduler";
 import { startPrivilegedSessionSweeper } from "./lib/privilegedSessionSweeper";
 import { seedDemoPasswords } from "./lib/seed-passwords";
-import { rotateLegacyGatewayKeys } from "./routes/attendanceGateway";
+import { rotateLegacyGatewayKeys, rewrapGatewayKeysForPepperRotation } from "./routes/attendanceGateway";
 import { runStartupMigrations } from "./lib/startupMigrations";
 
 const rawPort = process.env["PORT"];
@@ -63,6 +63,22 @@ async function main() {
       })
       .catch((err) => {
         logger.error({ err }, "Failed to rotate legacy gateway signing keys");
+      });
+    // Pepper rotation window: when GATEWAY_KEY_PEPPER_PREVIOUS is set,
+    // re-wrap envelopes from the old pepper under the new one so gateways
+    // keep authenticating without re-registration.
+    rewrapGatewayKeysForPepperRotation()
+      .then(({ rewrapped, unrecoverable }) => {
+        if (rewrapped > 0) logger.info({ rewrapped }, "Re-wrapped gateway key envelopes under the new pepper");
+        if (unrecoverable.length > 0) {
+          logger.error(
+            { registrationIds: unrecoverable },
+            "Gateway key envelopes unrecoverable under current or previous pepper — these gateways must be re-registered",
+          );
+        }
+      })
+      .catch((err) => {
+        logger.error({ err }, "Failed to re-wrap gateway key envelopes for pepper rotation");
       });
   });
 }
