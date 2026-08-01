@@ -210,6 +210,21 @@ export const GATEWAY_SILENCE_THRESHOLD_MS = Math.max(
   Number(process.env["GATEWAY_SILENCE_THRESHOLD_MINUTES"] || 10) * 60_000 || 10 * 60_000,
 );
 
+/**
+ * Effective silence threshold for one registration: the per-registration
+ * override (minutes, clamped to >= 1) when set, otherwise the given global
+ * default. Shared by the sweep and the admin listing so both always agree.
+ */
+export function effectiveSilenceThresholdMs(
+  silenceThresholdMinutes: number | null | undefined,
+  defaultMs: number = GATEWAY_SILENCE_THRESHOLD_MS,
+): number {
+  if (silenceThresholdMinutes != null && Number.isFinite(silenceThresholdMinutes) && silenceThresholdMinutes > 0) {
+    return Math.max(60_000, Math.round(silenceThresholdMinutes) * 60_000);
+  }
+  return defaultMs;
+}
+
 export function stopGatewaySilenceMonitor(): void {
   if (silenceTimer) { clearInterval(silenceTimer); silenceTimer = null; }
 }
@@ -283,6 +298,7 @@ export async function runGatewaySilenceSweepOnce(
       lastHeartbeatAt: gatewayRegistrationsTable.lastHeartbeatAt,
       lastSeenAt: gatewayRegistrationsTable.lastSeenAt,
       createdAt: gatewayRegistrationsTable.createdAt,
+      silenceThresholdMinutes: gatewayRegistrationsTable.silenceThresholdMinutes,
     })
     .from(gatewayRegistrationsTable)
     .where(eq(gatewayRegistrationsTable.status, "ACTIVE"));
@@ -294,7 +310,10 @@ export async function runGatewaySilenceSweepOnce(
       // contact of any kind, falling back to creation time — so a gateway
       // that was registered but never came online is also caught.
       const baseline = reg.lastHeartbeatAt ?? reg.lastSeenAt ?? reg.createdAt;
-      const silent = now.getTime() - new Date(baseline).getTime() >= thresholdMs;
+      // A per-registration threshold (admin-set, minutes) overrides the
+      // global default for this row only.
+      const regThresholdMs = effectiveSilenceThresholdMs(reg.silenceThresholdMinutes, thresholdMs);
+      const silent = now.getTime() - new Date(baseline).getTime() >= regThresholdMs;
       if (silent) {
         result.silent += 1;
         if (!(await hasAlertForCurrentOutage(reg.id, new Date(baseline)))) {

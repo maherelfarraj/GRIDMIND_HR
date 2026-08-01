@@ -13,7 +13,7 @@ import {
 import { and, eq, desc, gte, inArray, lt } from "drizzle-orm";
 import { DEVICE_COMMAND_TTL_MS } from "./devices.js";
 import { materializePunch } from "../lib/attendanceMaterializer.js";
-import { processGatewayWarningTransitions, GATEWAY_SILENCE_THRESHOLD_MS } from "../lib/gatewayDeviceAlerts.js";
+import { processGatewayWarningTransitions, GATEWAY_SILENCE_THRESHOLD_MS, effectiveSilenceThresholdMs } from "../lib/gatewayDeviceAlerts.js";
 import {
   protectSigningKey,
   recoverSigningKey,
@@ -630,11 +630,64 @@ gatewayAdminRouter.get("/gateway/registrations", async (_req, res): Promise<void
   res.json(
     rows.map((r) => {
       const lastContact = r.lastHeartbeatAt ?? r.lastSeenAt ?? r.createdAt;
+      // Per-registration override (minutes) beats the global default —
+      // mirrors exactly what the notification sweep uses.
+      const thresholdMs = effectiveSilenceThresholdMs(r.silenceThresholdMinutes);
       const silent =
-        r.status === "ACTIVE" && (!lastContact || now - new Date(lastContact).getTime() > GATEWAY_SILENCE_THRESHOLD_MS);
-      return { ...r, secretHash: undefined, silent, silenceThresholdMs: GATEWAY_SILENCE_THRESHOLD_MS };
+        r.status === "ACTIVE" && (!lastContact || now - new Date(lastContact).getTime() > thresholdMs);
+      return { ...r, secretHash: undefined, silent, silenceThresholdMs: thresholdMs };
     }),
   );
+});
+
+// PATCH /gateway/registrations/:id — admin-editable settings. Currently only
+// the per-registration silence threshold (minutes; null = global default).
+gatewayAdminRouter.patch("/gateway/registrations/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid registration id" });
+    return;
+  }
+  const body = req.body as { silenceThresholdMinutes?: unknown };
+  if (!("silenceThresholdMinutes" in body)) {
+    res.status(400).json({ error: "silenceThresholdMinutes required (number of minutes, or null for the global default)" });
+    return;
+  }
+  const raw = body.silenceThresholdMinutes;
+  let value: number | null;
+  if (raw === null) {
+    value = null;
+  } else if (typeof raw === "number" && Number.isInteger(raw) && raw >= 1 && raw <= 1440) {
+    value = raw;
+  } else {
+    res.status(400).json({ error: "silenceThresholdMinutes must be an integer between 1 and 1440 minutes, or null" });
+    return;
+  }
+  const session = req.session as { userId?: number };
+  const [existing] = await db
+    .select({ id: gatewayRegistrationsTable.id, name: gatewayRegistrationsTable.name, silenceThresholdMinutes: gatewayRegistrationsTable.silenceThresholdMinutes })
+    .from(gatewayRegistrationsTable)
+    .where(eq(gatewayRegistrationsTable.id, id));
+  if (!existing) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const [reg] = await db
+    .update(gatewayRegistrationsTable)
+    .set({ silenceThresholdMinutes: value, updatedAt: new Date() })
+    .where(eq(gatewayRegistrationsTable.id, id))
+    .returning();
+  await db.insert(auditLogsTable).values({
+    action: "update",
+    entityType: "gateway_registration",
+    entityId: id,
+    entityLabel: existing.name,
+    actorUserId: session.userId ?? null,
+    changesJson: JSON.stringify({
+      silenceThresholdMinutes: { from: existing.silenceThresholdMinutes, to: value },
+    }),
+  });
+  res.json({ ...reg, secretHash: undefined, silenceThresholdMs: effectiveSilenceThresholdMs(reg.silenceThresholdMinutes) });
 });
 
 // POST /gateway/registrations/:id/revoke

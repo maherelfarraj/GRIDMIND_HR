@@ -9558,6 +9558,9 @@ components:
         deviceClockSkewAlert: { type: boolean }
         sdkPresent: { type: [ "boolean", "null" ] }
         sdkVersion: { type: [ "string", "null" ] }
+        silenceThresholdMinutes:
+          type: [ "number", "null" ]
+          description: Per-registration silent-gateway alarm window in minutes; null falls back to the global default.
         notes: { type: [ "string", "null" ] }
         createdAt: { type: string }
         updatedAt: { type: string }

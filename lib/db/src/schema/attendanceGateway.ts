@@ -52,6 +52,11 @@ export const gatewayRegistrationsTable = pgTable("gateway_registrations", {
   // device clock silently mis-stamps every punch, so it gets its own alert.
   deviceClockSkewMs: bigint("device_clock_skew_ms", { mode: "number" }),
   deviceClockSkewAlert: boolean("device_clock_skew_alert").notNull().default(false),
+  // Optional per-registration silent-gateway alarm window in minutes.
+  // NULL = fall back to the global default (GATEWAY_SILENCE_THRESHOLD_MINUTES
+  // env var, 10 minutes). Lets a flaky-cellular site use a laxer window than
+  // a wired-LAN one without changing the global sweep threshold.
+  silenceThresholdMinutes: integer("silence_threshold_minutes"),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

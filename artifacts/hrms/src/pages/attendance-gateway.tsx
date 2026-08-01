@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Server, Plus, AlertCircle, CheckCircle, XCircle, Activity, Copy, Clock, ShieldAlert, AlertTriangle, Info
+  Server, Plus, AlertCircle, CheckCircle, XCircle, Activity, Copy, Clock, ShieldAlert, AlertTriangle, Info, Pencil
 } from 'lucide-react';
 
 interface GatewayRegistration {
@@ -38,8 +38,11 @@ interface GatewayRegistration {
   sdkVersion: string | null;
   notes: string | null;
   createdAt: string;
+  /** Per-registration silence threshold in minutes; null = global default. */
+  silenceThresholdMinutes: number | null;
   /** Server-computed: ACTIVE but no heartbeat within the silence threshold. */
   silent?: boolean;
+  /** Effective threshold (per-registration override or global default). */
   silenceThresholdMs?: number;
 }
 
@@ -173,6 +176,59 @@ export default function AttendanceGateway() {
       });
     },
   });
+
+  // Silence-threshold editing (per-registration alarm window)
+  const [thresholdEdit, setThresholdEdit] = useState<{ reg: GatewayRegistration; value: string } | null>(null);
+
+  const thresholdMutation = useMutation({
+    mutationFn: async ({ id, minutes }: { id: number; minutes: number | null }) => {
+      const res = await apiFetch(`/api/gateway/registrations/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ silenceThresholdMinutes: minutes }),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to update threshold');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gateway-registrations'] });
+      setThresholdEdit(null);
+      toast({
+        title: t('Threshold Updated', 'تم تحديث الحد'),
+        description: t('The silence alarm window has been updated.', 'تم تحديث نافذة إنذار الصمت.'),
+      });
+    },
+    onError: (e: Error) => {
+      toast({
+        title: t('Error', 'خطأ'),
+        description: e.message || t('Failed to update the silence threshold.', 'فشل في تحديث حد الصمت.'),
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleThresholdSave = () => {
+    if (!thresholdEdit) return;
+    const trimmed = thresholdEdit.value.trim();
+    if (trimmed === '') {
+      thresholdMutation.mutate({ id: thresholdEdit.reg.id, minutes: null });
+      return;
+    }
+    const minutes = Number(trimmed);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+      toast({
+        title: t('Invalid value', 'قيمة غير صالحة'),
+        description: t('Enter a whole number of minutes between 1 and 1440, or leave empty for the default.', 'أدخل عددًا صحيحًا من الدقائق بين 1 و 1440، أو اتركه فارغًا للإعداد الافتراضي.'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    thresholdMutation.mutate({ id: thresholdEdit.reg.id, minutes });
+  };
 
   const handleCreate = () => {
     createMutation.mutate(formData);
@@ -550,6 +606,26 @@ export default function AttendanceGateway() {
                           {getHealthIcon(reg)}
                           <span className="text-sm">{getHealthText(reg)}</span>
                         </div>
+                        {reg.status === 'ACTIVE' && (
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                            title={t('Minutes without a heartbeat before an offline alarm is raised. Click to edit.', 'الدقائق دون نبضات قبل إطلاق إنذار عدم الاتصال. انقر للتعديل.')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setThresholdEdit({ reg, value: reg.silenceThresholdMinutes != null ? String(reg.silenceThresholdMinutes) : '' });
+                            }}
+                          >
+                            <Clock className="w-3 h-3" />
+                            <span>
+                              {t('Alarm after', 'إنذار بعد')}{' '}
+                              {Math.round((reg.silenceThresholdMs ?? DEFAULT_SILENCE_THRESHOLD_MS) / 60_000)}
+                              {t('m', ' د')}
+                              {reg.silenceThresholdMinutes == null && <span className="opacity-70"> ({t('default', 'افتراضي')})</span>}
+                            </span>
+                            <Pencil className="w-3 h-3 opacity-60" />
+                          </button>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -776,6 +852,49 @@ export default function AttendanceGateway() {
             </Button>
             <Button onClick={handleCreate} disabled={!formData.name || createMutation.isPending}>
               {createMutation.isPending ? t('Creating...', 'جارٍ الإنشاء...') : t('Create', 'إنشاء')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Silence Threshold Dialog */}
+      <Dialog open={!!thresholdEdit} onOpenChange={(open) => !open && setThresholdEdit(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('Silence Alarm Window', 'نافذة إنذار الصمت')}</DialogTitle>
+            <DialogDescription>
+              {thresholdEdit && t(
+                `How many minutes "${thresholdEdit.reg.name}" may stay quiet (no heartbeat) before admins are alerted. Leave empty to use the global default.`,
+                `عدد الدقائق التي يمكن أن تبقى فيها "${thresholdEdit.reg.nameAr || thresholdEdit.reg.name}" صامتة (بدون نبضات) قبل تنبيه المسؤولين. اتركه فارغًا لاستخدام الإعداد الافتراضي العام.`
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="silenceThreshold">{t('Minutes (1–1440)', 'الدقائق (1–1440)')}</Label>
+            <Input
+              id="silenceThreshold"
+              type="number"
+              min={1}
+              max={1440}
+              value={thresholdEdit?.value ?? ''}
+              onChange={e => thresholdEdit && setThresholdEdit({ ...thresholdEdit, value: e.target.value })}
+              placeholder={t('Empty = global default', 'فارغ = الافتراضي العام')}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t(
+                'Use a laxer window for gateways on flaky links (e.g. cellular) and a tighter one where fast detection matters.',
+                'استخدم نافذة أوسع للبوابات ذات الاتصال غير المستقر (مثل الشبكة الخلوية) ونافذة أضيق حيث يهم الاكتشاف السريع.'
+              )}
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setThresholdEdit(null)}>
+              {t('Cancel', 'إلغاء')}
+            </Button>
+            <Button onClick={handleThresholdSave} disabled={thresholdMutation.isPending}>
+              {thresholdMutation.isPending ? t('Saving...', 'جارٍ الحفظ...') : t('Save', 'حفظ')}
             </Button>
           </DialogFooter>
         </DialogContent>

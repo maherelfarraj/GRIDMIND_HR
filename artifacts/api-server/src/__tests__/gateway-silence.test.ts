@@ -194,6 +194,71 @@ describe("silent-gateway sweep", () => {
     expect(rows[0].bodyEn).toContain("never sent a heartbeat");
   });
 
+  it("honors a per-registration threshold laxer than the global default", async () => {
+    // 30-minute override: 15 minutes of silence would alarm under the
+    // global 10-minute default but must NOT alarm for this registration.
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ silenceThresholdMinutes: 30, lastHeartbeatAt: new Date(Date.now() - 15 * 60_000), lastSeenAt: null, status: "ACTIVE" })
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+    // Dismiss leftovers so a new alert would be detectable.
+    await db
+      .update(notificationsTable)
+      .set({ isDismissed: true, dismissedAt: new Date() })
+      .where(and(eq(notificationsTable.notificationType, GATEWAY_SILENT_ALERT_TYPE), eq(notificationsTable.entityId, registrationId)));
+    const before = (await silenceAlerts()).length;
+    await sweep();
+    expect((await silenceAlerts()).length).toBe(before);
+  });
+
+  it("honors a per-registration threshold tighter than the global default", async () => {
+    // 2-minute override: 5 minutes of silence would be fine under the
+    // 10-minute default but must alarm for this registration.
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ silenceThresholdMinutes: 2, lastHeartbeatAt: new Date(Date.now() - 5 * 60_000) })
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+    // Remove notifications from earlier tests so they can't be attributed to
+    // this (simulated) outage's baseline by the one-alert-per-outage dedupe.
+    await db
+      .delete(notificationsTable)
+      .where(and(eq(notificationsTable.notificationType, GATEWAY_SILENT_ALERT_TYPE), eq(notificationsTable.entityId, registrationId)));
+    const r = await sweep();
+    expect(r.alertsRaised).toBeGreaterThanOrEqual(1);
+    const open = (await silenceAlerts()).filter((n) => !n.isDismissed);
+    expect(open.length).toBeGreaterThan(0);
+  });
+
+  it("falls back to the default when the override is cleared", async () => {
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ silenceThresholdMinutes: null, lastHeartbeatAt: new Date(Date.now() - 5 * 60_000) })
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+    await db
+      .update(notificationsTable)
+      .set({ isDismissed: true, dismissedAt: new Date() })
+      .where(and(eq(notificationsTable.notificationType, GATEWAY_SILENT_ALERT_TYPE), eq(notificationsTable.entityId, registrationId)));
+    const before = (await silenceAlerts()).length;
+    const r = await sweep(); // 5 min < 10 min default → no alarm
+    expect(r.alertsRaised).toBe(0);
+    expect((await silenceAlerts()).length).toBe(before);
+  });
+
+  it("lets an admin set and clear the threshold over the PATCH endpoint", async () => {
+    const bad = await admin.patch(`/api/gateway/registrations/${registrationId}`).send({ silenceThresholdMinutes: 0 });
+    expect(bad.status).toBe(400);
+    const bad2 = await admin.patch(`/api/gateway/registrations/${registrationId}`).send({ silenceThresholdMinutes: 2.5 });
+    expect(bad2.status).toBe(400);
+    const set = await admin.patch(`/api/gateway/registrations/${registrationId}`).send({ silenceThresholdMinutes: 45 });
+    expect(set.status).toBe(200);
+    expect(set.body.silenceThresholdMinutes).toBe(45);
+    expect(set.body.silenceThresholdMs).toBe(45 * 60_000);
+    expect(set.body.secretHash).toBeUndefined();
+    const cleared = await admin.patch(`/api/gateway/registrations/${registrationId}`).send({ silenceThresholdMinutes: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.silenceThresholdMinutes).toBeNull();
+  });
+
   it("ignores REVOKED registrations", async () => {
     await db
       .update(gatewayRegistrationsTable)
