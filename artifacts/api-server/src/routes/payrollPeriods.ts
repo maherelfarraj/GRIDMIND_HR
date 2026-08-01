@@ -4,10 +4,10 @@ import {
   employeesTable, salaryGradesTable, payComponentsTable, auditLogsTable,
   overtimeRulesTable, punchEventsTable, leaveRequestsTable, leaveTypesTable,
   attendanceRecordsTable, publicHolidaysTable, employmentContractsTable,
-  payrollExcusedAbsencesTable, notificationsTable, systemUsersTable,
+  payrollExcusedAbsencesTable, notificationsTable, systemUsersTable, rolesTable,
 } from "@workspace/db";
 import type { PayrollPeriod, Employee } from "@workspace/db";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte, sql, ilike } from "drizzle-orm";
 import { getWeekendDays, WEEKEND_CONFIG_KEY } from "../lib/weekend";
 import { getActorUserId } from "../middleware/requireAuth.js";
 import { reconcileTerminationStatuses } from "../lib/terminationReconciler.js";
@@ -259,6 +259,110 @@ async function notifyUnexcusedNoShows(
       entityType: "payroll_period",
       entityId: period.id,
       requiresAction: true,
+    });
+  }
+}
+
+// Notification type for the HR/admin digest raised when calculation detects
+// new unexcused no-show days. HR is the only role that can excuse a day, so
+// they get one digest per calculation (per period) listing affected employees.
+const NO_SHOW_HR_DIGEST_TYPE = "payroll_no_show_hr_digest";
+
+/**
+ * Notify HR/admin users with a single digest per period listing employees with
+ * newly detected unexcused no-show days, so HR can excuse them before the
+ * period is approved and closed.
+ *
+ * Recipients are active system users whose role name contains "admin"
+ * (HR Administrator, System Administrator, ...) — the same fanout convention
+ * as gateway device alerts.
+ *
+ * Duplicate-safe across recalculations, using the same convention as the
+ * employee/manager warnings: existing digest notifications for the same
+ * period + recipient embed stable `[employeeNumber] ... dates` segments, and a
+ * new digest only includes (employee, date) pairs not yet announced to that
+ * recipient. A recalculation that finds nothing new inserts nothing.
+ *
+ * Concurrency-safe: the read-check-insert for each recipient runs inside a
+ * transaction holding a pg advisory xact lock keyed on (recipient, period),
+ * so two overlapping recalculations cannot both observe "no digest yet" and
+ * double-insert.
+ */
+
+/**
+ * Extract already-announced `employeeNumber|date` pairs from a digest body.
+ * Each `[EMP-NO]` marker owns exactly the text up to the next `[` (or end of
+ * string), so dates listed for one employee are never attributed to another.
+ * Exported for tests.
+ */
+export function parseAnnouncedNoShowPairs(bodyEn: string, into: Set<string>): void {
+  for (const m of bodyEn.matchAll(/\[([^\]]+)\]([^\[]*)/g)) {
+    const empNo = m[1];
+    for (const d of m[2].match(/\d{4}-\d{2}-\d{2}/g) ?? []) into.add(`${empNo}|${d}`);
+  }
+}
+
+async function notifyHrNoShowDigest(
+  period: PayrollPeriod,
+  alerts: { emp: Pick<Employee, "id" | "employeeNumber" | "firstNameEn" | "lastNameEn" | "firstNameAr" | "lastNameAr">; dates: string[] }[],
+): Promise<void> {
+  if (alerts.length === 0) return;
+
+  const hrUsers = await db
+    .select({ id: systemUsersTable.id })
+    .from(systemUsersTable)
+    .innerJoin(rolesTable, eq(systemUsersTable.roleId, rolesTable.id))
+    .where(and(eq(systemUsersTable.isActive, true), ilike(rolesTable.nameEn, "%admin%")));
+  if (hrUsers.length === 0) return;
+
+  for (const u of hrUsers) {
+    await db.transaction(async (tx) => {
+      // Serialize concurrent recalculations for this (recipient, period):
+      // without this, two overlapping calculate calls could both read "no
+      // digest yet" and insert duplicates.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`payroll_no_show_hr_digest:${u.id}:${period.id}`}))`);
+
+      const existing = await tx.select({ bodyEn: notificationsTable.bodyEn }).from(notificationsTable)
+        .where(and(
+          eq(notificationsTable.recipientUserId, u.id),
+          eq(notificationsTable.notificationType, NO_SHOW_HR_DIGEST_TYPE),
+          eq(notificationsTable.entityType, "payroll_period"),
+          eq(notificationsTable.entityId, period.id),
+        ));
+
+      // Already-announced (employee, date) pairs for this recipient.
+      const announced = new Set<string>();
+      for (const row of existing) parseAnnouncedNoShowPairs(row.bodyEn, announced);
+
+      const newEntries: { emp: (typeof alerts)[number]["emp"]; dates: string[] }[] = [];
+      for (const a of alerts) {
+        const newDates = a.dates.filter(d => !announced.has(`${a.emp.employeeNumber}|${d}`));
+        if (newDates.length > 0) newEntries.push({ emp: a.emp, dates: newDates });
+      }
+      if (newEntries.length === 0) return;
+
+      const listEn = newEntries
+        .map(e => `[${e.emp.employeeNumber}] ${e.emp.firstNameEn} ${e.emp.lastNameEn}: ${e.dates.join(", ")}`)
+        .join("; ");
+      const listAr = newEntries
+        .map(e => `[${e.emp.employeeNumber}] ${e.emp.firstNameAr} ${e.emp.lastNameAr}: ${e.dates.join(", ")}`)
+        .join("؛ ");
+      const empCount = newEntries.length;
+
+      await tx.insert(notificationsTable).values({
+        recipientUserId: u.id,
+        notificationType: NO_SHOW_HR_DIGEST_TYPE,
+        titleEn: `Unexcused no-show days detected in ${period.nameEn} — ${empCount} employee(s) need review`,
+        titleAr: `تم رصد أيام غياب بدون عذر في ${period.nameAr} — ${empCount} موظف بحاجة للمراجعة`,
+        bodyEn: `Payroll calculation for ${period.nameEn} detected unexcused no-show day(s) for: ${listEn}. Pay will be deducted for these days unless they are excused before the period is approved and closed.`,
+        bodyAr: `رصدت عملية احتساب الرواتب لفترة ${period.nameAr} أيام غياب بدون عذر للموظفين: ${listAr}. سيتم خصم الأجر عن هذه الأيام ما لم يتم عذرها قبل اعتماد الفترة وإغلاقها.`,
+        severity: "warning",
+        actionUrl: "/payroll",
+        actionLabelEn: "Review no-show days",
+        entityType: "payroll_period",
+        entityId: period.id,
+        requiresAction: true,
+      });
     });
   }
 }
@@ -771,6 +875,9 @@ async function recalculatePeriodRuns(
     for (const alert of noShowAlerts) {
       await notifyUnexcusedNoShows(period, alert.emp, alert.dates, userIdByEmployeeId);
     }
+    // HR/admin users get one digest per calculation listing affected employees,
+    // since HR is the only role that can excuse a no-show day.
+    await notifyHrNoShowDigest(period, noShowAlerts);
   }
 
   // Update period aggregate totals (column names: totalGrossSalary, totalNetSalary, totalDeductions)
