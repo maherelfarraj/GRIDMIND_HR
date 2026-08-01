@@ -4,7 +4,7 @@ import {
   leaveApprovalStepsTable, leaveAttachmentsTable, employeesTable, rostersTable, auditLogsTable,
   approvalsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, or } from "drizzle-orm";
+import { eq, and, gte, lte, or, sql } from "drizzle-orm";
 import { ensureLeaveBalance } from "../lib/leaveBalance.js";
 import { getActorUserId } from "../middleware/requireAuth.js";
 
@@ -310,6 +310,19 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
         throw Object.assign(new Error("Request is no longer pending a decision"), { httpStatus: 409 });
       }
 
+      // Task #14: claim the approval step with a conditional update so two
+      // simultaneous decisions cannot both process the same step.
+      const [claimedStep] = await tx.update(leaveApprovalStepsTable)
+        .set({ status: normalizedDecision, decision: normalizedDecision, notes: notes ?? null, decidedAt: new Date() })
+        .where(and(
+          eq(leaveApprovalStepsTable.id, step!.id),
+          eq(leaveApprovalStepsTable.status, "pending"),
+        ))
+        .returning();
+      if (!claimedStep) {
+        throw Object.assign(new Error("This approval step has already been decided"), { httpStatus: 409, code: "STEP_ALREADY_DECIDED" });
+      }
+
       let newStatus = locked.status;
       let newStep = locked.currentStepNumber;
       const year = new Date(r.startDate).getFullYear();
@@ -319,35 +332,42 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
         eq(leaveBalancesTable.year, year),
       );
 
+      const days = String(parseFloat(locked.totalDays));
+
       if (isReject) {
         newStatus = "rejected";
-        const [bal] = await tx.select().from(leaveBalancesTable).where(balanceWhere).for("update");
-        if (bal) {
-          const newPending = Math.max(0, parseFloat(bal.pending) - parseFloat(r.totalDays));
-          await tx.update(leaveBalancesTable)
-            .set({ pending: String(newPending), updatedAt: new Date() })
-            .where(eq(leaveBalancesTable.id, bal.id));
-        }
+        // Atomic release of the pending reservation
+        await tx.update(leaveBalancesTable)
+          .set({
+            pending: sql`GREATEST(${leaveBalancesTable.pending} - ${days}::numeric, 0)`,
+            updatedAt: new Date(),
+          })
+          .where(balanceWhere);
       } else {
         if (step!.stepNumber >= locked.totalApprovalSteps) {
           newStatus = "approved";
           newStep = step!.stepNumber;
-          const [bal] = await tx.select().from(leaveBalancesTable).where(balanceWhere).for("update");
+          const [bal] = await tx.select().from(leaveBalancesTable).where(balanceWhere);
           if (bal) {
-            const days = parseFloat(r.totalDays);
-            const entitlement = parseFloat(bal.openingBalance) + parseFloat(bal.accrued) +
-              parseFloat(bal.carriedOver) + parseFloat(bal.adjustment);
-            const newUsed = parseFloat(bal.used) + days;
-            if (newUsed > entitlement + 1e-9) {
+            // Task #14: single atomic conditional update — deduct pending → used
+            // only if it would not overdraw the entitlement.
+            const [deducted] = await tx.update(leaveBalancesTable)
+              .set({
+                pending: sql`GREATEST(${leaveBalancesTable.pending} - ${days}::numeric, 0)`,
+                used: sql`${leaveBalancesTable.used} + ${days}::numeric`,
+                updatedAt: new Date(),
+              })
+              .where(and(
+                eq(leaveBalancesTable.id, bal.id),
+                sql`${leaveBalancesTable.used} + ${days}::numeric <= ${leaveBalancesTable.openingBalance} + ${leaveBalancesTable.accrued} + ${leaveBalancesTable.carriedOver} + ${leaveBalancesTable.adjustment} + 0.000000001`,
+              ))
+              .returning();
+            if (!deducted) {
               throw Object.assign(
                 new Error("Insufficient leave balance: approving this request would overdraw the employee's balance"),
                 { httpStatus: 409, code: "BALANCE_CONFLICT" },
               );
             }
-            const newPending = Math.max(0, parseFloat(bal.pending) - days);
-            await tx.update(leaveBalancesTable)
-              .set({ pending: String(newPending), used: String(newUsed), updatedAt: new Date() })
-              .where(eq(leaveBalancesTable.id, bal.id));
           }
 
           // Task #9: mark roster days in the leave range as "leave".
@@ -380,10 +400,6 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
           newStep = step!.stepNumber + 1;
         }
       }
-
-      await tx.update(leaveApprovalStepsTable)
-        .set({ status: normalizedDecision, decision: normalizedDecision, notes: notes ?? null, decidedAt: new Date() })
-        .where(eq(leaveApprovalStepsTable.id, step!.id));
 
       const [row] = await tx.update(leaveRequestsTable)
         .set({

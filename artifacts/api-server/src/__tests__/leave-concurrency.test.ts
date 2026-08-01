@@ -84,7 +84,9 @@ beforeAll(async () => {
   }).returning();
   balanceId = bal.id;
 
-  for (let i = 0; i < 2; i++) {
+  // Requests 0 and 1: single-step, race for the last available day.
+  // Request 2: two-step, used to verify the same step can't be decided twice.
+  for (let i = 0; i < 3; i++) {
     const [req] = await db.insert(leaveRequestsTable).values({
       requestNumber: `${UNIQ}-${i}`,
       employeeId, leaveTypeId,
@@ -92,7 +94,7 @@ beforeAll(async () => {
       totalDays: "1",
       status: "under_review",
       currentStepNumber: 1,
-      totalApprovalSteps: 1,
+      totalApprovalSteps: i === 2 ? 2 : 1,
     } as any).returning();
     requestIds.push(req.id);
     const [step] = await db.insert(leaveApprovalStepsTable).values({
@@ -131,5 +133,30 @@ describe("concurrent leave approvals", () => {
     // Exactly one request approved.
     const rows = await db.select().from(leaveRequestsTable).where(inArray(leaveRequestsTable.id, requestIds));
     expect(rows.filter((r) => r.status === "approved")).toHaveLength(1);
+  });
+
+  it("rejects a second decision on the same approval step (double-click)", async () => {
+    const [resA, resB] = await Promise.all(
+      [0, 1].map(() =>
+        fetch(`${baseUrl}/leave-requests/${requestIds[2]}/decide`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stepId: stepIds[2], decision: "approved" }),
+        }),
+      ),
+    );
+
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses[0]).toBe(200);
+    expect(statuses[1]).toBe(409);
+
+    // The step was decided exactly once and the request advanced one step.
+    const [step] = await db.select().from(leaveApprovalStepsTable)
+      .where(eq(leaveApprovalStepsTable.id, stepIds[2]));
+    expect(step.status).toBe("approved");
+    const [r] = await db.select().from(leaveRequestsTable)
+      .where(eq(leaveRequestsTable.id, requestIds[2]));
+    expect(r.status).toBe("under_review");
+    expect(r.currentStepNumber).toBe(2);
   });
 });
