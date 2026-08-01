@@ -26,6 +26,9 @@ import { buildLocalApi } from "./localApi.js";
  *   SUPREMA_API_URL/SUPREMA_LOGIN_ID/SUPREMA_PASSWORD for SUPREMA (BioStar 2 server)
  *   GATEWAY_QUEUE_DIR   spool directory (default ./gateway-queue)
  *   POLL_INTERVAL_MS    device poll cadence (default 60000)
+ *   RECONCILE_INTERVAL_MS  automatic sent-batch reconcile cadence
+ *                          (default 900000 = 15 min, floor 60000 so the
+ *                          server audit log is never spammed)
  *   CLOCK_SKEW_WARN_MS  device clock skew warning threshold (default 60000)
  *   CLOCK_SKEW_MAX_MS   device clock skew hard limit — blocks polling (default 300000)
  *   PORT                local admin/status HTTP port
@@ -80,6 +83,10 @@ async function main(): Promise<void> {
     cursorPath: `${queueDir}/device-cursor.json`,
     clockSkewWarnMs: optionalPositiveIntEnv("CLOCK_SKEW_WARN_MS"),
     clockSkewMaxMs: optionalPositiveIntEnv("CLOCK_SKEW_MAX_MS"),
+    // Sent-log lives alongside the encrypted queue; it holds only batch
+    // metadata (uuid/count/time) so tick() can reconcile automatically.
+    sentLogPath: `${queueDir}/sent-log.json`,
+    reconcileIntervalMs: optionalPositiveIntEnv("RECONCILE_INTERVAL_MS"),
   });
   await service.init();
 

@@ -41,6 +41,9 @@ const SIGNATURE_WINDOW_MS = 5 * 60 * 1000;
 const DRIFT_ALERT_MS = 2 * 60 * 1000;
 
 const DEVICE_CLOCK_SKEW_ALERT_MS = 60 * 1000;
+// An identical reconcile outcome inside this window is not re-audited, so
+// gateways reconciling on an aggressive timer cannot flood the audit trail.
+const RECONCILE_AUDIT_MIN_INTERVAL_MS = 60 * 60 * 1000;
 const sha256 = (data: string | Buffer): string => createHash("sha256").update(data).digest("hex");
 
 interface GatewayRequest extends Request {
@@ -477,17 +480,38 @@ gatewayMachineRouter.post("/gateway/reconcile", verifyGatewaySignature, async (r
   await db.update(gatewayRegistrationsTable).set({ lastSeenAt: new Date() }).where(eq(gatewayRegistrationsTable.id, reg.id));
   // Persist the reconcile outcome so the HRMS admin page can warn when a
   // gateway believes it delivered batches the server never received.
+  // Gateways now reconcile automatically on a timer, so identical outcomes
+  // are deduped: a new audit row is written only when the outcome changed or
+  // the previous row is older than RECONCILE_AUDIT_MIN_INTERVAL_MS. This
+  // rate-limits audit growth without hiding new discrepancies.
   const missing = results.filter((r) => r.status === "MISSING_ON_SERVER").map((r) => r.batchUuid);
   const mismatched = results.filter((r) => r.status === "COUNT_MISMATCH").map((r) => r.batchUuid);
-  await db.insert(auditLogsTable).values({
-    action: "gateway_reconcile",
-    entityType: "gateway_registration",
-    entityId: reg.id,
-    entityLabel: reg.name,
-    actorUserId: null,
-    changesJson: JSON.stringify({ checked: results.length, missing, mismatched }),
-  });
-  res.json({ ok: true, results });
+  const changesJson = JSON.stringify({ checked: results.length, missing, mismatched });
+  const [lastAudit] = await db
+    .select({ createdAt: auditLogsTable.createdAt, changesJson: auditLogsTable.changesJson })
+    .from(auditLogsTable)
+    .where(and(
+      eq(auditLogsTable.action, "gateway_reconcile"),
+      eq(auditLogsTable.entityType, "gateway_registration"),
+      eq(auditLogsTable.entityId, reg.id),
+    ))
+    .orderBy(desc(auditLogsTable.createdAt))
+    .limit(1);
+  const isFreshDuplicate =
+    lastAudit !== undefined &&
+    lastAudit.changesJson === changesJson &&
+    Date.now() - new Date(lastAudit.createdAt).getTime() < RECONCILE_AUDIT_MIN_INTERVAL_MS;
+  if (!isFreshDuplicate) {
+    await db.insert(auditLogsTable).values({
+      action: "gateway_reconcile",
+      entityType: "gateway_registration",
+      entityId: reg.id,
+      entityLabel: reg.name,
+      actorUserId: null,
+      changesJson,
+    });
+  }
+  res.json({ ok: true, results, audited: !isFreshDuplicate });
 });
 
 // ─────────────────────────── admin router ───────────────────────────

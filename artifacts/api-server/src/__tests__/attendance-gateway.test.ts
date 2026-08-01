@@ -448,6 +448,37 @@ describe("reconciliation", () => {
     const anon = await request(app).get("/api/gateway/reconcile-status");
     expect(anon.status).toBe(401);
   });
+
+  it("rate-limits audit rows: an identical reconcile outcome is not re-audited", async () => {
+    const probeUuid = `${randomUUID()}-recon-dedupe`;
+    const payload = { batches: [{ batchUuid: probeUuid, eventCount: 4 }] };
+
+    const first = await postSigned("/api/gateway/reconcile", payload);
+    expect(first.status).toBe(200);
+    expect(first.body.audited).toBe(true);
+
+    // Same outcome again, immediately: no new audit row.
+    const second = await postSigned("/api/gateway/reconcile", payload);
+    expect(second.status).toBe(200);
+    expect(second.body.audited).toBe(false);
+
+    const countRows = async () => {
+      const rows = await db
+        .select()
+        .from(auditLogsTable)
+        .where(eq(auditLogsTable.action, "gateway_reconcile"));
+      return rows.filter((r) => r.entityId === registrationId && (r.changesJson ?? "").includes(probeUuid)).length;
+    };
+    expect(await countRows()).toBe(1);
+
+    // A CHANGED outcome is audited immediately, even inside the window.
+    const changed = await postSigned("/api/gateway/reconcile", {
+      batches: [{ batchUuid: probeUuid, eventCount: 4 }, { batchUuid: `${probeUuid}-2`, eventCount: 1 }],
+    });
+    expect(changed.status).toBe(200);
+    expect(changed.body.audited).toBe(true);
+    expect(await countRows()).toBe(2);
+  });
 });
 
 describe("terminal batch recovery", () => {

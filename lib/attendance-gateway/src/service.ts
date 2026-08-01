@@ -15,6 +15,19 @@ import type { AdapterTestResult, DeviceAdapter, GatewayPunch } from "./types.js"
  * disk) and network outages; a later reconcile() confirms server-side state
  * per batch UUID.
  */
+export interface SentLogEntry {
+  batchUuid: string;
+  eventCount: number;
+  sentAtMs: number;
+}
+
+export interface ReconcileSummary {
+  checked: number;
+  missing: string[];
+  mismatched: string[];
+  at: string;
+}
+
 export interface FlushResult {
   sent: number;
   failed: number;
@@ -42,6 +55,7 @@ export class GatewayService {
     opts?: {
       maxAttempts?: number; baseBackoffMs?: number; maxBackoffMs?: number; cursorPath?: string;
       clockSkewWarnMs?: number; clockSkewMaxMs?: number;
+      sentLogPath?: string; reconcileIntervalMs?: number; sentLogRetentionMs?: number;
     },
   ) {
     this.maxAttempts = opts?.maxAttempts ?? 10;
@@ -52,9 +66,34 @@ export class GatewayService {
     // like warn=120s/max=60s would block without ever having warned.
     this.clockSkewMaxMs = Math.max(opts?.clockSkewMaxMs ?? 300_000, this.clockSkewWarnMs);
     this.cursorPath = opts?.cursorPath ?? null;
+    this.sentLogPath = opts?.sentLogPath ?? null;
+    // Reconcile cadence is rate-limited to at least once per minute so a
+    // misconfigured gateway can never spam the server audit log — the server
+    // writes one audit row per reconcile request.
+    this.reconcileIntervalMs = Math.max(opts?.reconcileIntervalMs ?? GatewayService.DEFAULT_RECONCILE_INTERVAL_MS, 60_000);
+    this.sentLogRetentionMs = opts?.sentLogRetentionMs ?? GatewayService.DEFAULT_SENT_LOG_RETENTION_MS;
   }
 
+  /** Default: reconcile recently delivered batches every 15 minutes. */
+  static readonly DEFAULT_RECONCILE_INTERVAL_MS = 15 * 60_000;
+
+  /** Default: keep unconfirmed sent-log entries for 7 days before pruning. */
+  static readonly DEFAULT_SENT_LOG_RETENTION_MS = 7 * 24 * 60 * 60_000;
+
   private readonly cursorPath: string | null;
+
+  /** Local record of batches this gateway believes it delivered. */
+  private readonly sentLogPath: string | null;
+
+  readonly reconcileIntervalMs: number;
+
+  private readonly sentLogRetentionMs: number;
+
+  private sentLog: SentLogEntry[] = [];
+
+  lastReconcileAt: Date | null = null;
+
+  lastReconcile: ReconcileSummary | null = null;
 
   private cursor: string | null = null;
 
@@ -72,13 +111,53 @@ export class GatewayService {
 
   /** Restore the persisted adapter cursor (call once at startup). */
   async init(): Promise<void> {
-    if (!this.cursorPath) return;
+    if (this.cursorPath) {
+      try {
+        const raw = await fs.readFile(this.cursorPath, "utf8");
+        const parsed = JSON.parse(raw) as { cursor?: string | null };
+        this.cursor = parsed.cursor ?? null;
+      } catch {
+        this.cursor = null; // first run / no cursor yet
+      }
+    }
+    if (this.sentLogPath) {
+      try {
+        const raw = await fs.readFile(this.sentLogPath, "utf8");
+        const parsed = JSON.parse(raw) as { entries?: SentLogEntry[] };
+        this.sentLog = Array.isArray(parsed.entries)
+          ? parsed.entries.filter(
+              (e) => typeof e?.batchUuid === "string" && Number.isFinite(e.eventCount) && Number.isFinite(e.sentAtMs),
+            )
+          : [];
+      } catch {
+        this.sentLog = []; // first run / no sent log yet
+      }
+    }
+  }
+
+  /** Atomically persist the sent-log (same temp-file + rename pattern as the cursor). */
+  private async persistSentLog(): Promise<void> {
+    if (!this.sentLogPath) return;
+    await fs.mkdir(dirname(this.sentLogPath), { recursive: true });
+    const tmp = `${this.sentLogPath}.tmp`;
+    await fs.writeFile(tmp, JSON.stringify({ entries: this.sentLog }), "utf8");
+    await fs.rename(tmp, this.sentLogPath);
+  }
+
+  /**
+   * Remember a successfully delivered batch so a later automatic reconcile
+   * can verify the server still holds it. Only batch metadata is recorded
+   * (uuid, count, time) — never punch payloads — so the log needs no
+   * encryption. Persistence failures are non-fatal: delivery already
+   * succeeded, and losing a log entry only skips one verification.
+   */
+  private async recordSent(batchUuid: string, eventCount: number): Promise<void> {
+    this.sentLog = this.sentLog.filter((e) => e.batchUuid !== batchUuid);
+    this.sentLog.push({ batchUuid, eventCount, sentAtMs: Date.now() });
     try {
-      const raw = await fs.readFile(this.cursorPath, "utf8");
-      const parsed = JSON.parse(raw) as { cursor?: string | null };
-      this.cursor = parsed.cursor ?? null;
-    } catch {
-      this.cursor = null; // first run / no cursor yet
+      await this.persistSentLog();
+    } catch (e) {
+      console.warn(`[gateway] failed to persist sent-log: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -151,6 +230,17 @@ export class GatewayService {
       const msg = e instanceof Error ? e.message : String(e);
       this.lastError = msg;
       pollError = pollError ?? msg;
+    }
+
+    // Automatic reconciliation of recently delivered batches: lost/mismatched
+    // batches surface on the HR core admin page without any manual trigger.
+    // Failures are non-fatal — the next due tick simply tries again.
+    try {
+      await this.maybeReconcile();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.lastError = msg;
+      console.error(`[gateway] automatic reconcile failed: ${msg}`);
     }
 
     let heartbeatError: string | null = null;
@@ -254,6 +344,7 @@ export class GatewayService {
         const { status } = await this.hr.uploadBatch(batch.batchUuid, batch.punches);
         if (status === 200 || status === 201) {
           await this.queue.remove(uuid);
+          await this.recordSent(batch.batchUuid, batch.punches.length);
           result.sent++;
           result.details.push({ batchUuid: uuid, status: "SENT", httpStatus: status });
         } else if (status === 401 || status === 403 || status === 422) {
@@ -293,6 +384,61 @@ export class GatewayService {
   /** Ask the HR core which locally-known batches it actually holds. */
   async reconcile(known: Array<{ batchUuid: string; eventCount: number }>) {
     return this.hr.reconcile(known);
+  }
+
+  /**
+   * Periodic sent-log reconciliation. Rate-limited by reconcileIntervalMs so
+   * it never spams the server audit log (one audit row per reconcile call):
+   *  - entries the server confirms OK are dropped from the sent-log;
+   *  - MISSING/COUNT_MISMATCH entries stay so every reconcile keeps
+   *    re-reporting them until an operator resolves the loss;
+   *  - entries older than the retention window are pruned (with a warning)
+   *    so the log cannot grow without bound.
+   * Returns null when skipped (nothing to check or not yet due).
+   */
+  async maybeReconcile(nowMs: number = Date.now()): Promise<ReconcileSummary | null> {
+    // Prune expired entries first, even if the reconcile itself is not due.
+    const expired = this.sentLog.filter((e) => nowMs - e.sentAtMs > this.sentLogRetentionMs);
+    if (expired.length > 0) {
+      console.warn(
+        `[gateway] pruning ${expired.length} sent-log entr${expired.length === 1 ? "y" : "ies"} past retention without server confirmation: ${expired.map((e) => e.batchUuid).join(", ")}`,
+      );
+      this.sentLog = this.sentLog.filter((e) => nowMs - e.sentAtMs <= this.sentLogRetentionMs);
+      await this.persistSentLog();
+    }
+    if (this.sentLog.length === 0) return null;
+    if (this.lastReconcileAt && nowMs - this.lastReconcileAt.getTime() < this.reconcileIntervalMs) return null;
+
+    const known = this.sentLog.map((e) => ({ batchUuid: e.batchUuid, eventCount: e.eventCount }));
+    const { status, body } = await this.hr.reconcile(known);
+    if (status !== 200 || !Array.isArray(body.results)) {
+      throw new Error(`reconcile request failed with HTTP ${status}`);
+    }
+    this.lastReconcileAt = new Date(nowMs);
+    const missing = body.results.filter((r) => r.status === "MISSING_ON_SERVER").map((r) => r.batchUuid);
+    const mismatched = body.results.filter((r) => r.status === "COUNT_MISMATCH").map((r) => r.batchUuid);
+    const confirmed = new Set(body.results.filter((r) => r.status === "OK").map((r) => r.batchUuid));
+    if (confirmed.size > 0) {
+      this.sentLog = this.sentLog.filter((e) => !confirmed.has(e.batchUuid));
+      await this.persistSentLog();
+    }
+    const summary: ReconcileSummary = {
+      checked: body.results.length,
+      missing,
+      mismatched,
+      at: new Date(nowMs).toISOString(),
+    };
+    this.lastReconcile = summary;
+    if (missing.length > 0 || mismatched.length > 0) {
+      console.warn(JSON.stringify({
+        level: "warn",
+        event: "reconcile_discrepancy",
+        missing,
+        mismatched,
+        message: "Server is missing or disagrees with locally delivered punch batches — check the HR core gateway page",
+      }));
+    }
+    return summary;
   }
 
   /** Clock skew beyond this (either direction) breaches runbook validation checklist item 1. */
@@ -342,6 +488,12 @@ export class GatewayService {
       lastPollAt: this.lastPollAt?.toISOString() ?? null,
       lastFlushAt: this.lastFlushAt?.toISOString() ?? null,
       lastError: this.lastError,
+      // Automatic reconciliation state: how many delivered batches still
+      // await server confirmation, and the last reconcile outcome.
+      unconfirmedSentBatches: this.sentLog.length,
+      lastReconcileAt: this.lastReconcileAt?.toISOString() ?? null,
+      lastReconcile: this.lastReconcile,
+      reconcileIntervalMs: this.reconcileIntervalMs,
       clockSkewMs: typeof test.clockSkewMs === "number" ? test.clockSkewMs : this.lastClockSkewMs,
       clockSkewBlocked: this.clockSkewBlockReason !== null,
     };
