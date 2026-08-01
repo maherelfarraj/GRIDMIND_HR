@@ -25,6 +25,7 @@ import { useI18n } from '@/lib/i18n';
 import {
   useListLeaveBalances,
   useListLeaveRequests,
+  useListNotifications,
   useListPayrollPeriods,
   useListPayrollRuns,
 } from '@workspace/api-client-react';
@@ -331,6 +332,56 @@ function EmployeeContent({ employeeId }: { employeeId: number }) {
   );
 }
 
+function NotificationBell() {
+  const colors = useColors();
+  const { t } = useI18n();
+  const router = useRouter();
+  const notifs = useListNotifications(undefined, {
+    query: { refetchInterval: 60000 },
+  } as any);
+  const unread = (notifs.data?.data ?? []).filter((n) => !n.isRead).length;
+
+  return (
+    <Pressable
+      testID="button-notifications"
+      onPress={() => router.push('/notifications' as any)}
+      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 8 })}
+      accessibilityLabel={t('notifications')}
+    >
+      <View>
+        <Feather name="bell" size={20} color={colors.mutedForeground} />
+        {unread > 0 ? (
+          <View
+            testID="notification-unread-badge"
+            style={{
+              position: 'absolute',
+              top: -4,
+              end: -6,
+              minWidth: 15,
+              height: 15,
+              borderRadius: 8,
+              paddingHorizontal: 3,
+              backgroundColor: colors.primary,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text
+              style={{
+                color: colors.primaryForeground,
+                fontSize: 9,
+                fontFamily: 'Inter_700Bold',
+              }}
+            >
+              {unread > 99 ? '99+' : unread}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
 export default function HomeScreen() {
   const colors = useColors();
   const { t, lang } = useI18n();
@@ -350,6 +401,7 @@ export default function HomeScreen() {
         subtitle={displayName}
         right={
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <NotificationBell />
             <Pressable
               testID="button-change-password"
               onPress={() => router.push('/change-password')}
