@@ -139,6 +139,38 @@ const strings = {
   deviceNoContact: { en: 'No contact', ar: 'لا اتصال' },
   deviceMarkedOnline: { en: 'marked online', ar: 'مسجل كمتصل' },
   never: { en: 'never', ar: 'أبدًا' },
+  userAdmin: { en: 'User Management', ar: 'إدارة المستخدمين' },
+  userAdminSubtitle: {
+    en: 'System accounts & access',
+    ar: 'حسابات النظام والوصول',
+  },
+  noUsers: { en: 'No users found', ar: 'لم يتم العثور على مستخدمين' },
+  inactive: { en: 'Inactive', ar: 'غير نشط' },
+  locked: { en: 'Locked', ar: 'مقفل' },
+  mustChangePasswordBadge: {
+    en: 'Must change password',
+    ar: 'يجب تغيير كلمة المرور',
+  },
+  issueOtp: { en: 'Issue one-time password', ar: 'إصدار كلمة مرور لمرة واحدة' },
+  issueOtpConfirmTitle: {
+    en: 'Issue one-time password?',
+    ar: 'إصدار كلمة مرور لمرة واحدة؟',
+  },
+  issueOtpConfirmBody: {
+    en: 'This replaces the current password, signs the user out of all devices, and forces a password change at next login. The new password is shown only once.',
+    ar: 'سيؤدي هذا إلى استبدال كلمة المرور الحالية وتسجيل خروج المستخدم من جميع الأجهزة وإجبار المستخدم على تغيير كلمة المرور عند تسجيل الدخول التالي. تُعرض كلمة المرور الجديدة مرة واحدة فقط.',
+  },
+  issueOtpFailed: {
+    en: 'Could not issue a one-time password',
+    ar: 'تعذر إصدار كلمة مرور لمرة واحدة',
+  },
+  otpIssuedTitle: { en: 'One-time password', ar: 'كلمة مرور لمرة واحدة' },
+  otpIssuedShowOnce: {
+    en: 'Shown only once — it is not stored anywhere. Share it securely with the user now.',
+    ar: 'تُعرض مرة واحدة فقط — لا يتم تخزينها في أي مكان. شاركها بأمان مع المستخدم الآن.',
+  },
+  copy: { en: 'Copy', ar: 'نسخ' },
+  copied: { en: 'Copied', ar: 'تم النسخ' },
   passwordChangeRequiredHint: {
     en: 'Your account was set up with a one-time password. For security, you must choose a new password before continuing.',
     ar: 'تم إنشاء حسابك بكلمة مرور لمرة واحدة. لأسباب أمنية، يجب اختيار كلمة مرور جديدة قبل المتابعة.',

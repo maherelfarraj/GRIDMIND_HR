@@ -39,7 +39,34 @@ async function buildUserResponse(u: typeof systemUsersTable.$inferSelect) {
   };
 }
 
+// Roles allowed to administer other users (view the full directory,
+// set/reset passwords, issue one-time passwords, unlock accounts).
+const USER_ADMIN_ROLES = new Set(["Super Administrator"]);
+
+/**
+ * Resolve the acting user and whether they hold a user-admin role.
+ * Demo fallback (userId=1) only applies when auth is disabled; with
+ * PILOT_AUTH enforced, unauthenticated requests never reach here.
+ */
+async function getActorAdminStatus(req: { session?: { userId?: number } }) {
+  const actorId = req.session?.userId ?? 1;
+  const [actor] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, actorId));
+  const [role] = actor
+    ? await db.select().from(rolesTable).where(eq(rolesTable.id, actor.roleId))
+    : [];
+  const isAdmin = !!actor && actor.isActive && !!role && USER_ADMIN_ROLES.has(role.nameEn);
+  return { actorId, isAdmin };
+}
+
+// GET /users — full user directory. Admin-only: client routing is not a
+// security boundary, so non-admin sessions must not be able to enumerate
+// accounts by calling the API directly (e.g. deep-linking the mobile screen).
 router.get("/users", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) {
+    res.status(403).json({ error: "Insufficient privileges to list users" });
+    return;
+  }
   const users = await db.select().from(systemUsersTable);
   const roles = await db.select().from(rolesTable);
   const roleMap = Object.fromEntries(roles.map((r) => [r.id, r]));
@@ -67,8 +94,15 @@ router.post("/users", async (req, res): Promise<void> => {
   res.status(201).json(await buildUserResponse(user));
 });
 
+// GET /users/:id — self or admin. Non-admin users may read their own record
+// (the mobile app uses this to learn its role); other records are admin-only.
 router.get("/users/:id", async (req, res): Promise<void> => {
   const id = parseId(req.params.id);
+  const { actorId, isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin && actorId !== id) {
+    res.status(403).json({ error: "Insufficient privileges to view this user" });
+    return;
+  }
   const [user] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, id));
   if (!user) { res.status(404).json({ error: "Not found" }); return; }
   res.json(await buildUserResponse(user));
@@ -85,8 +119,8 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
   res.json(await buildUserResponse(user));
 });
 
-// Roles allowed to set/reset other users' passwords.
-const PASSWORD_ADMIN_ROLES = new Set(["Super Administrator"]);
+// Roles allowed to set/reset other users' passwords (same admin set).
+const PASSWORD_ADMIN_ROLES = USER_ADMIN_ROLES;
 
 // POST /users/:id/password — set or reset a user's password (admins only).
 // The plaintext password is hashed server-side with bcrypt; only the hash is stored.

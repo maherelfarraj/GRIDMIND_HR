@@ -36,6 +36,7 @@ function RootLayoutNav() {
       <Stack.Screen name="payslip/[id]" options={{ presentation: 'modal' }} />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="devices" />
+      <Stack.Screen name="admin-users" />
     </Stack>
   );
 }

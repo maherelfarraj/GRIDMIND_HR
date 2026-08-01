@@ -23,6 +23,7 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import {
+  useGetUser,
   useListLeaveBalances,
   useListLeaveRequests,
   useListNotifications,
@@ -382,6 +383,32 @@ function NotificationBell() {
   );
 }
 
+// Header entry to the admin user-management screen. Rendered only when the
+// signed-in account holds the Super Administrator role (the server-side gate
+// for issuing one-time passwords); everyone else never sees the entry.
+function AdminUsersButton() {
+  const colors = useColors();
+  const { t } = useI18n();
+  const { user } = useAuth();
+  const router = useRouter();
+  // AuthUser carries only roleId — fetch the full record for the role name.
+  const me = useGetUser(user?.id ?? 0, {
+    query: { enabled: !!user?.id },
+  } as any);
+  if (me.data?.roleNameEn !== 'Super Administrator') return null;
+
+  return (
+    <Pressable
+      testID="button-admin-users"
+      onPress={() => router.push('/admin-users' as any)}
+      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 8 })}
+      accessibilityLabel={t('userAdmin')}
+    >
+      <Feather name="users" size={20} color={colors.mutedForeground} />
+    </Pressable>
+  );
+}
+
 export default function HomeScreen() {
   const colors = useColors();
   const { t, lang } = useI18n();
@@ -402,6 +429,7 @@ export default function HomeScreen() {
         right={
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <NotificationBell />
+            <AdminUsersButton />
             <Pressable
               testID="button-change-password"
               onPress={() => router.push('/change-password')}
