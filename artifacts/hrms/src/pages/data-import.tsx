@@ -29,6 +29,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { Upload, RotateCcw, Trash2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 const IMPORT_TYPES = [
   { value: 'employees',       label: 'Employees',         labelAr: 'الموظفون' },
@@ -136,6 +137,7 @@ function NewImportTab() {
   const [mapping, setMapping] = useState<Record<string, string>>(DEFAULT_MAPPING);
   const [job, setJob] = useState<CreateImportJob201 | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [fileFormat, setFileFormat] = useState<'csv' | 'xlsx'>('csv');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const sourceCols = parseCsvHeaders(csvText);
@@ -144,15 +146,16 @@ function NewImportTab() {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
+    const isXlsx = /\.xlsx$/i.test(file.name);
+
+    function applyParsedText(text: string, format: 'csv' | 'xlsx') {
       if (!text.trim()) {
         toast({ title: t('The file is empty', 'الملف فارغ'), variant: 'destructive' });
         return;
       }
       setCsvText(text);
-      setFileName(file.name);
+      setFileName(file!.name);
+      setFileFormat(format);
       setJob(null);
       // Auto-map any headers that match the default mapping; keep others unmapped.
       const headers = parseCsvHeaders(text);
@@ -164,11 +167,32 @@ function NewImportTab() {
         });
         return next;
       });
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (isXlsx) {
+        try {
+          const workbook = XLSX.read(reader.result, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const sheet = firstSheetName ? workbook.Sheets[firstSheetName] : undefined;
+          if (!sheet) {
+            toast({ title: t('The workbook has no worksheets', 'لا يحتوي المصنف على أوراق عمل'), variant: 'destructive' });
+            return;
+          }
+          applyParsedText(XLSX.utils.sheet_to_csv(sheet), 'xlsx');
+        } catch {
+          toast({ title: t('Could not parse the Excel file', 'تعذر تحليل ملف Excel'), variant: 'destructive' });
+        }
+      } else {
+        applyParsedText(typeof reader.result === 'string' ? reader.result : '', 'csv');
+      }
     };
     reader.onerror = () => {
       toast({ title: t('Could not read the file', 'تعذر قراءة الملف'), variant: 'destructive' });
     };
-    reader.readAsText(file);
+    if (isXlsx) reader.readAsArrayBuffer(file);
+    else reader.readAsText(file);
     // Allow re-selecting the same file.
     e.target.value = '';
   }
@@ -181,7 +205,7 @@ function NewImportTab() {
     }
     try {
       const created = await createJobMut.mutateAsync({
-        data: { importType, fileFormat: 'csv', rowsJson: rows, columnMappingJson: mapping, originalFilename: fileName },
+        data: { importType, fileFormat, rowsJson: rows, columnMappingJson: mapping, originalFilename: fileName },
       });
       setJob(created);
       const summary = t(
@@ -247,12 +271,12 @@ function NewImportTab() {
       </div>
 
       <div>
-        <Label className="text-slate-300">{t('CSV File', 'ملف CSV')}</Label>
+        <Label className="text-slate-300">{t('CSV or Excel File', 'ملف CSV أو Excel')}</Label>
         <div className="mt-1 flex items-center gap-3 flex-wrap">
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="hidden"
             data-testid="input-csv-file"
             onChange={handleFileChange}
@@ -264,7 +288,7 @@ function NewImportTab() {
             data-testid="button-upload-csv"
           >
             <Upload className="w-4 h-4 mr-2" />
-            {t('Upload CSV File', 'رفع ملف CSV')}
+            {t('Upload CSV / Excel File', 'رفع ملف CSV / Excel')}
           </Button>
           {fileName && (
             <span className="text-slate-400 text-sm font-mono" data-testid="text-uploaded-filename">{fileName}</span>
@@ -277,7 +301,7 @@ function NewImportTab() {
         <textarea
           className="mt-1 w-full h-28 bg-slate-800 border border-slate-600 rounded p-2 text-xs text-slate-300 font-mono resize-none focus:outline-none focus:border-primary"
           value={csvText}
-          onChange={e => { setCsvText(e.target.value); setFileName(null); setJob(null); }}
+          onChange={e => { setCsvText(e.target.value); setFileName(null); setFileFormat('csv'); setJob(null); }}
         />
       </div>
 
