@@ -21,3 +21,5 @@ Update (Jul 2026): "removed" tables may survive in the live DB — schema-code r
 **Rule:** never run drizzle-kit push with `--force`; for additive drift apply a targeted `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` via psql, then re-run the schema-drift test.
 **Why:** push proposes DROPPING the live `session` table (owned by connect-pg-simple, not declared in Drizzle), which would wipe all active sessions.
 **How to apply:** whenever a column exists in the Drizzle schema but not in the live DB (42703 errors on insert/select).
+
+Update (Aug 2026): every schema change (columns AND constraints) must ship as an idempotent startup SQL migration — drizzle-schema-only changes are considered undeployable and are rejected at review. When adding a unique constraint, dedupe existing rows inside the same migration.

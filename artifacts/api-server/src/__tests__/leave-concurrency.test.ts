@@ -160,3 +160,203 @@ describe("concurrent leave approvals", () => {
     expect(r.currentStepNumber).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task #19 — submit-route concurrency.
+// Two DRAFT requests race to reserve the employee's last available day via
+// POST /submit; the row-locked transaction must let exactly one through.
+// ---------------------------------------------------------------------------
+let subEmployeeId: number;
+let subLeaveTypeId: number;
+let subBalanceId: number;
+const subRequestIds: number[] = [];
+const SUB_UNIQ = `T19-${Date.now()}`;
+
+async function cleanupSubmit() {
+  if (subRequestIds.length) {
+    await db.delete(auditLogsTable).where(
+      and(eq(auditLogsTable.entityType, "leave_request"), inArray(auditLogsTable.entityId, subRequestIds)),
+    );
+    await db.delete(leaveApprovalStepsTable).where(inArray(leaveApprovalStepsTable.leaveRequestId, subRequestIds));
+    await db.delete(leaveAttachmentsTable).where(inArray(leaveAttachmentsTable.leaveRequestId, subRequestIds));
+    await db.delete(leaveRequestsTable).where(inArray(leaveRequestsTable.id, subRequestIds));
+  }
+  if (subBalanceId) await db.delete(leaveBalancesTable).where(eq(leaveBalancesTable.id, subBalanceId));
+  if (subEmployeeId) await db.delete(rostersTable).where(eq(rostersTable.employeeId, subEmployeeId));
+  if (subLeaveTypeId) await db.delete(leaveTypesTable).where(eq(leaveTypesTable.id, subLeaveTypeId));
+  if (subEmployeeId) await db.delete(employeesTable).where(eq(employeesTable.id, subEmployeeId));
+}
+
+beforeAll(async () => {
+  const [dept] = await db.select().from(departmentsTable).limit(1);
+  const [emp] = await db.insert(employeesTable).values({
+    employeeNumber: SUB_UNIQ,
+    firstNameEn: "Submit", lastNameEn: "Race",
+    firstNameAr: "اختبار", lastNameAr: "تقديم",
+    nationalId: SUB_UNIQ,
+    jobTitleEn: "Tester", jobTitleAr: "مختبر",
+    departmentId: dept?.id ?? 1,
+    roleId: 1,
+    email: `${SUB_UNIQ.toLowerCase()}@test.local`,
+    hireDate: "2020-01-01",
+    nationality: "SA",
+    status: "active",
+  }).returning();
+  subEmployeeId = emp.id;
+
+  const [lt] = await db.insert(leaveTypesTable).values({
+    codeEn: SUB_UNIQ.slice(0, 20),
+    nameEn: `Annual (${SUB_UNIQ})`, nameAr: "سنوية",
+    category: "general",
+  }).returning();
+  subLeaveTypeId = lt.id;
+
+  // Entitlement 10, used 9, nothing pending → exactly 1 day available.
+  const [bal] = await db.insert(leaveBalancesTable).values({
+    employeeId: subEmployeeId, leaveTypeId: subLeaveTypeId, year: YEAR,
+    openingBalance: "10", accrued: "0", used: "9", pending: "0",
+    adjustment: "0", carriedOver: "0",
+  }).returning();
+  subBalanceId = bal.id;
+
+  for (let i = 0; i < 2; i++) {
+    const [req] = await db.insert(leaveRequestsTable).values({
+      requestNumber: `${SUB_UNIQ}-${i}`,
+      employeeId: subEmployeeId, leaveTypeId: subLeaveTypeId,
+      startDate: `${YEAR}-11-1${i}`, endDate: `${YEAR}-11-1${i}`,
+      totalDays: "1",
+      status: "draft",
+      currentStepNumber: 1,
+      totalApprovalSteps: 2,
+    } as any).returning();
+    subRequestIds.push(req.id);
+  }
+});
+
+afterAll(async () => {
+  await cleanupSubmit();
+});
+
+describe("concurrent leave submissions (Task #19)", () => {
+  it("allows exactly one submission when two race to reserve the last available day", async () => {
+    const [resA, resB] = await Promise.all(
+      subRequestIds.map((rid) =>
+        fetch(`${baseUrl}/leave-requests/${rid}/submit`, { method: "POST" }),
+      ),
+    );
+
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses[0]).toBe(200);
+    expect(statuses[1]).toBe(422);
+
+    // Pending must never exceed the single available day.
+    const [bal] = await db.select().from(leaveBalancesTable).where(eq(leaveBalancesTable.id, subBalanceId));
+    expect(parseFloat(bal.pending)).toBe(1);
+
+    // Exactly one request submitted; the other stays draft.
+    const rows = await db.select().from(leaveRequestsTable).where(inArray(leaveRequestsTable.id, subRequestIds));
+    expect(rows.filter((r) => r.status === "submitted")).toHaveLength(1);
+    expect(rows.filter((r) => r.status === "draft")).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task #19 — auto-provisioning race: no balance row exists yet for the
+// current year; two first-time submissions must not each create and reserve
+// a separate balance row (unique constraint + insert-on-conflict).
+// ---------------------------------------------------------------------------
+let provEmployeeId: number;
+let provLeaveTypeId: number;
+const provRequestIds: number[] = [];
+const PROV_UNIQ = `T19P-${Date.now()}`;
+
+async function cleanupProvision() {
+  if (provRequestIds.length) {
+    await db.delete(auditLogsTable).where(
+      and(eq(auditLogsTable.entityType, "leave_request"), inArray(auditLogsTable.entityId, provRequestIds)),
+    );
+    await db.delete(leaveApprovalStepsTable).where(inArray(leaveApprovalStepsTable.leaveRequestId, provRequestIds));
+    await db.delete(leaveAttachmentsTable).where(inArray(leaveAttachmentsTable.leaveRequestId, provRequestIds));
+    await db.delete(leaveRequestsTable).where(inArray(leaveRequestsTable.id, provRequestIds));
+  }
+  if (provEmployeeId) {
+    await db.delete(leaveBalancesTable).where(eq(leaveBalancesTable.employeeId, provEmployeeId));
+    await db.delete(rostersTable).where(eq(rostersTable.employeeId, provEmployeeId));
+  }
+  if (provLeaveTypeId) await db.delete(leaveTypesTable).where(eq(leaveTypesTable.id, provLeaveTypeId));
+  if (provEmployeeId) await db.delete(employeesTable).where(eq(employeesTable.id, provEmployeeId));
+}
+
+beforeAll(async () => {
+  const [dept] = await db.select().from(departmentsTable).limit(1);
+  const [emp] = await db.insert(employeesTable).values({
+    employeeNumber: PROV_UNIQ,
+    firstNameEn: "Provision", lastNameEn: "Race",
+    firstNameAr: "اختبار", lastNameAr: "توفير",
+    nationalId: PROV_UNIQ,
+    jobTitleEn: "Tester", jobTitleAr: "مختبر",
+    departmentId: dept?.id ?? 1,
+    roleId: 1,
+    email: `${PROV_UNIQ.toLowerCase()}@test.local`,
+    hireDate: "2020-01-01",
+    nationality: "SA",
+    status: "active",
+  }).returning();
+  provEmployeeId = emp.id;
+
+  // Leave type grants exactly 1 day/year; NO balance row is pre-created, so
+  // both submissions trigger auto-provisioning concurrently.
+  const [lt] = await db.insert(leaveTypesTable).values({
+    codeEn: PROV_UNIQ.slice(0, 20),
+    nameEn: `Annual (${PROV_UNIQ})`, nameAr: "سنوية",
+    category: "general",
+    defaultDaysPerYear: 1,
+  } as any).returning();
+  provLeaveTypeId = lt.id;
+
+  for (let i = 0; i < 2; i++) {
+    const [req] = await db.insert(leaveRequestsTable).values({
+      requestNumber: `${PROV_UNIQ}-${i}`,
+      employeeId: provEmployeeId, leaveTypeId: provLeaveTypeId,
+      startDate: `${YEAR}-10-1${i}`, endDate: `${YEAR}-10-1${i}`,
+      totalDays: "1",
+      status: "draft",
+      currentStepNumber: 1,
+      totalApprovalSteps: 2,
+    } as any).returning();
+    provRequestIds.push(req.id);
+  }
+});
+
+afterAll(async () => {
+  await cleanupProvision();
+});
+
+describe("concurrent first-time submissions with no existing balance row (Task #19)", () => {
+  it("auto-provisions exactly one balance row and lets only one submission through", async () => {
+    const [resA, resB] = await Promise.all(
+      provRequestIds.map((rid) =>
+        fetch(`${baseUrl}/leave-requests/${rid}/submit`, { method: "POST" }),
+      ),
+    );
+
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses[0]).toBe(200);
+    expect(statuses[1]).toBe(422);
+
+    // Exactly one balance row exists for (employee, type, year), pending = 1.
+    const bals = await db.select().from(leaveBalancesTable).where(
+      and(
+        eq(leaveBalancesTable.employeeId, provEmployeeId),
+        eq(leaveBalancesTable.leaveTypeId, provLeaveTypeId),
+        eq(leaveBalancesTable.year, YEAR),
+      ),
+    );
+    expect(bals).toHaveLength(1);
+    expect(parseFloat(bals[0].pending)).toBe(1);
+
+    const rows = await db.select().from(leaveRequestsTable).where(inArray(leaveRequestsTable.id, provRequestIds));
+    expect(rows.filter((r) => r.status === "submitted")).toHaveLength(1);
+    expect(rows.filter((r) => r.status === "draft")).toHaveLength(1);
+  });
+});

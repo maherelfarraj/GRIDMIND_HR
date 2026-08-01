@@ -197,37 +197,58 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
     }
   }
 
-  // Check balance availability and reserve as pending
+  // Task #19: check balance availability + reserve pending atomically with a
+  // SELECT ... FOR UPDATE row lock (same pattern as the decide route), so two
+  // simultaneous submissions cannot both pass the availability check.
+  // ensureLeaveBalance is race-safe (unique constraint + insert-on-conflict),
+  // so exactly one row exists before we lock it.
   const year = new Date(r.startDate).getFullYear();
   await ensureLeaveBalance(r.employeeId, r.leaveTypeId, year);
-  const [balance] = await db.select().from(leaveBalancesTable).where(
-    and(
-      eq(leaveBalancesTable.employeeId, r.employeeId),
-      eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
-      eq(leaveBalancesTable.year, year),
-    )
-  );
-  if (balance) {
-    const available = parseFloat(balance.openingBalance) + parseFloat(balance.accrued) +
-      parseFloat(balance.carriedOver) + parseFloat(balance.adjustment) -
-      parseFloat(balance.used) - parseFloat(balance.pending);
-    if (available < parseFloat(r.totalDays)) {
-      res.status(422).json({
-        error: "Insufficient leave balance",
-        available: available.toFixed(1),
-        requested: r.totalDays,
-      });
+  let updated: typeof leaveRequestsTable.$inferSelect;
+  try {
+    updated = await db.transaction(async (tx) => {
+      const [lockedReq] = await tx.select().from(leaveRequestsTable)
+        .where(eq(leaveRequestsTable.id, id))
+        .for("update");
+      if (!lockedReq || lockedReq.status !== "draft") {
+        throw Object.assign(new Error("Only draft requests can be submitted"), { httpStatus: 400 });
+      }
+
+      const [balance] = await tx.select().from(leaveBalancesTable).where(
+        and(
+          eq(leaveBalancesTable.employeeId, r.employeeId),
+          eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
+          eq(leaveBalancesTable.year, year),
+        )
+      ).for("update");
+      if (balance) {
+        const available = parseFloat(balance.openingBalance) + parseFloat(balance.accrued) +
+          parseFloat(balance.carriedOver) + parseFloat(balance.adjustment) -
+          parseFloat(balance.used) - parseFloat(balance.pending);
+        if (available < parseFloat(r.totalDays)) {
+          throw Object.assign(new Error("Insufficient leave balance"), {
+            httpStatus: 422,
+            payload: { available: available.toFixed(1), requested: r.totalDays },
+          });
+        }
+        await tx.update(leaveBalancesTable)
+          .set({ pending: String(parseFloat(balance.pending) + parseFloat(r.totalDays)), updatedAt: new Date() })
+          .where(eq(leaveBalancesTable.id, balance.id));
+      }
+
+      const [row] = await tx.update(leaveRequestsTable)
+        .set({ status: "submitted", submittedAt: new Date(), updatedAt: new Date() })
+        .where(eq(leaveRequestsTable.id, id))
+        .returning();
+      return row;
+    });
+  } catch (err: any) {
+    if (err?.httpStatus) {
+      res.status(err.httpStatus).json({ error: err.message, ...(err.payload ?? {}) });
       return;
     }
-    await db.update(leaveBalancesTable)
-      .set({ pending: String(parseFloat(balance.pending) + parseFloat(r.totalDays)) })
-      .where(eq(leaveBalancesTable.id, balance.id));
+    throw err;
   }
-
-  const [updated] = await db.update(leaveRequestsTable)
-    .set({ status: "submitted", submittedAt: new Date(), updatedAt: new Date() })
-    .where(eq(leaveRequestsTable.id, id))
-    .returning();
 
   // Surface in the supervisor approvals queue (/approvals)
   const [empRow] = await db.select().from(employeesTable).where(eq(employeesTable.id, r.employeeId));
