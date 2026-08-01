@@ -34,7 +34,7 @@ describe("ZktecoAdapter.restartDevice (ZKBioTime middleware)", () => {
         respond: (u) => { calls.push(u); return json({ ok: true }); },
       },
     ]);
-    const res = await new ZktecoAdapter(cfg, fetchImpl).restartDevice();
+    const res = await new ZktecoAdapter(cfg, fetchImpl).restartDevice({ serial: "SN-7" });
     expect(res.ok).toBe(true);
     expect(res.message).toMatch(/Lobby/);
     expect(calls).toHaveLength(1);
@@ -43,10 +43,10 @@ describe("ZktecoAdapter.restartDevice (ZKBioTime middleware)", () => {
   it("maps a vendor failure status to a failed ack", async () => {
     const fetchImpl = mockFetch([
       { match: (u) => u.includes("/api-token-auth/"), respond: () => json({ token: "tok-1" }) },
-      { match: (u) => u.includes("page_size"), respond: () => json({ data: [{ id: 7 }] }) },
+      { match: (u) => u.includes("page_size"), respond: () => json({ data: [{ id: 7, sn: "SN-7" }] }) },
       { match: (u) => u.endsWith("/reboot/"), respond: () => new Response("boom", { status: 500 }) },
     ]);
-    const res = await new ZktecoAdapter(cfg, fetchImpl).restartDevice();
+    const res = await new ZktecoAdapter(cfg, fetchImpl).restartDevice({ serial: "SN-7" });
     expect(res.ok).toBe(false);
     expect(res.message).toMatch(/500/);
   });
@@ -55,6 +55,95 @@ describe("ZktecoAdapter.restartDevice (ZKBioTime middleware)", () => {
     const res = await new ZktecoAdapter().restartDevice();
     expect(res.ok).toBe(false);
     expect(res.message).toMatch(/not configured/i);
+  });
+
+  it("reboots the terminal matching the requested serial on a multi-terminal server", async () => {
+    const calls: string[] = [];
+    const fetchImpl = mockFetch([
+      { match: (u) => u.includes("/api-token-auth/"), respond: () => json({ token: "tok-1" }) },
+      {
+        match: (u) => u.includes("/iclock/api/terminals/") && u.includes("page_size"),
+        respond: () => json({ data: [{ id: 7, sn: "SN-7", alias: "Lobby" }, { id: 9, sn: "SN-9", alias: "Warehouse" }] }),
+      },
+      {
+        match: (u, init) => /\/iclock\/api\/terminals\/\d+\/reboot\/$/.test(u) && init?.method === "POST",
+        respond: (u) => { calls.push(u); return json({ ok: true }); },
+      },
+    ]);
+    const res = await new ZktecoAdapter(cfg, fetchImpl).restartDevice({ serial: "SN-9" });
+    expect(res.ok).toBe(true);
+    expect(res.message).toMatch(/Warehouse/);
+    expect(calls).toEqual(["http://biotime.local:8000/iclock/api/terminals/9/reboot/"]);
+  });
+
+  it("never lets an alias equal to another device's serial redirect the reboot", async () => {
+    // Terminal 7's mutable alias collides with terminal 9's serial: only the
+    // canonical sn match may win.
+    const calls: string[] = [];
+    const fetchImpl = mockFetch([
+      { match: (u) => u.includes("/api-token-auth/"), respond: () => json({ token: "tok-1" }) },
+      { match: (u) => u.includes("page_size"), respond: () => json({ data: [{ id: 7, sn: "SN-7", alias: "SN-9" }, { id: 9, sn: "SN-9", alias: "Warehouse" }] }) },
+      { match: (u, init) => /\/iclock\/api\/terminals\/\d+\/reboot\/$/.test(u) && init?.method === "POST", respond: (u) => { calls.push(u); return json({ ok: true }); } },
+    ]);
+    const res = await new ZktecoAdapter(cfg, fetchImpl).restartDevice({ serial: "SN-9" });
+    expect(res.ok).toBe(true);
+    expect(calls).toEqual(["http://biotime.local:8000/iclock/api/terminals/9/reboot/"]);
+  });
+
+  it("fails without rebooting anything when the identified terminal is not registered", async () => {
+    const rebooted: string[] = [];
+    const fetchImpl = mockFetch([
+      { match: (u) => u.includes("/api-token-auth/"), respond: () => json({ token: "tok-1" }) },
+      { match: (u) => u.includes("page_size"), respond: () => json({ data: [{ id: 7, sn: "SN-7", alias: "Lobby" }] }) },
+      { match: (u) => u.endsWith("/reboot/"), respond: (u) => { rebooted.push(u); return json({ ok: true }); } },
+    ]);
+    const res = await new ZktecoAdapter(cfg, fetchImpl).restartDevice({ serial: "SN-MISSING" });
+    expect(res.ok).toBe(false);
+    expect(res.message).toMatch(/SN-MISSING.*not registered/i);
+    expect(rebooted).toHaveLength(0);
+  });
+
+  it("refuses to reboot when the serial matches several terminals (duplicate sn)", async () => {
+    const rebooted: string[] = [];
+    const fetchImpl = mockFetch([
+      { match: (u) => u.includes("/api-token-auth/"), respond: () => json({ token: "tok-1" }) },
+      { match: (u) => u.includes("page_size"), respond: () => json({ data: [{ id: 7, sn: "SN-7", alias: "Lobby" }, { id: 9, sn: "SN-7", alias: "Annex" }] }) },
+      { match: (u) => u.endsWith("/reboot/"), respond: (u) => { rebooted.push(u); return json({ ok: true }); } },
+    ]);
+    const res = await new ZktecoAdapter(cfg, fetchImpl).restartDevice({ serial: "SN-7" });
+    expect(res.ok).toBe(false);
+    expect(res.message).toMatch(/matches 2 terminals/i);
+    expect(rebooted).toHaveLength(0);
+  });
+
+  it("refuses to reboot when a duplicate identifier lives on a later terminal page", async () => {
+    const rebooted: string[] = [];
+    const fetchImpl = mockFetch([
+      { match: (u) => u.includes("/api-token-auth/"), respond: () => json({ token: "tok-1" }) },
+      {
+        match: (u) => u.includes("page_size") && !u.includes("page=2"),
+        respond: () => json({ data: [{ id: 7, sn: "SN-7", alias: "Lobby" }], next: "http://biotime.local:8000/iclock/api/terminals/?page_size=100&page=2" }),
+      },
+      { match: (u) => u.includes("page=2"), respond: () => json({ data: [{ id: 9, sn: "SN-7", alias: "Annex" }], next: null }) },
+      { match: (u) => u.endsWith("/reboot/"), respond: (u) => { rebooted.push(u); return json({ ok: true }); } },
+    ]);
+    const res = await new ZktecoAdapter(cfg, fetchImpl).restartDevice({ serial: "SN-7" });
+    expect(res.ok).toBe(false);
+    expect(res.message).toMatch(/matches 2 terminals/i);
+    expect(rebooted).toHaveLength(0);
+  });
+
+  it("fails closed when the restart command carries no serial", async () => {
+    const rebooted: string[] = [];
+    const fetchImpl = mockFetch([
+      { match: (u) => u.includes("/api-token-auth/"), respond: () => json({ token: "tok-1" }) },
+      { match: (u) => u.includes("page_size"), respond: () => json({ data: [{ id: 7, sn: "SN-7" }, { id: 9, sn: "SN-9" }] }) },
+      { match: (u) => u.endsWith("/reboot/"), respond: (u) => { rebooted.push(u); return json({ ok: true }); } },
+    ]);
+    const res = await new ZktecoAdapter(cfg, fetchImpl).restartDevice();
+    expect(res.ok).toBe(false);
+    expect(res.message).toMatch(/did not identify/i);
+    expect(rebooted).toHaveLength(0);
   });
 
   it("fails when no terminal is registered", async () => {
@@ -81,7 +170,7 @@ describe("SupremaAdapter.restartDevice (BioStar 2 server)", () => {
         respond: () => new Response("{}", { status: 200, headers: { "bs-session-id": "sess-1" } }),
       },
       {
-        match: (u, init) => u.endsWith("/api/devices") && init?.method === "GET",
+        match: (u, init) => u.includes("/api/devices?") && init?.method === "GET",
         respond: (_u, init) => {
           const h = init?.headers as Record<string, string>;
           if (h?.["bs-session-id"] !== "sess-1") return new Response("no", { status: 401 });
@@ -93,7 +182,7 @@ describe("SupremaAdapter.restartDevice (BioStar 2 server)", () => {
         respond: (u) => { calls.push(u); return json({ ok: true }); },
       },
     ]);
-    const res = await new SupremaAdapter(cfg, fetchImpl).restartDevice();
+    const res = await new SupremaAdapter(cfg, fetchImpl).restartDevice({ serial: "541" });
     expect(res.ok).toBe(true);
     expect(res.message).toMatch(/Front Door/);
     expect(calls).toHaveLength(1);
@@ -102,12 +191,111 @@ describe("SupremaAdapter.restartDevice (BioStar 2 server)", () => {
   it("maps a vendor failure status to a failed ack", async () => {
     const fetchImpl = mockFetch([
       { match: (u) => u.endsWith("/api/login"), respond: () => new Response("{}", { status: 200, headers: { "bs-session-id": "s" } }) },
-      { match: (u) => u.endsWith("/api/devices"), respond: () => json({ DeviceCollection: { rows: [{ id: 2 }] } }) },
+      { match: (u) => u.includes("/api/devices?"), respond: () => json({ DeviceCollection: { rows: [{ id: 2 }] } }) },
       { match: (u) => u.endsWith("/reboot"), respond: () => new Response("err", { status: 503 }) },
+    ]);
+    const res = await new SupremaAdapter(cfg, fetchImpl).restartDevice({ serial: "2" });
+    expect(res.ok).toBe(false);
+    expect(res.message).toMatch(/503/);
+  });
+
+  it("reboots the device matching the requested serial on a multi-device server", async () => {
+    const calls: string[] = [];
+    const fetchImpl = mockFetch([
+      { match: (u) => u.endsWith("/api/login"), respond: () => new Response("{}", { status: 200, headers: { "bs-session-id": "s" } }) },
+      {
+        match: (u, init) => u.includes("/api/devices?") && init?.method === "GET",
+        respond: () => json({ DeviceCollection: { rows: [{ id: 541, name: "Front Door" }, { id: 542, name: "Back Gate" }] } }),
+      },
+      {
+        match: (u, init) => /\/api\/devices\/\d+\/reboot$/.test(u) && init?.method === "POST",
+        respond: (u) => { calls.push(u); return json({ ok: true }); },
+      },
+    ]);
+    const res = await new SupremaAdapter(cfg, fetchImpl).restartDevice({ serial: "542" });
+    expect(res.ok).toBe(true);
+    expect(res.message).toMatch(/Back Gate/);
+    expect(calls).toEqual(["https://biostar.local/api/devices/542/reboot"]);
+  });
+
+  it("never lets a display name equal to another device's serial redirect the reboot", async () => {
+    // Device 541's mutable name collides with device 999's id/serial: only
+    // the canonical id match may win.
+    const calls: string[] = [];
+    const fetchImpl = mockFetch([
+      { match: (u) => u.endsWith("/api/login"), respond: () => new Response("{}", { status: 200, headers: { "bs-session-id": "s" } }) },
+      { match: (u) => u.includes("/api/devices?"), respond: () => json({ DeviceCollection: { rows: [{ id: 541, name: "999" }, { id: 999, name: "Annex" }] } }) },
+      { match: (u, init) => /\/api\/devices\/\d+\/reboot$/.test(u) && init?.method === "POST", respond: (u) => { calls.push(u); return json({ ok: true }); } },
+    ]);
+    const res = await new SupremaAdapter(cfg, fetchImpl).restartDevice({ serial: "999" });
+    expect(res.ok).toBe(true);
+    expect(calls).toEqual(["https://biostar.local/api/devices/999/reboot"]);
+  });
+
+  it("matches by middleware device id when the identifier is numeric", async () => {
+    const fetchImpl = mockFetch([
+      { match: (u) => u.endsWith("/api/login"), respond: () => new Response("{}", { status: 200, headers: { "bs-session-id": "s" } }) },
+      { match: (u) => u.includes("/api/devices?"), respond: () => json({ DeviceCollection: { rows: [{ id: 541, name: "Front Door" }, { id: 542, name: "Back Gate" }] } }) },
+      { match: (u) => u.endsWith("/api/devices/541/reboot"), respond: () => json({ ok: true }) },
+    ]);
+    const res = await new SupremaAdapter(cfg, fetchImpl).restartDevice({ serial: "541" });
+    expect(res.ok).toBe(true);
+  });
+
+  it("fails without rebooting anything when the identified device is not registered", async () => {
+    const rebooted: string[] = [];
+    const fetchImpl = mockFetch([
+      { match: (u) => u.endsWith("/api/login"), respond: () => new Response("{}", { status: 200, headers: { "bs-session-id": "s" } }) },
+      { match: (u) => u.includes("/api/devices?"), respond: () => json({ DeviceCollection: { rows: [{ id: 541, name: "Front Door" }] } }) },
+      { match: (u) => u.endsWith("/reboot"), respond: (u) => { rebooted.push(u); return json({ ok: true }); } },
+    ]);
+    const res = await new SupremaAdapter(cfg, fetchImpl).restartDevice({ serial: "SN-MISSING" });
+    expect(res.ok).toBe(false);
+    expect(res.message).toMatch(/SN-MISSING.*not registered/i);
+    expect(rebooted).toHaveLength(0);
+  });
+
+  it("refuses to reboot when the serial matches several devices (duplicate id rows)", async () => {
+    const rebooted: string[] = [];
+    const fetchImpl = mockFetch([
+      { match: (u) => u.endsWith("/api/login"), respond: () => new Response("{}", { status: 200, headers: { "bs-session-id": "s" } }) },
+      { match: (u) => u.includes("/api/devices?"), respond: () => json({ DeviceCollection: { rows: [{ id: 541, name: "Gate A" }, { id: 541, name: "Gate B" }] } }) },
+      { match: (u) => u.endsWith("/reboot"), respond: (u) => { rebooted.push(u); return json({ ok: true }); } },
+    ]);
+    const res = await new SupremaAdapter(cfg, fetchImpl).restartDevice({ serial: "541" });
+    expect(res.ok).toBe(false);
+    expect(res.message).toMatch(/matches 2 devices/i);
+    expect(rebooted).toHaveLength(0);
+  });
+
+  it("refuses to reboot when a duplicate serial lives on a later device page", async () => {
+    const rebooted: string[] = [];
+    // Full first page (100 rows, first row id 999) forces the adapter to
+    // fetch offset=100, where the duplicate id 999 lives.
+    const firstPage = Array.from({ length: 100 }, (_, i) => ({ id: i === 0 ? 999 : i + 1, name: `Dev-${i}` }));
+    const fetchImpl = mockFetch([
+      { match: (u) => u.endsWith("/api/login"), respond: () => new Response("{}", { status: 200, headers: { "bs-session-id": "s" } }) },
+      { match: (u) => u.includes("/api/devices?") && u.includes("offset=0"), respond: () => json({ DeviceCollection: { rows: firstPage } }) },
+      { match: (u) => u.includes("/api/devices?") && u.includes("offset=100"), respond: () => json({ DeviceCollection: { rows: [{ id: 999, name: "Gate" }] } }) },
+      { match: (u) => u.endsWith("/reboot"), respond: (u) => { rebooted.push(u); return json({ ok: true }); } },
+    ]);
+    const res = await new SupremaAdapter(cfg, fetchImpl).restartDevice({ serial: "999" });
+    expect(res.ok).toBe(false);
+    expect(res.message).toMatch(/matches 2 devices/i);
+    expect(rebooted).toHaveLength(0);
+  });
+
+  it("fails closed when the restart command carries no serial", async () => {
+    const rebooted: string[] = [];
+    const fetchImpl = mockFetch([
+      { match: (u) => u.endsWith("/api/login"), respond: () => new Response("{}", { status: 200, headers: { "bs-session-id": "s" } }) },
+      { match: (u) => u.includes("/api/devices?"), respond: () => json({ DeviceCollection: { rows: [{ id: 541 }, { id: 542 }] } }) },
+      { match: (u) => u.endsWith("/reboot"), respond: (u) => { rebooted.push(u); return json({ ok: true }); } },
     ]);
     const res = await new SupremaAdapter(cfg, fetchImpl).restartDevice();
     expect(res.ok).toBe(false);
-    expect(res.message).toMatch(/503/);
+    expect(res.message).toMatch(/did not identify/i);
+    expect(rebooted).toHaveLength(0);
   });
 
   it("fails with guidance when unconfigured", async () => {

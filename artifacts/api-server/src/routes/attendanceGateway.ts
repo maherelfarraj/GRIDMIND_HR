@@ -9,6 +9,7 @@ import {
   employeesTable,
   auditLogsTable,
   deviceCommandsTable,
+  attendanceDevicesTable,
 } from "@workspace/db";
 import { and, eq, desc, gte, inArray, lt } from "drizzle-orm";
 import { DEVICE_COMMAND_TTL_MS } from "./devices.js";
@@ -401,9 +402,21 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
       gte(deviceCommandsTable.createdAt, commandCutoff),
     ))
     .returning({ id: deviceCommandsTable.id, deviceId: deviceCommandsTable.deviceId, command: deviceCommandsTable.command });
+  // Attach the target device's serial number so multi-terminal middleware
+  // adapters (ZKBioTime / BioStar 2) can reboot the exact terminal the
+  // operator picked instead of the first registered one.
+  const commandDeviceIds = [...new Set(deliveredCommands.map((c) => c.deviceId))];
+  const serialByDeviceId = new Map<number, string>();
+  if (commandDeviceIds.length > 0) {
+    const rows = await db
+      .select({ id: attendanceDevicesTable.id, serialNumber: attendanceDevicesTable.serialNumber })
+      .from(attendanceDevicesTable)
+      .where(inArray(attendanceDevicesTable.id, commandDeviceIds));
+    for (const row of rows) serialByDeviceId.set(row.id, row.serialNumber);
+  }
   res.json({
     ok: true,
-    commands: deliveredCommands,
+    commands: deliveredCommands.map((c) => ({ ...c, deviceSerial: serialByDeviceId.get(c.deviceId) ?? null })),
     serverTimeMs: Date.now(),
     clockDriftMs: drift,
     driftAlert: drift !== null && Math.abs(drift) > DRIFT_ALERT_MS,

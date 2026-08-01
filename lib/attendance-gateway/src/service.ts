@@ -265,7 +265,7 @@ export class GatewayService {
    * outcome — including failures and unsupported operations — so the HR core
    * never waits on a command that can't run here.
    */
-  private async executeCommands(commands: Array<{ id: number; command: string }>): Promise<void> {
+  private async executeCommands(commands: Array<{ id: number; command: string; deviceSerial?: string | null }>): Promise<void> {
     const acks: Array<{ commandId: number; ok: boolean; message?: string }> = [];
     for (const cmd of commands) {
       if (cmd.command !== "RESTART") {
@@ -277,7 +277,7 @@ export class GatewayService {
         continue;
       }
       try {
-        const result = await this.adapter.restartDevice();
+        const result = await this.adapter.restartDevice({ serial: cmd.deviceSerial ?? null });
         acks.push({ commandId: cmd.id, ok: result.ok, message: result.message });
       } catch (e) {
         acks.push({ commandId: cmd.id, ok: false, message: e instanceof Error ? e.message : String(e) });

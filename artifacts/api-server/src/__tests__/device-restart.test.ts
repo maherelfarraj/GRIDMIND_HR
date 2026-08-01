@@ -155,7 +155,9 @@ describe("device restart command flow", () => {
   it("delivers the command via signed heartbeat exactly once", async () => {
     const hb = await postSigned("/api/gateway/heartbeat", { deviceTimeMs: Date.now() }, signingKey, regId);
     expect(hb.status).toBe(200);
-    expect(hb.body.commands).toEqual([{ id: commandId, deviceId, command: "RESTART" }]);
+    expect(hb.body.commands).toEqual([
+      { id: commandId, deviceId, command: "RESTART", deviceSerial: expect.stringMatching(/^RST-/) },
+    ]);
 
     // Second heartbeat: nothing pending anymore.
     const hb2 = await postSigned("/api/gateway/heartbeat", { deviceTimeMs: Date.now() }, signingKey, regId);

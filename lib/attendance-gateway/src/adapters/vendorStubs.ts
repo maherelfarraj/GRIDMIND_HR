@@ -1,4 +1,4 @@
-import type { DeviceAdapter, GatewayPunch, AdapterTestResult, PunchEventType } from "../types.js";
+import type { DeviceAdapter, GatewayPunch, AdapterTestResult, PunchEventType, RestartTarget } from "../types.js";
 import { sanitizeRaw } from "./genericRest.js";
 
 /**
@@ -254,20 +254,63 @@ export class ZktecoAdapter implements DeviceAdapter {
 
   /**
    * Reboot the terminal through the ZKBioTime middleware terminal API:
-   * look up the registered terminal, then POST its reboot action.
+   * look up the registered terminal MATCHING the requested serial (sn or
+   * alias), then POST its reboot action. On multi-terminal servers this
+   * guarantees the operator's chosen device is the one rebooted.
    */
-  async restartDevice(): Promise<{ ok: boolean; message: string }> {
+  async restartDevice(target?: RestartTarget): Promise<{ ok: boolean; message: string }> {
     if (!this.config) {
       return { ok: false, message: this.notConfiguredMessage() };
     }
     try {
-      const listRes = await this.authedGet(`${this.config.baseUrl}/iclock/api/terminals/?page_size=1`);
-      if (!listRes.ok) return { ok: false, message: `ZKBioTime terminals lookup failed: ${listRes.status}` };
-      const body = (await listRes.json()) as { data?: Array<{ id?: number; sn?: string; alias?: string }> };
-      const terminal = body.data?.[0];
-      if (!terminal || terminal.id === undefined) {
+      // Enumerate EVERY registered terminal (following the ZKBioTime `next`
+      // pagination link) so the exactly-one-match guarantee holds even on
+      // servers with more terminals than one page — a duplicate on a later
+      // page must fail the restart, never silently pick the first page's hit.
+      const terminals: Array<{ id?: number; sn?: string; alias?: string }> = [];
+      let listUrl: string | null = `${this.config.baseUrl}/iclock/api/terminals/?page_size=100`;
+      let pages = 0;
+      const MAX_TERMINAL_PAGES = 50;
+      while (listUrl) {
+        if (pages >= MAX_TERMINAL_PAGES) {
+          return { ok: false, message: `ZKBioTime terminal list exceeds ${MAX_TERMINAL_PAGES} pages — restart aborted because the full terminal inventory could not be enumerated` };
+        }
+        pages += 1;
+        const listRes = await this.authedGet(listUrl);
+        if (!listRes.ok) return { ok: false, message: `ZKBioTime terminals lookup failed: ${listRes.status}` };
+        const body = (await listRes.json()) as { data?: Array<{ id?: number; sn?: string; alias?: string }>; next?: string | null };
+        terminals.push(...(body.data ?? []).filter((t) => t.id !== undefined));
+        listUrl = body.next ?? null;
+      }
+      if (terminals.length === 0) {
         return { ok: false, message: "ZKBioTime reports no registered terminal to reboot" };
       }
+      // Canonical matching: ONLY the terminal's physical serial number (sn)
+      // is compared against the HR core's device serial. Aliases and display
+      // names are mutable operator labels and are deliberately never matched
+      // — a display name that happens to equal another device's serial must
+      // not be able to redirect a reboot.
+      const serial = target?.serial?.trim();
+      if (!serial) {
+        return {
+          ok: false,
+          message: "The restart command did not identify a terminal serial — restart aborted to avoid rebooting the wrong device (upgrade the HR core so restart commands carry the device serial)",
+        };
+      }
+      const matches = terminals.filter((t) => t.sn === serial);
+      if (matches.length === 0) {
+        return {
+          ok: false,
+          message: `Terminal with serial "${serial}" is not registered on the ZKBioTime server (registered serials: ${terminals.map((t) => t.sn ?? "<no sn>").join(", ")}) — restart aborted to avoid rebooting the wrong device`,
+        };
+      }
+      if (matches.length > 1) {
+        return {
+          ok: false,
+          message: `Serial "${serial}" matches ${matches.length} terminals on the ZKBioTime server — restart aborted to avoid rebooting the wrong device`,
+        };
+      }
+      const terminal = matches[0];
       const token = this.token ?? (await this.login());
       const res = await this.fetchImpl(`${this.config.baseUrl}/iclock/api/terminals/${terminal.id}/reboot/`, {
         method: "POST",
@@ -468,9 +511,11 @@ export class SupremaAdapter implements DeviceAdapter {
 
   /**
    * Reboot the terminal through the BioStar 2 server device API:
-   * look up the registered device, then POST its reboot action.
+   * look up the registered device MATCHING the requested identifier (id or
+   * name), then POST its reboot action. On multi-device servers this
+   * guarantees the operator's chosen device is the one rebooted.
    */
-  async restartDevice(): Promise<{ ok: boolean; message: string }> {
+  async restartDevice(target?: RestartTarget): Promise<{ ok: boolean; message: string }> {
     if (!this.config) {
       return { ok: false, message: this.notConfiguredMessage() };
     }
@@ -479,17 +524,59 @@ export class SupremaAdapter implements DeviceAdapter {
       const doFetch = async (path: string, init: RequestInit, session: string): Promise<Response> =>
         this.fetchImpl(`${cfg.baseUrl}${path}`, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), "bs-session-id": session } });
       let session = this.sessionId ?? (await this.login());
-      let listRes = await doFetch("/api/devices", { method: "GET" }, session);
-      if (listRes.status === 401) {
-        session = await this.login();
-        listRes = await doFetch("/api/devices", { method: "GET" }, session);
+      // Enumerate EVERY registered device (limit/offset pagination) so the
+      // exactly-one-match guarantee holds beyond the server's default page —
+      // a duplicate on a later page must fail the restart, never silently
+      // pick the first page's hit.
+      const devices: Array<{ id?: number | string; name?: string }> = [];
+      const PAGE = 100;
+      const MAX_DEVICE_PAGES = 50;
+      for (let page = 0; ; page++) {
+        if (page >= MAX_DEVICE_PAGES) {
+          return { ok: false, message: `BioStar 2 device list exceeds ${MAX_DEVICE_PAGES} pages — restart aborted because the full device inventory could not be enumerated` };
+        }
+        const path = `/api/devices?limit=${PAGE}&offset=${page * PAGE}`;
+        let listRes = await doFetch(path, { method: "GET" }, session);
+        if (listRes.status === 401) {
+          session = await this.login();
+          listRes = await doFetch(path, { method: "GET" }, session);
+        }
+        if (!listRes.ok) return { ok: false, message: `BioStar 2 device lookup failed: ${listRes.status}` };
+        const body = (await listRes.json()) as { DeviceCollection?: { rows?: Array<{ id?: number | string; name?: string }> } };
+        const rows = body.DeviceCollection?.rows ?? [];
+        devices.push(...rows.filter((d) => d.id !== undefined));
+        if (rows.length < PAGE) break;
       }
-      if (!listRes.ok) return { ok: false, message: `BioStar 2 device lookup failed: ${listRes.status}` };
-      const body = (await listRes.json()) as { DeviceCollection?: { rows?: Array<{ id?: number | string; name?: string }> } };
-      const device = body.DeviceCollection?.rows?.[0];
-      if (!device || device.id === undefined) {
+      if (devices.length === 0) {
         return { ok: false, message: "BioStar 2 reports no registered device to reboot" };
       }
+      // Canonical matching: BioStar 2 device ids ARE the device serial
+      // numbers (Suprema derives the immutable device id from the unit's
+      // serial), so ONLY String(device.id) is compared against the HR core's
+      // device serial. Display names are mutable operator labels and are
+      // deliberately never matched — a name that happens to equal another
+      // device's serial must not be able to redirect a reboot.
+      const serial = target?.serial?.trim();
+      if (!serial) {
+        return {
+          ok: false,
+          message: "The restart command did not identify a device serial — restart aborted to avoid rebooting the wrong device (upgrade the HR core so restart commands carry the device serial)",
+        };
+      }
+      const matches = devices.filter((d) => String(d.id) === serial);
+      if (matches.length === 0) {
+        return {
+          ok: false,
+          message: `Device with serial "${serial}" is not registered on the BioStar 2 server (registered ids: ${devices.map((d) => d.id).join(", ")}) — restart aborted to avoid rebooting the wrong device`,
+        };
+      }
+      if (matches.length > 1) {
+        return {
+          ok: false,
+          message: `Serial "${serial}" matches ${matches.length} devices on the BioStar 2 server — restart aborted to avoid rebooting the wrong device`,
+        };
+      }
+      const device = matches[0];
       const res = await doFetch(`/api/devices/${device.id}/reboot`, { method: "POST" }, session);
       return res.ok
         ? { ok: true, message: `Reboot issued to device ${device.name ?? device.id} via BioStar 2 (${res.status})` }

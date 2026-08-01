@@ -62,8 +62,19 @@ export interface DeviceAdapter {
    * Remotely restart the physical device (optional). Adapters whose vendor
    * protocol has no reboot call may omit this; the service then FAILs the
    * command ack with an explanatory message instead of dropping it.
+   *
+   * `target` identifies the exact terminal to reboot on middleware servers
+   * that manage several devices (matched against the middleware's serial
+   * number / name / id). Adapters bound to a single physical device
+   * (native protocol, generic REST) may ignore it.
    */
-  restartDevice?(): Promise<{ ok: boolean; message: string }>;
+  restartDevice?(target?: RestartTarget): Promise<{ ok: boolean; message: string }>;
+}
+
+/** Identifies which terminal a RESTART command is aimed at. */
+export interface RestartTarget {
+  /** HR-core device serial number (attendance_devices.serial_number). */
+  serial?: string | null;
 }
 
 /** A remote command delivered by the HR core in a heartbeat response. */
@@ -71,6 +82,12 @@ export interface DeliveredCommand {
   id: number;
   deviceId: number;
   command: string; // currently RESTART
+  /**
+   * Serial number of the target device so multi-terminal middleware
+   * adapters reboot the exact terminal the operator picked. Absent when
+   * talking to an older HR core.
+   */
+  deviceSerial?: string | null;
 }
 
 export interface QueuedBatch {
