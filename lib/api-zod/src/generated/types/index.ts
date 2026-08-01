@@ -247,6 +247,7 @@ export * from './integrationGovernanceRule';
 export * from './integrationRetryQueue';
 export * from './interviewScore';
 export * from './interviewScoreInput';
+export * from './issueOneTimePassword200';
 export * from './jobOffer';
 export * from './jobOfferInput';
 export * from './jobPosting';

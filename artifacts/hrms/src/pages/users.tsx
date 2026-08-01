@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { useListUsers, useCreateUser, useGetUser, useUpdateUser, getGetUserQueryKey, useSetUserPassword, useUnlockUser, getListUsersQueryKey } from '@workspace/api-client-react';
+import { useListUsers, useCreateUser, useGetUser, useUpdateUser, getGetUserQueryKey, useSetUserPassword, useUnlockUser, useIssueOneTimePassword, getListUsersQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Server, Search, Shield, UserCog, MoreHorizontal, KeyRound, Lock, LockOpen } from 'lucide-react';
+import { Server, Search, Shield, UserCog, MoreHorizontal, KeyRound, Lock, LockOpen, Ticket, Copy, Check } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getPasswordIssues, PASSWORD_REQUIREMENTS_EN, PASSWORD_REQUIREMENTS_AR } from '@workspace/api-zod';
@@ -42,6 +42,45 @@ export default function Users() {
         },
       },
     );
+  };
+
+  // --- One-time password issuance -------------------------------------
+  // Two-step: confirm intent (it replaces the current password and signs the
+  // user out everywhere), then show the generated OTP exactly once. It is
+  // never fetched again — closing the dialog discards it for good.
+  const issueOtp = useIssueOneTimePassword();
+  const [otpTarget, setOtpTarget] = useState<{ id: number; name: string } | null>(null);
+  const [issuedOtp, setIssuedOtp] = useState<{ name: string; oneTimePassword: string; username: string } | null>(null);
+  const [otpCopied, setOtpCopied] = useState(false);
+
+  const handleIssueOtp = () => {
+    if (!otpTarget) return;
+    const target = otpTarget;
+    issueOtp.mutate(
+      { id: target.id },
+      {
+        onSuccess: (data) => {
+          setOtpTarget(null);
+          setOtpCopied(false);
+          setIssuedOtp({ name: target.name, oneTimePassword: data.oneTimePassword, username: data.username });
+          queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+        },
+        onError: () => {
+          toast({ title: t('Failed to issue one-time password', 'فشل إصدار كلمة المرور لمرة واحدة'), variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const copyOtp = async () => {
+    if (!issuedOtp) return;
+    try {
+      await navigator.clipboard.writeText(issuedOtp.oneTimePassword);
+      setOtpCopied(true);
+      setTimeout(() => setOtpCopied(false), 2000);
+    } catch {
+      toast({ title: t('Could not copy — select and copy manually', 'تعذر النسخ — حدد وانسخ يدويًا'), variant: 'destructive' });
+    }
   };
 
   const [passwordTarget, setPasswordTarget] = useState<{ id: number; name: string } | null>(null);
@@ -199,6 +238,10 @@ export default function Users() {
                             <KeyRound className="w-4 h-4 me-2" />
                             {t('Set Password', 'تعيين كلمة المرور')}
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setOtpTarget({ id: user.id, name: lang === 'en' ? user.fullNameEn : user.fullNameAr })}>
+                            <Ticket className="w-4 h-4 me-2" />
+                            {t('Issue One-Time Password', 'إصدار كلمة مرور لمرة واحدة')}
+                          </DropdownMenuItem>
                           {isLocked(user.lockedUntil) && (
                             <DropdownMenuItem
                               disabled={unlockUser.isPending}
@@ -256,6 +299,51 @@ export default function Users() {
             <Button onClick={handleSetPassword} disabled={setUserPassword.isPending}>
               {setUserPassword.isPending ? t('Saving...', 'جارٍ الحفظ...') : t('Set Password', 'تعيين كلمة المرور')}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={otpTarget !== null} onOpenChange={(open) => { if (!open) setOtpTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('Issue One-Time Password', 'إصدار كلمة مرور لمرة واحدة')}</DialogTitle>
+            <DialogDescription>
+              {otpTarget && t(
+                `Generate a random one-time password for ${otpTarget.name}. This replaces their current password, signs them out of all devices, and they must set a new password at first login. The password is shown exactly once.`,
+                `إنشاء كلمة مرور عشوائية لمرة واحدة لـ ${otpTarget.name}. سيؤدي ذلك إلى استبدال كلمة المرور الحالية وتسجيل الخروج من جميع الأجهزة، ويجب تعيين كلمة مرور جديدة عند أول تسجيل دخول. تُعرض كلمة المرور مرة واحدة فقط.`,
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOtpTarget(null)}>{t('Cancel', 'إلغاء')}</Button>
+            <Button onClick={handleIssueOtp} disabled={issueOtp.isPending} data-testid="button-confirm-issue-otp">
+              {issueOtp.isPending ? t('Issuing...', 'جارٍ الإصدار...') : t('Issue Password', 'إصدار كلمة المرور')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={issuedOtp !== null} onOpenChange={(open) => { if (!open) setIssuedOtp(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('One-Time Password Issued', 'تم إصدار كلمة المرور لمرة واحدة')}</DialogTitle>
+            <DialogDescription>
+              {issuedOtp && t(
+                `Deliver this password to ${issuedOtp.name} (${issuedOtp.username}) through a secure channel. It will not be shown again — once you close this dialog, it cannot be retrieved. They must change it at first login.`,
+                `سلّم كلمة المرور هذه إلى ${issuedOtp.name} (${issuedOtp.username}) عبر قناة آمنة. لن تُعرض مرة أخرى — بعد إغلاق هذه النافذة لا يمكن استعادتها. يجب تغييرها عند أول تسجيل دخول.`,
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-sm break-all select-all" data-testid="text-one-time-password">
+              {issuedOtp?.oneTimePassword}
+            </code>
+            <Button variant="outline" size="icon" onClick={copyOtp} title={t('Copy', 'نسخ')} data-testid="button-copy-otp">
+              {otpCopied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIssuedOtp(null)}>{t("Done — I've saved it", 'تم — لقد حفظتها')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

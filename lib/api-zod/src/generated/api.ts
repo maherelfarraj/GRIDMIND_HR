@@ -1431,6 +1431,20 @@ export const SetUserPasswordResponse = zod.object({
 
 
 /**
+ * @summary Issue a cryptographically random one-time password for a user (admins only). Returned exactly once, never stored or logged in plain text; the user must change it at first login.
+ */
+export const IssueOneTimePasswordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const IssueOneTimePasswordResponse = zod.object({
+  "oneTimePassword": zod.string(),
+  "username": zod.string(),
+  "mustChangePassword": zod.boolean()
+})
+
+
+/**
  * @summary Clear a login lockout for a user immediately (admins only)
  */
 export const UnlockUserParams = zod.object({

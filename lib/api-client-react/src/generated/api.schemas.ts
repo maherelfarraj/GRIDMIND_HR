@@ -6380,6 +6380,12 @@ export type SetUserPassword200 = {
   success: boolean;
 };
 
+export type IssueOneTimePassword200 = {
+  oneTimePassword: string;
+  username: string;
+  mustChangePassword: boolean;
+};
+
 export type UnlockUser200 = {
   success: boolean;
 };

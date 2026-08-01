@@ -11,6 +11,7 @@ import {
   PASSWORD_REQUIREMENTS_AR,
 } from "@workspace/api-zod";
 import { revokeUserSessions } from "../lib/sessionRevocation.js";
+import { generateOneTimePassword } from "../lib/oneTimePassword.js";
 import {
   loginThrottleReady,
   getLockedUntil,
@@ -143,6 +144,62 @@ router.post("/users/:id/password", async (req, res): Promise<void> => {
   }
 
   res.json({ success: true });
+});
+
+// POST /users/:id/one-time-password — issue a cryptographically random
+// one-time password for a user (admins only).
+//
+// This is the on-demand replacement for digging credentials out of startup
+// provisioning artifacts: an admin generates the OTP here, the plaintext is
+// returned exactly once in the response (never stored, never logged), the
+// account is flagged must_change_password, and every existing session of the
+// target dies atomically with the credential swap. Only the event — not the
+// value — is audit-logged.
+router.post("/users/:id/one-time-password", async (req, res): Promise<void> => {
+  const actorId = req.session?.userId ?? 1;
+  const [actor] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, actorId));
+  const [actorRole] = actor
+    ? await db.select().from(rolesTable).where(eq(rolesTable.id, actor.roleId))
+    : [];
+  if (!actor || !actor.isActive || !actorRole || !PASSWORD_ADMIN_ROLES.has(actorRole.nameEn)) {
+    res.status(403).json({ error: "Insufficient privileges to issue one-time passwords" });
+    return;
+  }
+
+  const id = parseId(req.params.id);
+  const [user] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, id));
+  if (!user) { res.status(404).json({ error: "Not found" }); return; }
+
+  const oneTimePassword = generateOneTimePassword();
+  const passwordHash = await bcrypt.hash(oneTimePassword, 10);
+
+  // Atomic: credential swap + session revocation + audit event commit (or
+  // roll back) together. The audit row records that an OTP was issued and by
+  // whom — never the password itself.
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(systemUsersTable)
+        .set({ passwordHash, mustChangePassword: true })
+        .where(eq(systemUsersTable.id, id));
+      await revokeUserSessions(tx, id, actorId === id ? req.session?.id : undefined);
+      await tx.insert(auditLogsTable).values({
+        action: "user.otp_issued",
+        entityType: "system_user",
+        entityId: user.id,
+        entityLabel: user.username,
+        actorUserId: actorId,
+        ipAddress: req.ip ?? null,
+        userAgent: req.get("user-agent") ?? null,
+        changesJson: JSON.stringify({ mustChangePassword: true, sessionsRevoked: true }),
+      });
+    });
+  } catch (err) {
+    console.error("One-time password issuance failed (rolled back):", err);
+    res.status(500).json({ error: "Could not issue a one-time password. Please try again." });
+    return;
+  }
+
+  res.json({ oneTimePassword, username: user.username, mustChangePassword: true });
 });
 
 // POST /users/:id/unlock — clear a login lockout immediately (admins only).

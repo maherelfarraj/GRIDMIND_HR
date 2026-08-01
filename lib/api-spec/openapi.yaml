@@ -1077,6 +1077,30 @@ paths:
                   success: { type: boolean }
                 required: [ success ]
 
+  /users/{id}/one-time-password:
+    post:
+      operationId: issueOneTimePassword
+      tags: [ users ]
+      summary: Issue a cryptographically random one-time password for a user (admins only). Returned exactly once, never stored or logged in plain text; the user must change it at first login.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: One-time password issued (shown exactly once)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  oneTimePassword: { type: string }
+                  username: { type: string }
+                  mustChangePassword: { type: boolean }
+                required: [ oneTimePassword, username, mustChangePassword ]
+
   /users/{id}/unlock:
     post:
       operationId: unlockUser

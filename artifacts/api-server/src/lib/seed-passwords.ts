@@ -19,6 +19,11 @@
  *     logged: it is written to an operator-only 0600 handoff file BEFORE the
  *     hash is committed, so a failed write can never leave an account with
  *     an unknown password (it stays NULL-hash / fail-closed instead).
+ *     NOTE: this startup handoff is only the bootstrap fallback. The
+ *     preferred channel is the admin UI flow (POST
+ *     /users/:id/one-time-password), which shows a fresh OTP exactly once
+ *     on demand — operators only need this file to recover the very first
+ *     admin credential.
  *   - Demo accounts that may still carry the well-known demo password are
  *     forced to rotate: a one-time hardening pass (tracked via a
  *     system_config marker) flags every hashed, unflagged demo account
@@ -32,6 +37,7 @@ import bcrypt from "bcryptjs";
 import { db, systemUsersTable, systemConfigTable } from "@workspace/db";
 import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { logger } from "./logger";
+import { generateOneTimePassword } from "./oneTimePassword";
 
 /** Transaction handle type compatible with `db` for the queries we run. */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -51,11 +57,6 @@ const DEMO_ACCOUNTS = ["admin", "fatima.zahrani", "omar.ghamdi", "aisha.otaibi"]
  * re-flagged on subsequent restarts.
  */
 export const DEMO_HARDENING_MARKER_KEY = "security.demo_accounts_hardened";
-
-/** Generate a random one-time password: 192 bits of entropy, URL-safe. */
-function generateOneTimePassword(): string {
-  return crypto.randomBytes(24).toString("base64url");
-}
 
 /**
  * Securely hand generated one-time passwords to the operator.

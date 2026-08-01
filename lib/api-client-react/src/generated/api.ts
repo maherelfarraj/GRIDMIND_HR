@@ -219,6 +219,7 @@ import type {
   IntegrationRetryQueue,
   InterviewScore,
   InterviewScoreInput,
+  IssueOneTimePassword200,
   JobOffer,
   JobOfferInput,
   JobPosting,
@@ -4375,6 +4376,77 @@ export const useSetUserPassword = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSetUserPasswordMutationOptions(options));
+    }
+
+export const getIssueOneTimePasswordUrl = (id: number,) => {
+
+
+
+
+  return `/api/users/${id}/one-time-password`
+}
+
+/**
+ * @summary Issue a cryptographically random one-time password for a user (admins only). Returned exactly once, never stored or logged in plain text; the user must change it at first login.
+ */
+export const issueOneTimePassword = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<IssueOneTimePassword200> => {
+
+  return customFetch<IssueOneTimePassword200>(getIssueOneTimePasswordUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getIssueOneTimePasswordMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueOneTimePassword>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof issueOneTimePassword>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['issueOneTimePassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof issueOneTimePassword>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  issueOneTimePassword(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type IssueOneTimePasswordMutationResult = NonNullable<Awaited<ReturnType<typeof issueOneTimePassword>>>
+
+    export type IssueOneTimePasswordMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Issue a cryptographically random one-time password for a user (admins only). Returned exactly once, never stored or logged in plain text; the user must change it at first login.
+ */
+export const useIssueOneTimePassword = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueOneTimePassword>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof issueOneTimePassword>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getIssueOneTimePasswordMutationOptions(options));
     }
 
 export const getUnlockUserUrl = (id: number,) => {
