@@ -111,6 +111,8 @@ function ClassicTabLayout() {
 export default function TabLayout() {
   const { user, isLoading } = useAuth();
   if (!isLoading && !user) return <Redirect href="/login" />;
+  // Accounts on a one-time password must change it before using the app.
+  if (user?.mustChangePassword) return <Redirect href="/change-password" />;
 
   if (isLiquidGlassAvailable()) {
     return <NativeTabLayout />;

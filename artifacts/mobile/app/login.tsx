@@ -62,7 +62,14 @@ export default function LoginScreen() {
     return () => clearTimeout(timer);
   }, [lockoutSecondsLeft]);
 
-  if (user) return <Redirect href="/(tabs)" />;
+  if (user) {
+    // One-time-password accounts must change the password before entering.
+    return user.mustChangePassword ? (
+      <Redirect href="/change-password" />
+    ) : (
+      <Redirect href="/(tabs)" />
+    );
+  }
 
   const topInset =
     Platform.OS === 'web' ? Math.max(insets.top, 67) : insets.top;
@@ -74,6 +81,8 @@ export default function LoginScreen() {
     try {
       await login(username.trim(), password);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // The `user` redirect above also covers this, but replace explicitly so
+      // login never remains on the back stack.
       router.replace('/(tabs)');
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {

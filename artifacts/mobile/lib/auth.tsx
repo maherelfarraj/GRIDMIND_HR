@@ -71,6 +71,11 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /**
+   * Clear the mustChangePassword flag after a successful in-app password
+   * change so the navigation guards let the user into the tabs again.
+   */
+  markPasswordChanged: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -188,9 +193,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await Promise.all([clearToken(), AsyncStorage.removeItem(PROFILE_KEY)]);
   }, []);
 
+  const markPasswordChanged = useCallback(() => {
+    setUser((current) => {
+      if (!current || !current.mustChangePassword) return current;
+      const cleared = { ...current, mustChangePassword: false };
+      AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(cleared)).catch(() => {});
+      return cleared;
+    });
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user, isLoading, login, logout }),
-    [user, isLoading, login, logout],
+    () => ({ user, isLoading, login, logout, markPasswordChanged }),
+    [user, isLoading, login, logout, markPasswordChanged],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

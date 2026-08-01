@@ -281,6 +281,37 @@ describe('AuthProvider login', () => {
   });
 });
 
+describe('AuthProvider forced password change', () => {
+  it('markPasswordChanged clears the flag on the user and the cached profile', async () => {
+    secureStoreMock.getItemAsync.mockResolvedValue('tok-123');
+    asyncStorageMock.getItem.mockResolvedValue(
+      JSON.stringify({ id: 'u1', username: 'jdoe', mustChangePassword: true }),
+    );
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Network request failed');
+    }));
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+    await waitFor(() => {
+      expect(latestAuth?.user).toMatchObject({ mustChangePassword: true });
+    });
+
+    await act(async () => {
+      latestAuth!.markPasswordChanged();
+    });
+
+    expect(latestAuth?.user).toMatchObject({ mustChangePassword: false });
+    // Cached profile is updated too, so a restart doesn't resurrect the flag.
+    expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
+      PROFILE_KEY,
+      JSON.stringify({ id: 'u1', username: 'jdoe', mustChangePassword: false }),
+    );
+  });
+});
+
 describe('AuthProvider logout', () => {
   it('clears the user, token, and cached profile (even when the server call fails)', async () => {
     await renderSignedIn();

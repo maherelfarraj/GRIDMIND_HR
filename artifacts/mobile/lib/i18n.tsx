@@ -126,6 +126,10 @@ const strings = {
     ar: '8 أحرف على الأقل، تتضمن 3 أنواع على الأقل من: أحرف صغيرة، أحرف كبيرة، أرقام، رموز.',
   },
   done: { en: 'Done', ar: 'تم' },
+  passwordChangeRequiredHint: {
+    en: 'Your account was set up with a one-time password. For security, you must choose a new password before continuing.',
+    ar: 'تم إنشاء حسابك بكلمة مرور لمرة واحدة. لأسباب أمنية، يجب اختيار كلمة مرور جديدة قبل المتابعة.',
+  },
 } as const;
 
 export type StringKey = keyof typeof strings;

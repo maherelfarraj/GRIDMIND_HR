@@ -5,6 +5,7 @@ import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollV
 import { AppButton } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { changePasswordErrorMessage } from '@/lib/change-password-errors';
+import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import { ApiError, changeMyPassword } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
@@ -16,6 +17,12 @@ export default function ChangePasswordScreen() {
   const { t, lang } = useI18n();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user, markPasswordChanged } = useAuth();
+
+  // Forced flow: accounts provisioned with a one-time password must change
+  // it before entering the app. Latched at mount so the UI stays in forced
+  // mode through the success state even after the flag is cleared.
+  const [required] = useState(() => !!user?.mustChangePassword);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -45,6 +52,9 @@ export default function ChangePasswordScreen() {
     try {
       await changeMyPassword({ currentPassword, newPassword });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Clear the flag right away so the navigation guards stop bouncing
+      // the user back here, however they leave this screen.
+      markPasswordChanged();
       setSuccess(true);
     } catch (err) {
       const status = err instanceof ApiError ? err.status : null;
@@ -94,15 +104,47 @@ export default function ChangePasswordScreen() {
           >
             {t('changePassword')}
           </Text>
-          <Pressable
-            testID="button-close-change-password"
-            onPress={() => router.back()}
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 8 })}
-            accessibilityLabel={t('cancel')}
-          >
-            <Feather name="x" size={22} color={colors.mutedForeground} />
-          </Pressable>
+          {!required ? (
+            <Pressable
+              testID="button-close-change-password"
+              onPress={() => router.back()}
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 8 })}
+              accessibilityLabel={t('cancel')}
+            >
+              <Feather name="x" size={22} color={colors.mutedForeground} />
+            </Pressable>
+          ) : null}
         </View>
+
+        {required && !success ? (
+          <View
+            testID="text-password-change-required"
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              gap: 10,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+              padding: 14,
+              marginBottom: 20,
+            }}
+          >
+            <Feather name="shield" size={18} color={colors.primary} style={{ marginTop: 2 }} />
+            <Text
+              style={{
+                flex: 1,
+                color: colors.foreground,
+                fontSize: 13,
+                fontFamily: 'Inter_400Regular',
+                lineHeight: 19,
+              }}
+            >
+              {t('passwordChangeRequiredHint')}
+            </Text>
+          </View>
+        ) : null}
 
         {success ? (
           <View style={{ alignItems: 'center', paddingVertical: 32 }}>
@@ -133,7 +175,9 @@ export default function ChangePasswordScreen() {
               <AppButton
                 testID="button-done-change-password"
                 label={t('done')}
-                onPress={() => router.back()}
+                onPress={() =>
+                  required ? router.replace('/(tabs)') : router.back()
+                }
                 icon="check"
               />
             </View>
