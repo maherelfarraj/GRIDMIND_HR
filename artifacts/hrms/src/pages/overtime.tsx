@@ -1,5 +1,6 @@
 import { apiFetch } from '@/lib/api';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useSearch, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
 import { useListAttendance } from '@workspace/api-client-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -13,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
-import { Plus, TrendingUp, Globe, Building2, Clock, CheckCircle2 } from 'lucide-react';
+import { Plus, TrendingUp, Globe, Building2, Clock, CheckCircle2, Filter, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer
@@ -65,6 +66,13 @@ export default function Overtime() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [ruleForm, setRuleForm] = useState({ ...defaultRuleForm });
+  const search = useSearch();
+  const [, navigate] = useLocation();
+  const filterDepartmentId = (() => {
+    const v = new URLSearchParams(search).get('departmentId');
+    return v ? Number(v) : null;
+  })();
+  const clearFilter = () => navigate('/overtime', { replace: true });
 
   const { data: rules, isLoading: loadingRules } = useQuery<OvertimeRule[]>({
     queryKey: ['overtime-rules'],
@@ -96,7 +104,19 @@ export default function Overtime() {
   });
 
   // OT Records
-  const otRecords = attendanceData?.filter(r => (r.overtimeMinutes ?? 0) > 0) ?? [];
+  const otRecords = attendanceData?.filter(r =>
+    (r.overtimeMinutes ?? 0) > 0 &&
+    (filterDepartmentId == null || r.departmentId === filterDepartmentId)
+  ) ?? [];
+
+  const filterDepartmentName = useMemo(() => {
+    if (filterDepartmentId == null) return null;
+    return (
+      attendanceData?.find(r => r.departmentId === filterDepartmentId)?.departmentNameEn ??
+      rules?.find(r => r.departmentId === filterDepartmentId)?.departmentNameEn ??
+      `#${filterDepartmentId}`
+    );
+  }, [filterDepartmentId, attendanceData, rules]);
   const totalOTMinutes = otRecords.reduce((sum, r) => sum + (r.overtimeMinutes ?? 0), 0);
 
   // Top 10 employees by OT
@@ -128,7 +148,19 @@ export default function Overtime() {
         </p>
       </div>
 
-      <Tabs defaultValue="rules" className="w-full">
+      {filterDepartmentId != null && (
+        <div className="flex items-center gap-2 flex-wrap rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <Filter className="w-4 h-4 text-primary shrink-0" />
+          <span className="text-muted-foreground">{t('Filtered by', 'مصفى حسب')}:</span>
+          <Badge variant="secondary">{t('Department', 'القسم')}: {filterDepartmentName}</Badge>
+          <Button variant="ghost" size="sm" className="ms-auto h-7" onClick={clearFilter}>
+            <X className="w-3.5 h-3.5 me-1" />
+            {t('Clear filter', 'مسح التصفية')}
+          </Button>
+        </div>
+      )}
+
+      <Tabs defaultValue={filterDepartmentId != null ? 'report' : 'rules'} className="w-full">
         <TabsList className="grid w-full max-w-xs grid-cols-2">
           <TabsTrigger value="rules">{t('Rules', 'القواعد')}</TabsTrigger>
           <TabsTrigger value="report">{t('OT Report', 'تقرير الوقت الإضافي')}</TabsTrigger>

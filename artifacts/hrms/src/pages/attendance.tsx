@@ -1,5 +1,6 @@
 import { apiFetch } from '@/lib/api';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useSearch, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
 import { useListAttendance, useGetAttendanceDailySummary, useListDevices, useListEmployees } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -13,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Calendar, Download, Filter, Clock, Fingerprint, Cpu, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Calendar, Download, Filter, Clock, Fingerprint, Cpu, CheckCircle, XCircle, AlertCircle, X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -54,9 +55,33 @@ export default function Attendance() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [date] = useState(new Date().toISOString().split('T')[0]);
-  
-  const { data: attendanceData, isLoading: loadingAttendance } = useListAttendance();
+  const search = useSearch();
+  const [, navigate] = useLocation();
+  const params = new URLSearchParams(search);
+  const filterDepartmentId = params.get('departmentId') ? Number(params.get('departmentId')) : null;
+  const filterDate = params.get('date');
+
+  const { data: rawAttendanceData, isLoading: loadingAttendance } = useListAttendance();
   const { data: summaryData, isLoading: loadingSummary } = useGetAttendanceDailySummary();
+
+  const attendanceData = useMemo(() => {
+    if (!rawAttendanceData) return rawAttendanceData;
+    return rawAttendanceData.filter((r) =>
+      (filterDepartmentId == null || r.departmentId === filterDepartmentId) &&
+      (filterDate == null || r.date === filterDate)
+    );
+  }, [rawAttendanceData, filterDepartmentId, filterDate]);
+
+  const filterDepartmentName = useMemo(() => {
+    if (filterDepartmentId == null) return null;
+    return (
+      rawAttendanceData?.find((r) => r.departmentId === filterDepartmentId)?.departmentNameEn ??
+      summaryData?.find((s) => s.departmentId === filterDepartmentId)?.[lang === 'ar' ? 'departmentNameAr' : 'departmentNameEn'] ??
+      `#${filterDepartmentId}`
+    );
+  }, [filterDepartmentId, rawAttendanceData, summaryData, lang]);
+
+  const clearFilters = () => navigate('/attendance', { replace: true });
   const { data: devices } = useListDevices();
   const { data: employees } = useListEmployees();
 
@@ -97,7 +122,15 @@ export default function Attendance() {
     }
   };
 
-  const summary = summaryData ? summaryData.reduce((acc, curr) => ({
+  const filteredSummaryData = useMemo(() => {
+    if (!summaryData) return summaryData;
+    return summaryData.filter((s) =>
+      (filterDepartmentId == null || s.departmentId === filterDepartmentId) &&
+      (filterDate == null || s.date === filterDate)
+    );
+  }, [summaryData, filterDepartmentId, filterDate]);
+
+  const summary = filteredSummaryData ? filteredSummaryData.reduce((acc, curr) => ({
     present: acc.present + curr.present,
     absent: acc.absent + curr.absent,
     late: acc.late + curr.late,
@@ -272,6 +305,23 @@ export default function Attendance() {
           </Button>
         </div>
       </div>
+
+      {(filterDepartmentId != null || filterDate) && (
+        <div className="flex items-center gap-2 flex-wrap rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <Filter className="w-4 h-4 text-primary shrink-0" />
+          <span className="text-muted-foreground">{t('Filtered by', 'مصفى حسب')}:</span>
+          {filterDepartmentId != null && (
+            <Badge variant="secondary">{t('Department', 'القسم')}: {filterDepartmentName}</Badge>
+          )}
+          {filterDate && (
+            <Badge variant="secondary">{t('Date', 'التاريخ')}: {filterDate}</Badge>
+          )}
+          <Button variant="ghost" size="sm" className="ms-auto h-7" onClick={clearFilters}>
+            <X className="w-3.5 h-3.5 me-1" />
+            {t('Clear filters', 'مسح التصفية')}
+          </Button>
+        </div>
+      )}
 
       <Tabs defaultValue="daily" className="w-full" onValueChange={(val) => {
         if (val === 'corrections') fetchCorrections();

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
 import {
   useGetDashboardSummary,
@@ -30,7 +31,13 @@ function heatColor(pct: number): string {
 
 export default function Dashboard() {
   const { t, lang } = useLanguage();
+  const [, navigate] = useLocation();
   const locale = lang === 'ar' ? 'ar-SA' : 'en-US';
+
+  const drillToAttendance = (departmentId: number, date: string) =>
+    navigate(`/attendance?departmentId=${departmentId}&date=${date}`);
+  const drillToOvertime = (departmentId: number) =>
+    navigate(`/overtime?departmentId=${departmentId}`);
 
   const refetch = { query: { refetchInterval: REFRESH_MS } } as any;
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary(refetch);
@@ -258,8 +265,8 @@ export default function Dashboard() {
                   <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
                   <Tooltip cursor={{ fill: 'hsl(var(--accent))' }} contentStyle={chartTooltipStyle} />
                   <Legend wrapperStyle={{ paddingTop: '8px' }} />
-                  <Bar dataKey="otMinutes" name={t('OT minutes', 'دقائق إضافية')} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} maxBarSize={32} />
-                  <Bar dataKey="costIndex" name={t('Cost index', 'مؤشر التكلفة')} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  <Bar dataKey="otMinutes" name={t('OT minutes', 'دقائق إضافية')} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} maxBarSize={32} className="cursor-pointer" onClick={(d: any) => d?.departmentId && drillToOvertime(d.departmentId)} />
+                  <Bar dataKey="costIndex" name={t('Cost index', 'مؤشر التكلفة')} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={32} className="cursor-pointer" onClick={(d: any) => d?.departmentId && drillToOvertime(d.departmentId)} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -351,12 +358,14 @@ export default function Dashboard() {
                     <td className="text-center py-1.5 px-1 text-muted-foreground">{dept.headcount}</td>
                     {dept.days.map((day) => (
                       <td key={day.date} className="py-1.5 px-1">
-                        <div
-                          className={`rounded-md text-center py-1.5 text-xs font-medium ${heatColor(day.ratePct)}`}
-                          title={`${day.present}/${day.rostered} ${t('present', 'حاضر')}`}
+                        <button
+                          type="button"
+                          onClick={() => drillToAttendance(dept.departmentId, day.date)}
+                          className={`w-full rounded-md text-center py-1.5 text-xs font-medium cursor-pointer transition-transform hover:scale-105 hover:ring-2 hover:ring-primary/50 focus-visible:ring-2 focus-visible:ring-primary outline-none ${heatColor(day.ratePct)}`}
+                          title={`${day.present}/${day.rostered} ${t('present', 'حاضر')} — ${t('Click to view details', 'انقر لعرض التفاصيل')}`}
                         >
                           {day.rostered > 0 ? `${Math.round(day.ratePct)}%` : '—'}
-                        </div>
+                        </button>
                       </td>
                     ))}
                   </tr>
