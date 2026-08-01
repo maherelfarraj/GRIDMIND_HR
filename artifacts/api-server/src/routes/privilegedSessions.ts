@@ -143,7 +143,9 @@ router.get("/privileged-sessions/:id/activity", requireSecurityOfficer, async (r
   const taggedWhere = eq(auditLogsTable.privilegedSessionId, id);
   const tagged = await paginated(taggedWhere);
   if (tagged.total > 0) {
-    res.json(tagged);
+    // "tagged" = exact attribution: every entry was written under this
+    // session's id, so reviewers can judge the list as break-glass activity.
+    res.json({ ...tagged, correlation: "tagged" });
     return;
   }
 
@@ -158,7 +160,9 @@ router.get("/privileged-sessions/:id/activity", requireSecurityOfficer, async (r
   ];
   if (windowEnd) conditions.push(lte(auditLogsTable.createdAt, windowEnd));
 
-  res.json(await paginated(and(...conditions)));
+  // "time-window" = estimate: the list is everything the holder did in the
+  // window, so routine work may be mixed in — reviewers are told explicitly.
+  res.json({ ...(await paginated(and(...conditions))), correlation: "time-window" });
 });
 
 // POST /privileged-sessions/:id/review — mark a session reviewed.

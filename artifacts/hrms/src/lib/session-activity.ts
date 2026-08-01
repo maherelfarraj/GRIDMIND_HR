@@ -10,10 +10,14 @@ export const ACTIVITY_PAGE_SIZE = 50;
 export interface ActivityState {
   items: AuditLog[];
   total: number;
+  // How the server correlated entries to the session: "tagged" means exact
+  // attribution; "time-window" means an estimate that may include routine
+  // work done in the same window (sessions predating tagging).
+  correlation: 'tagged' | 'time-window' | null;
 }
 
 export function emptyActivityState(): ActivityState {
-  return { items: [], total: 0 };
+  return { items: [], total: 0, correlation: null };
 }
 
 // Append a fetched page, deduping by id: rows inserted between requests can
@@ -23,6 +27,7 @@ export function appendActivityPage(state: ActivityState, page: GetPrivilegedSess
   return {
     items: [...state.items, ...page.items.filter((i) => !seen.has(i.id))],
     total: page.total,
+    correlation: page.correlation,
   };
 }
 

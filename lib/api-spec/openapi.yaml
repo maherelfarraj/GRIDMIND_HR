@@ -3393,7 +3393,11 @@ paths:
                   total: { type: integer }
                   limit: { type: integer }
                   offset: { type: integer }
-                required: [items, total, limit, offset]
+                  correlation:
+                    type: string
+                    enum: [tagged, time-window]
+                    description: '"tagged" when entries are precisely attributed to this session via audit tagging; "time-window" when the list is an estimate of everything the holder did during the window (sessions predating tagging), which may include routine work.'
+                required: [items, total, limit, offset, correlation]
 
   /privileged-sessions/{id}/review:
     parameters:

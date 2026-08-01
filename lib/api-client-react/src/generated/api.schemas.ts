@@ -6665,11 +6665,24 @@ limit?: number | null;
 offset?: number | null;
 };
 
+/**
+ * "tagged" when entries are precisely attributed to this session via audit tagging; "time-window" when the list is an estimate of everything the holder did during the window (sessions predating tagging), which may include routine work.
+ */
+export type GetPrivilegedSessionActivity200Correlation = typeof GetPrivilegedSessionActivity200Correlation[keyof typeof GetPrivilegedSessionActivity200Correlation];
+
+
+export const GetPrivilegedSessionActivity200Correlation = {
+  tagged: 'tagged',
+  'time-window': 'time-window',
+} as const;
+
 export type GetPrivilegedSessionActivity200 = {
   items: AuditLog[];
   total: number;
   limit: number;
   offset: number;
+  /** "tagged" when entries are precisely attributed to this session via audit tagging; "time-window" when the list is an estimate of everything the holder did during the window (sessions predating tagging), which may include routine work. */
+  correlation: GetPrivilegedSessionActivity200Correlation;
 };
 
 export type ListBackupRecordsParams = {

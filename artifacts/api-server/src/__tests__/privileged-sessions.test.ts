@@ -322,6 +322,7 @@ describe("privileged session review", () => {
       const actions = res.body.items.map((a: any) => a.action);
       expect(actions).toContain("TEST.activity.tagged");
       expect(actions).not.toContain("TEST.activity.untagged");
+      expect(res.body.correlation).toBe("tagged");
     } finally {
       await db.delete(auditLogsTable).where(inArray(auditLogsTable.id, inserted.map(r => r.id)));
     }
@@ -346,6 +347,7 @@ describe("privileged session review", () => {
       expect(res.status).toBe(200);
       const actions = res.body.items.map((a: any) => a.action);
       expect(actions).toContain("TEST.activity.legacy");
+      expect(res.body.correlation).toBe("time-window");
     } finally {
       await db.delete(auditLogsTable).where(inArray(auditLogsTable.id, inserted.map(r => r.id)));
     }

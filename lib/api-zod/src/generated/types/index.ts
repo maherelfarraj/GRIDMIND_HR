@@ -223,6 +223,7 @@ export * from './getOrganization200Stats';
 export * from './getOrganizationEmployeesCount200';
 export * from './getOrgUnitTreeParams';
 export * from './getPrivilegedSessionActivity200';
+export * from './getPrivilegedSessionActivity200Correlation';
 export * from './getPrivilegedSessionActivityParams';
 export * from './getRosterSummaryParams';
 export * from './getShiftRosterParams';

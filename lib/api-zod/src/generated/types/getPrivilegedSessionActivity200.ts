@@ -6,10 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AuditLog } from './auditLog';
+import type { GetPrivilegedSessionActivity200Correlation } from './getPrivilegedSessionActivity200Correlation';
 
 export type GetPrivilegedSessionActivity200 = {
   items: AuditLog[];
   total: number;
   limit: number;
   offset: number;
+  /** "tagged" when entries are precisely attributed to this session via audit tagging; "time-window" when the list is an estimate of everything the holder did during the window (sessions predating tagging), which may include routine work. */
+  correlation: GetPrivilegedSessionActivity200Correlation;
 };

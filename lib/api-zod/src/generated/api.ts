@@ -5815,7 +5815,8 @@ export const GetPrivilegedSessionActivityResponse = zod.object({
 })),
   "total": zod.number(),
   "limit": zod.number(),
-  "offset": zod.number()
+  "offset": zod.number(),
+  "correlation": zod.enum(['tagged', 'time-window'])
 })
 
 

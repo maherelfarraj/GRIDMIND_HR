@@ -492,6 +492,17 @@ function SessionActivityList({ sessionId }: { sessionId: number }) {
   }
   return (
     <div className="space-y-1.5">
+    {state.correlation === 'time-window' && (
+      <div className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-2.5 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+        <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
+        <span>
+          {t(
+            'Estimated by time window: this session predates precise activity tagging, so the list shows everything this user did during the window — routine work may be mixed in.',
+            'مُقدَّر حسب النافذة الزمنية: هذه الجلسة تسبق التتبع الدقيق للنشاط، لذا تعرض القائمة كل ما قام به المستخدم خلال النافذة — وقد تتضمن أعمالاً اعتيادية.',
+          )}
+        </span>
+      </div>
+    )}
     <div className="max-h-56 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/50">
       {activity.map((a) => (
         <div key={a.id} className="px-3 py-2 text-xs">

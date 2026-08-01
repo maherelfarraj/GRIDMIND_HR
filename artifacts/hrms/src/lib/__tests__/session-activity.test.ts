@@ -27,7 +27,7 @@ function makeLog(id: number): AuditLog {
 // Simulates the server: newest-first fixed dataset, limit clamped like the API.
 function serverPage(all: AuditLog[], limit: number, offset: number): GetPrivilegedSessionActivity200 {
   const clamped = Math.min(Math.max(limit, 1), SERVER_MAX_LIMIT);
-  return { items: all.slice(offset, offset + clamped), total: all.length, limit: clamped, offset };
+  return { items: all.slice(offset, offset + clamped), total: all.length, limit: clamped, offset, correlation: 'tagged' };
 }
 
 describe('session activity pagination', () => {
