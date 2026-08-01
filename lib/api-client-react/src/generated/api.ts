@@ -37049,6 +37049,77 @@ export const usePinEnvironmentSnapshot = <TError = ErrorType<unknown>,
       return useMutation(getPinEnvironmentSnapshotMutationOptions(options));
     }
 
+export const getUnpinEnvironmentSnapshotUrl = (id: number,) => {
+
+
+
+
+  return `/api/environment-snapshots/${id}/pin`
+}
+
+/**
+ * @summary Unpin an environment snapshot
+ */
+export const unpinEnvironmentSnapshot = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<EnvironmentSnapshot> => {
+
+  return customFetch<EnvironmentSnapshot>(getUnpinEnvironmentSnapshotUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnpinEnvironmentSnapshotMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unpinEnvironmentSnapshot>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unpinEnvironmentSnapshot>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['unpinEnvironmentSnapshot'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unpinEnvironmentSnapshot>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  unpinEnvironmentSnapshot(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnpinEnvironmentSnapshotMutationResult = NonNullable<Awaited<ReturnType<typeof unpinEnvironmentSnapshot>>>
+
+    export type UnpinEnvironmentSnapshotMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Unpin an environment snapshot
+ */
+export const useUnpinEnvironmentSnapshot = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unpinEnvironmentSnapshot>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unpinEnvironmentSnapshot>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getUnpinEnvironmentSnapshotMutationOptions(options));
+    }
+
 export const getListImportJobsUrl = (params?: ListImportJobsParams,) => {
   const normalizedParams = new URLSearchParams();
 

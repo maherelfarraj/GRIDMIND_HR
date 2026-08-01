@@ -4,7 +4,7 @@ import {
   useListConfigPackages, useCreateConfigPackage, useImportConfigPackage,
   useSignConfigPackage, useExportConfigPackage, useApplyConfigPackage,
   useListEnvironmentSnapshots, useCreateEnvironmentSnapshot,
-  useCompareEnvironmentSnapshots, usePinEnvironmentSnapshot,
+  useCompareEnvironmentSnapshots, usePinEnvironmentSnapshot, useUnpinEnvironmentSnapshot,
   getListConfigPackagesQueryKey, getListEnvironmentSnapshotsQueryKey,
 } from '@workspace/api-client-react';
 import type {
@@ -25,7 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Package, AlertTriangle, Pin, Camera, ArrowRight } from 'lucide-react';
+import { Package, AlertTriangle, Pin, PinOff, Camera, ArrowRight } from 'lucide-react';
 
 function fmtDate(s: string | null | undefined) {
   if (!s) return '—';
@@ -220,6 +220,7 @@ export default function ConfigPackages() {
   const importMut = useImportConfigPackage();
   const compareMut = useCompareEnvironmentSnapshots();
   const pinMut = usePinEnvironmentSnapshot();
+  const unpinMut = useUnpinEnvironmentSnapshot();
   const [createOpen, setCreateOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -285,6 +286,13 @@ export default function ConfigPackages() {
   async function pinSnapshot(id: number) {
     try {
       await pinMut.mutateAsync({ id });
+      refreshSnapshots();
+    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+  }
+
+  async function unpinSnapshot(id: number) {
+    try {
+      await unpinMut.mutateAsync({ id });
       refreshSnapshots();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
@@ -429,9 +437,13 @@ export default function ConfigPackages() {
                           <TableCell className="text-slate-300 text-sm">{fmtDate(s.capturedAt)}</TableCell>
                           <TableCell>{s.isPinned ? <Badge variant="outline" className="text-xs bg-amber-900/40 text-amber-300 border-amber-700">{t('Pinned','مثبت')}</Badge> : <span className="text-slate-500 text-xs">—</span>}</TableCell>
                           <TableCell>
-                            {!s.isPinned && (
+                            {!s.isPinned ? (
                               <Button size="sm" variant="ghost" className="text-slate-400 hover:text-slate-300 h-7 px-2 text-xs" onClick={() => pinSnapshot(s.id)}>
                                 <Pin className="w-3 h-3 me-1" />{t('Pin', 'تثبيت')}
+                              </Button>
+                            ) : (
+                              <Button size="sm" variant="ghost" className="text-amber-400 hover:text-amber-300 h-7 px-2 text-xs" onClick={() => unpinSnapshot(s.id)}>
+                                <PinOff className="w-3 h-3 me-1" />{t('Unpin', 'إلغاء التثبيت')}
                               </Button>
                             )}
                           </TableCell>

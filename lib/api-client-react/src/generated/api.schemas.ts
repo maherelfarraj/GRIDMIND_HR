@@ -6372,6 +6372,7 @@ export type SetUserPassword200 = {
 export type UnlockUser200 = {
   success: boolean;
 };
+
 export type ChangeMyPassword200 = {
   success: boolean;
 };
@@ -6519,6 +6520,12 @@ scope?: ListPublicHolidaysScope;
 };
 
 export type ListPublicHolidaysScope = typeof ListPublicHolidaysScope[keyof typeof ListPublicHolidaysScope];
+
+
+export const ListPublicHolidaysScope = {
+  mine: 'mine',
+} as const;
+
 export type ListSalaryGradesParams = {
 organizationType?: string;
 };
@@ -7869,6 +7876,3 @@ export type DeleteImportMappingTemplate200 = {
   deleted: boolean;
 };
 
-export const ListPublicHolidaysScope = {
-  mine: 'mine',
-} as const;

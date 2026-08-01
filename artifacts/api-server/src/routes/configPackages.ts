@@ -325,6 +325,18 @@ router.post("/environment-snapshots/:id/pin", async (req, res): Promise<void> =>
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// DELETE /environment-snapshots/:id/pin
+router.delete("/environment-snapshots/:id/pin", async (req, res): Promise<void> => {
+  try {
+    const actorUserId: number = getActorUserId(req);
+    const id = parseInt(req.params.id);
+    const [row] = await db.update(environmentSnapshotsTable).set({ isPinned: false }).where(eq(environmentSnapshotsTable.id, id)).returning();
+    if (!row) return void res.status(404).json({ error: "Not found" });
+    await db.insert(auditLogsTable).values({ action: "unpin", entityType: "environment_snapshot", entityId: id, entityLabel: row.snapshotName, actorUserId, changesJson: JSON.stringify({ isPinned: false }) });
+    res.json(row);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 router.get("/environment-snapshots/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.select().from(environmentSnapshotsTable).where(eq(environmentSnapshotsTable.id, parseInt(req.params.id)));

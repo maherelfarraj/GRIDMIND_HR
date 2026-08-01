@@ -13,7 +13,7 @@ import {
   integrationCredentialVaultRefsTable, integrationConnectionProfilesTable,
   integrationGovernanceRulesTable, integrationAuditLogTable,
   configPackagesTable, configPackageItemsTable,
-  environmentSnapshotsTable, orgReportTemplatesTable,
+  environmentSnapshotsTable, orgReportTemplatesTable, auditLogsTable,
 } from "@workspace/db";
 import app from "../app";
 
@@ -972,5 +972,22 @@ describe("Environment Snapshots: capture + compare", () => {
     const res = await request(app).post(`/api/environment-snapshots/${snapAId}/pin`);
     expect(res.status).toBe(200);
     expect(res.body.isPinned).toBe(true);
+  });
+
+  it("DELETE /environment-snapshots/:id/pin — unpins snapshot with audit entry", async () => {
+    const res = await request(app).delete(`/api/environment-snapshots/${snapAId}/pin`);
+    expect(res.status).toBe(200);
+    expect(res.body.isPinned).toBe(false);
+    const audit = await db.select().from(auditLogsTable).where(and(
+      eq(auditLogsTable.action, "unpin"),
+      eq(auditLogsTable.entityType, "environment_snapshot"),
+      eq(auditLogsTable.entityId, snapAId),
+    ));
+    expect(audit.length).toBeGreaterThan(0);
+  });
+
+  it("DELETE /environment-snapshots/:id/pin — 404 for unknown snapshot", async () => {
+    const res = await request(app).delete(`/api/environment-snapshots/999999999/pin`);
+    expect(res.status).toBe(404);
   });
 });

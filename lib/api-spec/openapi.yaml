@@ -9251,6 +9251,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EnvironmentSnapshot"
+    delete:
+      operationId: unpinEnvironmentSnapshot
+      tags: [configPackages]
+      summary: Unpin an environment snapshot
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Unpinned snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentSnapshot"
 
   # ─── Data Import ─────────────────────────────────────────────
   /imports:

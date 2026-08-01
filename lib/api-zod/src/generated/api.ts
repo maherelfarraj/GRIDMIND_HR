@@ -1407,6 +1407,7 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
+
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1415,17 +1416,25 @@ export const SetUserPasswordResponse = zod.object({
   "success": zod.boolean()
 })
 
+
 /**
  * @summary Clear a login lockout for a user immediately (admins only)
  */
 export const UnlockUserParams = zod.object({
   "id": zod.coerce.number()
 })
+
+export const UnlockUserResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
 /**
  * @summary Change the signed-in user's own password (verifies current password)
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
+
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -15725,6 +15734,30 @@ export const PinEnvironmentSnapshotResponse = zod.object({
 
 
 /**
+ * @summary Unpin an environment snapshot
+ */
+export const UnpinEnvironmentSnapshotParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UnpinEnvironmentSnapshotResponse = zod.object({
+  "id": zod.number(),
+  "environment": zod.string(),
+  "orgId": zod.number().nullish(),
+  "snapshotName": zod.string(),
+  "scope": zod.string(),
+  "snapshotJson": zod.string().nullish(),
+  "checksum": zod.string().nullish(),
+  "itemCount": zod.number(),
+  "capturedByUserId": zod.number().nullish(),
+  "capturedAt": zod.string(),
+  "isPinned": zod.boolean(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary List data import jobs
  */
 export const ListImportJobsQueryParams = zod.object({
@@ -16053,6 +16086,3 @@ export const DeleteImportMappingTemplateResponse = zod.object({
 })
 
 
-export const UnlockUserResponse = zod.object({
-  "success": zod.boolean()
-})
