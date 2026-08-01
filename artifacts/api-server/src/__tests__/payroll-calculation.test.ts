@@ -554,6 +554,108 @@ describe("payroll calculation engine", () => {
     });
   });
 
+  describe("suspiciously long overtime sessions", () => {
+    let emp4Id: number;
+    const localPunchIds: number[] = [];
+    let capPeriodId: number;
+
+    beforeAll(async () => {
+      const [seedEmp] = await db.select().from(employeesTable).limit(1);
+      const [e4] = await db.insert(employeesTable).values({
+        employeeNumber: `T-EMP-${SUFFIX}-4`,
+        firstNameEn: "Test", lastNameEn: "Payroll4",
+        firstNameAr: "اختبار", lastNameAr: "رواتب4",
+        nationalId: `T${SUFFIX}4`,
+        jobTitleEn: "Test Engineer", jobTitleAr: "مهندس اختبار",
+        departmentId: seedEmp.departmentId,
+        roleId: seedEmp.roleId,
+        status: "active",
+        grade: GRADE_CODE,
+        email: `test-payroll-${SUFFIX}-4@example.com`,
+        hireDate: "2020-01-01",
+        nationality: "SA",
+      }).returning();
+      emp4Id = e4.id;
+
+      // Separate far-future period so other tests' punches don't interfere.
+      const [p] = await db.insert(payrollPeriodsTable).values({
+        periodCode: `T-PPCAP-${SUFFIX}`,
+        nameEn: "TEST OT Cap Period", nameAr: "فترة اختبار سقف الإضافي",
+        startDate: "2099-02-01", endDate: "2099-02-28", payDate: "2099-03-01",
+        status: "draft",
+      }).returning();
+      capPeriodId = p.id;
+
+      // Session 1: normal 2h. Session 2: forgot to punch out on Feb 3; the next
+      // end punch lands 2 days later → raw duration ~50h, implausible.
+      const punches: { time: string; type: "OVERTIME_START" | "OVERTIME_END" }[] = [
+        { time: "2099-02-02T18:00:00Z", type: "OVERTIME_START" },
+        { time: "2099-02-02T20:00:00Z", type: "OVERTIME_END" },
+        { time: "2099-02-03T18:00:00Z", type: "OVERTIME_START" },
+        { time: "2099-02-05T20:00:00Z", type: "OVERTIME_END" },
+      ];
+      for (const punch of punches) {
+        const [ev] = await db.insert(punchEventsTable).values({
+          employeeId: emp4Id,
+          eventTime: new Date(punch.time),
+          eventType: punch.type,
+          source: "MANUAL",
+          notes: `TEST-PAYROLL-${SUFFIX}`,
+        }).returning();
+        localPunchIds.push(ev.id);
+      }
+    });
+
+    afterAll(async () => {
+      const runs = await db.select().from(payrollRunsTable)
+        .where(eq(payrollRunsTable.payrollPeriodId, capPeriodId));
+      const runIds = runs.map(r => r.id);
+      if (runIds.length) {
+        await db.delete(payrollRunLinesTable).where(inArray(payrollRunLinesTable.payrollRunId, runIds));
+        await db.delete(payrollRunsTable).where(inArray(payrollRunsTable.id, runIds));
+      }
+      await db.delete(auditLogsTable).where(and(
+        eq(auditLogsTable.entityType, "payroll_period"),
+        eq(auditLogsTable.entityId, capPeriodId),
+      ));
+      await db.delete(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, capPeriodId));
+      if (localPunchIds.length) {
+        await db.delete(punchEventsTable).where(inArray(punchEventsTable.id, localPunchIds));
+      }
+      if (emp4Id) await db.delete(employeesTable).where(eq(employeesTable.id, emp4Id));
+    });
+
+    it("caps an implausibly long session at 12h and flags the run as an exception", async () => {
+      const res = await request(app).post(`/api/payroll-periods/${capPeriodId}/calculate`);
+      expect(res.status).toBe(200);
+
+      const runsRes = await request(app).get(`/api/payroll-runs?periodId=${capPeriodId}`);
+      const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === emp4Id);
+      expect(run).toBeDefined();
+
+      // 2h normal session + 50h runaway session capped to 12h = 14h payable.
+      expect(parseFloat(run.overtimeHours)).toBeCloseTo(2 + 12, 2);
+
+      // The run is flagged for review with an explanatory note.
+      expect(run.hasException).toBe(true);
+      expect(run.status).toBe("exception");
+      expect(run.exceptionNote).toMatch(/overtime session.*capped at 12h/i);
+      expect(run.exceptionNote).toContain("2099-02-03");
+      expect(run.exceptionNote).toContain("50h");
+
+      // Pay reflects the capped hours, not the raw 52h.
+      const otRules = await db.select().from(overtimeRulesTable).where(eq(overtimeRulesTable.isActive, true));
+      const otRule = otRules.find(r => r.nameEn.includes("Standard")) ?? otRules[0];
+      const otRate = otRule ? parseFloat(otRule.multiplierWeekday) : 1.5;
+      expect(parseFloat(run.overtimePay)).toBeCloseTo(round2(14 * (BASE_SALARY / 176) * otRate), 2);
+
+      // The period rolls the exception up into review status.
+      const periodRes = await request(app).get(`/api/payroll-periods/${capPeriodId}`);
+      expect(periodRes.body.exceptionCount).toBeGreaterThanOrEqual(1);
+      expect(periodRes.body.status).toBe("under_review");
+    });
+  });
+
   it("refuses to recalculate a closed period", async () => {
     const [closed] = await db.insert(payrollPeriodsTable).values({
       periodCode: `T-PPC-${SUFFIX}`,

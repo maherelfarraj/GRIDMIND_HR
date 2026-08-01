@@ -268,6 +268,21 @@ async function notifyUnexcusedNoShows(
 // has no matching OVERTIME_END punch — the historical per-session approximation.
 const DEFAULT_OT_SESSION_HOURS = 2;
 
+// Sanity cap (hours) for a single paired overtime session. Sessions longer than
+// this are almost always bad punch data (a forgotten end punch matched to a much
+// later one), so the payable duration is clamped to the cap and the run is
+// flagged as an exception for HR review instead of being paid blindly.
+// Configurable via MAX_OT_SESSION_HOURS; must be a positive number.
+const MAX_OT_SESSION_HOURS = (() => {
+  const raw = process.env.MAX_OT_SESSION_HOURS;
+  if (raw == null || raw.trim() === "") return 12;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Invalid MAX_OT_SESSION_HOURS: "${raw}" — must be a positive number of hours`);
+  }
+  return parsed;
+})();
+
 const router = Router();
 
 // GET /payroll-periods?status=&year=
@@ -484,6 +499,9 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       .filter(e => e.employeeId === emp.id && e.eventType === "OVERTIME_END")
       .sort((a, b) => a.eventTime.getTime() - b.eventTime.getTime());
     let weekdayOtHours = 0, weekendOtHours = 0, holidayOtHours = 0;
+    // Sessions whose raw paired duration exceeded the sanity cap; their pay is
+    // clamped to MAX_OT_SESSION_HOURS and the run is flagged for review.
+    const cappedOtSessions: { date: string; rawHours: number }[] = [];
     let endIdx = 0;
     for (let s = 0; s < empOtStarts.length; s++) {
       const start = empOtStarts[s];
@@ -498,6 +516,10 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
       if (endIdx < empOtEnds.length && empOtEnds[endIdx].eventTime.getTime() < nextStartTime) {
         hours = (empOtEnds[endIdx].eventTime.getTime() - start.eventTime.getTime()) / 3_600_000;
         endIdx++;
+      }
+      if (hours > MAX_OT_SESSION_HOURS) {
+        cappedOtSessions.push({ date: start.eventTime.toISOString().slice(0, 10), rawHours: hours });
+        hours = MAX_OT_SESSION_HOURS;
       }
       const iso = start.eventTime.toISOString().slice(0, 10);
       if (empHolidaySet.has(iso)) holidayOtHours += hours;
@@ -640,11 +662,17 @@ router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> =>
     const grossSalary = totalEarnings;
     const netSalary = grossSalary - totalDeductionsEmp;
 
-    const hasException = !grade;
+    const hasException = !grade || cappedOtSessions.length > 0;
     if (hasException) exceptionCount++;
 
     const notes: string[] = [];
     if (!grade) notes.push("No salary grade assigned — using default base salary");
+    if (cappedOtSessions.length > 0) {
+      const detail = cappedOtSessions
+        .map(c => `${c.date} (${Math.round(c.rawHours * 100) / 100}h)`)
+        .join(", ");
+      notes.push(`Suspicious overtime session(s) capped at ${MAX_OT_SESSION_HOURS}h — likely missing end punch: ${detail}`);
+    }
     if (isProrated) notes.push(`Prorated for partial employment: ${employedWorkingDays}/${periodWorkingDays} working days`);
     const [run] = await db.insert(payrollRunsTable).values({
       payrollPeriodId: periodId,
