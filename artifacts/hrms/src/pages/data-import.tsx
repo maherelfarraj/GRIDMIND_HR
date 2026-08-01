@@ -109,6 +109,28 @@ export function parseCsvHeaders(csvText: string): string[] {
   return (rows[0] ?? []).map(h => h.trim()).filter(Boolean);
 }
 
+/**
+ * Convert one worksheet of a workbook to CSV text and derive the column mapping,
+ * keeping any previous mapping for headers that still exist and auto-mapping
+ * known defaults. Empty sheets yield `{ text: '', mapping: {} }`.
+ */
+export function extractSheetData(
+  workbook: XLSX.WorkBook,
+  sheetName: string,
+  prevMapping: Record<string, string>,
+): { text: string; mapping: Record<string, string> } {
+  const sheet = workbook.Sheets[sheetName];
+  const text = sheet ? XLSX.utils.sheet_to_csv(sheet) : '';
+  if (!text.trim()) return { text: '', mapping: {} };
+  const headers = parseCsvHeaders(text);
+  const mapping: Record<string, string> = {};
+  headers.forEach(h => {
+    const target = prevMapping[h] ?? DEFAULT_MAPPING[h];
+    if (target) mapping[h] = target;
+  });
+  return { text, mapping };
+}
+
 /** Parse CSV text into objects keyed by the mapped target fields. */
 function parseCsvRows(csvText: string, mapping: Record<string, string>): Record<string, string>[] {
   const rows = parseCsv(csvText);
@@ -139,6 +161,8 @@ function NewImportTab() {
   const [job, setJob] = useState<CreateImportJob201 | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileFormat, setFileFormat] = useState<'csv' | 'xlsx'>('csv');
+  const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [selectedSheet, setSelectedSheet] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const sourceCols = parseCsvHeaders(csvText);
@@ -183,7 +207,7 @@ function NewImportTab() {
     function applyParsedText(text: string, format: 'csv' | 'xlsx') {
       if (!text.trim()) {
         toast({ title: t('The file is empty', 'الملف فارغ'), variant: 'destructive' });
-        return;
+        return false;
       }
       setCsvText(text);
       setFileName(file!.name);
@@ -199,25 +223,49 @@ function NewImportTab() {
         });
         return next;
       });
+      return true;
     }
 
     const reader = new FileReader();
     reader.onload = () => {
       if (isXlsx) {
         try {
-          const workbook = XLSX.read(reader.result, { type: 'array' });
-          const firstSheetName = workbook.SheetNames[0];
-          const sheet = firstSheetName ? workbook.Sheets[firstSheetName] : undefined;
-          if (!sheet) {
+          const wb = XLSX.read(reader.result, { type: 'array' });
+          const firstSheetName = wb.SheetNames[0];
+          if (!firstSheetName) {
             toast({ title: t('The workbook has no worksheets', 'لا يحتوي المصنف على أوراق عمل'), variant: 'destructive' });
             return;
           }
-          applyParsedText(XLSX.utils.sheet_to_csv(sheet), 'xlsx');
+          const multiSheet = wb.SheetNames.length > 1;
+          if (!multiSheet) {
+            const { text } = extractSheetData(wb, firstSheetName, {});
+            if (applyParsedText(text, 'xlsx')) {
+              setWorkbook(null);
+              setSelectedSheet(null);
+            }
+            return;
+          }
+          // Multi-sheet workbook: always keep the workbook and show the picker,
+          // even if the first sheet is empty (e.g. a cover sheet).
+          const { text, mapping: nextMapping } = extractSheetData(wb, firstSheetName, mapping);
+          setWorkbook(wb);
+          setSelectedSheet(firstSheetName);
+          setFileName(file.name);
+          setFileFormat('xlsx');
+          setJob(null);
+          setCsvText(text);
+          setMapping(nextMapping);
+          if (!text.trim()) {
+            toast({ title: t('The first worksheet is empty — pick another sheet below', 'ورقة العمل الأولى فارغة — اختر ورقة أخرى أدناه') });
+          }
         } catch {
           toast({ title: t('Could not parse the Excel file', 'تعذر تحليل ملف Excel'), variant: 'destructive' });
         }
       } else {
-        applyParsedText(typeof reader.result === 'string' ? reader.result : '', 'csv');
+        if (applyParsedText(typeof reader.result === 'string' ? reader.result : '', 'csv')) {
+          setWorkbook(null);
+          setSelectedSheet(null);
+        }
       }
     };
     reader.onerror = () => {
@@ -227,6 +275,18 @@ function NewImportTab() {
     else reader.readAsText(file);
     // Allow re-selecting the same file.
     e.target.value = '';
+  }
+
+  function handleSheetChange(sheetName: string) {
+    if (!workbook || !workbook.Sheets[sheetName]) return;
+    const { text, mapping: nextMapping } = extractSheetData(workbook, sheetName, mapping);
+    setSelectedSheet(sheetName);
+    setCsvText(text);
+    setMapping(nextMapping);
+    setJob(null);
+    if (!text.trim()) {
+      toast({ title: t('This worksheet is empty', 'ورقة العمل هذه فارغة'), variant: 'destructive' });
+    }
   }
 
   async function handleValidate() {
@@ -343,12 +403,31 @@ function NewImportTab() {
         </div>
       </div>
 
+      {workbook && workbook.SheetNames.length > 1 && (
+        <div>
+          <Label className="text-slate-300">{t('Worksheet', 'ورقة العمل')}</Label>
+          <Select value={selectedSheet ?? undefined} onValueChange={handleSheetChange}>
+            <SelectTrigger className="mt-1 bg-slate-800 border-slate-600 text-white md:w-72" data-testid="select-worksheet">
+              <SelectValue placeholder={t('Choose a worksheet…', 'اختر ورقة عمل…')} />
+            </SelectTrigger>
+            <SelectContent>
+              {workbook.SheetNames.map(name => (
+                <SelectItem key={name} value={name}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-slate-500 text-xs mt-1">
+            {t('This workbook has multiple sheets — pick the one to import.', 'يحتوي هذا المصنف على عدة أوراق — اختر الورقة المراد استيرادها.')}
+          </p>
+        </div>
+      )}
+
       <div>
         <Label className="text-slate-300">{t('CSV Preview (or paste data here)', 'معاينة CSV (أو الصق البيانات هنا)')}</Label>
         <textarea
           className="mt-1 w-full h-28 bg-slate-800 border border-slate-600 rounded p-2 text-xs text-slate-300 font-mono resize-none focus:outline-none focus:border-primary"
           value={csvText}
-          onChange={e => { setCsvText(e.target.value); setFileName(null); setFileFormat('csv'); setJob(null); }}
+          onChange={e => { setCsvText(e.target.value); setFileName(null); setFileFormat('csv'); setJob(null); setWorkbook(null); setSelectedSheet(null); }}
         />
       </div>
 
