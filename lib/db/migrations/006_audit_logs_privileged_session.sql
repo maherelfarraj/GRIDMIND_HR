@@ -17,7 +17,10 @@ BEGIN
     WHERE ps.user_id = NEW.actor_user_id
       AND ps.started_at <= COALESCE(NEW.created_at, now())
       AND COALESCE(ps.ended_at, ps.scheduled_end_at) >= COALESCE(NEW.created_at, now())
-    ORDER BY ps.started_at DESC
+    -- Prefer the most recently started session; when two grants start at the
+    -- same instant (back-to-back or overlapping), the newer grant (higher id)
+    -- wins deterministically instead of leaving the choice to plan order.
+    ORDER BY ps.started_at DESC, ps.id DESC
     LIMIT 1;
   END IF;
   RETURN NEW;

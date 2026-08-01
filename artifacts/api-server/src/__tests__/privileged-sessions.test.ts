@@ -376,6 +376,99 @@ describe("privileged session review", () => {
   });
 });
 
+describe("overlapping / back-to-back session attribution (trigger)", () => {
+  // Direct fixtures with controlled windows: one inactive grant shared by
+  // hand-crafted sessions for a user with no other sessions in these tests'
+  // windows. Times sit in the past so nothing overlaps live activity, and
+  // ended_at is pre-set so the sweeper never touches them.
+  const USER = 3;
+  let grantId: number;
+  const sessionIds: number[] = [];
+  const auditIds: number[] = [];
+
+  const T0 = new Date("2026-03-02T09:00:00");
+  const min = (m: number) => new Date(T0.getTime() + m * 60_000);
+
+  async function makeSession(startedAt: Date, scheduledEndAt: Date, endedAt: Date | null = null) {
+    const [row] = await db.insert(privilegedSessionsTable).values({
+      userId: USER, breakGlassAccessId: grantId,
+      startedAt, scheduledEndAt, endedAt,
+      endReason: endedAt ? "revoked" : null,
+    }).returning();
+    sessionIds.push(row.id);
+    return row;
+  }
+
+  async function tagOf(createdAt: Date) {
+    const [row] = await db.insert(auditLogsTable).values({
+      actorUserId: USER, action: "TEST.attribution.write", entityType: "employee",
+      entityId: 60, createdAt,
+    }).returning();
+    auditIds.push(row.id);
+    return row.privilegedSessionId;
+  }
+
+  afterAll(async () => {
+    if (auditIds.length) await db.delete(auditLogsTable).where(inArray(auditLogsTable.id, auditIds));
+    if (sessionIds.length) await db.delete(privilegedSessionsTable).where(inArray(privilegedSessionsTable.id, sessionIds));
+    if (grantId) await db.delete(breakGlassAccessTable).where(eq(breakGlassAccessTable.id, grantId));
+  });
+
+  it("setup: shared inactive grant for hand-crafted sessions", async () => {
+    const [grant] = await db.insert(breakGlassAccessTable).values({
+      userId: USER, resourceType: "employee_record",
+      justification: "TEST — attribution trigger fixtures",
+      expiresAt: min(600), isActive: false,
+    }).returning();
+    grantId = grant.id;
+    expect(grantId).toBeTruthy();
+  });
+
+  it("two overlapping open sessions: the later-started session is blamed", async () => {
+    // A: 09:00–10:00, B: 09:10–09:40 — both open at 09:20.
+    const a = await makeSession(min(0), min(60));
+    const b = await makeSession(min(10), min(40));
+    expect(await tagOf(min(20))).toBe(b.id);
+    // Before B started, only A covers the write.
+    expect(await tagOf(min(5))).toBe(a.id);
+  });
+
+  it("write after one session was revoked while another is still open blames the open one", async () => {
+    // A: 09:00–10:00 open; B: 09:10 started, revoked at 09:15.
+    const a = await makeSession(min(100), min(160));
+    await makeSession(min(110), min(160), min(115));
+    // 09:20-equivalent: B's window is over, A must be blamed even though B started later.
+    expect(await tagOf(min(120))).toBe(a.id);
+  });
+
+  it("boundary writes: started_at and ended_at are inclusive, outside is untagged", async () => {
+    // Lone session 12:20–12:40 (revoked at 12:40).
+    const s = await makeSession(min(200), min(260), min(220));
+    expect(await tagOf(min(200))).toBe(s.id);                              // exactly started_at
+    expect(await tagOf(min(220))).toBe(s.id);                              // exactly ended_at
+    expect(await tagOf(new Date(min(200).getTime() - 1000))).toBeNull();   // 1s before start
+    expect(await tagOf(new Date(min(220).getTime() + 1000))).toBeNull();   // 1s after end
+  });
+
+  it("back-to-back sessions: a write at the shared boundary blames the newer session", async () => {
+    // A ends exactly when B starts (14:00); both windows contain 14:00.
+    await makeSession(min(240), min(300), min(300));
+    const b = await makeSession(min(300), min(360), min(360));
+    expect(await tagOf(min(300))).toBe(b.id);
+    // Strictly inside each window, attribution follows that window.
+    expect(await tagOf(min(299))).not.toBe(b.id);
+    expect(await tagOf(min(301))).toBe(b.id);
+  });
+
+  it("sessions started at the same instant: the newer grant (higher id) wins deterministically", async () => {
+    const a = await makeSession(min(400), min(460));
+    const b = await makeSession(min(400), min(430));
+    const winner = Math.max(a.id, b.id);
+    expect(await tagOf(min(410))).toBe(winner);
+    expect(await tagOf(min(400))).toBe(winner); // shared started_at boundary too
+  });
+});
+
 describe("expired session sweep", () => {
   it("listing the review queue auto-closes sessions past their scheduled end", async () => {
     const { session } = await activateBreakGlass();
