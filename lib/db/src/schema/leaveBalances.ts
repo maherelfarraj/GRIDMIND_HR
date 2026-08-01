@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, numeric, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, numeric, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { employeesTable } from "./employees";
 import { leaveTypesTable } from "./leaveTypes";
 
@@ -14,6 +14,8 @@ export const leaveBalancesTable = pgTable("leave_balances", {
   adjustment: numeric("adjustment", { precision: 6, scale: 2 }).notNull().default("0"),
   carriedOver: numeric("carried_over", { precision: 6, scale: 2 }).notNull().default("0"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => [
+  uniqueIndex("leave_balances_emp_type_year_uq").on(t.employeeId, t.leaveTypeId, t.year),
+]);
 
 export type LeaveBalance = typeof leaveBalancesTable.$inferSelect;

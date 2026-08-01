@@ -468,6 +468,8 @@ export * from './probationRecord';
 export * from './probationRecordInput';
 export * from './promotionRecommendation';
 export * from './promotionRecommendationInput';
+export * from './provisionLeaveYear200';
+export * from './provisionLeaveYearInput';
 export * from './publicHoliday';
 export * from './publicHolidayInput';
 export * from './punchEvent';

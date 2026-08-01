@@ -1188,6 +1188,9 @@ export interface AnnualLeaveResetInput {
   year: number;
 }
 
+export interface ProvisionLeaveYearInput {
+  year: number;
+}
 export interface LeaveApprovalStep {
   id: number;
   leaveRequestId: number;
@@ -6447,6 +6450,11 @@ export type AnnualLeaveReset200 = {
   year: number;
 };
 
+export type ProvisionLeaveYear200 = {
+  created: number;
+  skipped: number;
+  year: number;
+};
 export type ListLeaveRequestsParams = {
 employeeId?: number;
 status?: string;
@@ -7813,4 +7821,3 @@ export type CreateImportMappingTemplateBody = {
 export type DeleteImportMappingTemplate200 = {
   deleted: boolean;
 };
-

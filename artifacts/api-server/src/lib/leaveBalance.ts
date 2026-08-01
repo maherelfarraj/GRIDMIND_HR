@@ -50,6 +50,8 @@ export async function ensureLeaveBalance(
     }
   }
 
+  // Conflict-safe insert: a unique index on (employee_id, leave_type_id, year)
+  // guards against concurrent callers racing past the existence check above.
   const [created] = await db.insert(leaveBalancesTable).values({
     employeeId,
     leaveTypeId,
@@ -60,6 +62,18 @@ export async function ensureLeaveBalance(
     pending: "0",
     adjustment: "0",
     carriedOver: carriedOver.toFixed(2),
+  }).onConflictDoNothing({
+    target: [leaveBalancesTable.employeeId, leaveBalancesTable.leaveTypeId, leaveBalancesTable.year],
   }).returning();
-  return created;
+  if (created) return created;
+
+  // Another caller won the race — return the row they created.
+  const [existingNow] = await db.select().from(leaveBalancesTable).where(
+    and(
+      eq(leaveBalancesTable.employeeId, employeeId),
+      eq(leaveBalancesTable.leaveTypeId, leaveTypeId),
+      eq(leaveBalancesTable.year, year),
+    )
+  );
+  return existingNow ?? null;
 }

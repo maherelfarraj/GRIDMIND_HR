@@ -413,6 +413,8 @@ import type {
   ProbationRecordInput,
   PromotionRecommendation,
   PromotionRecommendationInput,
+  ProvisionLeaveYear200,
+  ProvisionLeaveYearInput,
   PublicHoliday,
   PublicHolidayInput,
   PunchEvent,
@@ -6840,6 +6842,77 @@ export const useAnnualLeaveReset = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAnnualLeaveResetMutationOptions(options));
+    }
+
+export const getProvisionLeaveYearUrl = () => {
+
+
+
+
+  return `/api/leave-balances/provision-year`
+}
+
+/**
+ * @summary Bulk-provision balances for all active employees for a target year
+ */
+export const provisionLeaveYear = async (provisionLeaveYearInput: ProvisionLeaveYearInput, options?: Parameters<typeof customFetch>[1]): Promise<ProvisionLeaveYear200> => {
+
+  return customFetch<ProvisionLeaveYear200>(getProvisionLeaveYearUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(provisionLeaveYearInput)
+  }
+);}
+
+
+
+
+
+export const getProvisionLeaveYearMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof provisionLeaveYear>>, TError,{data: BodyType<ProvisionLeaveYearInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof provisionLeaveYear>>, TError,{data: BodyType<ProvisionLeaveYearInput>}, TContext> => {
+
+const mutationKey = ['provisionLeaveYear'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof provisionLeaveYear>>, {data: BodyType<ProvisionLeaveYearInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  provisionLeaveYear(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProvisionLeaveYearMutationResult = NonNullable<Awaited<ReturnType<typeof provisionLeaveYear>>>
+    export type ProvisionLeaveYearMutationBody = BodyType<ProvisionLeaveYearInput>
+    export type ProvisionLeaveYearMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Bulk-provision balances for all active employees for a target year
+ */
+export const useProvisionLeaveYear = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof provisionLeaveYear>>, TError,{data: BodyType<ProvisionLeaveYearInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof provisionLeaveYear>>,
+        TError,
+        {data: BodyType<ProvisionLeaveYearInput>},
+        TContext
+      > => {
+      return useMutation(getProvisionLeaveYearMutationOptions(options));
     }
 
 export const getListLeaveRequestsUrl = (params?: ListLeaveRequestsParams,) => {

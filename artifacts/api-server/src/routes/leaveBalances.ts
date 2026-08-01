@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, leaveBalancesTable, leaveTypesTable, employeesTable, auditLogsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { ensureLeaveBalance } from "../lib/leaveBalance";
 
 const router = Router();
 
@@ -161,6 +162,56 @@ router.post("/leave-balances/annual-reset", async (req, res): Promise<void> => {
     });
 
     res.json({ created, year: newYear });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /leave-balances/provision-year
+// Bulk-provisions balance rows for all ACTIVE employees × active leave types
+// for a target year, reusing ensureLeaveBalance so carry-over caps apply.
+// Idempotent: existing rows are left untouched.
+router.post("/leave-balances/provision-year", async (req, res): Promise<void> => {
+  // Demo mode: default to admin (userId=1) when no session is present.
+  // In production, enforce real session middleware before this guard.
+  try {
+    const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
+    const { year } = req.body;
+    const targetYear = parseInt(year, 10);
+    if (!year || Number.isNaN(targetYear)) {
+      res.status(400).json({ error: "year required" });
+      return;
+    }
+
+    const employees = await db.select().from(employeesTable)
+      .where(eq(employeesTable.status, "active"));
+    const leaveTypes = await db.select().from(leaveTypesTable)
+      .where(eq(leaveTypesTable.isActive, true));
+
+    // Snapshot existing rows for the year so we can count newly created ones.
+    const existingRows = await db.select().from(leaveBalancesTable)
+      .where(eq(leaveBalancesTable.year, targetYear));
+    const existingKeys = new Set(existingRows.map(r => `${r.employeeId}:${r.leaveTypeId}`));
+
+    let created = 0;
+    let skipped = 0;
+    for (const emp of employees) {
+      for (const lt of leaveTypes) {
+        const key = `${emp.id}:${lt.id}`;
+        if (existingKeys.has(key)) { skipped++; continue; }
+        const row = await ensureLeaveBalance(emp.id, lt.id, targetYear);
+        if (row) created++;
+      }
+    }
+
+    await db.insert(auditLogsTable).values({
+      action: "leave_balance.provision_year",
+      entityType: "leave_balance",
+      actorUserId,
+      changesJson: JSON.stringify({ year: targetYear, created, skipped }),
+    });
+
+    res.json({ created, skipped, year: targetYear });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }

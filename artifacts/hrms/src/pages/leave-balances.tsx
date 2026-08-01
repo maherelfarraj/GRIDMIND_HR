@@ -3,7 +3,7 @@ import { useLanguage } from '@/hooks/use-language';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListLeaveBalances, useListLeaveTypes, useListEmployees, useUpdateLeaveBalance,
-  useAnnualLeaveReset,
+  useAnnualLeaveReset, useProvisionLeaveYear,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { Layers, TrendingUp, CalendarDays, Settings2, Info, RefreshCw } from 'lucide-react';
+import { Layers, TrendingUp, CalendarDays, Settings2, Info, RefreshCw, Users } from 'lucide-react';
 import type { LeaveBalance } from '@workspace/api-client-react';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -138,8 +138,10 @@ export default function LeaveBalancesPage() {
   const [search, setSearch] = useState('');
   const [adjustTarget, setAdjustTarget] = useState<LeaveBalance | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [provisioning, setProvisioning] = useState(false);
 
   const annualResetMut = useAnnualLeaveReset();
+  const provisionMut = useProvisionLeaveYear();
 
   const { data: balances, isLoading } = useListLeaveBalances({
     year: Number(yearFilter),
@@ -170,6 +172,30 @@ export default function LeaveBalancesPage() {
       toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
     } finally {
       setResetting(false);
+    }
+  }
+
+  async function handleProvisionYear() {
+    const year = Number(yearFilter);
+    if (!confirm(t(
+      `This will create ${year} balance records for all active employees who don't have them yet, applying carry-over caps. Continue?`,
+      `سيؤدي هذا إلى إنشاء سجلات رصيد ${year} لجميع الموظفين النشطين الذين لا يملكونها بعد، مع تطبيق حدود الترحيل. هل تريد الاستمرار؟`
+    ))) return;
+    setProvisioning(true);
+    try {
+      const result = await provisionMut.mutateAsync({ data: { year } });
+      queryClient.invalidateQueries({ queryKey: ['/api/leave-balances'] });
+      toast({
+        title: t('Provisioning complete', 'اكتمل التزويد'),
+        description: t(
+          `Created ${result.created} balance records for ${result.year} (${result.skipped} already existed).`,
+          `تم إنشاء ${result.created} سجل رصيد لعام ${result.year} (${result.skipped} موجود مسبقًا).`
+        ),
+      });
+    } catch (e: any) {
+      toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
+    } finally {
+      setProvisioning(false);
     }
   }
 
@@ -209,6 +235,16 @@ export default function LeaveBalancesPage() {
               </p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleProvisionYear}
+            disabled={provisioning}
+            className="gap-2"
+          >
+            <Users className={cn('w-4 h-4', provisioning && 'animate-pulse')} />
+            {t(`Provision ${yearFilter}`, `تزويد ${yearFilter}`)}
+          </Button>
           <Button
             variant="outline"
             onClick={handleAnnualReset}
@@ -218,6 +254,7 @@ export default function LeaveBalancesPage() {
             <RefreshCw className={cn('w-4 h-4', resetting && 'animate-spin')} />
             {t(`Reset to ${Number(yearFilter) + 1}`, `تعيين ${Number(yearFilter) + 1}`)}
           </Button>
+          </div>
         </div>
 
         {/* Stats */}

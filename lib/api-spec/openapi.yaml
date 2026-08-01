@@ -1740,6 +1740,29 @@ paths:
                   year: { type: number }
                 required: [ created, year ]
 
+  /leave-balances/provision-year:
+    post:
+      tags: [ leave ]
+      summary: Bulk-provision balances for all active employees for a target year
+      operationId: provisionLeaveYear
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProvisionLeaveYearInput" }
+      responses:
+        "200":
+          description: OK — returns counts of created and skipped rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created: { type: number }
+                  skipped: { type: number }
+                  year: { type: number }
+                required: [ created, skipped, year ]
+
   # ── Leave Requests ────────────────────────────────────────────────────────
   /leave-requests:
     get:
@@ -10658,6 +10681,12 @@ components:
       required: [ employeeId, leaveTypeId, year ]
 
     AnnualLeaveResetInput:
+      type: object
+      properties:
+        year: { type: number }
+      required: [ year ]
+
+    ProvisionLeaveYearInput:
       type: object
       properties:
         year: { type: number }
