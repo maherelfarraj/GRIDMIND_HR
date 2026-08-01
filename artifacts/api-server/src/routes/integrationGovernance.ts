@@ -10,6 +10,7 @@ import { testSmtpConnection } from "../lib/smtp-adapter.js";
 import { testDeviceConnection } from "../lib/device-adapter.js";
 import { runHealthChecksOnce, raiseHealthRecoveryIfAlerted } from "../lib/health-monitor.js";
 import { getSecurityEmailDeliveryStatus } from "../lib/email-alert-status.js";
+import { getPepperRotationStatus } from "./attendanceGateway.js";
 
 const router = Router();
 
@@ -18,6 +19,17 @@ const router = Router();
 router.get("/integration-governance/security-email-status", async (_req, res): Promise<void> => {
   try {
     res.json(getSecurityEmailDeliveryStatus());
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Gateway Pepper Rotation Window ──────────────────────────────────────────
+
+// Surfaces whether the GATEWAY_KEY_PEPPER_PREVIOUS rotation window is still
+// open, and whether it can be closed (all envelopes re-wrapped). Admins see a
+// governance-page notice instead of relying only on the startup log line.
+router.get("/integration-governance/pepper-rotation-status", async (_req, res): Promise<void> => {
+  try {
+    res.json(await getPepperRotationStatus());
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

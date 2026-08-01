@@ -5,7 +5,7 @@ import { startGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
 import { startBackupScheduler } from "./lib/backupScheduler";
 import { startPrivilegedSessionSweeper } from "./lib/privilegedSessionSweeper";
 import { seedDemoPasswords } from "./lib/seed-passwords";
-import { rotateLegacyGatewayKeys, rewrapGatewayKeysForPepperRotation } from "./routes/attendanceGateway";
+import { rotateLegacyGatewayKeys, rewrapGatewayKeysForPepperRotation, getPepperRotationStatus } from "./routes/attendanceGateway";
 import { runStartupMigrations } from "./lib/startupMigrations";
 
 const rawPort = process.env["PORT"];
@@ -76,6 +76,17 @@ async function main() {
             "Gateway key envelopes unrecoverable under current or previous pepper — these gateways must be re-registered",
           );
         }
+        // Rotation-window hygiene: if the PREVIOUS pepper is still configured
+        // but nothing needs it any more, the window has been left open — the
+        // old pepper stays live and weakens the rotation until it is removed.
+        return getPepperRotationStatus().then((status) => {
+          if (status.windowOpen && status.rotationComplete) {
+            logger.warn(
+              { rewrappedThisStartup: rewrapped },
+              "Gateway pepper rotation complete — all key envelopes are wrapped under the current pepper. Remove GATEWAY_KEY_PEPPER_PREVIOUS to close the rotation window; leaving it set keeps the old pepper live.",
+            );
+          }
+        });
       })
       .catch((err) => {
         logger.error({ err }, "Failed to re-wrap gateway key envelopes for pepper rotation");

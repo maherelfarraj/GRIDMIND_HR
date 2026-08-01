@@ -20,7 +20,7 @@ import {
   rewrapEnvelope,
   isProtectedEnvelope,
 } from "../lib/gatewayKeyVault.js";
-import { rewrapGatewayKeysForPepperRotation } from "../routes/attendanceGateway.js";
+import { rewrapGatewayKeysForPepperRotation, getPepperRotationStatus } from "../routes/attendanceGateway.js";
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 
@@ -194,5 +194,37 @@ describe("startup re-wrap + end-to-end gateway auth across a pepper rotation", (
       .update(gatewayRegistrationsTable)
       .set({ secretHash: protectSigningKey(signingKey) })
       .where(eq(gatewayRegistrationsTable.id, regId));
+  });
+
+  it("getPepperRotationStatus: closed window when PREVIOUS is unset", async () => {
+    setPeppers(NEW_PEPPER, undefined);
+    const status = await getPepperRotationStatus();
+    expect(status).toEqual({ windowOpen: false, rotationComplete: false, pendingRewrap: 0, unrecoverable: 0 });
+  });
+
+  it("getPepperRotationStatus: reports pending re-wraps during the window and completion after the sweep", async () => {
+    // Put our row back under the OLD pepper.
+    setPeppers(OLD_PEPPER, undefined);
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ secretHash: protectSigningKey(signingKey) })
+      .where(eq(gatewayRegistrationsTable.id, regId));
+
+    // Rotation window open, sweep not yet run: our row is pending, so the
+    // rotation is NOT complete and no "remove PREVIOUS" advice should fire.
+    setPeppers(NEW_PEPPER, OLD_PEPPER);
+    const before = await getPepperRotationStatus();
+    expect(before.windowOpen).toBe(true);
+    expect(before.pendingRewrap).toBeGreaterThanOrEqual(1);
+    expect(before.rotationComplete).toBe(false);
+
+    // After the startup sweep nothing needs the previous pepper any more —
+    // the window is "complete" exactly when no envelope is unrecoverable
+    // either (other suites' rows may exist under unrelated peppers).
+    await rewrapGatewayKeysForPepperRotation();
+    const after = await getPepperRotationStatus();
+    expect(after.windowOpen).toBe(true);
+    expect(after.pendingRewrap).toBe(0);
+    expect(after.rotationComplete).toBe(after.unrecoverable === 0);
   });
 });

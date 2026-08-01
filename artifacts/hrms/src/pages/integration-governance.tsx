@@ -339,6 +339,7 @@ export default function IntegrationGovernance() {
   const { toast } = useToast();
   const [profiles, setProfiles] = useState<any[]>([]);
   const [emailStatus, setEmailStatus] = useState<any>(null);
+  const [pepperStatus, setPepperStatus] = useState<any>(null);
   const [vault, setVault] = useState<any[]>([]);
   const [rules, setRules] = useState<any[]>([]);
   const [auditLog, setAuditLog] = useState<any[]>([]);
@@ -355,15 +356,17 @@ export default function IntegrationGovernance() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, v, r, a, e] = await Promise.allSettled([
+      const [p, v, r, a, e, pep] = await Promise.allSettled([
         apiFetch('/api/integration-governance/connection-profiles').then(r => r.json()),
         apiFetch('/api/integration-governance/credential-vault-refs').then(r => r.json()),
         apiFetch('/api/integration-governance/governance-rules').then(r => r.json()),
         apiFetch('/api/integration-governance/audit-log').then(r => r.json()),
         apiFetch('/api/integration-governance/security-email-status').then(r => r.json()),
+        apiFetch('/api/integration-governance/pepper-rotation-status').then(r => r.json()),
       ]);
       setProfiles(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : []);
       setEmailStatus(e.status === 'fulfilled' && e.value && typeof e.value.outageActive === 'boolean' ? e.value : null);
+      setPepperStatus(pep.status === 'fulfilled' && pep.value && typeof pep.value.windowOpen === 'boolean' ? pep.value : null);
       setVault(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : []);
       setRules(r.status === 'fulfilled' && Array.isArray(r.value) ? r.value : []);
       setAuditLog(a.status === 'fulfilled' && Array.isArray(a.value?.data) ? a.value.data : []);
@@ -490,6 +493,41 @@ export default function IntegrationGovernance() {
               </div>
               <Button onClick={() => setAddProfileOpen(true)} className="bg-blue-600 hover:bg-blue-700 gap-2"><span>+</span>{t('Add Profile', 'إضافة ملف')}</Button>
             </div>
+            {!loading && pepperStatus?.windowOpen && (
+              <Card className={`bg-slate-800 ${pepperStatus.rotationComplete ? 'border-amber-800/60' : 'border-blue-800/60'}`} data-testid="pepper-rotation-status">
+                <CardHeader className="pb-2">
+                  <CardTitle className={`text-sm flex items-center gap-2 ${pepperStatus.rotationComplete ? 'text-amber-300' : 'text-blue-300'}`}>
+                    <RotateCcw className="w-4 h-4" />
+                    {t('Gateway key pepper rotation', 'تدوير مفتاح بوابة الحضور')}
+                    <Badge variant="outline" className={`text-xs ${pepperStatus.rotationComplete ? 'bg-amber-900/40 text-amber-300 border-amber-700' : 'bg-blue-900/40 text-blue-300 border-blue-700'}`}>
+                      {pepperStatus.rotationComplete ? t('Window left open', 'النافذة لا تزال مفتوحة') : t('In progress', 'قيد التنفيذ')}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-1.5 text-xs">
+                  {pepperStatus.rotationComplete ? (
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+                      <span className="text-slate-300">
+                        {t(
+                          'Pepper rotation is complete — all gateway key envelopes use the current pepper. Remove GATEWAY_KEY_PEPPER_PREVIOUS to close the rotation window; leaving it set keeps the old pepper live and weakens the rotation.',
+                          'اكتمل تدوير المفتاح — جميع مغلفات مفاتيح البوابات تستخدم المفتاح الحالي. أزل GATEWAY_KEY_PEPPER_PREVIOUS لإغلاق نافذة التدوير؛ تركه مضبوطًا يُبقي المفتاح القديم فعالًا ويُضعف التدوير.',
+                        )}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2">
+                      <Clock className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
+                      <span className="text-slate-300">
+                        {t('Rotation window open.', 'نافذة التدوير مفتوحة.')}
+                        {pepperStatus.pendingRewrap > 0 && <span className="text-slate-400"> · {t('Envelopes still awaiting re-wrap:', 'مغلفات لا تزال بانتظار إعادة التغليف:')} {pepperStatus.pendingRewrap}</span>}
+                        {pepperStatus.unrecoverable > 0 && <span className="text-red-300"> · {t('Unrecoverable envelopes (re-register these gateways):', 'مغلفات غير قابلة للاسترداد (أعد تسجيل هذه البوابات):')} {pepperStatus.unrecoverable}</span>}
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
             {!loading && emailStatus && (
               <Card className={`bg-slate-800 ${emailStatus.outageActive ? 'border-red-800/60' : 'border-emerald-800/60'}`} data-testid="security-email-status">
                 <CardHeader className="pb-2">

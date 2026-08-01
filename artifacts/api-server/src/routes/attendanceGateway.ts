@@ -179,6 +179,44 @@ export async function rewrapGatewayKeysForPepperRotation(): Promise<{
   return result;
 }
 
+/**
+ * Live pepper-rotation window status, shared by the startup warning and the
+ * admin governance page. "Complete" means the PREVIOUS pepper is still set
+ * even though no envelope needs it any more — the operator should remove
+ * GATEWAY_KEY_PEPPER_PREVIOUS to close the window. Unrecoverable envelopes
+ * keep the window "open" only in the sense that operator action (gateway
+ * re-registration) is still required; they are reported separately.
+ */
+export async function getPepperRotationStatus(): Promise<{
+  windowOpen: boolean;
+  rotationComplete: boolean;
+  pendingRewrap: number;
+  unrecoverable: number;
+}> {
+  if (!process.env.GATEWAY_KEY_PEPPER_PREVIOUS) {
+    return { windowOpen: false, rotationComplete: false, pendingRewrap: 0, unrecoverable: 0 };
+  }
+  const rows = await db
+    .select({ secretHash: gatewayRegistrationsTable.secretHash })
+    .from(gatewayRegistrationsTable);
+  let pendingRewrap = 0;
+  let unrecoverable = 0;
+  for (const row of rows) {
+    if (!isProtectedEnvelope(row.secretHash)) continue;
+    try {
+      if (recoverSigningKey(row.secretHash).needsRewrap) pendingRewrap++;
+    } catch {
+      unrecoverable++;
+    }
+  }
+  return {
+    windowOpen: true,
+    rotationComplete: pendingRewrap === 0 && unrecoverable === 0,
+    pendingRewrap,
+    unrecoverable,
+  };
+}
+
 /** Compute + persist gateway↔server clock drift from the reported device time. */
 async function recordDrift(reg: { id: number }, reportedTimeMs: number | undefined): Promise<number | null> {
   if (!reportedTimeMs || !Number.isFinite(reportedTimeMs)) return null;
