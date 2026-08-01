@@ -247,13 +247,38 @@ export async function runHealthChecksOnce(
       ne(integrationConnectionProfilesTable.governanceStatus, "suspended"),
     ));
 
-  const outcomes: HealthCheckOutcome[] = [];
-  let alertsRaised = 0;
-  let recoveriesRaised = 0;
+  const due = profiles.filter((profile) => options.force || isDue(profile, now));
 
-  for (const profile of profiles) {
-    if (!options.force && !isDue(profile, now)) continue;
+  // Check profiles concurrently so one slow profile (e.g. a failing connection
+  // retrying with long backoffs) cannot delay health checks for the others.
+  // Sweeps still never overlap each other (see startHealthMonitor).
+  const settled = await Promise.all(due.map(async (profile): Promise<HealthCheckOutcome | null> => {
+    try {
+      return await checkProfile(profile, now);
+    } catch (err) {
+      logger.error({ err, profileId: profile.id }, "Health check failed for profile");
+      return null;
+    }
+  }));
 
+  const outcomes = settled.filter((o): o is HealthCheckOutcome => o !== null);
+
+  return {
+    checked: outcomes.length,
+    passed: outcomes.filter((o) => o.success).length,
+    failed: outcomes.filter((o) => !o.success).length,
+    alertsRaised: outcomes.filter((o) => o.alertRaised).length,
+    recoveriesRaised: outcomes.filter((o) => o.recoveryRaised).length,
+    outcomes,
+  };
+}
+
+/** Runs the full check → persist → alert/recover pipeline for one profile. */
+async function checkProfile(
+  profile: IntegrationConnectionProfile,
+  now: Date,
+): Promise<HealthCheckOutcome> {
+  {
     const { success, message, latencyMs, simulated, attempts } = await runConnectionTestWithRetry(profile);
     const consecutiveFailures = success ? 0 : profile.consecutiveFailures + 1;
     // Alert exactly when the streak reaches the threshold (avoid re-alerting
@@ -283,7 +308,6 @@ export async function runHealthChecksOnce(
     });
 
     if (alertRaised) {
-      alertsRaised += 1;
       const alertMessage = `Connection "${profile.profileName}" (${profile.integrationType}) failed ${consecutiveFailures} consecutive health checks. Last error: ${message}`;
 
       await db.insert(integrationAuditLogTable).values({
@@ -322,24 +346,14 @@ export async function runHealthChecksOnce(
     const recoveryRaised = success
       ? await raiseHealthRecoveryIfAlerted(profile, { message, latencyMs, simulated })
       : false;
-    if (recoveryRaised) recoveriesRaised += 1;
 
-    outcomes.push({
+    return {
       profileId: profile.id,
       profileName: profile.profileName,
       integrationType: profile.integrationType,
       success, simulated, message, latencyMs, consecutiveFailures, alertRaised, recoveryRaised,
-    });
+    };
   }
-
-  return {
-    checked: outcomes.length,
-    passed: outcomes.filter((o) => o.success).length,
-    failed: outcomes.filter((o) => !o.success).length,
-    alertsRaised,
-    recoveriesRaised,
-    outcomes,
-  };
 }
 
 const SWEEP_INTERVAL_MS = 60_000;

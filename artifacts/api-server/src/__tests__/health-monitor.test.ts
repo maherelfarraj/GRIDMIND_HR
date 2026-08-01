@@ -393,6 +393,44 @@ describe("connection health monitor", () => {
     for (const count of perRecipient.values()) expect(count).toBe(1);
   });
 
+  it("a slow-retrying profile does not delay health checks for other profiles", async () => {
+    // Slow profile: ldap fails every attempt (no LDAP env), 2 retries with a
+    // 1s backoff each → its check takes ~2s. Normal profile: simulated
+    // success, near-instant. Checks run concurrently, so the normal profile
+    // must be persisted long before the slow one finishes its backoffs.
+    const slow = await createProfile({
+      integrationType: "ldap",
+      retryEnabled: true,
+      retryMaxAttempts: 2,
+      retryBackoffSeconds: 1,
+      alertOnFailureCount: 99,
+    });
+    const normal = await createProfile({ integrationType: "internal_api" });
+
+    const started = Date.now();
+    const result = await runHealthChecksOnce({ force: true });
+    const elapsedMs = Date.now() - started;
+
+    const slowOutcome = result.outcomes.find((o) => o.profileId === slow.id);
+    const normalOutcome = result.outcomes.find((o) => o.profileId === normal.id);
+    expect(slowOutcome!.success).toBe(false);
+    expect(normalOutcome!.success).toBe(true);
+
+    // The sweep took at least the slow profile's backoff time...
+    expect(elapsedMs).toBeGreaterThanOrEqual(1900);
+
+    // ...but the normal profile's check completed (row updated) right at the
+    // start of the sweep, not after the slow profile's retries.
+    const [slowRow] = await db.select().from(integrationConnectionProfilesTable)
+      .where(eq(integrationConnectionProfilesTable.id, slow.id));
+    const [normalRow] = await db.select().from(integrationConnectionProfilesTable)
+      .where(eq(integrationConnectionProfilesTable.id, normal.id));
+    const normalDoneAfterMs = new Date(normalRow.updatedAt!).getTime() - started;
+    const slowDoneAfterMs = new Date(slowRow.updatedAt!).getTime() - started;
+    expect(normalDoneAfterMs).toBeLessThan(1000); // not held up by the slow profile
+    expect(slowDoneAfterMs).toBeGreaterThanOrEqual(1900);
+  });
+
   it("skips profiles without monitoring enabled and suspended profiles", async () => {
     const off = await createProfile({ isHealthMonitoringEnabled: false });
     const suspended = await createProfile({ governanceStatus: "suspended" });
