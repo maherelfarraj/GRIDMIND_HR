@@ -1397,7 +1397,6 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
-
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1412,7 +1411,6 @@ export const SetUserPasswordResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
-
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -1466,10 +1464,16 @@ export const LoginUserResponse = zod.object({
   "isActive": zod.boolean(),
   "mfaEnabled": zod.boolean(),
   "preferredLanguage": zod.string(),
-  "lastLoginAt": zod.string().nullish()
+  "lastLoginAt": zod.string().nullish(),
+  "sessionToken": zod.string().optional()
 })
 
-
+/**
+ * @summary Log out — destroys the server session (cookie or bearer token)
+ */
+export const LogoutUserResponse = zod.object({
+  "success": zod.boolean()
+})
 /**
  * @summary List all shift definitions
  */
@@ -16007,5 +16011,4 @@ export const DeleteImportMappingTemplateParams = zod.object({
 export const DeleteImportMappingTemplateResponse = zod.object({
   "deleted": zod.boolean()
 })
-
 

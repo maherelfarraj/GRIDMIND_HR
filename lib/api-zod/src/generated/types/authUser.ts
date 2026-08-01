@@ -21,4 +21,5 @@ export interface AuthUser {
   preferredLanguage: string;
   /** @nullable */
   lastLoginAt?: string | null;
+  sessionToken?: string;
 }

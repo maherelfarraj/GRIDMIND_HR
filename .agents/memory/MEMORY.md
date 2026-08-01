@@ -7,4 +7,5 @@
 - [Attendance gateway auth & pipeline](gateway-machine-auth.md) — HMAC scheme, unconditional admin auth, atomic materialization, encrypted queue backoff rules; biometric vendors integrate via their middleware REST APIs — native SDK paths need on-site hardware, never this env.
 - [Auth-mode fail-closed convention](auth-mode.md) — auth on by default; only PILOT_AUTH="false" disables (dev-only), read at request time; prod refuses to start when disabled.
 - [Credential handoff to operators](credential-handoff.md) — never log generated passwords/OTPs; deliver via 0600 operator-only file and test that logs can't contain them.
+- [Bearer session transport for mobile](bearer-session-transport.md) — mobile reuses cookie sessions via a signed-cookie shim from `Authorization: Bearer <sid>`; never add a second token system.
 - [Real backup & restore testing](backup-restore.md) — managed PG allows CREATE/DROP DATABASE; restore tests use scratch DBs, with drift tolerance on append-only tables.

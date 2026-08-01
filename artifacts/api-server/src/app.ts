@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
+import cookieSignature from "cookie-signature";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -56,20 +57,47 @@ app.use(cors({
 
 const PgSession = connectPg(session);
 
+const sessionSecret = (() => {
+  const s = process.env.SESSION_SECRET;
+  if (!s) {
+    if (isAuthEnforced() || process.env.NODE_ENV === "production") {
+      throw new Error("SESSION_SECRET must be set when auth is enforced or in production mode");
+    }
+    return "dev-only-insecure-secret";
+  }
+  return s;
+})();
+
+// Bearer-token session transport for non-browser clients (mobile).
+// The token issued at login is the raw session id; when a request carries
+// `Authorization: Bearer <sid>` and no session cookie, synthesize the signed
+// cookie so express-session resolves the exact same server-side session.
+// Security is equivalent to the cookie: the sid is a high-entropy random
+// value known only to the session owner, and signing here adds nothing an
+// attacker could exploit (an invalid/expired sid simply loads no session).
+app.use((req, _res, next) => {
+  const auth = req.headers.authorization;
+  if (auth?.startsWith("Bearer ") && !req.headers.cookie?.includes("connect.sid=")) {
+    const sid = auth.slice("Bearer ".length).trim();
+    // Session ids are URL-safe base64; ignore anything else (e.g. device API
+    // keys on gateway endpoints use their own auth and never reach here with
+    // cookies expected).
+    if (/^[A-Za-z0-9_-]{10,128}$/.test(sid)) {
+      const signed = `s:${cookieSignature.sign(sid, sessionSecret)}`;
+      const synthesized = `connect.sid=${encodeURIComponent(signed)}`;
+      req.headers.cookie = req.headers.cookie
+        ? `${req.headers.cookie}; ${synthesized}`
+        : synthesized;
+    }
+  }
+  next();
+});
+
 app.use(session({
   // Table is provisioned via schema push; createTableIfMissing reads table.sql
   // from disk at runtime, which is not included in the esbuild bundle.
   store: new PgSession({ pool: pgPool, createTableIfMissing: false }),
-  secret: (() => {
-    const s = process.env.SESSION_SECRET;
-    if (!s) {
-      if (isAuthEnforced() || process.env.NODE_ENV === "production") {
-        throw new Error("SESSION_SECRET must be set when auth is enforced or in production mode");
-      }
-      return "dev-only-insecure-secret";
-    }
-    return s;
-  })(),
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {

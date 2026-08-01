@@ -6,11 +6,59 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loginUser, setUnauthorizedHandler } from '@workspace/api-client-react';
+import * as SecureStore from 'expo-secure-store';
+import {
+  getAuthMe,
+  loginUser,
+  logoutUser,
+  setAuthTokenGetter,
+  setUnauthorizedHandler,
+} from '@workspace/api-client-react';
 import type { AuthUser } from '@workspace/api-client-react';
 
-const STORAGE_KEY = 'hrms-mobile-session';
+// Cached profile for instant paint while the token is validated. Never
+// trusted on its own: without a valid session token the user is signed out.
+const PROFILE_KEY = 'hrms-mobile-session';
+// Session token lives in the platform keychain via expo-secure-store.
+const TOKEN_KEY = 'hrms-mobile-session-token';
+
+// SecureStore is unavailable on web (Expo web preview); fall back to
+// AsyncStorage there so the app still works in the browser preview.
+const secureStoreAvailable = Platform.OS !== 'web';
+
+async function readToken(): Promise<string | null> {
+  try {
+    return secureStoreAvailable
+      ? await SecureStore.getItemAsync(TOKEN_KEY)
+      : await AsyncStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+async function writeToken(token: string): Promise<void> {
+  if (secureStoreAvailable) await SecureStore.setItemAsync(TOKEN_KEY, token);
+  else await AsyncStorage.setItem(TOKEN_KEY, token);
+}
+
+async function clearToken(): Promise<void> {
+  try {
+    if (secureStoreAvailable) await SecureStore.deleteItemAsync(TOKEN_KEY);
+    else await AsyncStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // Best-effort: a stale token that fails to delete is rejected
+    // server-side anyway.
+  }
+}
+
+// In-memory token mirror so the auth-token getter is synchronous-fast and
+// never races SecureStore reads on every request.
+let currentToken: string | null = null;
+
+// Every API request carries `Authorization: Bearer <token>` when signed in.
+setAuthTokenGetter(() => currentToken);
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -26,9 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Any 401 from the API (outside credential-check endpoints) means the
-  // server session is gone — clear the stored profile so the navigation
-  // guards return the user to the sign-in screen instead of rendering
-  // broken screens with failing reads.
+  // server session is gone — clear the token and cached profile so the
+  // navigation guards return the user to the sign-in screen instead of
+  // rendering broken screens with failing reads.
   useEffect(() => {
     setUnauthorizedHandler((response) => {
       const url = response.url ?? '';
@@ -36,30 +84,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (url.includes('/auth/login') || url.includes('/auth/change-password')) {
         return;
       }
+      currentToken = null;
       setUser(null);
-      AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+      clearToken().catch(() => {});
+      AsyncStorage.removeItem(PROFILE_KEY).catch(() => {});
     });
     return () => setUnauthorizedHandler(null);
   }, []);
 
+  // Bootstrap: a stored profile alone is never trusted. Restore the session
+  // token from SecureStore, then validate it against the server (/auth/me).
+  // The cached profile only provides an instant paint while validation runs;
+  // a 401 during validation is handled by the unauthorized handler above.
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (raw) setUser(JSON.parse(raw) as AuthUser);
-      })
-      .catch(() => {})
-      .finally(() => setIsLoading(false));
+    let cancelled = false;
+    (async () => {
+      const token = await readToken();
+      if (!token) {
+        // No token: any lingering cached profile is untrusted — drop it.
+        AsyncStorage.removeItem(PROFILE_KEY).catch(() => {});
+        return;
+      }
+      currentToken = token;
+
+      const cached = await AsyncStorage.getItem(PROFILE_KEY).catch(() => null);
+      if (cached && !cancelled) {
+        try {
+          setUser(JSON.parse(cached) as AuthUser);
+        } catch {
+          // Corrupt cache — wait for the server profile below.
+        }
+      }
+
+      try {
+        const fresh = await getAuthMe();
+        if (!cancelled) setUser(fresh as AuthUser);
+        AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(fresh)).catch(() => {});
+      } catch {
+        // 401 → unauthorized handler already signed us out. Network errors
+        // keep the cached profile so brief offline periods don't log the
+        // user out; the next successful request re-validates.
+      }
+    })().finally(() => {
+      if (!cancelled) setIsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
-    const authUser = await loginUser({ username, password });
-    setUser(authUser);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
+    // Opt in to bearer-token transport: the API returns the session token in
+    // the body instead of relying on a cookie.
+    const authUser = await loginUser(
+      { username, password },
+      { headers: { 'x-session-transport': 'bearer' } },
+    );
+    const token = authUser.sessionToken;
+    if (!token) {
+      throw new Error('Login did not return a session token');
+    }
+    currentToken = token;
+    await writeToken(token);
+    const { sessionToken: _omit, ...profile } = authUser;
+    setUser(profile as AuthUser);
+    // Cache profile for instant paint only — never store the token here.
+    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   }, []);
 
   const logout = useCallback(async () => {
+    // Best-effort server-side session destruction; local sign-out always
+    // proceeds even if the network call fails.
+    try {
+      await logoutUser();
+    } catch {
+      // Session may already be gone (expired/destroyed) — fine.
+    }
+    currentToken = null;
     setUser(null);
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    await Promise.all([clearToken(), AsyncStorage.removeItem(PROFILE_KEY)]);
   }, []);
 
   const value = useMemo<AuthContextValue>(

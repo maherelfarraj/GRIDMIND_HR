@@ -1133,6 +1133,22 @@ paths:
         "401":
           description: Invalid credentials
 
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [ users ]
+      summary: Log out — destroys the server session (cookie or bearer token)
+      responses:
+        "200":
+          description: Session destroyed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                required: [ success ]
+
   # ─── Shifts ──────────────────────────────────────────────
   /shifts:
     get:
@@ -14291,6 +14307,10 @@ components:
         mfaEnabled: { type: boolean }
         preferredLanguage: { type: string }
         lastLoginAt: { type: [ "string", "null" ] }
+        # Present only when the client requests bearer-token transport
+        # (x-session-transport: bearer), e.g. the mobile app storing the
+        # session token in SecureStore instead of relying on cookies.
+        sessionToken: { type: string }
       required: [ id, username, email, fullNameEn, roleId, isActive, mfaEnabled, preferredLanguage ]
 
     Announcement:

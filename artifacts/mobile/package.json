@@ -59,5 +59,8 @@
     "vitest": "^4.1.10",
     "zod": "catalog:",
     "zod-validation-error": "^3.4.0"
+  },
+  "dependencies": {
+    "expo-secure-store": "~15.0.8"
   }
 }

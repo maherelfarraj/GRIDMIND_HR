@@ -227,6 +227,20 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   req.session.userRole = userRole;
   req.session.username = user.username;
 
+  // Bearer-token transport (mobile): the client explicitly opts in via the
+  // x-session-transport header and receives the session id as a token to
+  // store in SecureStore and send as `Authorization: Bearer <token>`.
+  // Web clients never receive the token — their session stays in the
+  // httpOnly cookie only. Save explicitly so the session row exists before
+  // the client's next (token-authenticated) request.
+  if (req.get("x-session-transport") === "bearer") {
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err) => (err ? reject(err) : resolve()));
+    });
+    res.json({ ...userResponse(user), sessionToken: req.session.id });
+    return;
+  }
+
   res.json(userResponse(user));
 });
 

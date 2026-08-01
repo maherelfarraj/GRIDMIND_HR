@@ -4162,6 +4162,7 @@ export interface AuthUser {
   preferredLanguage: string;
   /** @nullable */
   lastLoginAt?: string | null;
+  sessionToken?: string;
 }
 
 export interface Announcement {
@@ -6355,6 +6356,9 @@ export type ChangeMyPassword200 = {
   success: boolean;
 };
 
+export type LogoutUser200 = {
+  success: boolean;
+};
 export type GetShiftRosterParams = {
 /**
  * @nullable
@@ -7825,4 +7829,3 @@ export type CreateImportMappingTemplateBody = {
 export type DeleteImportMappingTemplate200 = {
   deleted: boolean;
 };
-

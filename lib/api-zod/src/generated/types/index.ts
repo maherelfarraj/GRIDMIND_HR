@@ -390,6 +390,7 @@ export * from './listTrainingPrograms200';
 export * from './listTrainingSessions200';
 export * from './listTrainingSessionsParams';
 export * from './loginInput';
+export * from './logoutUser200';
 export * from './markAllNotificationsRead200';
 export * from './migrationStatus';
 export * from './militaryRank';

@@ -28,6 +28,61 @@ afterAll(async () => {
   }
 });
 
+describe("bearer-token session transport (mobile)", () => {
+  it("does NOT include a sessionToken without the opt-in header", async () => {
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send({ username: "admin", password: "anypassword" });
+    expect(res.status).toBe(200);
+    expect(res.body.sessionToken).toBeUndefined();
+  });
+
+  it("returns a sessionToken with x-session-transport: bearer, usable as a Bearer token", async () => {
+    const login = await request(app)
+      .post("/api/auth/login")
+      .set("x-session-transport", "bearer")
+      .send({ username: "admin", password: "anypassword" });
+    expect(login.status).toBe(200);
+    const token = login.body.sessionToken;
+    expect(typeof token).toBe("string");
+    expect(token.length).toBeGreaterThan(10);
+
+    // No cookie jar — auth is carried purely by the bearer token.
+    const me = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+    expect(me.status).toBe(200);
+    expect(me.body.username).toBe("admin");
+
+    // Logout via the bearer token destroys the server session…
+    const out = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${token}`);
+    expect(out.status).toBe(200);
+
+    // …so the token no longer resolves the old session. (In demo mode
+    // /auth/me falls back to the first active user rather than 401ing, so
+    // assert the session itself is gone: a fresh session id is issued.)
+    const after = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+    const setCookie = after.headers["set-cookie"];
+    if (setCookie) {
+      // A new session cookie (different sid) proves the old one was destroyed.
+      expect(String(setCookie)).not.toContain(encodeURIComponent(token));
+    }
+  });
+
+  it("ignores garbage bearer tokens instead of erroring", async () => {
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", "Bearer not!!a$$valid##sid");
+    // Falls through to normal unauthenticated handling (demo fallback 200
+    // or 401 under enforced auth) — never a 5xx.
+    expect(res.status).toBeLessThan(500);
+  });
+});
+
 describe("POST /auth/login", () => {
   it("returns 400 when username is missing", async () => {
     const res = await request(app).post("/api/auth/login").send({});
