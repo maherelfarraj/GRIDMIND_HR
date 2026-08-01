@@ -278,6 +278,7 @@ export default function IntegrationGovernance() {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [emailStatus, setEmailStatus] = useState<any>(null);
   const [vault, setVault] = useState<any[]>([]);
   const [rules, setRules] = useState<any[]>([]);
   const [auditLog, setAuditLog] = useState<any[]>([]);
@@ -294,13 +295,15 @@ export default function IntegrationGovernance() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, v, r, a] = await Promise.allSettled([
+      const [p, v, r, a, e] = await Promise.allSettled([
         apiFetch('/api/integration-governance/connection-profiles').then(r => r.json()),
         apiFetch('/api/integration-governance/credential-vault-refs').then(r => r.json()),
         apiFetch('/api/integration-governance/governance-rules').then(r => r.json()),
         apiFetch('/api/integration-governance/audit-log').then(r => r.json()),
+        apiFetch('/api/integration-governance/security-email-status').then(r => r.json()),
       ]);
       setProfiles(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : []);
+      setEmailStatus(e.status === 'fulfilled' && e.value && typeof e.value.outageActive === 'boolean' ? e.value : null);
       setVault(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : []);
       setRules(r.status === 'fulfilled' && Array.isArray(r.value) ? r.value : []);
       setAuditLog(a.status === 'fulfilled' && Array.isArray(a.value?.data) ? a.value.data : []);
@@ -427,6 +430,43 @@ export default function IntegrationGovernance() {
               </div>
               <Button onClick={() => setAddProfileOpen(true)} className="bg-blue-600 hover:bg-blue-700 gap-2"><span>+</span>{t('Add Profile', 'إضافة ملف')}</Button>
             </div>
+            {!loading && emailStatus && (
+              <Card className={`bg-slate-800 ${emailStatus.outageActive ? 'border-red-800/60' : 'border-emerald-800/60'}`} data-testid="security-email-status">
+                <CardHeader className="pb-2">
+                  <CardTitle className={`text-sm flex items-center gap-2 ${emailStatus.outageActive ? 'text-red-300' : 'text-emerald-300'}`}>
+                    <Mail className="w-4 h-4" />
+                    {t('Security alert emails', 'رسائل التنبيهات الأمنية')}
+                    <Badge variant="outline" className={`text-xs ${emailStatus.outageActive ? 'bg-red-900/40 text-red-300 border-red-700' : 'bg-emerald-900/40 text-emerald-300 border-emerald-700'}`}>
+                      {emailStatus.outageActive ? t('Failing', 'فشل') : t('Healthy', 'سليم')}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-1.5 text-xs">
+                  {emailStatus.outageActive ? (
+                    <div className="flex items-start gap-2">
+                      <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                      <span className="text-slate-300">
+                        {t('Security alert emails are not being delivered.', 'رسائل التنبيهات الأمنية لا يتم إرسالها.')}
+                        {emailStatus.lastFailureMessage && <> {' — '}<span className="text-red-300">{emailStatus.lastFailureMessage}</span></>}
+                        {emailStatus.lastFailureAt && <span className="text-slate-500"> · {t('Last failure', 'آخر فشل')} {timeAgo(emailStatus.lastFailureAt)}</span>}
+                        {emailStatus.outageSince && <span className="text-slate-500"> · {t('Since', 'منذ')} {timeAgo(emailStatus.outageSince)}</span>}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
+                      <span className="text-slate-300">
+                        {t('No active delivery outage.', 'لا يوجد انقطاع نشط في التسليم.')}
+                        {emailStatus.lastSuccessAt
+                          ? <span className="text-slate-500"> · {t('Last successful send', 'آخر إرسال ناجح')} {timeAgo(emailStatus.lastSuccessAt)}</span>
+                          : <span className="text-slate-500"> · {t('No security alert emails sent yet this session', 'لم تُرسل رسائل تنبيه أمنية بعد في هذه الجلسة')}</span>}
+                        {emailStatus.lastFailureAt && <span className="text-slate-500"> · {t('Last failure', 'آخر فشل')} {timeAgo(emailStatus.lastFailureAt)}</span>}
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
             {!loading && healthAlerts.length > 0 && (
               <Card className="bg-slate-800 border-red-800/60">
                 <CardHeader className="pb-2">

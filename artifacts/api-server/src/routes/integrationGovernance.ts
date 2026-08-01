@@ -9,8 +9,17 @@ import { testLdapConnection, type AdapterResult } from "../lib/ldap-adapter.js";
 import { testSmtpConnection } from "../lib/smtp-adapter.js";
 import { testDeviceConnection } from "../lib/device-adapter.js";
 import { runHealthChecksOnce, raiseHealthRecoveryIfAlerted } from "../lib/health-monitor.js";
+import { getSecurityEmailDeliveryStatus } from "../lib/email-alert-status.js";
 
 const router = Router();
+
+// ─── Security Email Delivery Status ──────────────────────────────────────────
+
+router.get("/integration-governance/security-email-status", async (_req, res): Promise<void> => {
+  try {
+    res.json(getSecurityEmailDeliveryStatus());
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
 // ─── Credential Vault Refs ────────────────────────────────────────────────────
 

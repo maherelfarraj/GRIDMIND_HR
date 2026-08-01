@@ -169,3 +169,38 @@ describe("login lockout with failing SMTP (end-to-end)", () => {
     expect(row.bodyEn).toContain(USERNAME);
   });
 });
+
+describe("GET /api/integration-governance/security-email-status", () => {
+  it("rejects unauthenticated requests", async () => {
+    const res = await request(app).get("/api/integration-governance/security-email-status");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns the current delivery status to an authenticated user", async () => {
+    const agent = request.agent(app);
+    const login = await agent.post("/api/auth/login")
+      .send({ username: `mailout-admin-${SUFFIX}`, password: PASSWORD });
+    expect(login.status).toBe(200);
+
+    // Healthy baseline
+    let res = await agent.get("/api/integration-governance/security-email-status");
+    expect(res.status).toBe(200);
+    expect(res.body.outageActive).toBe(false);
+    expect(res.body.lastFailureMessage).toBeNull();
+
+    // After a failure, the endpoint reflects the outage
+    await watchdog.recordSecurityEmailOutcome({ success: false, message: "SMTP relay down" }, "test alert");
+    res = await agent.get("/api/integration-governance/security-email-status");
+    expect(res.status).toBe(200);
+    expect(res.body.outageActive).toBe(true);
+    expect(res.body.lastFailureMessage).toBe("SMTP relay down");
+    expect(res.body.lastFailureAt).toBeTruthy();
+    expect(res.body.outageSince).toBeTruthy();
+
+    // A success closes the outage
+    await watchdog.recordSecurityEmailOutcome({ success: true }, "test alert");
+    res = await agent.get("/api/integration-governance/security-email-status");
+    expect(res.body.outageActive).toBe(false);
+    expect(res.body.lastSuccessAt).toBeTruthy();
+  });
+});
