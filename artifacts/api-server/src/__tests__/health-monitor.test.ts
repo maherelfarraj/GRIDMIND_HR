@@ -457,7 +457,7 @@ describe("connection health monitor", () => {
       maxInFlight = Math.max(maxInFlight, inFlight);
       await new Promise((resolve) => setTimeout(resolve, 50));
       inFlight--;
-      return { success: true, message: "ok", latencyMs: 1, simulated: false };
+      return { success: true, message: "ok", latencyMs: 1, simulated: false as const };
     };
     // One-shot implementations (retries are disabled, so exactly one call per
     // profile) — later tests keep the real adapter behavior.
