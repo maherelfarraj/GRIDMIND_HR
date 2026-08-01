@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, approvalsTable, employeesTable, systemUsersTable, auditLogsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { CreateApprovalBody, DecideApprovalBody, ListApprovalsQueryParams } from "@workspace/api-zod";
+import { decideLeaveStep } from "../lib/leaveDecision.js";
 
 const router = Router();
 
@@ -75,6 +76,44 @@ router.patch("/approvals/:id/decision", async (req, res): Promise<void> => {
   const id = parseId(req.params.id);
   const parsed = DecideApprovalBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  // Task #13: deciding a leave-type approval also advances the underlying
+  // leave request's current approval step, so the two views never drift.
+  if (["approved", "rejected"].includes(parsed.data.status)) {
+    const [existing] = await db.select().from(approvalsTable).where(eq(approvalsTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+    if (existing.type === "leave" && existing.metadata) {
+      let leaveRequestId: number | undefined;
+      try { leaveRequestId = JSON.parse(existing.metadata)?.leave_request_id; } catch { /* ignore */ }
+      if (typeof leaveRequestId === "number") {
+        try {
+          const { request: leaveReq } = await decideLeaveStep({
+            leaveRequestId,
+            decision: parsed.data.status,
+            notes: parsed.data.decisionNote ?? null,
+            actorUserId: (req as any).session?.userId ?? 0,
+          });
+          if (!["approved", "rejected"].includes(leaveReq.status)) {
+            // Intermediate step decided (request still under_review): keep the
+            // queue entry pending so the next approver still sees it.
+            const [pending] = await db.select().from(approvalsTable).where(eq(approvalsTable.id, id));
+            res.json(await buildApprovalResponse(pending));
+            return;
+          }
+          // Terminal: persist the request's final status (decideLeaveStep already
+          // synced it; fall through to record decisionNote/decidedAt uniformly).
+          parsed.data.status = leaveReq.status;
+        } catch (err: any) {
+          if (err?.httpStatus) {
+            res.status(err.httpStatus).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+            return;
+          }
+          throw err;
+        }
+      }
+    }
+  }
+
   const [approval] = await db.update(approvalsTable)
     .set({ status: parsed.data.status, decisionNote: parsed.data.decisionNote ?? null, decidedAt: new Date() })
     .where(eq(approvalsTable.id, id))

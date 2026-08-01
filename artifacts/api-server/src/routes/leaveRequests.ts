@@ -6,6 +6,7 @@ import {
 } from "@workspace/db";
 import { eq, and, gte, lte, or, sql } from "drizzle-orm";
 import { ensureLeaveBalance } from "../lib/leaveBalance.js";
+import { decideLeaveStep, syncLinkedApprovalStatus } from "../lib/leaveDecision.js";
 import { getActorUserId } from "../middleware/requireAuth.js";
 
 const router = Router();
@@ -264,154 +265,17 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
 });
 
 // POST /leave-requests/:id/decide — approve or reject an approval step (Task #18: row-locked)
+// Core logic lives in lib/leaveDecision.ts so the /approvals route can share it (Task #13).
 router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
   const actorUserId: number = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
   const { stepId, stepNumber, decision, notes } = req.body;
 
-  const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
-  if (!r) { res.status(404).json({ error: "Not found" }); return; }
-  if (!["submitted", "under_review"].includes(r.status)) {
-    res.status(400).json({ error: "Request is not pending a decision" });
-    return;
-  }
-
-  // Accept stepId (preferred) or stepNumber (legacy)
-  let step: typeof leaveApprovalStepsTable.$inferSelect | undefined;
-  if (stepId) {
-    const rows = await db.select().from(leaveApprovalStepsTable).where(
-      and(eq(leaveApprovalStepsTable.leaveRequestId, id), eq(leaveApprovalStepsTable.id, stepId))
-    );
-    step = rows[0];
-  } else if (stepNumber !== undefined) {
-    const rows = await db.select().from(leaveApprovalStepsTable).where(
-      and(eq(leaveApprovalStepsTable.leaveRequestId, id), eq(leaveApprovalStepsTable.stepNumber, stepNumber))
-    );
-    step = rows[0];
-  }
-  if (!step) { res.status(404).json({ error: "Approval step not found" }); return; }
-
-  const isApprove = decision === "approved" || decision === "approve";
-  const isReject = decision === "rejected" || decision === "reject";
-  if (!isApprove && !isReject) {
-    res.status(400).json({ error: "decision must be 'approved' or 'rejected'" });
-    return;
-  }
-  const normalizedDecision = isApprove ? "approved" : "rejected";
-
-  // Task #18: atomic transaction with SELECT FOR UPDATE to prevent concurrent overdraw
-  let updated: typeof leaveRequestsTable.$inferSelect;
   try {
-    updated = await db.transaction(async (tx) => {
-      const [locked] = await tx.select().from(leaveRequestsTable)
-        .where(eq(leaveRequestsTable.id, id))
-        .for("update");
-      if (!locked || !["submitted", "under_review"].includes(locked.status)) {
-        throw Object.assign(new Error("Request is no longer pending a decision"), { httpStatus: 409 });
-      }
-
-      // Task #14: claim the approval step with a conditional update so two
-      // simultaneous decisions cannot both process the same step.
-      const [claimedStep] = await tx.update(leaveApprovalStepsTable)
-        .set({ status: normalizedDecision, decision: normalizedDecision, notes: notes ?? null, decidedAt: new Date() })
-        .where(and(
-          eq(leaveApprovalStepsTable.id, step!.id),
-          eq(leaveApprovalStepsTable.status, "pending"),
-        ))
-        .returning();
-      if (!claimedStep) {
-        throw Object.assign(new Error("This approval step has already been decided"), { httpStatus: 409, code: "STEP_ALREADY_DECIDED" });
-      }
-
-      let newStatus = locked.status;
-      let newStep = locked.currentStepNumber;
-      const year = new Date(r.startDate).getFullYear();
-      const balanceWhere = and(
-        eq(leaveBalancesTable.employeeId, locked.employeeId),
-        eq(leaveBalancesTable.leaveTypeId, locked.leaveTypeId),
-        eq(leaveBalancesTable.year, year),
-      );
-
-      const days = String(parseFloat(locked.totalDays));
-
-      if (isReject) {
-        newStatus = "rejected";
-        // Atomic release of the pending reservation
-        await tx.update(leaveBalancesTable)
-          .set({
-            pending: sql`GREATEST(${leaveBalancesTable.pending} - ${days}::numeric, 0)`,
-            updatedAt: new Date(),
-          })
-          .where(balanceWhere);
-      } else {
-        if (step!.stepNumber >= locked.totalApprovalSteps) {
-          newStatus = "approved";
-          newStep = step!.stepNumber;
-          const [bal] = await tx.select().from(leaveBalancesTable).where(balanceWhere);
-          if (bal) {
-            // Task #14: single atomic conditional update — deduct pending → used
-            // only if it would not overdraw the entitlement.
-            const [deducted] = await tx.update(leaveBalancesTable)
-              .set({
-                pending: sql`GREATEST(${leaveBalancesTable.pending} - ${days}::numeric, 0)`,
-                used: sql`${leaveBalancesTable.used} + ${days}::numeric`,
-                updatedAt: new Date(),
-              })
-              .where(and(
-                eq(leaveBalancesTable.id, bal.id),
-                sql`${leaveBalancesTable.used} + ${days}::numeric <= ${leaveBalancesTable.openingBalance} + ${leaveBalancesTable.accrued} + ${leaveBalancesTable.carriedOver} + ${leaveBalancesTable.adjustment} + 0.000000001`,
-              ))
-              .returning();
-            if (!deducted) {
-              throw Object.assign(
-                new Error("Insufficient leave balance: approving this request would overdraw the employee's balance"),
-                { httpStatus: 409, code: "BALANCE_CONFLICT" },
-              );
-            }
-          }
-
-          // Task #9: mark roster days in the leave range as "leave".
-          // Rows created here carry a marker note so a later revoke can remove them.
-          const marker = rosterMarker(locked.requestNumber);
-          const dates = datesInRange(locked.startDate, locked.endDate);
-          const existing = await tx.select().from(rostersTable).where(
-            and(
-              eq(rostersTable.employeeId, locked.employeeId),
-              gte(rostersTable.date, locked.startDate),
-              lte(rostersTable.date, locked.endDate),
-            )
-          );
-          const existingByDate = new Map(existing.map(row => [row.date, row]));
-          for (const d of dates) {
-            const row = existingByDate.get(d);
-            if (row) {
-              await tx.update(rostersTable)
-                .set({ status: "leave", updatedAt: new Date() })
-                .where(eq(rostersTable.id, row.id));
-            } else {
-              await tx.insert(rostersTable).values({
-                employeeId: locked.employeeId, shiftId: null, date: d,
-                status: "leave", notes: marker,
-              });
-            }
-          }
-        } else {
-          newStatus = "under_review";
-          newStep = step!.stepNumber + 1;
-        }
-      }
-
-      const [row] = await tx.update(leaveRequestsTable)
-        .set({
-          status: newStatus,
-          currentStepNumber: newStep,
-          decidedAt: ["approved", "rejected"].includes(newStatus) ? new Date() : null,
-          updatedAt: new Date(),
-        })
-        .where(eq(leaveRequestsTable.id, id))
-        .returning();
-      return row;
+    const { request } = await decideLeaveStep({
+      leaveRequestId: id, stepId, stepNumber, decision, notes, actorUserId,
     });
+    res.json(await enrichRequest(request));
   } catch (err: any) {
     if (err?.httpStatus) {
       res.status(err.httpStatus).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
@@ -419,17 +283,6 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
     }
     throw err;
   }
-
-  await db.insert(auditLogsTable).values({
-    action: `leave.${normalizedDecision}`,
-    entityType: "leave_request",
-    entityId: id,
-    entityLabel: r.requestNumber,
-    actorUserId,
-    changesJson: JSON.stringify({ stepId: step.id, stepNumber: step.stepNumber, decision: normalizedDecision, notes }),
-  });
-
-  res.json(await enrichRequest(updated));
 });
 
 // POST /leave-requests/:id/cancel — cancel a draft or pending request, release pending balance
@@ -463,6 +316,9 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
     .set({ status: "cancelled", updatedAt: new Date() })
     .where(eq(leaveRequestsTable.id, id))
     .returning();
+
+  // Task #13: keep the /approvals queue entry in sync
+  await syncLinkedApprovalStatus(id, "cancelled");
 
   await db.insert(auditLogsTable).values({
     action: "leave.cancelled",
