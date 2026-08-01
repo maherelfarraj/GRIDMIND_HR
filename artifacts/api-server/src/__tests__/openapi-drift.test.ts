@@ -91,7 +91,10 @@ const ALLOWED_EXTRA_PROPERTIES: Record<string, string[]> = {
   ],
   "SystemUser": [
     "roleNameEn",
-    "lockedUntil" // computed from in-memory login-throttle state, not a column
+    "lockedUntil", // computed from in-memory login-throttle state, not a column
+    "lastOtpIssuedAt", // computed from user.otp_issued audit events
+    "lastOtpIssuedByUserId", // computed from user.otp_issued audit events
+    "lastOtpIssuedByName" // joined actor name for the latest OTP issuance
   ],
   "Document": [
     "employeeNameEn",

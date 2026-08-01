@@ -27,4 +27,10 @@ export interface SystemUser {
   mustChangePassword?: boolean;
   /** @nullable */
   lockedUntil?: string | null;
+  /** @nullable */
+  lastOtpIssuedAt?: string | null;
+  /** @nullable */
+  lastOtpIssuedByUserId?: number | null;
+  /** @nullable */
+  lastOtpIssuedByName?: string | null;
 }

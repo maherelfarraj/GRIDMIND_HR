@@ -25,17 +25,60 @@ function parseId(raw: string | string[]): number {
   return parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
 }
 
+/**
+ * Latest `user.otp_issued` audit event per system user. Surfaces *when* a
+ * one-time password was last issued and *by whom* — never the value itself
+ * (the OTP is never stored or logged, so it cannot leak from here).
+ */
+async function getLatestOtpIssuance(userIds: number[]): Promise<Map<number, { at: string; byUserId: number | null; byName: string | null }>> {
+  const result = new Map<number, { at: string; byUserId: number | null; byName: string | null }>();
+  if (userIds.length === 0) return result;
+  const rows = await db.select({
+    entityId: auditLogsTable.entityId,
+    actorUserId: auditLogsTable.actorUserId,
+    createdAt: auditLogsTable.createdAt,
+  })
+    .from(auditLogsTable)
+    .where(and(
+      eq(auditLogsTable.action, "user.otp_issued"),
+      eq(auditLogsTable.entityType, "system_user"),
+      inArray(auditLogsTable.entityId, userIds),
+    ));
+  const actorIds = [...new Set(rows.map((r) => r.actorUserId).filter((v): v is number => v !== null))];
+  const actors = actorIds.length > 0
+    ? await db.select({ id: systemUsersTable.id, fullNameEn: systemUsersTable.fullNameEn })
+        .from(systemUsersTable).where(inArray(systemUsersTable.id, actorIds))
+    : [];
+  const actorMap = new Map(actors.map((a) => [a.id, a.fullNameEn]));
+  for (const r of rows) {
+    if (r.entityId === null) continue;
+    const prev = result.get(r.entityId);
+    if (!prev || new Date(prev.at).getTime() < r.createdAt.getTime()) {
+      result.set(r.entityId, {
+        at: r.createdAt.toISOString(),
+        byUserId: r.actorUserId,
+        byName: r.actorUserId !== null ? (actorMap.get(r.actorUserId) ?? `User #${r.actorUserId}`) : null,
+      });
+    }
+  }
+  return result;
+}
+
 async function buildUserResponse(u: typeof systemUsersTable.$inferSelect) {
   const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, u.roleId));
   const { passwordHash: _passwordHash, ...safe } = u;
   await loginThrottleReady;
   const lockedUntil = getLockedUntil(u.username);
+  const otp = (await getLatestOtpIssuance([u.id])).get(u.id);
   return {
     ...safe,
     roleNameEn: role?.nameEn ?? "Unknown",
     lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toISOString() : null,
     createdAt: u.createdAt.toISOString(),
     lockedUntil: lockedUntil !== null ? new Date(lockedUntil).toISOString() : null,
+    lastOtpIssuedAt: otp?.at ?? null,
+    lastOtpIssuedByUserId: otp?.byUserId ?? null,
+    lastOtpIssuedByName: otp?.byName ?? null,
   };
 }
 
@@ -71,15 +114,20 @@ router.get("/users", async (req, res): Promise<void> => {
   const roles = await db.select().from(rolesTable);
   const roleMap = Object.fromEntries(roles.map((r) => [r.id, r]));
   await loginThrottleReady;
+  const otpByUser = await getLatestOtpIssuance(users.map((u) => u.id));
 
   const result = users.map(({ passwordHash: _passwordHash, ...u }) => {
     const lockedUntil = getLockedUntil(u.username);
+    const otp = otpByUser.get(u.id);
     return {
       ...u,
       roleNameEn: roleMap[u.roleId]?.nameEn ?? "Unknown",
       lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toISOString() : null,
       createdAt: u.createdAt.toISOString(),
       lockedUntil: lockedUntil !== null ? new Date(lockedUntil).toISOString() : null,
+      lastOtpIssuedAt: otp?.at ?? null,
+      lastOtpIssuedByUserId: otp?.byUserId ?? null,
+      lastOtpIssuedByName: otp?.byName ?? null,
     };
   });
   res.json(result);

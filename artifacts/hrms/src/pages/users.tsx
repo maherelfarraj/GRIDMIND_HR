@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Server, Search, Shield, UserCog, MoreHorizontal, KeyRound, Lock, LockOpen, Ticket, Copy, Check } from 'lucide-react';
+import { Server, Search, Shield, UserCog, MoreHorizontal, KeyRound, Lock, LockOpen, Ticket, Copy, Check, Hourglass } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getPasswordIssues, PASSWORD_REQUIREMENTS_EN, PASSWORD_REQUIREMENTS_AR } from '@workspace/api-zod';
@@ -241,7 +241,23 @@ export default function Users() {
                             <Lock className="w-3 h-3 me-1" /> {t('Locked', 'مقفل')}
                           </Badge>
                         )}
+                        {user.mustChangePassword && (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500/30 text-amber-600 dark:text-amber-500 bg-amber-500/5 shadow-none"
+                            title={t('Holding a provisional credential — must set a new password at next login', 'يحمل بيانات اعتماد مؤقتة — يجب تعيين كلمة مرور جديدة عند تسجيل الدخول التالي')}
+                            data-testid={`badge-must-change-password-${user.id}`}
+                          >
+                            <Hourglass className="w-3 h-3 me-1" /> {t('Must change password', 'يجب تغيير كلمة المرور')}
+                          </Badge>
+                        )}
                       </div>
+                      {user.lastOtpIssuedAt && (
+                        <p className="text-xs text-muted-foreground mt-1.5" data-testid={`text-last-otp-${user.id}`}>
+                          {t('OTP issued', 'أُصدرت كلمة مرور لمرة واحدة')} {new Date(user.lastOtpIssuedAt).toLocaleString()}
+                          {user.lastOtpIssuedByName ? ` ${t('by', 'بواسطة')} ${user.lastOtpIssuedByName}` : ''}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : t('Never', 'أبداً')}

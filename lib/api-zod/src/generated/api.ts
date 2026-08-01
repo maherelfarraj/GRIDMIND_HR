@@ -1307,7 +1307,10 @@ export const ListUsersResponseItem = zod.object({
   "preferredLanguage": zod.string(),
   "createdAt": zod.string(),
   "mustChangePassword": zod.boolean().optional(),
-  "lockedUntil": zod.string().nullish()
+  "lockedUntil": zod.string().nullish(),
+  "lastOtpIssuedAt": zod.string().nullish(),
+  "lastOtpIssuedByUserId": zod.number().nullish(),
+  "lastOtpIssuedByName": zod.string().nullish()
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
 
@@ -1342,7 +1345,10 @@ export const CreateUserResponse = zod.object({
   "preferredLanguage": zod.string(),
   "createdAt": zod.string(),
   "mustChangePassword": zod.boolean().optional(),
-  "lockedUntil": zod.string().nullish()
+  "lockedUntil": zod.string().nullish(),
+  "lastOtpIssuedAt": zod.string().nullish(),
+  "lastOtpIssuedByUserId": zod.number().nullish(),
+  "lastOtpIssuedByName": zod.string().nullish()
 })
 
 
@@ -1369,7 +1375,10 @@ export const GetUserResponse = zod.object({
   "preferredLanguage": zod.string(),
   "createdAt": zod.string(),
   "mustChangePassword": zod.boolean().optional(),
-  "lockedUntil": zod.string().nullish()
+  "lockedUntil": zod.string().nullish(),
+  "lastOtpIssuedAt": zod.string().nullish(),
+  "lastOtpIssuedByUserId": zod.number().nullish(),
+  "lastOtpIssuedByName": zod.string().nullish()
 })
 
 
@@ -1407,7 +1416,10 @@ export const UpdateUserResponse = zod.object({
   "preferredLanguage": zod.string(),
   "createdAt": zod.string(),
   "mustChangePassword": zod.boolean().optional(),
-  "lockedUntil": zod.string().nullish()
+  "lockedUntil": zod.string().nullish(),
+  "lastOtpIssuedAt": zod.string().nullish(),
+  "lastOtpIssuedByUserId": zod.number().nullish(),
+  "lastOtpIssuedByName": zod.string().nullish()
 })
 
 
@@ -1494,7 +1506,10 @@ export const GetAuthMeResponse = zod.object({
   "preferredLanguage": zod.string(),
   "createdAt": zod.string(),
   "mustChangePassword": zod.boolean().optional(),
-  "lockedUntil": zod.string().nullish()
+  "lockedUntil": zod.string().nullish(),
+  "lastOtpIssuedAt": zod.string().nullish(),
+  "lastOtpIssuedByUserId": zod.number().nullish(),
+  "lastOtpIssuedByName": zod.string().nullish()
 })
 
 

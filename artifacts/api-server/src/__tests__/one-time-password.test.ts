@@ -142,5 +142,27 @@ describe("POST /users/:id/one-time-password", () => {
     expect(audit.entityLabel).toBe(USERNAME);
     expect(audit.actorUserId).toBe(adminId);
     expect(audit.changesJson ?? "").not.toContain(otp);
+
+    // Admin-facing visibility: the users list surfaces the pending
+    // must-change-password state and the last OTP issuance (time + issuer),
+    // without ever exposing a password value.
+    const list = await admin.get("/api/users");
+    expect(list.status).toBe(200);
+    const listed = list.body.find((u: { id: number }) => u.id === userId);
+    expect(listed).toBeTruthy();
+    expect(listed.mustChangePassword).toBe(true);
+    expect(listed.lastOtpIssuedAt).toBe(audit.createdAt.toISOString());
+    expect(listed.lastOtpIssuedByUserId).toBe(adminId);
+    expect(typeof listed.lastOtpIssuedByName).toBe("string");
+    expect(listed.passwordHash).toBeUndefined();
+    expect(JSON.stringify(listed)).not.toContain(otp);
+
+    // Same surfacing on the single-user endpoint.
+    const detail = await admin.get(`/api/users/${userId}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.lastOtpIssuedAt).toBe(audit.createdAt.toISOString());
+    expect(detail.body.lastOtpIssuedByUserId).toBe(adminId);
+    expect(detail.body.mustChangePassword).toBe(true);
+    expect(JSON.stringify(detail.body)).not.toContain(otp);
   });
 });

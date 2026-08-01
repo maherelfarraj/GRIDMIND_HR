@@ -10683,6 +10683,9 @@ components:
         mustChangePassword:
           type: boolean
         lockedUntil: { type: [ "string", "null" ] }
+        lastOtpIssuedAt: { type: [ "string", "null" ] }
+        lastOtpIssuedByUserId: { type: [ "number", "null" ] }
+        lastOtpIssuedByName: { type: [ "string", "null" ] }
       required:
         - id
         - username
