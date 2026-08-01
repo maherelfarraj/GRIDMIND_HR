@@ -23,6 +23,7 @@ import {
   leaveRequestsTable,
   leaveTypesTable,
   publicHolidaysTable,
+  systemConfigTable,
 } from "@workspace/db";
 import app from "../app";
 
@@ -678,6 +679,46 @@ describe("payroll calculation engine", () => {
       const periodRes = await request(app).get(`/api/payroll-periods/${capPeriodId}`);
       expect(periodRes.body.exceptionCount).toBeGreaterThanOrEqual(1);
       expect(periodRes.body.status).toBe("under_review");
+    });
+
+    it("respects a non-default admin-configured cap from system_config", async () => {
+      const OT_CAP_KEY = "payroll.maxOtSessionHours";
+      const [existing] = await db.select().from(systemConfigTable)
+        .where(eq(systemConfigTable.key, OT_CAP_KEY));
+      const originalValue = existing?.value ?? null;
+
+      try {
+        // HR raises the cap to 16h for this organization.
+        if (existing) {
+          await db.update(systemConfigTable).set({ value: "16" })
+            .where(eq(systemConfigTable.key, OT_CAP_KEY));
+        } else {
+          await db.insert(systemConfigTable).values({
+            key: OT_CAP_KEY, value: "16", valueType: "number", category: "payroll",
+            labelEn: "Max Overtime Session (hours)", labelAr: "الحد الأقصى لجلسة العمل الإضافي (ساعات)",
+          });
+        }
+
+        const res = await request(app).post(`/api/payroll-periods/${capPeriodId}/calculate`);
+        expect(res.status).toBe(200);
+
+        const runsRes = await request(app).get(`/api/payroll-runs?periodId=${capPeriodId}`);
+        const run = runsRes.body.find((r: { employeeId: number }) => r.employeeId === emp4Id);
+        expect(run).toBeDefined();
+
+        // 2h normal session + 50h runaway session now capped at 16h = 18h payable.
+        expect(parseFloat(run.overtimeHours)).toBeCloseTo(2 + 16, 2);
+        expect(run.hasException).toBe(true);
+        expect(run.exceptionNote).toMatch(/overtime session.*capped at 16h/i);
+      } finally {
+        // Restore the original cap so other tests see the default behavior.
+        if (existing) {
+          await db.update(systemConfigTable).set({ value: originalValue })
+            .where(eq(systemConfigTable.key, OT_CAP_KEY));
+        } else {
+          await db.delete(systemConfigTable).where(eq(systemConfigTable.key, OT_CAP_KEY));
+        }
+      }
     });
   });
 

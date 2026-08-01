@@ -9,6 +9,7 @@ import {
 import type { PayrollPeriod, Employee } from "@workspace/db";
 import { eq, and, gte, lte, sql, ilike } from "drizzle-orm";
 import { getWeekendDays, WEEKEND_CONFIG_KEY } from "../lib/weekend";
+import { getMaxOtSessionHours } from "../lib/otCap";
 import { getActorUserId } from "../middleware/requireAuth.js";
 import { reconcileTerminationStatuses } from "../lib/terminationReconciler.js";
 
@@ -371,20 +372,10 @@ async function notifyHrNoShowDigest(
 // has no matching OVERTIME_END punch — the historical per-session approximation.
 const DEFAULT_OT_SESSION_HOURS = 2;
 
-// Sanity cap (hours) for a single paired overtime session. Sessions longer than
-// this are almost always bad punch data (a forgotten end punch matched to a much
-// later one), so the payable duration is clamped to the cap and the run is
-// flagged as an exception for HR review instead of being paid blindly.
-// Configurable via MAX_OT_SESSION_HOURS; must be a positive number.
-const MAX_OT_SESSION_HOURS = (() => {
-  const raw = process.env.MAX_OT_SESSION_HOURS;
-  if (raw == null || raw.trim() === "") return 12;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`Invalid MAX_OT_SESSION_HOURS: "${raw}" — must be a positive number of hours`);
-  }
-  return parsed;
-})();
+// The sanity cap (hours) for a single paired overtime session is an
+// admin-editable setting ("payroll.maxOtSessionHours" in system_config,
+// falling back to the MAX_OT_SESSION_HOURS env var, then 12h) read at
+// calculation time via getMaxOtSessionHours() — see ../lib/otCap.ts.
 
 const router = Router();
 
@@ -536,8 +527,9 @@ async function recalculatePeriodRuns(
       lte(attendanceRecordsTable.date, period.endDate),
     ));
 
-  // Admin-configurable weekend days
+  // Admin-configurable weekend days and overtime session sanity cap
   const weekendDays = await getWeekendDays();
+  const maxOtSessionHours = await getMaxOtSessionHours();
 
   // Public holidays — fetched once, filtered per-employee inside the loop
   const startYear = parseInt(period.startDate.slice(0, 4), 10);
@@ -647,7 +639,7 @@ async function recalculatePeriodRuns(
       .sort((a, b) => a.eventTime.getTime() - b.eventTime.getTime());
     let weekdayOtHours = 0, weekendOtHours = 0, holidayOtHours = 0;
     // Sessions whose raw paired duration exceeded the sanity cap; their pay is
-    // clamped to MAX_OT_SESSION_HOURS and the run is flagged for review.
+    // clamped to the admin-configured cap and the run is flagged for review.
     const cappedOtSessions: { date: string; rawHours: number }[] = [];
     let endIdx = 0;
     for (let s = 0; s < empOtStarts.length; s++) {
@@ -664,9 +656,9 @@ async function recalculatePeriodRuns(
         hours = (empOtEnds[endIdx].eventTime.getTime() - start.eventTime.getTime()) / 3_600_000;
         endIdx++;
       }
-      if (hours > MAX_OT_SESSION_HOURS) {
+      if (hours > maxOtSessionHours) {
         cappedOtSessions.push({ date: start.eventTime.toISOString().slice(0, 10), rawHours: hours });
-        hours = MAX_OT_SESSION_HOURS;
+        hours = maxOtSessionHours;
       }
       const iso = start.eventTime.toISOString().slice(0, 10);
       if (empHolidaySet.has(iso)) holidayOtHours += hours;
@@ -818,7 +810,7 @@ async function recalculatePeriodRuns(
       const detail = cappedOtSessions
         .map(c => `${c.date} (${Math.round(c.rawHours * 100) / 100}h)`)
         .join(", ");
-      notes.push(`Suspicious overtime session(s) capped at ${MAX_OT_SESSION_HOURS}h — likely missing end punch: ${detail}`);
+      notes.push(`Suspicious overtime session(s) capped at ${maxOtSessionHours}h — likely missing end punch: ${detail}`);
     }
     if (isProrated) notes.push(`Prorated for partial employment: ${employedWorkingDays}/${periodWorkingDays} working days`);
     const [run] = await db.insert(payrollRunsTable).values({

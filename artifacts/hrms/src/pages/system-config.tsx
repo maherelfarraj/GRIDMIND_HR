@@ -11,7 +11,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, Save, Settings, Shield, Layers, Loader2 } from 'lucide-react';
+import { AlertTriangle, Save, Settings, Shield, Layers, Loader2, Clock } from 'lucide-react';
+
+// Overtime session sanity cap — must be a positive number of hours.
+const OT_CAP_KEY = 'payroll.maxOtSessionHours';
+function isValidOtCap(raw: string): boolean {
+  if (raw.trim() === '') return false;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0;
+}
 
 // ─── Toggle Switch ────────────────────────────────────────────────────────────
 function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -56,9 +64,20 @@ export default function SystemConfig() {
     },
   });
 
+  const otCapValue = getValue(OT_CAP_KEY, '12');
+  const otCapInvalid = OT_CAP_KEY in changes && !isValidOtCap(otCapValue);
+
   const handleSave = () => {
     if (Object.keys(changes).length === 0) {
       toast({ title: t('No changes to save', 'لا توجد تغييرات للحفظ') });
+      return;
+    }
+    if (otCapInvalid) {
+      toast({
+        title: t('Invalid value', 'قيمة غير صالحة'),
+        description: t('Max overtime session must be a positive number of hours', 'الحد الأقصى لجلسة العمل الإضافي يجب أن يكون رقماً موجباً من الساعات'),
+        variant: 'destructive',
+      });
       return;
     }
     const updates = Object.entries(changes).map(([configKey, configValue]) => ({ configKey, configValue }));
@@ -209,6 +228,43 @@ export default function SystemConfig() {
                 })}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Section: Payroll Rules */}
+        <Card className="rounded-xl shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock className="w-5 h-5 text-indigo-600" />
+              {t('Payroll Rules', 'قواعد الرواتب')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-sm font-medium">{t('Max Overtime Session (hours)', 'الحد الأقصى لجلسة العمل الإضافي (ساعات)')}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md">
+                  {t(
+                    'Single overtime sessions longer than this are treated as bad punch data: pay is capped at this value and the run is flagged for HR review.',
+                    'جلسات العمل الإضافي الأطول من هذا الحد تُعتبر بيانات بصمة خاطئة: يُحدّد الأجر عند هذه القيمة وتُعلَّم التسوية لمراجعة الموارد البشرية.'
+                  )}
+                </p>
+                <p className="text-xs text-gray-400 font-mono">{OT_CAP_KEY}</p>
+              </div>
+              <div className="space-y-1">
+                <Input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  className={`w-32 text-sm ${otCapInvalid ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                  value={otCapValue}
+                  onChange={e => setValue(OT_CAP_KEY, e.target.value)}
+                />
+                {otCapInvalid && (
+                  <p className="text-xs text-red-500">{t('Must be a positive number', 'يجب أن يكون رقماً موجباً')}</p>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
