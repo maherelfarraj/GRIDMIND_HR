@@ -202,6 +202,35 @@ export async function flushDeferredCommandNotifications(): Promise<void> {
   }
 }
 
+/** Number of deferred notification writes still in flight (shutdown logging). */
+export function pendingDeferredCommandNotificationCount(): number {
+  return pendingDeferred.size;
+}
+
+/**
+ * Graceful-shutdown flush: await pending deferred notification writes, but
+ * never hold up process exit longer than `timeoutMs`. Returns true when the
+ * flush completed, false when the timeout elapsed first (the backfill sweep
+ * recovers any writes abandoned here on the next boot).
+ */
+export async function flushDeferredCommandNotificationsWithTimeout(timeoutMs: number): Promise<boolean> {
+  if (pendingDeferred.size === 0) return true;
+  let timer: NodeJS.Timeout | undefined;
+  const timedOut = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+    // Don't let the flush timer itself keep the process alive.
+    timer.unref?.();
+  });
+  try {
+    return await Promise.race([
+      flushDeferredCommandNotifications().then(() => true),
+      timedOut,
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * Server-side expiry sweep: expire every stale PENDING/DELIVERED command
  * across ALL devices and notify the requesters. Read-path expiry (the device

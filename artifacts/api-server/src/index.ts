@@ -2,7 +2,11 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startHealthMonitor } from "./lib/health-monitor";
 import { startGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
-import { backfillMissedCommandOutcomeNotifications } from "./lib/deviceCommandNotifications";
+import {
+  backfillMissedCommandOutcomeNotifications,
+  flushDeferredCommandNotificationsWithTimeout,
+  pendingDeferredCommandNotificationCount,
+} from "./lib/deviceCommandNotifications";
 import { startBackupScheduler } from "./lib/backupScheduler";
 import { startPrivilegedSessionSweeper } from "./lib/privilegedSessionSweeper";
 import { seedDemoPasswords } from "./lib/seed-passwords";
@@ -25,6 +29,39 @@ if (Number.isNaN(port) || port <= 0) {
 
 // Schema must be in place before we accept any traffic.
 await runStartupMigrations();
+
+/** Upper bound on how long a graceful shutdown waits for deferred writes. */
+const SHUTDOWN_FLUSH_TIMEOUT_MS = 5_000;
+
+let shuttingDown = false;
+
+/**
+ * Graceful shutdown (SIGTERM during a redeploy, SIGINT locally): deferred
+ * command-outcome notification writes are scheduled off the request path, so
+ * the process could otherwise exit with inserts still pending — leaving the
+ * requester waiting for the next boot's backfill sweep. Flush them (bounded
+ * by a short timeout) before exiting; the sweep remains the crash safety net.
+ */
+function handleShutdownSignal(signal: NodeJS.Signals): void {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  const pending = pendingDeferredCommandNotificationCount();
+  logger.info({ signal, pendingDeferredNotifications: pending }, "Shutdown signal received — flushing deferred command notifications");
+  flushDeferredCommandNotificationsWithTimeout(SHUTDOWN_FLUSH_TIMEOUT_MS)
+    .then((flushed) => {
+      if (!flushed) {
+        logger.warn(
+          { timeoutMs: SHUTDOWN_FLUSH_TIMEOUT_MS, remaining: pendingDeferredCommandNotificationCount() },
+          "Deferred notification flush timed out at shutdown — remaining writes will be backfilled on next boot",
+        );
+      }
+    })
+    .catch((err) => logger.error({ err }, "Deferred notification flush failed at shutdown"))
+    .finally(() => process.exit(0));
+}
+
+process.on("SIGTERM", handleShutdownSignal);
+process.on("SIGINT", handleShutdownSignal);
 
 async function main() {
   if (process.env.NODE_ENV === "production") {
