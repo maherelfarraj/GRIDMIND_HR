@@ -2,7 +2,7 @@ import { apiFetch } from '@/lib/api';
 import { useMemo, useState } from 'react';
 import { useSearch, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
-import { useListAttendance, useGetAttendanceDailySummary, useListDevices, useListEmployees } from '@workspace/api-client-react';
+import { useListAttendance, useGetAttendanceDailySummary, useListDevices, useListEmployees, useListDepartments } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -61,6 +61,7 @@ export default function Attendance() {
   const filterDepartmentId = params.get('departmentId') ? Number(params.get('departmentId')) : null;
   const filterDate = params.get('date');
 
+  const { data: departments } = useListDepartments();
   const { data: rawAttendanceData, isLoading: loadingAttendance } = useListAttendance();
   const { data: summaryData, isLoading: loadingSummary } = useGetAttendanceDailySummary();
 
@@ -74,6 +75,8 @@ export default function Attendance() {
 
   const filterDepartmentName = useMemo(() => {
     if (filterDepartmentId == null) return null;
+    const dept = departments?.find((d) => d.id === filterDepartmentId);
+    if (dept) return lang === 'ar' ? dept.nameAr : dept.nameEn;
     return (
       rawAttendanceData?.find((r) => r.departmentId === filterDepartmentId)?.departmentNameEn ??
       summaryData?.find((s) => s.departmentId === filterDepartmentId)?.[lang === 'ar' ? 'departmentNameAr' : 'departmentNameEn'] ??
@@ -82,6 +85,14 @@ export default function Attendance() {
   }, [filterDepartmentId, rawAttendanceData, summaryData, lang]);
 
   const clearFilters = () => navigate('/attendance', { replace: true });
+
+  const setFilters = (departmentId: number | null, date: string | null) => {
+    const next = new URLSearchParams();
+    if (departmentId != null) next.set('departmentId', String(departmentId));
+    if (date) next.set('date', date);
+    const qs = next.toString();
+    navigate(qs ? `/attendance?${qs}` : '/attendance', { replace: true });
+  };
   const { data: devices } = useListDevices();
   const { data: employees } = useListEmployees();
 
@@ -372,15 +383,36 @@ export default function Attendance() {
 
           <Card>
             <CardHeader className="py-4 border-b flex flex-row items-center justify-between">
-              <div className="flex gap-4 flex-1">
-                <Button variant="outline" className="justify-start text-start font-normal w-[240px]">
-                  <Calendar className="me-2 h-4 w-4" />
-                  <span>{new Date().toLocaleDateString()}</span>
-                </Button>
-                <Button variant="outline" className="shrink-0">
-                  <Filter className="w-4 h-4 me-2" />
-                  {t('Filter by Department', 'تصفية حسب القسم')}
-                </Button>
+              <div className="flex gap-4 flex-1 flex-wrap">
+                <div className="relative w-[240px]">
+                  <Calendar className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    type="date"
+                    className="ps-9"
+                    value={filterDate ?? ''}
+                    onChange={(e) => setFilters(filterDepartmentId, e.target.value || null)}
+                    aria-label={t('Filter by date', 'تصفية حسب التاريخ')}
+                  />
+                </div>
+                <Select
+                  value={filterDepartmentId != null ? String(filterDepartmentId) : 'all'}
+                  onValueChange={(val) => setFilters(val === 'all' ? null : Number(val), filterDate)}
+                >
+                  <SelectTrigger className="w-[240px]">
+                    <span className="flex items-center">
+                      <Filter className="w-4 h-4 me-2 shrink-0" />
+                      <SelectValue placeholder={t('Filter by Department', 'تصفية حسب القسم')} />
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t('All Departments', 'جميع الأقسام')}</SelectItem>
+                    {(departments ?? []).map((dept) => (
+                      <SelectItem key={dept.id} value={String(dept.id)}>
+                        {lang === 'en' ? dept.nameEn : dept.nameAr}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardHeader>
             <CardContent className="p-0">
