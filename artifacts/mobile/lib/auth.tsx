@@ -15,8 +15,14 @@ import {
   logoutUser,
   setAuthTokenGetter,
   setUnauthorizedHandler,
+  setPasswordChangeRequiredHandler,
 } from '@workspace/api-client-react';
-import type { AuthUser } from '@workspace/api-client-react';
+import type { AuthUser as GeneratedAuthUser } from '@workspace/api-client-react';
+
+// The API includes must_change_password state on auth responses and flags
+// blocked requests with 403 PASSWORD_CHANGE_REQUIRED; the generated schema
+// does not carry the flag yet, so extend it locally.
+export type AuthUser = GeneratedAuthUser & { mustChangePassword?: boolean };
 
 // Cached profile for instant paint while the token is validated. Never
 // trusted on its own: without a valid session token the user is signed out.
@@ -90,6 +96,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.removeItem(PROFILE_KEY).catch(() => {});
     });
     return () => setUnauthorizedHandler(null);
+  }, []);
+
+  // The API rejects all business endpoints with 403 PASSWORD_CHANGE_REQUIRED
+  // while must_change_password is set (e.g. an admin reset the password
+  // mid-session). Flip the flag on the in-memory + cached profile so the
+  // navigation guards route to the forced change-password flow instead of
+  // screens surfacing generic errors.
+  useEffect(() => {
+    setPasswordChangeRequiredHandler(() => {
+      setUser((current) => {
+        if (!current || current.mustChangePassword) return current;
+        const flagged = { ...current, mustChangePassword: true };
+        AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(flagged)).catch(() => {});
+        return flagged;
+      });
+    });
+    return () => setPasswordChangeRequiredHandler(null);
   }, []);
 
   // Bootstrap: a stored profile alone is never trusted. Restore the session

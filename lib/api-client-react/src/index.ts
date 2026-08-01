@@ -6,5 +6,12 @@ export {
   setAuthTokenGetter,
   setDefaultCredentials,
   setUnauthorizedHandler,
+  setPasswordChangeRequiredHandler,
+  isPasswordChangeRequiredBody,
+  PASSWORD_CHANGE_REQUIRED_CODE,
 } from "./custom-fetch";
-export type { AuthTokenGetter, UnauthorizedHandler } from "./custom-fetch";
+export type {
+  AuthTokenGetter,
+  UnauthorizedHandler,
+  PasswordChangeRequiredHandler,
+} from "./custom-fetch";

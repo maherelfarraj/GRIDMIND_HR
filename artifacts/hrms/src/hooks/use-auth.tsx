@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { PASSWORD_CHANGE_REQUIRED_EVENT } from '@/lib/api';
 
 interface User {
   id: number;
@@ -57,6 +58,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(SESSION_KEY);
       setIsLoading(false);
     }
+  }, []);
+
+  // When any API request is blocked with 403 PASSWORD_CHANGE_REQUIRED
+  // (session flagged mid-use, e.g. admin reset the password), flip the flag
+  // so the router immediately swaps in the forced change-password screen.
+  useEffect(() => {
+    const onRequired = () => {
+      setUser((current) =>
+        current && !current.mustChangePassword
+          ? { ...current, mustChangePassword: true }
+          : current,
+      );
+    };
+    window.addEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, onRequired);
+    return () => window.removeEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, onRequired);
   }, []);
 
   const login = async (username: string, password: string) => {

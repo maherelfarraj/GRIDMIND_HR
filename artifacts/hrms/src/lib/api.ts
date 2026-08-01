@@ -1,5 +1,10 @@
 // Centralized fetch with credentials
-import { setDefaultCredentials, setUnauthorizedHandler } from '@workspace/api-client-react';
+import {
+  setDefaultCredentials,
+  setUnauthorizedHandler,
+  setPasswordChangeRequiredHandler,
+  isPasswordChangeRequiredBody,
+} from '@workspace/api-client-react';
 
 export interface ApiFetchOptions {
   /**
@@ -16,10 +21,48 @@ export async function apiFetch(path: string, init?: RequestInit, opts?: ApiFetch
   if (res.status === 401 && !opts?.optionalAuth) {
     handleSessionExpired();
   }
+  if (res.status === 403) {
+    // The API blocks all business endpoints with PASSWORD_CHANGE_REQUIRED
+    // while must_change_password is set. Peek at a clone so callers can
+    // still consume the body.
+    try {
+      const body: unknown = await res.clone().json();
+      if (isPasswordChangeRequiredBody(body)) handlePasswordChangeRequired();
+    } catch {
+      // Non-JSON 403 — nothing to detect.
+    }
+  }
   return res;
 }
 
 const SESSION_KEY = 'hrms-session';
+
+/**
+ * Fired on window when any API request is rejected with
+ * 403 PASSWORD_CHANGE_REQUIRED. The auth provider listens and flips
+ * `mustChangePassword` on the current user so the router swaps the app for
+ * the forced change-password screen — no generic error toast, no reload.
+ */
+export const PASSWORD_CHANGE_REQUIRED_EVENT = 'hrms:password-change-required';
+
+/**
+ * A session became flagged mid-use (e.g. an admin reset the password).
+ * Mark the stored session and notify the auth provider so the user lands on
+ * the mandatory change-password screen instead of seeing failing requests.
+ */
+export function handlePasswordChangeRequired(): void {
+  try {
+    const stored = localStorage.getItem(SESSION_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Record<string, unknown>;
+      parsed.mustChangePassword = true;
+      localStorage.setItem(SESSION_KEY, JSON.stringify(parsed));
+    }
+  } catch {
+    // Storage unavailable/corrupt — the event below still routes the UI.
+  }
+  window.dispatchEvent(new Event(PASSWORD_CHANGE_REQUIRED_EVENT));
+}
 
 /** Clear the stored session and send the user to the login screen. */
 export function handleSessionExpired(): void {
@@ -63,5 +106,8 @@ export function configureApiClient(): void {
   setDefaultCredentials('include');
   setUnauthorizedHandler((response) => {
     if (isSessionExpiry401(response.url)) handleSessionExpired();
+  });
+  setPasswordChangeRequiredHandler(() => {
+    handlePasswordChangeRequired();
   });
 }

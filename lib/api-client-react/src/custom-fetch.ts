@@ -19,8 +19,36 @@ let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
 let _defaultCredentials: RequestCredentials | null = null;
 let _unauthorizedHandler: UnauthorizedHandler | null = null;
+let _passwordChangeRequiredHandler: PasswordChangeRequiredHandler | null = null;
 
 export type UnauthorizedHandler = (response: Response) => void;
+export type PasswordChangeRequiredHandler = (response: Response) => void;
+
+/** Error code the API uses to block business endpoints until the user
+ * changes a must-change password. */
+export const PASSWORD_CHANGE_REQUIRED_CODE = "PASSWORD_CHANGE_REQUIRED";
+
+/**
+ * Register a handler invoked whenever a request is rejected with a 403 whose
+ * JSON body carries `code: "PASSWORD_CHANGE_REQUIRED"` (the API blocks all
+ * business endpoints while the user's must_change_password flag is set).
+ * Lets clients route to the forced change-password screen instead of showing
+ * generic errors. Invoked before the ApiError is thrown. Pass `null` to clear.
+ */
+export function setPasswordChangeRequiredHandler(
+  handler: PasswordChangeRequiredHandler | null,
+): void {
+  _passwordChangeRequiredHandler = handler;
+}
+
+/** True when a parsed error body signals the mandatory password-change block. */
+export function isPasswordChangeRequiredBody(data: unknown): boolean {
+  return (
+    !!data &&
+    typeof data === "object" &&
+    (data as Record<string, unknown>).code === PASSWORD_CHANGE_REQUIRED_CODE
+  );
+}
 
 /**
  * Set a default `credentials` mode applied to every request that does not
@@ -396,6 +424,17 @@ export async function customFetch<T = unknown>(
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
+    if (
+      response.status === 403 &&
+      _passwordChangeRequiredHandler &&
+      isPasswordChangeRequiredBody(errorData)
+    ) {
+      try {
+        _passwordChangeRequiredHandler(response.clone());
+      } catch {
+        // Never let the handler mask the original ApiError.
+      }
+    }
     throw new ApiError(response, errorData, requestInfo);
   }
 
