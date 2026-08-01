@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListImportJobs, useCreateImportJob, useConfirmImportPreview,
@@ -68,13 +68,52 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge className={`text-xs ${map[status] ?? 'bg-slate-700 text-slate-300'}`}>{status}</Badge>;
 }
 
+/** Parse CSV text into an array of cell arrays, honoring quoted fields (RFC 4180-style). */
+export function parseCsv(csvText: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+  let sawAny = false;
+  for (let i = 0; i < csvText.length; i++) {
+    const ch = csvText[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (csvText[i + 1] === '"') { cell += '"'; i++; }
+        else inQuotes = false;
+      } else {
+        cell += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+      sawAny = true;
+    } else if (ch === ',') {
+      row.push(cell); cell = ''; sawAny = true;
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && csvText[i + 1] === '\n') i++;
+      if (sawAny || cell !== '') { row.push(cell); rows.push(row); }
+      row = []; cell = ''; sawAny = false;
+    } else {
+      cell += ch;
+      sawAny = true;
+    }
+  }
+  if (sawAny || cell !== '') { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+
+/** Extract trimmed header cells from CSV text. */
+export function parseCsvHeaders(csvText: string): string[] {
+  const rows = parseCsv(csvText);
+  return (rows[0] ?? []).map(h => h.trim()).filter(Boolean);
+}
+
 /** Parse CSV text into objects keyed by the mapped target fields. */
 function parseCsvRows(csvText: string, mapping: Record<string, string>): Record<string, string>[] {
-  const lines = csvText.split('\n').map(l => l.trim()).filter(Boolean);
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map(h => h.trim());
-  return lines.slice(1).map(line => {
-    const cells = line.split(',');
+  const rows = parseCsv(csvText);
+  if (rows.length < 2) return [];
+  const headers = rows[0].map(h => h.trim());
+  return rows.slice(1).map(cells => {
     const row: Record<string, string> = {};
     headers.forEach((h, i) => {
       const target = mapping[h];
@@ -96,9 +135,43 @@ function NewImportTab() {
   const [csvText, setCsvText] = useState(SAMPLE_CSV);
   const [mapping, setMapping] = useState<Record<string, string>>(DEFAULT_MAPPING);
   const [job, setJob] = useState<CreateImportJob201 | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const sourceCols = (csvText.split('\n')[0] ?? '').split(',').map(c => c.trim()).filter(Boolean);
+  const sourceCols = parseCsvHeaders(csvText);
   const submitting = createJobMut.isPending || confirmMut.isPending || executeMut.isPending;
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      if (!text.trim()) {
+        toast({ title: t('The file is empty', 'الملف فارغ'), variant: 'destructive' });
+        return;
+      }
+      setCsvText(text);
+      setFileName(file.name);
+      setJob(null);
+      // Auto-map any headers that match the default mapping; keep others unmapped.
+      const headers = parseCsvHeaders(text);
+      setMapping(prev => {
+        const next: Record<string, string> = {};
+        headers.forEach(h => {
+          const target = prev[h] ?? DEFAULT_MAPPING[h];
+          if (target) next[h] = target;
+        });
+        return next;
+      });
+    };
+    reader.onerror = () => {
+      toast({ title: t('Could not read the file', 'تعذر قراءة الملف'), variant: 'destructive' });
+    };
+    reader.readAsText(file);
+    // Allow re-selecting the same file.
+    e.target.value = '';
+  }
 
   async function handleValidate() {
     const rows = parseCsvRows(csvText, mapping);
@@ -108,7 +181,7 @@ function NewImportTab() {
     }
     try {
       const created = await createJobMut.mutateAsync({
-        data: { importType, fileFormat: 'csv', rowsJson: rows, columnMappingJson: mapping },
+        data: { importType, fileFormat: 'csv', rowsJson: rows, columnMappingJson: mapping, originalFilename: fileName },
       });
       setJob(created);
       const summary = t(
@@ -174,11 +247,37 @@ function NewImportTab() {
       </div>
 
       <div>
-        <Label className="text-slate-300">{t('CSV Preview (paste data here)', 'معاينة CSV (الصق البيانات هنا)')}</Label>
+        <Label className="text-slate-300">{t('CSV File', 'ملف CSV')}</Label>
+        <div className="mt-1 flex items-center gap-3 flex-wrap">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            data-testid="input-csv-file"
+            onChange={handleFileChange}
+          />
+          <Button
+            variant="outline"
+            className="border-slate-600 text-slate-300"
+            onClick={() => fileInputRef.current?.click()}
+            data-testid="button-upload-csv"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            {t('Upload CSV File', 'رفع ملف CSV')}
+          </Button>
+          {fileName && (
+            <span className="text-slate-400 text-sm font-mono" data-testid="text-uploaded-filename">{fileName}</span>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <Label className="text-slate-300">{t('CSV Preview (or paste data here)', 'معاينة CSV (أو الصق البيانات هنا)')}</Label>
         <textarea
           className="mt-1 w-full h-28 bg-slate-800 border border-slate-600 rounded p-2 text-xs text-slate-300 font-mono resize-none focus:outline-none focus:border-primary"
           value={csvText}
-          onChange={e => { setCsvText(e.target.value); setJob(null); }}
+          onChange={e => { setCsvText(e.target.value); setFileName(null); setJob(null); }}
         />
       </div>
 
