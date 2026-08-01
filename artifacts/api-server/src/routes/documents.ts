@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, documentsTable, employeesTable, systemUsersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { CreateDocumentBody, UpdateDocumentBody, ListDocumentsQueryParams } from "@workspace/api-zod";
+import { getActorUserId } from "../middleware/requireAuth.js";
 
 const router = Router();
 
@@ -61,8 +62,8 @@ router.post("/documents", async (req, res): Promise<void> => {
   const [doc] = await db.insert(documentsTable).values({
     ...parsed.data,
     // uploadedByUserId is not part of the public CreateDocumentBody spec;
-    // it is attributed server-side (system user until per-request auth attribution exists).
-    uploadedByUserId: 1,
+    // it is attributed server-side from the authenticated session actor.
+    uploadedByUserId: getActorUserId(req),
   }).returning();
   res.status(201).json(await buildDocResponse(doc));
 });
