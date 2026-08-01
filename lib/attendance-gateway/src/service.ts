@@ -268,6 +268,24 @@ export class GatewayService {
   private async executeCommands(commands: Array<{ id: number; command: string; deviceSerial?: string | null }>): Promise<void> {
     const acks: Array<{ commandId: number; ok: boolean; message?: string }> = [];
     for (const cmd of commands) {
+      if (cmd.command === "RECONCILE") {
+        // HR-admin-requested immediate reconcile: same bypass semantics as
+        // the operator's local /reconcile endpoint (skips the local rate
+        // limit; server-side audit dedupe still applies).
+        try {
+          const summary = await this.reconcileNow();
+          acks.push({
+            commandId: cmd.id,
+            ok: true,
+            message: summary
+              ? `Reconciled ${summary.checked} batch${summary.checked === 1 ? "" : "es"}: ${summary.missing.length} missing, ${summary.mismatched.length} count mismatch`
+              : "Nothing to reconcile — no unconfirmed batches in the sent-log",
+          });
+        } catch (e) {
+          acks.push({ commandId: cmd.id, ok: false, message: e instanceof Error ? e.message : String(e) });
+        }
+        continue;
+      }
       if (cmd.command !== "RESTART") {
         acks.push({ commandId: cmd.id, ok: false, message: `Unsupported command: ${cmd.command}` });
         continue;

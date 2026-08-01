@@ -46,6 +46,14 @@ interface GatewayRegistration {
   silent?: boolean;
   /** Effective threshold (per-registration override or global default). */
   silenceThresholdMs?: number;
+  /** Latest RECONCILE command queued for this gateway (feedback for "Reconcile now"). */
+  reconcileCommand?: {
+    id: number;
+    status: 'PENDING' | 'DELIVERED' | 'ACKNOWLEDGED' | 'FAILED' | 'EXPIRED';
+    resultMessage: string | null;
+    createdAt: string;
+    acknowledgedAt: string | null;
+  } | null;
 }
 
 interface ImportBatch {
@@ -107,11 +115,15 @@ export default function AttendanceGateway() {
   // the user can leave it empty for the global default.
   const [createThreshold, setCreateThreshold] = useState('');
 
+  // Poll faster while a reconcile command is in flight so the admin sees the
+  // ack land without refreshing the page.
+  const [reconcileInFlight, setReconcileInFlight] = useState(false);
+
   const { data: registrations, isLoading: loadingRegistrations } = useQuery<GatewayRegistration[]>({
     queryKey: ['gateway-registrations'],
     queryFn: () => apiFetch('/api/gateway/registrations', { credentials: 'include' }).then(r => r.json()),
     // Keep online/offline badges current without relying on notifications.
-    refetchInterval: 60_000,
+    refetchInterval: reconcileInFlight ? 5_000 : 60_000,
   });
 
   const { data: batches, isLoading: loadingBatches } = useQuery<ImportBatch[]>({
@@ -124,9 +136,48 @@ export default function AttendanceGateway() {
   const { data: reconcileStatus } = useQuery<ReconcileStatus[]>({
     queryKey: ['gateway-reconcile-status'],
     queryFn: () => apiFetch('/api/gateway/reconcile-status', { credentials: 'include' }).then(r => r.json()),
+    refetchInterval: reconcileInFlight ? 5_000 : false,
   });
 
   const reconcileAlerts = (reconcileStatus ?? []).filter(s => s.missing.length > 0 || s.mismatched.length > 0);
+  const reconcileStatusByReg = new Map((reconcileStatus ?? []).map(s => [s.registrationId, s]));
+
+  // Any registration with a queued/delivered reconcile keeps fast polling on.
+  const anyReconcilePending = (registrations ?? []).some(
+    r => r.reconcileCommand && (r.reconcileCommand.status === 'PENDING' || r.reconcileCommand.status === 'DELIVERED'),
+  );
+  if (anyReconcilePending !== reconcileInFlight) setReconcileInFlight(anyReconcilePending);
+
+  const reconcileNowMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiFetch(`/api/gateway/registrations/${id}/reconcile`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to queue reconcile');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gateway-registrations'] });
+      toast({
+        title: t('Reconcile queued', 'تمت جدولة المطابقة'),
+        description: t(
+          'The command will be delivered with the gateway\'s next heartbeat; the outcome appears here once the gateway acknowledges it.',
+          'سيتم تسليم الأمر مع نبضة البوابة التالية؛ ستظهر النتيجة هنا بمجرد تأكيد البوابة.',
+        ),
+      });
+    },
+    onError: (e: Error) => {
+      toast({
+        title: t('Error', 'خطأ'),
+        description: e.message || t('Failed to queue the reconcile command.', 'فشل في جدولة أمر المطابقة.'),
+        variant: 'destructive',
+      });
+    },
+  });
 
   const createMutation = useMutation({
     mutationFn: async (payload: CreateRegistrationPayload) => {
@@ -548,6 +599,118 @@ export default function AttendanceGateway() {
           </CardContent>
         </Card>
       )}
+
+      {/* Batch reconciliation: per-gateway verdict + on-demand reconcile */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('Batch Reconciliation', 'مطابقة الدفعات')}</CardTitle>
+          <CardDescription>
+            {t(
+              'Latest reconcile verdict per gateway. "Reconcile now" delivers an immediate check with the gateway\'s next heartbeat instead of waiting for the automatic 15-minute cadence.',
+              'أحدث نتيجة مطابقة لكل بوابة. «مطابقة الآن» تُرسل فحصًا فوريًا مع نبضة البوابة التالية بدلًا من انتظار الدورة التلقائية كل 15 دقيقة.',
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader className="bg-muted/30">
+              <TableRow>
+                <TableHead>{t('Gateway', 'البوابة')}</TableHead>
+                <TableHead>{t('Last Reconcile', 'آخر مطابقة')}</TableHead>
+                <TableHead>{t('Verdict', 'النتيجة')}</TableHead>
+                <TableHead>{t('Manual Reconcile', 'مطابقة يدوية')}</TableHead>
+                <TableHead className="text-center">{t('Actions', 'إجراءات')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {!registrations || registrations.filter(r => r.status === 'ACTIVE').length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    {t('No active gateways.', 'لا توجد بوابات نشطة.')}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                registrations.filter(r => r.status === 'ACTIVE').map(reg => {
+                  const status = reconcileStatusByReg.get(reg.id);
+                  const cmd = reg.reconcileCommand;
+                  const cmdPending = cmd && (cmd.status === 'PENDING' || cmd.status === 'DELIVERED');
+                  return (
+                    <TableRow key={reg.id}>
+                      <TableCell className="font-medium">{lang === 'en' ? reg.name : (reg.nameAr || reg.name)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {status ? formatDateTime(status.reconciledAt) : t('Never reconciled', 'لم تتم مطابقة بعد')}
+                      </TableCell>
+                      <TableCell>
+                        {!status ? (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        ) : status.missing.length > 0 || status.mismatched.length > 0 ? (
+                          <Badge variant="outline" className="text-xs gap-1 bg-rose-500/10 text-rose-500 border-rose-500/20">
+                            <AlertTriangle className="w-3 h-3" />
+                            {t(
+                              `${status.missing.length} missing, ${status.mismatched.length} mismatched`,
+                              `${status.missing.length} مفقودة، ${status.mismatched.length} غير متطابقة`,
+                            )}
+                          </Badge>
+                        ) : status.checked > 0 ? (
+                          <Badge variant="outline" className="text-xs gap-1 bg-amber-500/10 text-amber-500 border-amber-500/20">
+                            <Clock className="w-3 h-3" />
+                            {t(`${status.checked} unconfirmed checked — all held by server`, `${status.checked} غير مؤكدة تم فحصها — كلها لدى الخادم`)}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs gap-1 bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                            <CheckCircle className="w-3 h-3" />
+                            {t('All batches confirmed', 'تم تأكيد كل الدفعات')}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {!cmd ? (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        ) : cmdPending ? (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {cmd.status === 'PENDING'
+                              ? t('Queued — awaiting next heartbeat', 'في الانتظار — بانتظار النبضة التالية')
+                              : t('Delivered — awaiting gateway result', 'تم التسليم — بانتظار نتيجة البوابة')}
+                          </span>
+                        ) : (
+                          <div className="text-xs space-y-0.5" title={cmd.resultMessage ?? undefined}>
+                            <span className={
+                              cmd.status === 'ACKNOWLEDGED' ? 'text-emerald-500' : cmd.status === 'FAILED' ? 'text-rose-500' : 'text-amber-500'
+                            }>
+                              {cmd.status === 'ACKNOWLEDGED'
+                                ? t('Completed', 'اكتملت')
+                                : cmd.status === 'FAILED'
+                                  ? t('Failed', 'فشلت')
+                                  : t('Expired — gateway offline?', 'انتهت الصلاحية — هل البوابة غير متصلة؟')}
+                              {' ('}{formatDateTime(cmd.acknowledgedAt ?? cmd.createdAt)}{')'}
+                            </span>
+                            {cmd.resultMessage && (
+                              <div className="text-muted-foreground max-w-[260px] truncate">{cmd.resultMessage}</div>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          disabled={!!cmdPending || reconcileNowMutation.isPending}
+                          onClick={() => reconcileNowMutation.mutate(reg.id)}
+                        >
+                          <Activity className="w-3 h-3 me-1" />
+                          {cmdPending ? t('Reconcile pending…', 'المطابقة قيد التنفيذ…') : t('Reconcile now', 'مطابقة الآن')}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {/* Registrations Table */}
       <Card>

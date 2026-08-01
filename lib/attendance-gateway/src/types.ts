@@ -80,8 +80,9 @@ export interface RestartTarget {
 /** A remote command delivered by the HR core in a heartbeat response. */
 export interface DeliveredCommand {
   id: number;
-  deviceId: number;
-  command: string; // currently RESTART
+  /** Null for gateway-level commands (RECONCILE) that target no device. */
+  deviceId: number | null;
+  command: string; // RESTART | RECONCILE
   /**
    * Serial number of the target device so multi-terminal middleware
    * adapters reboot the exact terminal the operator picked. Absent when

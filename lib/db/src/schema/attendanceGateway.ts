@@ -105,9 +105,10 @@ export const punchImportBatchesTable = pgTable(
  */
 export const deviceCommandsTable = pgTable("device_commands", {
   id: serial("id").primaryKey(),
-  deviceId: integer("device_id").notNull().references(() => attendanceDevicesTable.id),
+  // Nullable: RESTART targets a device; RECONCILE targets the gateway itself.
+  deviceId: integer("device_id").references(() => attendanceDevicesTable.id),
   registrationId: integer("registration_id").notNull().references(() => gatewayRegistrationsTable.id),
-  command: varchar("command", { length: 30 }).notNull().default("RESTART"), // RESTART
+  command: varchar("command", { length: 30 }).notNull().default("RESTART"), // RESTART | RECONCILE
   status: varchar("status", { length: 20 }).notNull().default("PENDING"), // PENDING | DELIVERED | ACKNOWLEDGED | FAILED | EXPIRED
   requestedByUserId: integer("requested_by_user_id").references(() => systemUsersTable.id),
   resultMessage: text("result_message"),

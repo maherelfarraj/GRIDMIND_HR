@@ -406,7 +406,7 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
   // Attach the target device's serial number so multi-terminal middleware
   // adapters (ZKBioTime / BioStar 2) can reboot the exact terminal the
   // operator picked instead of the first registered one.
-  const commandDeviceIds = [...new Set(deliveredCommands.map((c) => c.deviceId))];
+  const commandDeviceIds = [...new Set(deliveredCommands.map((c) => c.deviceId).filter((id): id is number => id !== null))];
   const serialByDeviceId = new Map<number, string>();
   if (commandDeviceIds.length > 0) {
     const rows = await db
@@ -417,7 +417,7 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
   }
   res.json({
     ok: true,
-    commands: deliveredCommands.map((c) => ({ ...c, deviceSerial: serialByDeviceId.get(c.deviceId) ?? null })),
+    commands: deliveredCommands.map((c) => ({ ...c, deviceSerial: c.deviceId !== null ? serialByDeviceId.get(c.deviceId) ?? null : null })),
     serverTimeMs: Date.now(),
     clockDriftMs: drift,
     driftAlert: drift !== null && Math.abs(drift) > DRIFT_ALERT_MS,
@@ -791,16 +791,38 @@ gatewayAdminRouter.post("/gateway/registrations", async (req, res): Promise<void
 // shows the same online/offline verdict the notification sweep uses.
 gatewayAdminRouter.get("/gateway/registrations", async (_req, res): Promise<void> => {
   const rows = await db.select().from(gatewayRegistrationsTable).orderBy(desc(gatewayRegistrationsTable.createdAt));
+  // Latest RECONCILE command per registration so the admin UI can show
+  // queued/delivered/acknowledged feedback for the "reconcile now" action.
+  const commandRows = await db
+    .select()
+    .from(deviceCommandsTable)
+    .where(eq(deviceCommandsTable.command, "RECONCILE"))
+    .orderBy(desc(deviceCommandsTable.createdAt))
+    .limit(500);
+  const latestReconcileCommand = new Map<number, (typeof commandRows)[number]>();
+  for (const c of commandRows) {
+    if (!latestReconcileCommand.has(c.registrationId)) latestReconcileCommand.set(c.registrationId, c);
+  }
   const now = Date.now();
   res.json(
     rows.map((r) => {
+      const cmd = latestReconcileCommand.get(r.id);
+      const reconcileCommand = cmd
+        ? {
+            id: cmd.id,
+            status: cmd.status,
+            resultMessage: cmd.resultMessage,
+            createdAt: cmd.createdAt.toISOString(),
+            acknowledgedAt: cmd.acknowledgedAt ? cmd.acknowledgedAt.toISOString() : null,
+          }
+        : null;
       const lastContact = r.lastHeartbeatAt ?? r.lastSeenAt ?? r.createdAt;
       // Per-registration override (minutes) beats the global default —
       // mirrors exactly what the notification sweep uses.
       const thresholdMs = effectiveSilenceThresholdMs(r.silenceThresholdMinutes);
       const silent =
         r.status === "ACTIVE" && (!lastContact || now - new Date(lastContact).getTime() > thresholdMs);
-      return { ...r, secretHash: undefined, silent, silenceThresholdMs: thresholdMs };
+      return { ...r, secretHash: undefined, silent, silenceThresholdMs: thresholdMs, reconcileCommand };
     }),
   );
 });
@@ -876,6 +898,111 @@ gatewayAdminRouter.post("/gateway/registrations/:id/revoke", async (req, res): P
     actorUserId: session.userId ?? null,
   });
   res.json({ ...reg, secretHash: undefined });
+});
+
+// POST /gateway/registrations/:id/reconcile — queue an immediate RECONCILE
+// command for the gateway. Delivered via the next heartbeat (same channel as
+// RESTART); the gateway executes GatewayService.reconcileNow() and acks the
+// outcome. Duplicate in-flight requests are rejected so an impatient admin
+// clicking repeatedly cannot pile up commands.
+gatewayAdminRouter.post("/gateway/registrations/:id/reconcile", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid registration id" });
+    return;
+  }
+  const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, id));
+  if (!reg) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (reg.status !== "ACTIVE") {
+    res.status(409).json({
+      error: "Gateway registration is not active — a reconcile command cannot be delivered",
+      errorAr: "تسجيل البوابة غير نشط — لا يمكن تسليم أمر المطابقة",
+    });
+    return;
+  }
+  // Expire stale queued commands first so an old wedged RECONCILE can never
+  // block a fresh request forever (same TTL as heartbeat delivery).
+  const cutoff = new Date(Date.now() - DEVICE_COMMAND_TTL_MS);
+  const expired = await db
+    .update(deviceCommandsTable)
+    .set({ status: "EXPIRED", resultMessage: "Not delivered within the delivery window", updatedAt: new Date() })
+    .where(and(
+      eq(deviceCommandsTable.registrationId, id),
+      eq(deviceCommandsTable.command, "RECONCILE"),
+      inArray(deviceCommandsTable.status, ["PENDING", "DELIVERED"]),
+      lt(deviceCommandsTable.createdAt, cutoff),
+    ))
+    .returning({
+      id: deviceCommandsTable.id,
+      deviceId: deviceCommandsTable.deviceId,
+      command: deviceCommandsTable.command,
+      status: deviceCommandsTable.status,
+      requestedByUserId: deviceCommandsTable.requestedByUserId,
+      resultMessage: deviceCommandsTable.resultMessage,
+    });
+  notifyCommandOutcomesDeferred(expired);
+  const [inFlight] = await db
+    .select({ id: deviceCommandsTable.id })
+    .from(deviceCommandsTable)
+    .where(and(
+      eq(deviceCommandsTable.registrationId, id),
+      eq(deviceCommandsTable.command, "RECONCILE"),
+      inArray(deviceCommandsTable.status, ["PENDING", "DELIVERED"]),
+    ))
+    .limit(1);
+  if (inFlight) {
+    res.status(409).json({
+      error: "A reconcile is already pending for this gateway",
+      errorAr: "توجد مطابقة معلقة بالفعل لهذه البوابة",
+    });
+    return;
+  }
+  const session = req.session as { userId?: number };
+  const [command] = await db
+    .insert(deviceCommandsTable)
+    .values({ deviceId: reg.deviceId ?? null, registrationId: id, command: "RECONCILE", requestedByUserId: session.userId ?? null })
+    .returning();
+  await db.insert(auditLogsTable).values({
+    action: "gateway_reconcile_requested",
+    entityType: "gateway_registration",
+    entityId: id,
+    entityLabel: reg.name,
+    actorUserId: session.userId ?? null,
+    changesJson: JSON.stringify({ commandId: command.id }),
+  });
+  res.status(201).json({
+    ...command,
+    deliveredAt: command.deliveredAt ? command.deliveredAt.toISOString() : null,
+    acknowledgedAt: command.acknowledgedAt ? command.acknowledgedAt.toISOString() : null,
+    createdAt: command.createdAt.toISOString(),
+    updatedAt: command.updatedAt.toISOString(),
+  });
+});
+
+// GET /gateway/registrations/:id/commands — recent commands for this gateway
+// (reconcile/restart feedback for the admin UI).
+gatewayAdminRouter.get("/gateway/registrations/:id/commands", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid registration id" });
+    return;
+  }
+  const rows = await db
+    .select()
+    .from(deviceCommandsTable)
+    .where(eq(deviceCommandsTable.registrationId, id))
+    .orderBy(desc(deviceCommandsTable.createdAt))
+    .limit(10);
+  res.json(rows.map((c) => ({
+    ...c,
+    deliveredAt: c.deliveredAt ? c.deliveredAt.toISOString() : null,
+    acknowledgedAt: c.acknowledgedAt ? c.acknowledgedAt.toISOString() : null,
+    createdAt: c.createdAt.toISOString(),
+    updatedAt: c.updatedAt.toISOString(),
+  })));
 });
 
 // GET /gateway/reconcile-status — latest reconcile outcome per registration,

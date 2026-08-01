@@ -53,6 +53,38 @@ describe("GatewayService command dispatch carries the device identifier", () => 
     expect(acks).toEqual([[{ commandId: 5, ok: true, message: "rebooted" }]]);
   });
 
+  it("executes a RECONCILE command via reconcileNow and acks a summary", async () => {
+    const acks: unknown[] = [];
+    const hr = makeHr([{ id: 7, deviceId: null, command: "RECONCILE" }], acks);
+    const svc = new GatewayService(fakeQueue, hr, makeAdapter([]));
+    const reconcileNow = vi.spyOn(svc, "reconcileNow").mockResolvedValue({
+      checked: 3,
+      missing: ["m-1"],
+      mismatched: [],
+      at: new Date().toISOString(),
+    });
+    await svc.tick();
+    expect(reconcileNow).toHaveBeenCalledTimes(1);
+    expect(acks).toEqual([[{ commandId: 7, ok: true, message: "Reconciled 3 batches: 1 missing, 0 count mismatch" }]]);
+  });
+
+  it("acks an empty-sent-log RECONCILE as ok with a nothing-to-check message", async () => {
+    const acks: unknown[] = [];
+    const hr = makeHr([{ id: 8, deviceId: null, command: "RECONCILE" }], acks);
+    const svc = new GatewayService(fakeQueue, hr, makeAdapter([]));
+    await svc.tick(); // empty sent-log → reconcileNow() returns null
+    expect(acks).toEqual([[{ commandId: 8, ok: true, message: "Nothing to reconcile — no unconfirmed batches in the sent-log" }]]);
+  });
+
+  it("acks a failing RECONCILE with ok=false and the error message", async () => {
+    const acks: unknown[] = [];
+    const hr = makeHr([{ id: 9, deviceId: null, command: "RECONCILE" }], acks);
+    const svc = new GatewayService(fakeQueue, hr, makeAdapter([]));
+    vi.spyOn(svc, "reconcileNow").mockRejectedValue(new Error("reconcile request failed with HTTP 502"));
+    await svc.tick();
+    expect(acks).toEqual([[{ commandId: 9, ok: false, message: "reconcile request failed with HTTP 502" }]]);
+  });
+
   it("passes a null serial when an older HR core omits it", async () => {
     const targets: Array<RestartTarget | undefined> = [];
     const svc = new GatewayService(

@@ -25,7 +25,8 @@ type TerminalStatus = "ACKNOWLEDGED" | "FAILED" | "EXPIRED";
 
 export interface CommandOutcomeRow {
   id: number;
-  deviceId: number;
+  /** Null for gateway-level commands (RECONCILE) that target no device. */
+  deviceId: number | null;
   command: string;
   status: string;
   requestedByUserId: number | null;
@@ -62,6 +63,37 @@ const OUTCOME_COPY: Record<TerminalStatus, {
   },
 };
 
+/** Copy for gateway-level RECONCILE commands (no target device). */
+const RECONCILE_COPY: Record<TerminalStatus, {
+  severity: string;
+  titleEn: string;
+  titleAr: string;
+  bodyEn: (detail: string) => string;
+  bodyAr: string;
+}> = {
+  ACKNOWLEDGED: {
+    severity: "success",
+    titleEn: "Gateway reconcile completed",
+    titleAr: "اكتملت مطابقة البوابة",
+    bodyEn: (detail) => `The gateway ran the batch reconcile you requested.${detail || " No further detail was reported."}`,
+    bodyAr: "نفّذت البوابة مطابقة الدفعات التي طلبتها.",
+  },
+  FAILED: {
+    severity: "error",
+    titleEn: "Gateway reconcile failed",
+    titleAr: "فشلت مطابقة البوابة",
+    bodyEn: (detail) => `The reconcile command failed at the gateway.${detail || " No further detail was reported."}`,
+    bodyAr: "فشل أمر المطابقة عند البوابة.",
+  },
+  EXPIRED: {
+    severity: "warning",
+    titleEn: "Gateway reconcile expired",
+    titleAr: "انتهت صلاحية مطابقة البوابة",
+    bodyEn: (detail) => `The reconcile command was not delivered or acknowledged within the delivery window and has expired. The gateway may be offline.${detail}`,
+    bodyAr: "لم يتم تسليم أو تأكيد أمر المطابقة خلال المهلة المحددة وانتهت صلاحيته. قد تكون البوابة غير متصلة.",
+  },
+};
+
 /**
  * Notify the requesting users that their device commands reached a terminal
  * state. Commands without a requester (e.g. seeded rows) are skipped.
@@ -73,19 +105,37 @@ export async function notifyCommandOutcomes(commands: CommandOutcomeRow[]): Prom
         c.requestedByUserId != null && (c.status === "ACKNOWLEDGED" || c.status === "FAILED" || c.status === "EXPIRED"),
     );
     if (!notifiable.length) return;
-    const deviceIds = [...new Set(notifiable.map((c) => c.deviceId))];
-    const devices = await db
-      .select({ id: attendanceDevicesTable.id, name: attendanceDevicesTable.name })
-      .from(attendanceDevicesTable)
-      .where(inArray(attendanceDevicesTable.id, deviceIds));
+    const deviceIds = [...new Set(notifiable.map((c) => c.deviceId).filter((id): id is number => id !== null))];
+    const devices = deviceIds.length
+      ? await db
+          .select({ id: attendanceDevicesTable.id, name: attendanceDevicesTable.name })
+          .from(attendanceDevicesTable)
+          .where(inArray(attendanceDevicesTable.id, deviceIds))
+      : [];
     const deviceById = new Map(devices.map((d) => [d.id, d]));
     await db.insert(notificationsTable).values(
       notifiable.map((c) => {
-        const device = deviceById.get(c.deviceId);
-        const nameEn = device?.name ?? `#${c.deviceId}`;
+        const detail = c.resultMessage ? ` Gateway reported: ${c.resultMessage.slice(0, 300)}` : "";
+        if (c.command === "RECONCILE") {
+          const copy = RECONCILE_COPY[c.status];
+          return {
+            recipientUserId: c.requestedByUserId,
+            notificationType: DEVICE_COMMAND_OUTCOME_TYPE,
+            titleEn: copy.titleEn,
+            titleAr: copy.titleAr,
+            bodyEn: copy.bodyEn(detail),
+            bodyAr: copy.bodyAr,
+            severity: copy.severity,
+            actionUrl: "/attendance-gateway",
+            actionLabelEn: "View gateway",
+            entityType: "device_command",
+            entityId: c.id,
+          };
+        }
+        const device = c.deviceId !== null ? deviceById.get(c.deviceId) : undefined;
+        const nameEn = device?.name ?? `#${c.deviceId ?? "?"}`;
         const nameAr = nameEn;
         const copy = OUTCOME_COPY[c.status];
-        const detail = c.resultMessage ? ` Gateway reported: ${c.resultMessage.slice(0, 300)}` : "";
         return {
           recipientUserId: c.requestedByUserId,
           notificationType: DEVICE_COMMAND_OUTCOME_TYPE,
