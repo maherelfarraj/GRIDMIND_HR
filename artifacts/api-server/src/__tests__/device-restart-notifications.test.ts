@@ -25,6 +25,8 @@ import {
   DEVICE_COMMAND_OUTCOME_TYPE,
   expireStaleDeviceCommandsOnce,
   flushDeferredCommandNotifications,
+  backfillMissedCommandOutcomeNotifications,
+  notifyCommandOutcomes,
 } from "../lib/deviceCommandNotifications";
 
 const sha256 = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
@@ -180,6 +182,74 @@ describe("restart outcome notifications", () => {
 
     const [row] = await db.select().from(deviceCommandsTable).where(eq(deviceCommandsTable.id, orphan.id));
     expect(row.status).toBe("EXPIRED");
+    const notes = await db
+      .select()
+      .from(notificationsTable)
+      .where(and(
+        eq(notificationsTable.notificationType, DEVICE_COMMAND_OUTCOME_TYPE),
+        eq(notificationsTable.entityId, orphan.id),
+      ));
+    expect(notes).toHaveLength(0);
+  });
+
+  it("backfills a terminal command whose deferred notification was lost to a restart", async () => {
+    // Simulate the crash window: the ack transitioned the command to a
+    // terminal state, but the process died before the deferred insert ran —
+    // so the row is terminal with no notification and no claim.
+    const [lost] = await db
+      .insert(deviceCommandsTable)
+      .values({
+        deviceId,
+        registrationId: regId,
+        command: "RESTART",
+        status: "ACKNOWLEDGED",
+        requestedByUserId: adminUserId,
+        resultMessage: "rebooted before the crash",
+        acknowledgedAt: new Date(),
+      })
+      .returning();
+
+    const backfilled = await backfillMissedCommandOutcomeNotifications();
+    expect(backfilled).toBeGreaterThanOrEqual(1);
+
+    const note = (await myNotifications()).find((n) => n.entityId === lost.id);
+    expect(note).toBeTruthy();
+    expect(note!.severity).toBe("success");
+    expect(note!.bodyEn).toContain("rebooted before the crash");
+
+    // The claim is recorded, so subsequent sweeps skip this command.
+    const [row] = await db.select().from(deviceCommandsTable).where(eq(deviceCommandsTable.id, lost.id));
+    expect(row.outcomeNotifiedAt).not.toBeNull();
+  });
+
+  it("never duplicates a notification when the sweep races the deferred write", async () => {
+    const commandId = await requestRestartAndDeliver();
+    const ack = await postSigned("/api/gateway/commands/ack", { acks: [{ commandId, ok: true, message: "ok" }] });
+    expect(ack.status).toBe(200);
+    // Run the backfill sweep concurrently with the still-pending deferred
+    // write, then again after everything settled, plus a direct re-notify.
+    await Promise.all([backfillMissedCommandOutcomeNotifications(), flushDeferredCommandNotifications()]);
+    await backfillMissedCommandOutcomeNotifications();
+    const [row] = await db.select().from(deviceCommandsTable).where(eq(deviceCommandsTable.id, commandId));
+    await notifyCommandOutcomes([row]);
+
+    const notes = (await myNotifications()).filter((n) => n.entityId === commandId);
+    expect(notes).toHaveLength(1);
+  });
+
+  it("backfill skips terminal commands with no requester", async () => {
+    const [orphan] = await db
+      .insert(deviceCommandsTable)
+      .values({
+        deviceId,
+        registrationId: regId,
+        command: "RESTART",
+        status: "FAILED",
+        requestedByUserId: null,
+      })
+      .returning();
+
+    await backfillMissedCommandOutcomeNotifications();
     const notes = await db
       .select()
       .from(notificationsTable)

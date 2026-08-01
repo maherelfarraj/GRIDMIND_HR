@@ -1,4 +1,4 @@
-import { inArray, lt, and } from "drizzle-orm";
+import { inArray, lt, and, isNull, isNotNull } from "drizzle-orm";
 import { db, attendanceDevicesTable, deviceCommandsTable, notificationsTable } from "@workspace/db";
 import { logger } from "./logger.js";
 
@@ -113,8 +113,25 @@ export async function notifyCommandOutcomes(commands: CommandOutcomeRow[]): Prom
           .where(inArray(attendanceDevicesTable.id, deviceIds))
       : [];
     const deviceById = new Map(devices.map((d) => [d.id, d]));
-    await db.insert(notificationsTable).values(
-      notifiable.map((c) => {
+    // Exactly-once across concurrent writers (deferred request-path write vs
+    // backfill sweep) and across restarts: atomically claim each command by
+    // setting outcome_notified_at from NULL, and insert notifications only
+    // for the rows this writer claimed — inside one transaction, so a failed
+    // insert releases the claim and the backfill sweep retries later.
+    await db.transaction(async (tx) => {
+      const claimed = await tx
+        .update(deviceCommandsTable)
+        .set({ outcomeNotifiedAt: new Date() })
+        .where(and(
+          inArray(deviceCommandsTable.id, notifiable.map((c) => c.id)),
+          isNull(deviceCommandsTable.outcomeNotifiedAt),
+        ))
+        .returning({ id: deviceCommandsTable.id });
+      const claimedIds = new Set(claimed.map((r) => r.id));
+      const toInsert = notifiable.filter((c) => claimedIds.has(c.id));
+      if (!toInsert.length) return;
+      await tx.insert(notificationsTable).values(
+        toInsert.map((c) => {
         const detail = c.resultMessage ? ` Gateway reported: ${c.resultMessage.slice(0, 300)}` : "";
         if (c.command === "RECONCILE") {
           const copy = RECONCILE_COPY[c.status];
@@ -149,8 +166,9 @@ export async function notifyCommandOutcomes(commands: CommandOutcomeRow[]): Prom
           entityType: "device_command",
           entityId: c.id,
         };
-      }),
-    );
+        }),
+      );
+    });
   } catch (e) {
     logger.error({ err: e, commandIds: commands.map((c) => c.id) }, "Failed to notify device command outcomes");
   }
@@ -212,4 +230,36 @@ export async function expireStaleDeviceCommandsOnce(ttlMs: number = DEVICE_COMMA
     await notifyCommandOutcomes(expired);
   }
   return expired.length;
+}
+
+/**
+ * Backfill sweep: notify terminal commands whose outcome notification was
+ * lost — e.g. the server restarted in the window between responding to a
+ * heartbeat/ack and the deferred notification insert. The command row itself
+ * always holds the outcome, so any terminal command with a requester and no
+ * notification claim (outcome_notified_at IS NULL) is re-notified here.
+ * Duplicate-safe: notifyCommandOutcomes claims rows atomically, so a
+ * concurrent deferred write and this sweep can never both insert. Runs at
+ * startup and from the gateway silence monitor's periodic sweep.
+ */
+export async function backfillMissedCommandOutcomeNotifications(): Promise<number> {
+  const missed = await db
+    .select({
+      id: deviceCommandsTable.id,
+      deviceId: deviceCommandsTable.deviceId,
+      command: deviceCommandsTable.command,
+      status: deviceCommandsTable.status,
+      requestedByUserId: deviceCommandsTable.requestedByUserId,
+      resultMessage: deviceCommandsTable.resultMessage,
+    })
+    .from(deviceCommandsTable)
+    .where(and(
+      inArray(deviceCommandsTable.status, ["ACKNOWLEDGED", "FAILED", "EXPIRED"]),
+      isNotNull(deviceCommandsTable.requestedByUserId),
+      isNull(deviceCommandsTable.outcomeNotifiedAt),
+    ));
+  if (missed.length) {
+    await notifyCommandOutcomes(missed);
+  }
+  return missed.length;
 }

@@ -1,7 +1,7 @@
 import { and, eq, gte, ilike, inArray } from "drizzle-orm";
 import { db, gatewayRegistrationsTable, notificationsTable, systemUsersTable, rolesTable } from "@workspace/db";
 import { logger } from "./logger.js";
-import { expireStaleDeviceCommandsOnce } from "./deviceCommandNotifications.js";
+import { expireStaleDeviceCommandsOnce, backfillMissedCommandOutcomeNotifications } from "./deviceCommandNotifications.js";
 
 /**
  * Gateway device warning notifications.
@@ -468,6 +468,13 @@ export function startGatewaySilenceMonitor(): void {
         if (expired > 0) logger.info({ expired }, "Stale device commands expired by sweep");
       })
       .catch((err) => logger.error({ err }, "Device command expiry sweep failed"))
+      // Safety net: re-deliver any outcome notification lost to a restart in
+      // the window between the response and the deferred insert.
+      .then(() => backfillMissedCommandOutcomeNotifications())
+      .then((backfilled) => {
+        if (backfilled > 0) logger.info({ backfilled }, "Missed command outcome notifications backfilled");
+      })
+      .catch((err) => logger.error({ err }, "Command outcome notification backfill failed"))
       .finally(() => { silenceSweeping = false; });
   }, SILENCE_SWEEP_INTERVAL_MS);
   silenceTimer.unref?.();

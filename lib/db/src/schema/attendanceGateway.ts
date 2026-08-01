@@ -114,6 +114,11 @@ export const deviceCommandsTable = pgTable("device_commands", {
   resultMessage: text("result_message"),
   deliveredAt: timestamp("delivered_at"),
   acknowledgedAt: timestamp("acknowledged_at"),
+  // Atomic notification claim: set (from NULL) by whichever writer delivers
+  // the outcome notification — the deferred request-path write or the
+  // backfill sweep — so a terminal outcome is notified exactly once even
+  // across a server restart.
+  outcomeNotifiedAt: timestamp("outcome_notified_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

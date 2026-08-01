@@ -10436,6 +10436,9 @@ components:
         resultMessage: { type: [ "string", "null" ] }
         deliveredAt: { type: [ "string", "null" ] }
         acknowledgedAt: { type: [ "string", "null" ] }
+        # When the terminal-outcome notification for this command was written
+        # (atomic claim; null until notified — see deviceCommandNotifications).
+        outcomeNotifiedAt: { type: [ "string", "null" ] }
         createdAt: { type: string }
         updatedAt: { type: string }
       required: [ id, deviceId, registrationId, command, status, createdAt, updatedAt ]

@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startHealthMonitor } from "./lib/health-monitor";
 import { startGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
+import { backfillMissedCommandOutcomeNotifications } from "./lib/deviceCommandNotifications";
 import { startBackupScheduler } from "./lib/backupScheduler";
 import { startPrivilegedSessionSweeper } from "./lib/privilegedSessionSweeper";
 import { seedDemoPasswords } from "./lib/seed-passwords";
@@ -51,6 +52,13 @@ async function main() {
     startGatewaySilenceMonitor();
     startBackupScheduler();
     startPrivilegedSessionSweeper();
+    // Restart-outcome notifications lost to a crash/restart between the
+    // response and the deferred insert are backfilled from the command rows.
+    backfillMissedCommandOutcomeNotifications()
+      .then((backfilled) => {
+        if (backfilled > 0) logger.info({ backfilled }, "Backfilled command outcome notifications missed across restart");
+      })
+      .catch((err) => logger.error({ err }, "Startup command outcome notification backfill failed"));
     if (process.env.NODE_ENV !== "production") {
       // Dev/demo provisioning is best-effort and non-blocking.
       seedDemoPasswords().catch((err) => {
