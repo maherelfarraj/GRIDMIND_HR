@@ -60,7 +60,9 @@ router.post("/documents", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [doc] = await db.insert(documentsTable).values({
     ...parsed.data,
-    uploadedByUserId: (parsed.data as any).uploadedByUserId ?? 1,
+    // uploadedByUserId is not part of the public CreateDocumentBody spec;
+    // it is attributed server-side (system user until per-request auth attribution exists).
+    uploadedByUserId: 1,
   }).returning();
   res.status(201).json(await buildDocResponse(doc));
 });
