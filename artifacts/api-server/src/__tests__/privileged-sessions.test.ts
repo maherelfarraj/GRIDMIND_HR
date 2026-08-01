@@ -14,6 +14,7 @@ import request from "supertest";
 import { inArray, eq, and } from "drizzle-orm";
 import { db, breakGlassAccessTable, privilegedSessionsTable, auditLogsTable } from "@workspace/db";
 import app from "../app";
+import { sweepExpiredSessions } from "../routes/privilegedSessions";
 
 const createdGrantIds: number[] = [];
 const createdSessionIds: number[] = [];
@@ -323,5 +324,33 @@ describe("expired session sweep", () => {
       .where(eq(privilegedSessionsTable.id, session.id));
     expect(row.endedAt).toBeNull();
     expect(row.endReason).toBeNull();
+  });
+
+  it("sweep is idempotent when run repeatedly (as the background sweeper does)", async () => {
+    const { session } = await activateBreakGlass();
+
+    const past = new Date(Date.now() - 60_000);
+    await db.update(privilegedSessionsTable)
+      .set({ scheduledEndAt: past })
+      .where(eq(privilegedSessionsTable.id, session.id));
+
+    // Run the exact function the periodic server-side sweeper invokes,
+    // multiple times — no list request involved.
+    await sweepExpiredSessions();
+    await sweepExpiredSessions();
+    await sweepExpiredSessions();
+
+    const [closed] = await db.select().from(privilegedSessionsTable)
+      .where(eq(privilegedSessionsTable.id, session.id));
+    expect(closed.endedAt).not.toBeNull();
+    expect(closed.endReason).toBe("expired");
+    expect(new Date(closed.endedAt!).getTime()).toBe(past.getTime());
+
+    // Exactly one audit entry despite repeated sweeps.
+    const audits = await db.select().from(auditLogsTable).where(and(
+      eq(auditLogsTable.action, "privileged_session.closed"),
+      eq(auditLogsTable.entityId, session.id),
+    ));
+    expect(audits.length).toBe(1);
   });
 });

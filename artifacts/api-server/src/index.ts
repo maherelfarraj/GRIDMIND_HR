@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { startHealthMonitor } from "./lib/health-monitor";
 import { startGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
 import { startBackupScheduler } from "./lib/backupScheduler";
+import { startPrivilegedSessionSweeper } from "./lib/privilegedSessionSweeper";
 import { seedDemoPasswords } from "./lib/seed-passwords";
 import { rotateLegacyGatewayKeys } from "./routes/attendanceGateway";
 import { runStartupMigrations } from "./lib/startupMigrations";
@@ -49,6 +50,7 @@ async function main() {
     startHealthMonitor();
     startGatewaySilenceMonitor();
     startBackupScheduler();
+    startPrivilegedSessionSweeper();
     if (process.env.NODE_ENV !== "production") {
       // Dev/demo provisioning is best-effort and non-blocking.
       seedDemoPasswords().catch((err) => {
