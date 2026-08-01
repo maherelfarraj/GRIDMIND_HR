@@ -21,11 +21,22 @@ function DeviceCard({ item }: { item: AttendanceDevice }) {
   const { lang, t } = useI18n();
   const location = lang === 'ar' && item.locationAr ? item.locationAr : item.location;
 
-  // Same verdict precedence as the web devices page: offline beats stale.
+  // Same verdict precedence as the web devices page:
+  // Online (real contact) > Stale (contact but too old) > No contact.
   const online = item.isOnline === true;
   const stale = item.isStale === true;
-  const statusLabel = online ? (stale ? t('deviceStale') : t('deviceOnline')) : t('deviceOffline');
-  const statusColor = online ? (stale ? colors.warning : colors.success) : colors.destructive;
+  const statusLabel = online
+    ? t('deviceOnline')
+    : stale
+      ? t('deviceStale')
+      : t('deviceNoContact');
+  const statusColor = online
+    ? colors.success
+    : stale
+      ? colors.destructive
+      : colors.mutedForeground;
+  // Stored status shown separately when it disagrees with reality
+  const storedDisagrees = item.status === 'online' && !online;
 
   return (
     <Card style={{ marginBottom: 12 }}>
@@ -58,11 +69,16 @@ function DeviceCard({ item }: { item: AttendanceDevice }) {
             {item.vendor} {item.model} · {location}
           </Text>
         </View>
-        <Badge label={statusLabel} color={statusColor} />
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <Badge label={statusLabel} color={statusColor} />
+          {storedDisagrees && (
+            <Badge label={t('deviceMarkedOnline')} color={colors.mutedForeground} />
+          )}
+        </View>
       </View>
       <Text
         style={{
-          color: colors.mutedForeground,
+          color: stale ? colors.destructive : colors.mutedForeground,
           fontSize: 11,
           fontFamily: 'Inter_400Regular',
           marginTop: 10,
@@ -71,7 +87,7 @@ function DeviceCard({ item }: { item: AttendanceDevice }) {
         {t('lastContact')}:{' '}
         {item.lastContactAt
           ? new Date(item.lastContactAt).toLocaleString()
-          : '—'}
+          : t('never')}
       </Text>
     </Card>
   );

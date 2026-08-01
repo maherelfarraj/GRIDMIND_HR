@@ -136,6 +136,9 @@ const strings = {
   deviceOffline: { en: 'Offline', ar: 'غير متصل' },
   deviceStale: { en: 'Stale', ar: 'بيانات قديمة' },
   lastContact: { en: 'Last contact', ar: 'آخر اتصال' },
+  deviceNoContact: { en: 'No contact', ar: 'لا اتصال' },
+  deviceMarkedOnline: { en: 'marked online', ar: 'مسجل كمتصل' },
+  never: { en: 'never', ar: 'أبدًا' },
   passwordChangeRequiredHint: {
     en: 'Your account was set up with a one-time password. For security, you must choose a new password before continuing.',
     ar: 'تم إنشاء حسابك بكلمة مرور لمرة واحدة. لأسباب أمنية، يجب اختيار كلمة مرور جديدة قبل المتابعة.',
