@@ -349,12 +349,12 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     // Demo fallback: return first active user
     const [user] = await db.select().from(systemUsersTable)
       .where(eq(systemUsersTable.isActive, true));
-    if (!user) { res.status(401).json({ error: "Not authenticated" }); return; }
+    if (!user) { res.status(401).json({ error: "Not authenticated", code: "UNAUTHENTICATED" }); return; }
     res.json(userResponse(user));
     return;
   }
 
-  res.status(401).json({ error: "Not authenticated" });
+  res.status(401).json({ error: "Not authenticated", code: "UNAUTHENTICATED" });
 });
 
 export default router;
