@@ -10,6 +10,7 @@ import {
   PASSWORD_REQUIREMENTS_EN,
   PASSWORD_REQUIREMENTS_AR,
 } from "@workspace/api-zod";
+import { revokeUserSessions } from "../lib/sessionRevocation.js";
 
 const router = Router();
 
@@ -110,8 +111,23 @@ router.post("/users/:id/password", async (req, res): Promise<void> => {
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
   // Admin-set passwords are provisional: force the user to pick their own
-  // password on next login.
-  await db.update(systemUsersTable).set({ passwordHash, mustChangePassword: true }).where(eq(systemUsersTable.id, id));
+  // password on next login. Atomic with session revocation: the reset exists
+  // precisely because the old credential can no longer be trusted, so all of
+  // the target's sessions die with it — or the whole reset rolls back. If an
+  // admin resets their own password, their current session survives.
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(systemUsersTable)
+        .set({ passwordHash, mustChangePassword: true })
+        .where(eq(systemUsersTable.id, id));
+      await revokeUserSessions(tx, id, actorId === id ? req.session?.id : undefined);
+    });
+  } catch (err) {
+    console.error("Password reset failed (rolled back):", err);
+    res.status(500).json({ error: "Password reset failed. Please try again." });
+    return;
+  }
+
   res.json({ success: true });
 });
 

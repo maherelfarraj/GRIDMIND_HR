@@ -13,6 +13,7 @@ import { sendSmtpMail } from "../lib/smtp-adapter.js";
 import { recordSecurityEmailOutcome } from "../lib/email-alert-status.js";
 
 import { isAuthEnforced } from "../lib/authMode.js";
+import { revokeUserSessions } from "../lib/sessionRevocation.js";
 
 const router = Router();
 
@@ -294,9 +295,23 @@ router.post("/auth/change-password", async (req, res): Promise<void> => {
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
-  await db.update(systemUsersTable)
-    .set({ passwordHash, mustChangePassword: false })
-    .where(eq(systemUsersTable.id, user.id));
+  // Atomic: the password change and the revocation of every OTHER session
+  // for this user commit together — a stolen credential's sessions die with
+  // the old password. If revocation fails, the password update rolls back
+  // and the request fails rather than reporting success with live sessions.
+  // The caller's own session (the one performing the change) stays alive.
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(systemUsersTable)
+        .set({ passwordHash, mustChangePassword: false })
+        .where(eq(systemUsersTable.id, user.id));
+      await revokeUserSessions(tx, user.id, req.session.id);
+    });
+  } catch (err) {
+    console.error("Password change failed (rolled back):", err);
+    res.status(500).json({ error: "Password change failed. Please try again." });
+    return;
+  }
 
   const [updated] = await db.select().from(systemUsersTable)
     .where(eq(systemUsersTable.id, user.id));
