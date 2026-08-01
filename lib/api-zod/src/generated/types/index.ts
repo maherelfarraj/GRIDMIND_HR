@@ -433,6 +433,7 @@ export * from './payrollNoShowEmployee';
 export * from './payrollNoShowReport';
 export * from './payrollPeriod';
 export * from './payrollPeriodInput';
+export * from './payrollPeriodOtSummary';
 export * from './payrollRunDetail';
 export * from './payrollRunLine';
 export * from './payrollRunPatch';

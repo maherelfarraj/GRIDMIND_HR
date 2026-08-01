@@ -1535,6 +1535,13 @@ export interface PayrollExcusedAbsence {
   createdAt: string;
 }
 
+export interface PayrollPeriodOtSummary {
+  weekday: string;
+  weekend: string;
+  holiday: string;
+  total: string;
+}
+
 export interface PayrollNoShowDay {
   date: string;
   excused: boolean;
@@ -6365,6 +6372,7 @@ export type ChangeMyPassword200 = {
 export type LogoutUser200 = {
   success: boolean;
 };
+
 export type GetShiftRosterParams = {
 /**
  * @nullable
@@ -7835,3 +7843,4 @@ export type CreateImportMappingTemplateBody = {
 export type DeleteImportMappingTemplate200 = {
   deleted: boolean;
 };
+

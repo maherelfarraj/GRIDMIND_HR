@@ -329,6 +329,37 @@ router.get("/payroll-periods/:id", async (req, res): Promise<void> => {
   res.json(p);
 });
 
+// GET /payroll-periods/:id/ot-summary — overtime pay aggregated by weekday/weekend/holiday buckets
+router.get("/payroll-periods/:id/ot-summary", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const [p] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
+  if (!p) { res.status(404).json({ error: "Not found" }); return; }
+
+  const rows = await db
+    .select({
+      codeEn: payrollRunLinesTable.codeEn,
+      total: sql<string>`coalesce(sum(${payrollRunLinesTable.amount}), 0)`,
+    })
+    .from(payrollRunLinesTable)
+    .innerJoin(payrollRunsTable, eq(payrollRunLinesTable.payrollRunId, payrollRunsTable.id))
+    .where(and(
+      eq(payrollRunsTable.payrollPeriodId, id),
+      sql`${payrollRunLinesTable.codeEn} in ('OT_WEEKDAY', 'OT_WEEKEND', 'OT_HOLIDAY')`,
+    ))
+    .groupBy(payrollRunLinesTable.codeEn);
+
+  const byCode = Object.fromEntries(rows.map(r => [r.codeEn, parseFloat(r.total)]));
+  const weekday = byCode["OT_WEEKDAY"] ?? 0;
+  const weekend = byCode["OT_WEEKEND"] ?? 0;
+  const holiday = byCode["OT_HOLIDAY"] ?? 0;
+  res.json({
+    weekday: weekday.toFixed(2),
+    weekend: weekend.toFixed(2),
+    holiday: holiday.toFixed(2),
+    total: (weekday + weekend + holiday).toFixed(2),
+  });
+});
+
 // PATCH /payroll-periods/:id — edit draft period metadata
 router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);

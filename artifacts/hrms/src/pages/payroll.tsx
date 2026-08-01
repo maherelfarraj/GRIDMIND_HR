@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useListPayrollPeriods,
   useGetPayrollPeriod,
+  useGetPayrollPeriodOtSummary,
   useCreatePayrollPeriod,
   useCalculatePayrollPeriod,
   useApprovePayrollPeriod,
@@ -525,6 +526,7 @@ function PeriodDetail({
 
   const { data: period, isLoading: loadingPeriod } = useGetPayrollPeriod(periodId);
   const { data: runs, isLoading: loadingRuns } = useListPayrollRuns({ periodId });
+  const { data: otSummary } = useGetPayrollPeriodOtSummary(periodId);
 
   const [approvalDialog, setApprovalDialog] = useState<null | 'first' | 'second'>(null);
   const [closeDialog, setCloseDialog] = useState(false);
@@ -540,6 +542,7 @@ function PeriodDetail({
           ),
         });
         queryClient.invalidateQueries({ queryKey: [`/api/payroll-periods/${periodId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/payroll-periods/${periodId}/ot-summary`] });
         queryClient.invalidateQueries({ queryKey: ['/api/payroll-runs'] });
       },
       onError: (err: any) => {
@@ -874,6 +877,22 @@ function PeriodDetail({
                     </span>
                   </div>
                 ))}
+                {otSummary && (
+                  <div className="pl-3 border-l-2 border-amber-200 space-y-1.5" data-testid="ot-breakdown">
+                    {[
+                      { label: t('Weekday OT', 'إضافي أيام الأسبوع'), val: parseFloat(otSummary.weekday) },
+                      { label: t('Weekend OT', 'إضافي عطلة نهاية الأسبوع'), val: parseFloat(otSummary.weekend) },
+                      { label: t('Holiday OT', 'إضافي العطلات الرسمية'), val: parseFloat(otSummary.holiday) },
+                    ].map((item, i) => (
+                      <div key={i} className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">{item.label}</span>
+                        <span className="text-xs font-mono text-amber-600/90">
+                          SAR {item.val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

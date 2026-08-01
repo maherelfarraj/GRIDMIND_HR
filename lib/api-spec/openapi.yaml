@@ -2390,6 +2390,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PayrollCalculationResult" }
 
+  /payroll-periods/{id}/ot-summary:
+    get:
+      tags: [ payroll ]
+      summary: Overtime pay for a payroll period aggregated by weekday/weekend/holiday buckets
+      operationId: getPayrollPeriodOtSummary
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Overtime totals split by bucket
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollPeriodOtSummary" }
+
   /payroll-periods/{id}/no-shows:
     get:
       tags: [ payroll ]
@@ -11076,6 +11093,15 @@ components:
         excusedByUserId: { type: number }
         createdAt: { type: string }
       required: [ id, payrollPeriodId, employeeId, date, reason, excusedByUserId, createdAt ]
+
+    PayrollPeriodOtSummary:
+      type: object
+      properties:
+        weekday: { type: string }
+        weekend: { type: string }
+        holiday: { type: string }
+        total: { type: string }
+      required: [ weekday, weekend, holiday, total ]
 
     PayrollNoShowDay:
       type: object

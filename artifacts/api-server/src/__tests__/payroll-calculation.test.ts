@@ -552,6 +552,31 @@ describe("payroll calculation engine", () => {
       // Hours are visible in the line names for auditability.
       expect(lines.find(l => l.codeEn === "OT_WEEKEND")?.nameEn).toMatch(/2h/);
     });
+
+    it("aggregates period-wide OT totals by bucket in the ot-summary endpoint", async () => {
+      const res = await request(app).get(`/api/payroll-periods/${periodId}/ot-summary`);
+      expect(res.status).toBe(200);
+
+      const otRules = await db.select().from(overtimeRulesTable).where(eq(overtimeRulesTable.isActive, true));
+      const otRule = otRules.find(r => r.nameEn.includes("Standard")) ?? otRules[0];
+      const weekdayRate = otRule ? parseFloat(String(otRule.multiplierWeekday)) : 1.5;
+      const weekendRate = otRule ? parseFloat(String(otRule.multiplierWeekend)) : 2.0;
+      const holidayRate = otRule ? parseFloat(String(otRule.multiplierHoliday)) : 2.5;
+      const hourly = BASE_SALARY / 176;
+
+      // Only one employee in this dedicated period has OT, so period totals
+      // equal that employee's per-bucket line amounts.
+      expect(parseFloat(res.body.weekday)).toBeCloseTo(round2(hourly * OT_WEEKDAY_HOURS * weekdayRate), 2);
+      expect(parseFloat(res.body.weekend)).toBeCloseTo(round2(hourly * 2 * weekendRate), 2);
+      expect(parseFloat(res.body.holiday)).toBeCloseTo(round2(hourly * 4 * holidayRate), 2);
+      expect(parseFloat(res.body.total)).toBeCloseTo(
+        parseFloat(res.body.weekday) + parseFloat(res.body.weekend) + parseFloat(res.body.holiday), 2);
+    });
+
+    it("returns 404 ot-summary for a missing period", async () => {
+      const res = await request(app).get(`/api/payroll-periods/999999999/ot-summary`);
+      expect(res.status).toBe(404);
+    });
   });
 
   describe("suspiciously long overtime sessions", () => {

@@ -1403,6 +1403,7 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
+
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1417,6 +1418,7 @@ export const SetUserPasswordResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
+
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -1474,12 +1476,15 @@ export const LoginUserResponse = zod.object({
   "sessionToken": zod.string().optional()
 })
 
+
 /**
  * @summary Log out — destroys the server session (cookie or bearer token)
  */
 export const LogoutUserResponse = zod.object({
   "success": zod.boolean()
 })
+
+
 /**
  * @summary List all shift definitions
  */
@@ -3681,6 +3686,21 @@ export const CalculatePayrollPeriodResponse = zod.object({
 }),
   "runsCreated": zod.number(),
   "exceptionCount": zod.number()
+})
+
+
+/**
+ * @summary Overtime pay for a payroll period aggregated by weekday/weekend/holiday buckets
+ */
+export const GetPayrollPeriodOtSummaryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPayrollPeriodOtSummaryResponse = zod.object({
+  "weekday": zod.string(),
+  "weekend": zod.string(),
+  "holiday": zod.string(),
+  "total": zod.string()
 })
 
 
@@ -16017,3 +16037,5 @@ export const DeleteImportMappingTemplateParams = zod.object({
 export const DeleteImportMappingTemplateResponse = zod.object({
   "deleted": zod.boolean()
 })
+
+
