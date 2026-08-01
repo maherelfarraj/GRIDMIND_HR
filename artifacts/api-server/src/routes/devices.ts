@@ -12,7 +12,7 @@ import {
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { CreateDeviceBody, UpdateDeviceBody } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { GATEWAY_SILENCE_THRESHOLD_MS } from "../lib/gatewayDeviceAlerts.js";
+import { deviceConnectivityVerdict } from "../lib/gatewayDeviceAlerts.js";
 import { notifyCommandOutcomes, DEVICE_COMMAND_TTL_MS } from "../lib/deviceCommandNotifications.js";
 export { DEVICE_COMMAND_TTL_MS };
 
@@ -35,11 +35,19 @@ async function buildDeviceResponse(d: typeof attendanceDevicesTable.$inferSelect
     const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, d.departmentId));
     if (dept) departmentNameEn = dept.nameEn;
   }
+  const registrations = await db
+    .select()
+    .from(gatewayRegistrationsTable)
+    .where(eq(gatewayRegistrationsTable.deviceId, d.id));
+  const verdict = deviceConnectivityVerdict(registrations, d.lastSyncAt);
   return {
     ...d,
     departmentNameEn,
     lastSyncAt: d.lastSyncAt ? d.lastSyncAt.toISOString() : null,
     createdAt: d.createdAt.toISOString(),
+    lastContactAt: verdict.lastContactMs !== null ? new Date(verdict.lastContactMs).toISOString() : null,
+    isOnline: verdict.isOnline,
+    isStale: verdict.isStale,
   };
 }
 
@@ -81,12 +89,39 @@ router.get("/devices", async (req, res): Promise<void> => {
   const depts = await db.select().from(departmentsTable);
   const deptMap = Object.fromEntries(depts.map((d) => [d.id, d]));
 
-  const result = devices.map((d) => ({
-    ...d,
-    departmentNameEn: d.departmentId ? (deptMap[d.departmentId]?.nameEn ?? null) : null,
-    lastSyncAt: d.lastSyncAt ? d.lastSyncAt.toISOString() : null,
-    createdAt: d.createdAt.toISOString(),
-  }));
+  // Same real-contact verdict as GET /devices/:id/health — both go through
+  // the shared deviceConnectivityVerdict helper (per-registration silence
+  // threshold overrides included) so list and health can never disagree.
+  const registrations = await db
+    .select({
+      deviceId: gatewayRegistrationsTable.deviceId,
+      status: gatewayRegistrationsTable.status,
+      lastHeartbeatAt: gatewayRegistrationsTable.lastHeartbeatAt,
+      lastSeenAt: gatewayRegistrationsTable.lastSeenAt,
+      silenceThresholdMinutes: gatewayRegistrationsTable.silenceThresholdMinutes,
+    })
+    .from(gatewayRegistrationsTable);
+  const regsByDevice = new Map<number, typeof registrations>();
+  for (const r of registrations) {
+    if (r.deviceId === null) continue;
+    const list = regsByDevice.get(r.deviceId) ?? [];
+    list.push(r);
+    regsByDevice.set(r.deviceId, list);
+  }
+
+  const now = Date.now();
+  const result = devices.map((d) => {
+    const verdict = deviceConnectivityVerdict(regsByDevice.get(d.id) ?? [], d.lastSyncAt, now);
+    return {
+      ...d,
+      departmentNameEn: d.departmentId ? (deptMap[d.departmentId]?.nameEn ?? null) : null,
+      lastSyncAt: d.lastSyncAt ? d.lastSyncAt.toISOString() : null,
+      createdAt: d.createdAt.toISOString(),
+      lastContactAt: verdict.lastContactMs !== null ? new Date(verdict.lastContactMs).toISOString() : null,
+      isOnline: verdict.isOnline,
+      isStale: verdict.isStale,
+    };
+  });
   res.json(result);
 });
 
@@ -158,13 +193,13 @@ router.get("/devices/:id/health", async (req, res): Promise<void> => {
     .where(and(eq(punchEventsTable.deviceId, device.id), gte(punchEventsTable.eventTime, windowStart)));
   const activeDays = activeDaysRow?.days ?? 0;
 
-  // Last real contact: gateway heartbeat/reconcile beats device.lastSyncAt.
-  const contactTimes = [reg?.lastHeartbeatAt, reg?.lastSeenAt, device.lastSyncAt]
-    .filter((d): d is Date => d instanceof Date)
-    .map((d) => d.getTime());
-  const lastContactMs = contactTimes.length ? Math.max(...contactTimes) : null;
-  const isOnline = lastContactMs !== null && now - lastContactMs <= GATEWAY_SILENCE_THRESHOLD_MS;
-  const isStale = lastContactMs !== null && !isOnline;
+  // Last real contact: shared verdict helper (same as GET /devices), which
+  // honors per-registration silence threshold overrides.
+  const { lastContactMs, thresholdMs, isOnline, isStale } = deviceConnectivityVerdict(
+    registrations,
+    device.lastSyncAt,
+    now,
+  );
 
   // Uptime proxy: share of days in the window with recorded punch activity.
   // null (not a fake number) when there is no activity history at all.
@@ -213,7 +248,7 @@ router.get("/devices/:id/health", async (req, res): Promise<void> => {
     }
   }
   if (isStale) {
-    errorLog.push(`No gateway contact since ${new Date(lastContactMs).toISOString()} (silence threshold ${Math.round(GATEWAY_SILENCE_THRESHOLD_MS / 60000)} min)`);
+    errorLog.push(`No gateway contact since ${new Date(lastContactMs!).toISOString()} (silence threshold ${Math.round(thresholdMs / 60000)} min)`);
   } else if (lastContactMs === null) {
     errorLog.push("No sync or heartbeat has ever been recorded for this device");
   }

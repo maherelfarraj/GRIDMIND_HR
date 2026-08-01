@@ -340,15 +340,31 @@ export default function Devices() {
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      {getStatusIcon(device.status)}
+                      {getStatusIcon(device.isOnline ? 'online' : device.isStale ? 'error' : 'offline')}
                       <span className="font-semibold text-sm">{device.name}</span>
                     </div>
-                    <Badge 
-                      variant={device.status === 'online' ? 'default' : 'secondary'}
-                      className="capitalize text-xs"
-                    >
-                      {device.status}
-                    </Badge>
+                    <div className="flex items-center gap-1">
+                      {/* Real connectivity verdict from gateway heartbeats / last sync */}
+                      {device.isOnline ? (
+                        <Badge variant="default" className="text-xs" data-testid={`badge-connectivity-${device.id}`}>
+                          {t('Online', 'متصل')}
+                        </Badge>
+                      ) : device.isStale ? (
+                        <Badge variant="destructive" className="text-xs" data-testid={`badge-connectivity-${device.id}`}>
+                          {t('Stale', 'منقطع')}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs" data-testid={`badge-connectivity-${device.id}`}>
+                          {t('No contact', 'لا اتصال')}
+                        </Badge>
+                      )}
+                      {/* Stored status shown separately when it disagrees with reality */}
+                      {device.status === 'online' && !device.isOnline && (
+                        <Badge variant="outline" className="capitalize text-xs text-muted-foreground" data-testid={`badge-stored-status-${device.id}`}>
+                          {t('marked online', 'مسجل كمتصل')}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {lang === 'en' ? device.location : device.locationAr}
@@ -356,8 +372,8 @@ export default function Devices() {
                   <p className="text-xs text-muted-foreground font-mono mt-1">
                     {device.vendor} {device.model}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t('Last sync', 'آخر مزامنة')}: {device.lastSyncAt ? new Date(device.lastSyncAt).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                  <p className={`text-xs mt-1 ${device.isStale ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {t('Last contact', 'آخر اتصال')}: {device.lastContactAt ? new Date(device.lastContactAt).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : t('never', 'أبدًا')}
                   </p>
                 </div>
               ))

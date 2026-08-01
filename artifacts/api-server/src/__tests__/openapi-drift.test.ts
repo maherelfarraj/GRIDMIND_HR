@@ -111,7 +111,10 @@ const ALLOWED_EXTRA_PROPERTIES: Record<string, string[]> = {
     "deviceName"
   ],
   "AttendanceDevice": [
-    "departmentNameEn"
+    "departmentNameEn",
+    "lastContactAt",
+    "isOnline",
+    "isStale"
   ],
   "SecurityAlert": [
     "acknowledgedByUserName"

@@ -21,6 +21,8 @@ export interface AuditLog {
   /** @nullable */
   changesJson?: string | null;
   /** @nullable */
+  privilegedSessionId?: number | null;
+  /** @nullable */
   ipAddress?: string | null;
   /** @nullable */
   userAgent?: string | null;

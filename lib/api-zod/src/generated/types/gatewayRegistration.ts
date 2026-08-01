@@ -42,6 +42,11 @@ export interface GatewayRegistration {
   sdkPresent?: boolean | null;
   /** @nullable */
   sdkVersion?: string | null;
+  /**
+     * Per-registration silent-gateway alarm window in minutes; null falls back to the global default.
+     * @nullable
+     */
+  silenceThresholdMinutes?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt?: string;

@@ -944,6 +944,7 @@ export const ListAuditLogsResponse = zod.object({
   "entityId": zod.number().nullish(),
   "entityLabel": zod.string().nullish(),
   "changesJson": zod.string().nullish(),
+  "privilegedSessionId": zod.number().nullish(),
   "ipAddress": zod.string().nullish(),
   "userAgent": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1026,7 +1027,10 @@ export const ListDevicesResponseItem = zod.object({
   "firmwareVersion": zod.string().nullish(),
   "integrationProtocol": zod.string(),
   "notes": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "lastContactAt": zod.string().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "isStale": zod.boolean().optional()
 })
 export const ListDevicesResponse = zod.array(ListDevicesResponseItem)
 
@@ -1067,7 +1071,10 @@ export const CreateDeviceResponse = zod.object({
   "firmwareVersion": zod.string().nullish(),
   "integrationProtocol": zod.string(),
   "notes": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "lastContactAt": zod.string().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "isStale": zod.boolean().optional()
 })
 
 
@@ -1095,7 +1102,10 @@ export const GetDeviceResponse = zod.object({
   "firmwareVersion": zod.string().nullish(),
   "integrationProtocol": zod.string(),
   "notes": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "lastContactAt": zod.string().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "isStale": zod.boolean().optional()
 })
 
 
@@ -1134,7 +1144,10 @@ export const UpdateDeviceResponse = zod.object({
   "firmwareVersion": zod.string().nullish(),
   "integrationProtocol": zod.string(),
   "notes": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "lastContactAt": zod.string().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "isStale": zod.boolean().optional()
 })
 
 
@@ -5771,6 +5784,7 @@ export const GetPrivilegedSessionActivityResponse = zod.object({
   "entityId": zod.number().nullish(),
   "entityLabel": zod.string().nullish(),
   "changesJson": zod.string().nullish(),
+  "privilegedSessionId": zod.number().nullish(),
   "ipAddress": zod.string().nullish(),
   "userAgent": zod.string().nullish(),
   "createdAt": zod.string()

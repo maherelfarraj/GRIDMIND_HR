@@ -30,4 +30,8 @@ export interface AttendanceDevice {
   /** @nullable */
   notes?: string | null;
   createdAt: string;
+  /** @nullable */
+  lastContactAt?: string | null;
+  isOnline?: boolean;
+  isStale?: boolean;
 }

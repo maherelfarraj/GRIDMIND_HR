@@ -19,6 +19,8 @@ import app from "../app";
 
 let deviceId: number;
 let staleDeviceId: number;
+let customThresholdDeviceId: number;
+let customRegId: number;
 let regId: number;
 let employeeId: number;
 const punchIds: number[] = [];
@@ -56,6 +58,34 @@ beforeAll(async () => {
     lastSyncAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
   }).returning();
   staleDeviceId = stale.id;
+
+  // Device whose ACTIVE gateway has a generous per-registration silence
+  // threshold override: last contact 30 min ago would be stale under the
+  // global default (10 min) but must count as online under the override.
+  const [custom] = await db.insert(attendanceDevicesTable).values({
+    name: `TEST Custom Threshold Device ${suffix}`,
+    serialNumber: `T-CUST-${suffix}`,
+    model: "T100",
+    vendor: "TestVendor",
+    type: "biometric",
+    location: "Test Lab",
+    locationAr: "مختبر",
+    status: "offline", // stored status lies the other way
+    integrationProtocol: "REST",
+    lastSyncAt: null,
+  }).returning();
+  customThresholdDeviceId = custom.id;
+  const [customReg] = await db.insert(gatewayRegistrationsTable).values({
+    name: `TEST Custom GW ${suffix}`,
+    deviceId: customThresholdDeviceId,
+    adapterType: "SIMULATOR",
+    secretHash: "test-not-a-real-key",
+    status: "ACTIVE",
+    registeredByUserId: 1,
+    lastHeartbeatAt: new Date(Date.now() - 30 * 60 * 1000),
+    silenceThresholdMinutes: 120,
+  }).returning();
+  customRegId = customReg.id;
 
   const [reg] = await db.insert(gatewayRegistrationsTable).values({
     name: `TEST Health GW ${suffix}`,
@@ -102,8 +132,8 @@ beforeAll(async () => {
 afterAll(async () => {
   if (punchIds.length) await db.delete(punchEventsTable).where(inArray(punchEventsTable.id, punchIds));
   await db.delete(punchImportBatchesTable).where(eq(punchImportBatchesTable.id, batchId));
-  await db.delete(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, regId));
-  await db.delete(attendanceDevicesTable).where(inArray(attendanceDevicesTable.id, [deviceId, staleDeviceId]));
+  await db.delete(gatewayRegistrationsTable).where(inArray(gatewayRegistrationsTable.id, [regId, customRegId]));
+  await db.delete(attendanceDevicesTable).where(inArray(attendanceDevicesTable.id, [deviceId, staleDeviceId, customThresholdDeviceId]));
 });
 
 describe("GET /devices/:id/health", () => {
@@ -140,5 +170,44 @@ describe("GET /devices/:id/health", () => {
   it("404s for a missing device", async () => {
     const res = await request(app).get(`/api/devices/999999/health`);
     expect(res.status).toBe(404);
+  });
+});
+
+describe("GET /devices — computed connectivity in the list", () => {
+  it("surfaces the same real-timestamp verdict as the health endpoint", async () => {
+    const res = await request(app).get("/api/devices");
+    expect(res.status).toBe(200);
+
+    const fresh = res.body.find((d: { id: number }) => d.id === deviceId);
+    const stale = res.body.find((d: { id: number }) => d.id === staleDeviceId);
+
+    // Fresh device: active gateway heartbeat just now → online, not stale.
+    expect(fresh.isOnline).toBe(true);
+    expect(fresh.isStale).toBe(false);
+    expect(fresh.lastContactAt).toBeTruthy();
+
+    // Stale device: stored status says "online" but last real contact is
+    // 3 days old → flagged stale, not online.
+    expect(stale.status).toBe("online");
+    expect(stale.isOnline).toBe(false);
+    expect(stale.isStale).toBe(true);
+    expect(stale.lastContactAt).toBe(stale.lastSyncAt);
+  });
+
+  it("honors a per-registration silence threshold override, agreeing with the health endpoint", async () => {
+    const list = await request(app).get("/api/devices");
+    const health = await request(app).get(`/api/devices/${customThresholdDeviceId}/health`);
+    expect(list.status).toBe(200);
+    expect(health.status).toBe(200);
+
+    const item = list.body.find((d: { id: number }) => d.id === customThresholdDeviceId);
+    // 30 min silence, 120 min override → online everywhere despite the
+    // global 10 min default and a stored status of "offline".
+    expect(item.isOnline).toBe(true);
+    expect(item.isStale).toBe(false);
+    expect(health.body.isOnline).toBe(true);
+    // List and health must always agree.
+    expect(item.isOnline).toBe(health.body.isOnline);
+    expect(item.lastContactAt).toBe(health.body.lastPingAt);
   });
 });

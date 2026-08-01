@@ -72,6 +72,11 @@ export interface GatewayRegistration {
   sdkPresent?: boolean | null;
   /** @nullable */
   sdkVersion?: string | null;
+  /**
+     * Per-registration silent-gateway alarm window in minutes; null falls back to the global default.
+     * @nullable
+     */
+  silenceThresholdMinutes?: number | null;
   /** @nullable */
   notes?: string | null;
   createdAt?: string;
@@ -659,6 +664,8 @@ export interface AuditLog {
   /** @nullable */
   changesJson?: string | null;
   /** @nullable */
+  privilegedSessionId?: number | null;
+  /** @nullable */
   ipAddress?: string | null;
   /** @nullable */
   userAgent?: string | null;
@@ -737,6 +744,10 @@ export interface AttendanceDevice {
   /** @nullable */
   notes?: string | null;
   createdAt: string;
+  /** @nullable */
+  lastContactAt?: string | null;
+  isOnline?: boolean;
+  isStale?: boolean;
 }
 
 export interface AttendanceDeviceInput {

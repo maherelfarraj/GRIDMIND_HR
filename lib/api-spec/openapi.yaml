@@ -10300,6 +10300,9 @@ components:
         integrationProtocol: { type: string }
         notes: { type: [ "string", "null" ] }
         createdAt: { type: string }
+        lastContactAt: { type: [ "string", "null" ] }
+        isOnline: { type: boolean }
+        isStale: { type: boolean }
       required:
         - id
         - name

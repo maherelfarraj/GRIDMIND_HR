@@ -226,6 +226,42 @@ export function effectiveSilenceThresholdMs(
   return defaultMs;
 }
 
+/**
+ * Shared device connectivity verdict, used by BOTH the devices list and the
+ * device health endpoint so they can never disagree.
+ *
+ * Last real contact = the most recent of any ACTIVE registration's
+ * heartbeat/last-seen and the device's stored lastSyncAt. The silence
+ * threshold is the effective (per-registration override aware) threshold of
+ * the ACTIVE registration with the most recent contact; without any active
+ * registration, the global default applies.
+ */
+export function deviceConnectivityVerdict(
+  registrations: Array<{
+    status: string;
+    lastHeartbeatAt: Date | null;
+    lastSeenAt: Date | null;
+    silenceThresholdMinutes: number | null;
+  }>,
+  lastSyncAt: Date | null,
+  now: number = Date.now(),
+): { lastContactMs: number | null; thresholdMs: number; isOnline: boolean; isStale: boolean } {
+  let bestRegTs = 0;
+  let thresholdMs = GATEWAY_SILENCE_THRESHOLD_MS;
+  for (const r of registrations) {
+    if (r.status !== "ACTIVE") continue;
+    const ts = Math.max(r.lastHeartbeatAt?.getTime() ?? 0, r.lastSeenAt?.getTime() ?? 0);
+    if (ts > bestRegTs) {
+      bestRegTs = ts;
+      thresholdMs = effectiveSilenceThresholdMs(r.silenceThresholdMinutes);
+    }
+  }
+  const syncTs = lastSyncAt?.getTime() ?? 0;
+  const lastContactMs = Math.max(bestRegTs, syncTs) || null;
+  const isOnline = lastContactMs !== null && now - lastContactMs <= thresholdMs;
+  return { lastContactMs, thresholdMs, isOnline, isStale: lastContactMs !== null && !isOnline };
+}
+
 export function stopGatewaySilenceMonitor(): void {
   if (silenceTimer) { clearInterval(silenceTimer); silenceTimer = null; }
 }
