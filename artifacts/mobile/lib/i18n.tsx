@@ -74,6 +74,17 @@ const strings = {
     ar: 'هذا الحساب غير مرتبط بسجل موظف.',
   },
   updatedLive: { en: 'Auto-refreshing', ar: 'تحديث تلقائي' },
+  payslipDetail: { en: 'Payslip', ar: 'قسيمة الراتب' },
+  baseSalary: { en: 'Base Salary', ar: 'الراتب الأساسي' },
+  earnings: { en: 'Earnings', ar: 'الاستحقاقات' },
+  netPay: { en: 'Net Pay', ar: 'صافي الراتب' },
+  overtime: { en: 'Overtime', ar: 'العمل الإضافي' },
+  hours: { en: 'hours', ar: 'ساعة' },
+  payDate: { en: 'Pay Date', ar: 'تاريخ الصرف' },
+  workingDays: { en: 'Working Days', ar: 'أيام العمل' },
+  presentDays: { en: 'Present Days', ar: 'أيام الحضور' },
+  exceptionNote: { en: 'Exception', ar: 'استثناء' },
+  noLines: { en: 'No line items', ar: 'لا توجد بنود' },
 } as const;
 
 export type StringKey = keyof typeof strings;

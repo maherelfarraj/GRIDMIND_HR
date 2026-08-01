@@ -252,7 +252,19 @@ function EmployeeContent({ employeeId }: { employeeId: number }) {
         <EmptyState icon="file-text" message={t('noPayslips')} />
       ) : (
         payslips.map((run: PayrollRunSummary) => (
-          <Card key={run.id} style={{ marginBottom: 10 }}>
+          <Pressable
+            key={run.id}
+            testID={`row-payslip-${run.id}`}
+            onPress={() =>
+              router.push({
+                pathname: '/payslip/[id]',
+                params: { id: String(run.id) },
+              })
+            }
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+            accessibilityRole="button"
+          >
+          <Card style={{ marginBottom: 10 }}>
             <View
               style={{
                 flexDirection: 'row',
@@ -304,8 +316,15 @@ function EmployeeContent({ employeeId }: { employeeId: number }) {
                   {t('net')} · {run.currency}
                 </Text>
               </View>
+              <Feather
+                name="chevron-right"
+                size={18}
+                color={colors.mutedForeground}
+                style={{ marginStart: 8 }}
+              />
             </View>
           </Card>
+          </Pressable>
         ))
       )}
     </ScrollView>

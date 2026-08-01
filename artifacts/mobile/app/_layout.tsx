@@ -32,6 +32,7 @@ function RootLayoutNav() {
       <Stack.Screen name="login" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="new-leave" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="payslip/[id]" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }
