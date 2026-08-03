@@ -34,8 +34,19 @@ await runStartupMigrations();
 /** Upper bound on how long a graceful shutdown waits for deferred writes. */
 const SHUTDOWN_FLUSH_TIMEOUT_MS = 5_000;
 
-/** Upper bound on how long shutdown waits for in-flight HTTP requests to finish. */
-const SHUTDOWN_DRAIN_TIMEOUT_MS = 10_000;
+/**
+ * Upper bound on how long shutdown waits for in-flight HTTP requests to finish.
+ * Overridable via env OUTSIDE production only, so the shutdown tests can prove
+ * the give-up path without waiting the full production timeout.
+ */
+const SHUTDOWN_DRAIN_TIMEOUT_MS = (() => {
+  const raw = process.env["SHUTDOWN_DRAIN_TIMEOUT_MS"];
+  if (raw && process.env.NODE_ENV !== "production") {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 10_000;
+})();
 
 /** Upper bound on how long shutdown waits for in-progress background sweeps to finish. */
 const SHUTDOWN_MONITOR_STOP_TIMEOUT_MS = 10_000;

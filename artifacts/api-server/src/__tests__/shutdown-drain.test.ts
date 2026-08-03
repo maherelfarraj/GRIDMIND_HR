@@ -169,4 +169,80 @@ describe("graceful shutdown drain (spawned built server)", () => {
       }
     },
   );
+
+  it(
+    "a stuck request cannot hold up shutdown forever: SIGTERM still exits 0 after the drain timeout, with a warning",
+    { timeout: 180_000 },
+    async () => {
+      execSync("node ./build.mjs", { cwd: serverRoot, stdio: "ignore" });
+
+      // Shorten the drain timeout (test-only env override) so the give-up
+      // path is provable quickly; the stuck request (25s) far exceeds it.
+      const DRAIN_MS = 2_000;
+      const port = 39000 + Math.floor(Math.random() * 1000);
+      const base = `http://127.0.0.1:${port}`;
+      let child: ChildProcess | null = null;
+      let output = "";
+      try {
+        child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
+          cwd: serverRoot,
+          env: {
+            ...process.env,
+            NODE_ENV: "test",
+            PORT: String(port),
+            PILOT_AUTH: "false",
+            SHUTDOWN_SLOW_ENDPOINT: "true",
+            SHUTDOWN_DRAIN_TIMEOUT_MS: String(DRAIN_MS),
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        child.stdout!.on("data", (d) => (output += d.toString()));
+        child.stderr!.on("data", (d) => (output += d.toString()));
+        const exited = new Promise<number | null>((resolve) => {
+          child!.on("exit", (code) => resolve(code));
+        });
+
+        await waitForReady(base, 90_000);
+
+        // Hold a request that will NOT finish within the drain timeout:
+        // 25s ≫ 3s grace + 2s drain. The headers-received handshake proves
+        // the handler is running before SIGTERM is delivered.
+        const stuckRes = await fetch(`${base}/api/healthz/slow?ms=25000`);
+        expect(stuckRes.status).toBe(200);
+        // Consume the body so the connection stays genuinely in-flight; it is
+        // expected to error when the process exits mid-response.
+        const stuckBody = stuckRes.text().catch(() => "aborted");
+
+        const sigtermAt = Date.now();
+        child.kill("SIGTERM");
+
+        // The process must still exit 0 — the stuck connection may not stall
+        // the redeploy. Budget: 3s grace + 2s drain + flush/monitor slack.
+        const code = await Promise.race([exited, sleep(20_000).then(() => "timeout" as const)]);
+        const exitedAt = Date.now();
+        expect(code).toBe(0);
+
+        // It exited BECAUSE the drain timed out, not because the request
+        // finished: well before the stuck request's 25s completion.
+        expect(exitedAt - sigtermAt).toBeLessThan(20_000);
+        expect(exitedAt - sigtermAt).toBeGreaterThanOrEqual(GRACE_MS + DRAIN_MS - 500);
+
+        // The give-up path is observable in the logs.
+        expect(output).toContain("did not drain within the shutdown timeout");
+
+        // The stuck response never completed cleanly.
+        const bodyText = await stuckBody;
+        expect(bodyText).not.toContain("done");
+      } finally {
+        if (child && child.exitCode === null && child.signalCode === null) {
+          const gone = new Promise<void>((resolve) => child!.once("exit", () => resolve()));
+          child.kill("SIGKILL");
+          await Promise.race([gone, sleep(5_000)]);
+        }
+        if (process.env["DEBUG_SHUTDOWN_TEST"]) {
+          console.log(output);
+        }
+      }
+    },
+  );
 });
