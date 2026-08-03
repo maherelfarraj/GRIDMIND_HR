@@ -16,4 +16,21 @@ router.get("/healthz", (_req, res) => {
   res.json(data);
 });
 
+// Test-only latency endpoint used by the graceful-shutdown drain test to hold
+// a request in flight across SIGTERM. Never registered in production; requires
+// an explicit env opt-in so it does not exist in normal dev runs either.
+if (process.env.NODE_ENV !== "production" && process.env.SHUTDOWN_SLOW_ENDPOINT === "true") {
+  router.get("/healthz/slow", (req, res) => {
+    const ms = Math.min(Number(req.query["ms"]) || 1_000, 30_000);
+    // Handshake: flush the status line + a first chunk immediately so the
+    // client can OBSERVE the request is in flight (headers received) before
+    // it delivers SIGTERM. The body completes after the delay.
+    res.status(200).type("text/plain");
+    res.write("started\n");
+    setTimeout(() => {
+      res.end("done\n");
+    }, ms);
+  });
+}
+
 export default router;
