@@ -24,6 +24,9 @@ export interface BackupScheduleStatus {
 
 let task: ReturnType<typeof cron.schedule> | null = null;
 
+/** In-progress backup cycle, so shutdown can await it instead of cutting it off mid-write. */
+let inFlightCycle: Promise<void> | null = null;
+
 const status: BackupScheduleStatus = {
   enabled: false,
   cronExpression: process.env.BACKUP_CRON || DEFAULT_CRON,
@@ -91,16 +94,24 @@ export function startBackupScheduler(): void {
   }
 
   task = cron.schedule(expr, () => {
-    void runScheduledBackupCycle();
+    if (inFlightCycle) return; // never overlap cycles
+    inFlightCycle = runScheduledBackupCycle()
+      .catch((err) => logger.error({ err }, "Scheduled backup cycle failed unexpectedly"))
+      .finally(() => { inFlightCycle = null; });
   });
   status.running = true;
   logger.info({ cron: expr }, "Backup scheduler started (nightly full backup + retention pruning)");
 }
 
-export function stopBackupScheduler(): void {
+/**
+ * Stops the scheduler: cancels the cron job (no new cycles) and awaits any
+ * backup cycle currently in flight so shutdown never cuts it off mid-write.
+ */
+export async function stopBackupScheduler(): Promise<void> {
   if (task) {
     void task.stop();
     task = null;
   }
   status.running = false;
+  if (inFlightCycle) await inFlightCycle;
 }

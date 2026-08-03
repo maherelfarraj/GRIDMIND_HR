@@ -61,6 +61,8 @@ const alerter = createJobFailureAlerter({
 
 let timer: NodeJS.Timeout | null = null;
 let sweeping = false;
+/** In-progress sweep, so shutdown can await it instead of cutting it off mid-write. */
+let inFlightSweep: Promise<void> | null = null;
 
 /** Test-only: reset module state between test cases. */
 export function _resetSweeperStateForTests(): void {
@@ -84,16 +86,28 @@ export async function runSweepOnce(
 export function startPrivilegedSessionSweeper(): void {
   if (timer) return;
   // Close anything that lapsed while the server was down, right away.
-  runSweepOnce().catch((err) =>
-    logger.error({ err }, "Privileged-session startup sweep failed"),
-  );
+  sweeping = true;
+  inFlightSweep = runSweepOnce()
+    .then(() => undefined)
+    .catch((err) => logger.error({ err }, "Privileged-session startup sweep failed"))
+    .finally(() => { sweeping = false; inFlightSweep = null; });
   timer = setInterval(() => {
     if (sweeping) return; // never overlap sweeps
     sweeping = true;
-    runSweepOnce()
+    inFlightSweep = runSweepOnce()
+      .then(() => undefined)
       .catch((err) => logger.error({ err }, "Privileged-session sweep failed unexpectedly"))
-      .finally(() => { sweeping = false; });
+      .finally(() => { sweeping = false; inFlightSweep = null; });
   }, SWEEP_INTERVAL_MS);
   timer.unref?.();
   logger.info({ sweepIntervalMs: SWEEP_INTERVAL_MS }, "Privileged-session sweeper started");
+}
+
+/**
+ * Stops the sweeper: clears the interval (no new sweeps) and awaits any
+ * sweep currently in flight so shutdown never cuts it off mid-write.
+ */
+export async function stopPrivilegedSessionSweeper(): Promise<void> {
+  if (timer) { clearInterval(timer); timer = null; }
+  if (inFlightSweep) await inFlightSweep;
 }

@@ -401,6 +401,8 @@ async function checkProfile(
 const SWEEP_INTERVAL_MS = 60_000;
 let timer: NodeJS.Timeout | null = null;
 let sweeping = false;
+/** In-progress sweep, so shutdown can await it instead of cutting it off mid-write. */
+let inFlightSweep: Promise<void> | null = null;
 
 /** Consecutive sweep-loop failures before security officers are alerted. */
 export const HEALTH_SWEEP_FAILURE_ALERT_THRESHOLD = JOB_FAILURE_ALERT_THRESHOLD;
@@ -475,14 +477,20 @@ export function startHealthMonitor(): void {
   timer = setInterval(() => {
     if (sweeping) return; // never overlap sweeps
     sweeping = true;
-    runMonitoredHealthSweep()
+    inFlightSweep = runMonitoredHealthSweep()
+      .then(() => undefined)
       .catch((err) => logger.error({ err }, "Health monitor sweep failed unexpectedly"))
-      .finally(() => { sweeping = false; });
+      .finally(() => { sweeping = false; inFlightSweep = null; });
   }, SWEEP_INTERVAL_MS);
   timer.unref?.();
   logger.info({ sweepIntervalMs: SWEEP_INTERVAL_MS }, "Connection health monitor started");
 }
 
-export function stopHealthMonitor(): void {
+/**
+ * Stops the scheduler: clears the interval (no new sweeps) and awaits any
+ * sweep currently in flight so shutdown never cuts it off mid-write.
+ */
+export async function stopHealthMonitor(): Promise<void> {
   if (timer) { clearInterval(timer); timer = null; }
+  if (inFlightSweep) await inFlightSweep;
 }

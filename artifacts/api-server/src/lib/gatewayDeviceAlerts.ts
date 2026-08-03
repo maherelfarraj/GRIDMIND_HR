@@ -321,8 +321,13 @@ export function deviceConnectivityVerdict(
   return { lastContactMs, thresholdMs, isOnline, isStale: lastContactMs !== null && !isOnline };
 }
 
-export function stopGatewaySilenceMonitor(): void {
+/**
+ * Stops the scheduler: clears the interval (no new sweeps) and awaits any
+ * sweep currently in flight so shutdown never cuts it off mid-write.
+ */
+export async function stopGatewaySilenceMonitor(): Promise<void> {
   if (silenceTimer) { clearInterval(silenceTimer); silenceTimer = null; }
+  if (inFlightSilenceSweep) await inFlightSilenceSweep;
 }
 
 async function hasOpenSilenceAlert(registrationId: number): Promise<boolean> {
@@ -448,13 +453,16 @@ let silenceSweeping = false;
 
 let silenceTimer: NodeJS.Timeout | null = null;
 
+/** In-progress sweep chain, so shutdown can await it instead of cutting it off mid-write. */
+let inFlightSilenceSweep: Promise<void> | null = null;
+
 /** Starts the background silent-gateway scheduler. Called from index.ts (not from tests). */
 export function startGatewaySilenceMonitor(): void {
   if (silenceTimer) return;
   silenceTimer = setInterval(() => {
     if (silenceSweeping) return; // never overlap sweeps
     silenceSweeping = true;
-    runGatewaySilenceSweepOnce()
+    inFlightSilenceSweep = runGatewaySilenceSweepOnce()
       .then((r) => {
         if (r.alertsRaised > 0 || r.resolved > 0) {
           logger.info(r, "Gateway silence sweep completed");
@@ -475,7 +483,7 @@ export function startGatewaySilenceMonitor(): void {
         if (backfilled > 0) logger.info({ backfilled }, "Missed command outcome notifications backfilled");
       })
       .catch((err) => logger.error({ err }, "Command outcome notification backfill failed"))
-      .finally(() => { silenceSweeping = false; });
+      .finally(() => { silenceSweeping = false; inFlightSilenceSweep = null; });
   }, SILENCE_SWEEP_INTERVAL_MS);
   silenceTimer.unref?.();
   logger.info(

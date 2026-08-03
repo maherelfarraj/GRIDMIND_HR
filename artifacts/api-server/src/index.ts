@@ -1,14 +1,14 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { startHealthMonitor } from "./lib/health-monitor";
-import { startGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
+import { startHealthMonitor, stopHealthMonitor } from "./lib/health-monitor";
+import { startGatewaySilenceMonitor, stopGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
 import {
   backfillMissedCommandOutcomeNotifications,
   flushDeferredCommandNotificationsWithTimeout,
   pendingDeferredCommandNotificationCount,
 } from "./lib/deviceCommandNotifications";
-import { startBackupScheduler } from "./lib/backupScheduler";
-import { startPrivilegedSessionSweeper } from "./lib/privilegedSessionSweeper";
+import { startBackupScheduler, stopBackupScheduler } from "./lib/backupScheduler";
+import { startPrivilegedSessionSweeper, stopPrivilegedSessionSweeper } from "./lib/privilegedSessionSweeper";
 import { seedDemoPasswords } from "./lib/seed-passwords";
 import { rotateLegacyGatewayKeys, rewrapGatewayKeysForPepperRotation, getPepperRotationStatus, sweepUnusableGatewayCredentials } from "./routes/attendanceGateway";
 import { runStartupMigrations } from "./lib/startupMigrations";
@@ -35,6 +35,30 @@ const SHUTDOWN_FLUSH_TIMEOUT_MS = 5_000;
 
 /** Upper bound on how long shutdown waits for in-flight HTTP requests to finish. */
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 10_000;
+
+/** Upper bound on how long shutdown waits for in-progress background sweeps to finish. */
+const SHUTDOWN_MONITOR_STOP_TIMEOUT_MS = 10_000;
+
+/**
+ * Stop every background monitor/scheduler: each stop clears its timer
+ * immediately (no new sweeps start) and resolves once any in-progress sweep
+ * has finished, so a redeploy never cuts a sweep off mid-database-write.
+ * Bounded: resolves true when all stops finished within the timeout, false
+ * if we gave up waiting on a long-running sweep.
+ */
+function stopBackgroundMonitors(timeoutMs: number): Promise<boolean> {
+  const stops = Promise.all([
+    stopHealthMonitor().catch((err) => logger.error({ err }, "Health monitor stop failed")),
+    stopGatewaySilenceMonitor().catch((err) => logger.error({ err }, "Gateway silence monitor stop failed")),
+    stopBackupScheduler().catch((err) => logger.error({ err }, "Backup scheduler stop failed")),
+    stopPrivilegedSessionSweeper().catch((err) => logger.error({ err }, "Privileged-session sweeper stop failed")),
+  ]).then(() => true);
+  const timeout = new Promise<boolean>((resolve) => {
+    const t = setTimeout(() => resolve(false), timeoutMs);
+    t.unref?.();
+  });
+  return Promise.race([stops, timeout]);
+}
 
 let shuttingDown = false;
 
@@ -74,7 +98,10 @@ function drainHttpServer(timeoutMs: number): Promise<boolean> {
  * Graceful shutdown (SIGTERM during a redeploy, SIGINT locally):
  * 1. Close the HTTP listener and drain in-flight requests (bounded) so a
  *    redeploy doesn't cut off responses mid-flight.
- * 2. Flush deferred command-outcome notification writes (bounded), which are
+ * 2. Stop the background monitors/schedulers (bounded): clear their timers
+ *    and await any sweep that is mid-database-write, so a redeploy doesn't
+ *    leave partial state behind for the next run to clean up.
+ * 3. Flush deferred command-outcome notification writes (bounded), which are
  *    scheduled off the request path and could otherwise be lost until the
  *    next boot's backfill sweep. The sweep remains the crash safety net.
  */
@@ -84,14 +111,27 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
   const pending = pendingDeferredCommandNotificationCount();
   logger.info(
     { signal, pendingDeferredNotifications: pending },
-    "Shutdown signal received — draining in-flight requests, then flushing deferred command notifications",
+    "Shutdown signal received — draining in-flight requests, stopping background monitors, then flushing deferred command notifications",
   );
+  // Stop the monitors' timers right away (concurrently with the HTTP drain)
+  // so no NEW sweep starts during shutdown; the promise resolves once any
+  // in-progress sweep has finished its writes.
+  const monitorsStopped = stopBackgroundMonitors(SHUTDOWN_MONITOR_STOP_TIMEOUT_MS);
   drainHttpServer(SHUTDOWN_DRAIN_TIMEOUT_MS)
     .then((drained) => {
       if (!drained) {
         logger.warn(
           { timeoutMs: SHUTDOWN_DRAIN_TIMEOUT_MS },
           "HTTP listener did not drain within the shutdown timeout — proceeding to flush and exit",
+        );
+      }
+      return monitorsStopped;
+    })
+    .then((stopped) => {
+      if (!stopped) {
+        logger.warn(
+          { timeoutMs: SHUTDOWN_MONITOR_STOP_TIMEOUT_MS },
+          "Background monitors did not stop within the shutdown timeout — an in-progress sweep may be cut off; the next run will reconcile",
         );
       }
       return flushDeferredCommandNotificationsWithTimeout(SHUTDOWN_FLUSH_TIMEOUT_MS);
