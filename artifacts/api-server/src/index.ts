@@ -33,21 +33,69 @@ await runStartupMigrations();
 /** Upper bound on how long a graceful shutdown waits for deferred writes. */
 const SHUTDOWN_FLUSH_TIMEOUT_MS = 5_000;
 
+/** Upper bound on how long shutdown waits for in-flight HTTP requests to finish. */
+const SHUTDOWN_DRAIN_TIMEOUT_MS = 10_000;
+
 let shuttingDown = false;
 
+/** HTTP listener handle, captured in main() so shutdown can drain it. */
+let httpServer: import("node:http").Server | null = null;
+
 /**
- * Graceful shutdown (SIGTERM during a redeploy, SIGINT locally): deferred
- * command-outcome notification writes are scheduled off the request path, so
- * the process could otherwise exit with inserts still pending — leaving the
- * requester waiting for the next boot's backfill sweep. Flush them (bounded
- * by a short timeout) before exiting; the sweep remains the crash safety net.
+ * Stop accepting new connections and wait (bounded) for in-flight requests
+ * to finish. Resolves true if the listener closed cleanly within the
+ * timeout, false if we gave up waiting (or there was no listener yet).
+ */
+function drainHttpServer(timeoutMs: number): Promise<boolean> {
+  const server = httpServer;
+  if (!server) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve(false);
+    }, timeoutMs);
+    // Stops the listener from accepting new connections; the callback fires
+    // once all existing connections (in-flight requests) have ended.
+    server.close(() => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(true);
+    });
+    // Proactively end idle keep-alive connections so close() isn't held
+    // open by sockets with no active request.
+    server.closeIdleConnections?.();
+  });
+}
+
+/**
+ * Graceful shutdown (SIGTERM during a redeploy, SIGINT locally):
+ * 1. Close the HTTP listener and drain in-flight requests (bounded) so a
+ *    redeploy doesn't cut off responses mid-flight.
+ * 2. Flush deferred command-outcome notification writes (bounded), which are
+ *    scheduled off the request path and could otherwise be lost until the
+ *    next boot's backfill sweep. The sweep remains the crash safety net.
  */
 function handleShutdownSignal(signal: NodeJS.Signals): void {
   if (shuttingDown) return;
   shuttingDown = true;
   const pending = pendingDeferredCommandNotificationCount();
-  logger.info({ signal, pendingDeferredNotifications: pending }, "Shutdown signal received — flushing deferred command notifications");
-  flushDeferredCommandNotificationsWithTimeout(SHUTDOWN_FLUSH_TIMEOUT_MS)
+  logger.info(
+    { signal, pendingDeferredNotifications: pending },
+    "Shutdown signal received — draining in-flight requests, then flushing deferred command notifications",
+  );
+  drainHttpServer(SHUTDOWN_DRAIN_TIMEOUT_MS)
+    .then((drained) => {
+      if (!drained) {
+        logger.warn(
+          { timeoutMs: SHUTDOWN_DRAIN_TIMEOUT_MS },
+          "HTTP listener did not drain within the shutdown timeout — proceeding to flush and exit",
+        );
+      }
+      return flushDeferredCommandNotificationsWithTimeout(SHUTDOWN_FLUSH_TIMEOUT_MS);
+    })
     .then((flushed) => {
       if (!flushed) {
         logger.warn(
@@ -56,7 +104,7 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
         );
       }
     })
-    .catch((err) => logger.error({ err }, "Deferred notification flush failed at shutdown"))
+    .catch((err) => logger.error({ err }, "Graceful shutdown drain/flush failed"))
     .finally(() => process.exit(0));
 }
 
@@ -78,7 +126,7 @@ async function main() {
     }
   }
 
-  app.listen(port, (err) => {
+  httpServer = app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");
       process.exit(1);
