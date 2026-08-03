@@ -12,6 +12,7 @@ import { startPrivilegedSessionSweeper, stopPrivilegedSessionSweeper } from "./l
 import { seedDemoPasswords } from "./lib/seed-passwords";
 import { rotateLegacyGatewayKeys, rewrapGatewayKeysForPepperRotation, getPepperRotationStatus, sweepUnusableGatewayCredentials } from "./routes/attendanceGateway";
 import { runStartupMigrations } from "./lib/startupMigrations";
+import { markShuttingDown } from "./lib/shutdownState";
 
 const rawPort = process.env["PORT"];
 
@@ -38,6 +39,21 @@ const SHUTDOWN_DRAIN_TIMEOUT_MS = 10_000;
 
 /** Upper bound on how long shutdown waits for in-progress background sweeps to finish. */
 const SHUTDOWN_MONITOR_STOP_TIMEOUT_MS = 10_000;
+
+/**
+ * Grace window between flipping /api/healthz to 503 and closing the listener,
+ * so load balancers polling the health endpoint can observe "not ready" and
+ * stop routing new traffic before connections start being refused.
+ */
+const SHUTDOWN_READINESS_GRACE_MS = 3_000;
+
+/** Bounded sleep used for the readiness grace window. */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
+    t.unref?.();
+  });
+}
 
 /**
  * Stop every background monitor/scheduler: each stop clears its timer
@@ -108,6 +124,10 @@ function drainHttpServer(timeoutMs: number): Promise<boolean> {
 function handleShutdownSignal(signal: NodeJS.Signals): void {
   if (shuttingDown) return;
   shuttingDown = true;
+  // Flip readiness FIRST: /api/healthz now answers 503 while the listener is
+  // still open, so load balancers stop routing new traffic here before we
+  // close the socket.
+  markShuttingDown();
   const pending = pendingDeferredCommandNotificationCount();
   logger.info(
     { signal, pendingDeferredNotifications: pending },
@@ -117,7 +137,10 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
   // so no NEW sweep starts during shutdown; the promise resolves once any
   // in-progress sweep has finished its writes.
   const monitorsStopped = stopBackgroundMonitors(SHUTDOWN_MONITOR_STOP_TIMEOUT_MS);
-  drainHttpServer(SHUTDOWN_DRAIN_TIMEOUT_MS)
+  // Readiness grace: keep serving (healthz already 503) for a short window so
+  // routers observe the not-ready state before the listener stops accepting.
+  delay(SHUTDOWN_READINESS_GRACE_MS)
+    .then(() => drainHttpServer(SHUTDOWN_DRAIN_TIMEOUT_MS))
     .then((drained) => {
       if (!drained) {
         logger.warn(
