@@ -245,4 +245,133 @@ describe("graceful shutdown drain (spawned built server)", () => {
       }
     },
   );
+
+  it(
+    "a stuck background sweep cannot stall a redeploy: SIGTERM still exits 0 after the monitor-stop timeout, with a warning",
+    { timeout: 180_000 },
+    async () => {
+      execSync("node ./build.mjs", { cwd: serverRoot, stdio: "ignore" });
+
+      // Shorten the monitor-stop timeout (test-only env override) and inject
+      // a simulated sweep stuck mid-database-write far past it.
+      const MONITOR_STOP_MS = 1_000;
+      const port = 40000 + Math.floor(Math.random() * 1000);
+      const base = `http://127.0.0.1:${port}`;
+      let child: ChildProcess | null = null;
+      let output = "";
+      try {
+        child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
+          cwd: serverRoot,
+          env: {
+            ...process.env,
+            NODE_ENV: "test",
+            PORT: String(port),
+            PILOT_AUTH: "false",
+            SHUTDOWN_MONITOR_STOP_TIMEOUT_MS: String(MONITOR_STOP_MS),
+            SHUTDOWN_STALL_MONITOR_STOP_MS: "60000",
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        child.stdout!.on("data", (d) => (output += d.toString()));
+        child.stderr!.on("data", (d) => (output += d.toString()));
+        const exited = new Promise<number | null>((resolve) => {
+          child!.on("exit", (code) => resolve(code));
+        });
+
+        await waitForReady(base, 90_000);
+
+        const sigtermAt = Date.now();
+        child.kill("SIGTERM");
+
+        // The process must still exit 0 well before the 60s stuck sweep
+        // would finish. Budget: 3s grace + fast drain + 1s monitor timeout
+        // + flush slack.
+        const code = await Promise.race([exited, sleep(20_000).then(() => "timeout" as const)]);
+        const exitedAt = Date.now();
+        expect(code).toBe(0);
+        expect(exitedAt - sigtermAt).toBeLessThan(20_000);
+        // The monitor-stop timer starts at the signal, CONCURRENTLY with the
+        // readiness grace window, so with a 1s timeout the bound on total
+        // shutdown time is the 3s grace window itself. Waiting at least that
+        // long (rather than exiting instantly) plus the warning below proves
+        // the give-up path ran rather than the wait being skipped.
+        expect(exitedAt - sigtermAt).toBeGreaterThanOrEqual(GRACE_MS - 500);
+
+        // The give-up path is observable in the logs.
+        expect(output).toContain("Background monitors did not stop within the shutdown timeout");
+      } finally {
+        if (child && child.exitCode === null && child.signalCode === null) {
+          const gone = new Promise<void>((resolve) => child!.once("exit", () => resolve()));
+          child.kill("SIGKILL");
+          await Promise.race([gone, sleep(5_000)]);
+        }
+        if (process.env["DEBUG_SHUTDOWN_TEST"]) {
+          console.log(output);
+        }
+      }
+    },
+  );
+
+  it(
+    "a stuck deferred-notification flush cannot stall a redeploy: SIGTERM still exits 0 after the flush timeout, with a warning",
+    { timeout: 180_000 },
+    async () => {
+      execSync("node ./build.mjs", { cwd: serverRoot, stdio: "ignore" });
+
+      // Shorten the flush timeout (test-only env override) and inject a
+      // simulated deferred write that stays pending far past it.
+      const FLUSH_MS = 1_000;
+      const port = 41000 + Math.floor(Math.random() * 1000);
+      const base = `http://127.0.0.1:${port}`;
+      let child: ChildProcess | null = null;
+      let output = "";
+      try {
+        child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
+          cwd: serverRoot,
+          env: {
+            ...process.env,
+            NODE_ENV: "test",
+            PORT: String(port),
+            PILOT_AUTH: "false",
+            SHUTDOWN_FLUSH_TIMEOUT_MS: String(FLUSH_MS),
+            SHUTDOWN_STALL_FLUSH_MS: "60000",
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        child.stdout!.on("data", (d) => (output += d.toString()));
+        child.stderr!.on("data", (d) => (output += d.toString()));
+        const exited = new Promise<number | null>((resolve) => {
+          child!.on("exit", (code) => resolve(code));
+        });
+
+        await waitForReady(base, 90_000);
+
+        const sigtermAt = Date.now();
+        child.kill("SIGTERM");
+
+        // The process must still exit 0 well before the 60s stuck flush
+        // would finish. Budget: 3s grace + fast drain + monitor stop
+        // + 1s flush timeout + slack.
+        const code = await Promise.race([exited, sleep(20_000).then(() => "timeout" as const)]);
+        const exitedAt = Date.now();
+        expect(code).toBe(0);
+        expect(exitedAt - sigtermAt).toBeLessThan(20_000);
+        // It waited at least the grace window + flush timeout — i.e. it
+        // genuinely gave up on the flush rather than never waiting at all.
+        expect(exitedAt - sigtermAt).toBeGreaterThanOrEqual(GRACE_MS + FLUSH_MS - 500);
+
+        // The give-up path is observable in the logs.
+        expect(output).toContain("Deferred notification flush timed out at shutdown");
+      } finally {
+        if (child && child.exitCode === null && child.signalCode === null) {
+          const gone = new Promise<void>((resolve) => child!.once("exit", () => resolve()));
+          child.kill("SIGKILL");
+          await Promise.race([gone, sleep(5_000)]);
+        }
+        if (process.env["DEBUG_SHUTDOWN_TEST"]) {
+          console.log(output);
+        }
+      }
+    },
+  );
 });

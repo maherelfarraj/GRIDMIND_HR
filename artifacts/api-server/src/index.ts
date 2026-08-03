@@ -6,6 +6,7 @@ import {
   backfillMissedCommandOutcomeNotifications,
   flushDeferredCommandNotificationsWithTimeout,
   pendingDeferredCommandNotificationCount,
+  stallDeferredCommandNotificationsForTest,
 } from "./lib/deviceCommandNotifications";
 import { startBackupScheduler, stopBackupScheduler } from "./lib/backupScheduler";
 import { startPrivilegedSessionSweeper, stopPrivilegedSessionSweeper } from "./lib/privilegedSessionSweeper";
@@ -31,25 +32,42 @@ if (Number.isNaN(port) || port <= 0) {
 // Schema must be in place before we accept any traffic.
 await runStartupMigrations();
 
-/** Upper bound on how long a graceful shutdown waits for deferred writes. */
-const SHUTDOWN_FLUSH_TIMEOUT_MS = 5_000;
-
 /**
- * Upper bound on how long shutdown waits for in-flight HTTP requests to finish.
- * Overridable via env OUTSIDE production only, so the shutdown tests can prove
- * the give-up path without waiting the full production timeout.
+ * Read a shutdown timeout, overridable via env OUTSIDE production only, so the
+ * shutdown tests can prove each give-up path without waiting the full
+ * production timeout. In production the compiled-in default always wins.
  */
-const SHUTDOWN_DRAIN_TIMEOUT_MS = (() => {
-  const raw = process.env["SHUTDOWN_DRAIN_TIMEOUT_MS"];
+function shutdownTimeoutMs(envName: string, defaultMs: number): number {
+  const raw = process.env[envName];
   if (raw && process.env.NODE_ENV !== "production") {
     const parsed = Number(raw);
     if (Number.isFinite(parsed) && parsed > 0) return parsed;
   }
-  return 10_000;
-})();
+  return defaultMs;
+}
+
+/** Upper bound on how long a graceful shutdown waits for deferred writes. */
+const SHUTDOWN_FLUSH_TIMEOUT_MS = shutdownTimeoutMs("SHUTDOWN_FLUSH_TIMEOUT_MS", 5_000);
+
+/** Upper bound on how long shutdown waits for in-flight HTTP requests to finish. */
+const SHUTDOWN_DRAIN_TIMEOUT_MS = shutdownTimeoutMs("SHUTDOWN_DRAIN_TIMEOUT_MS", 10_000);
 
 /** Upper bound on how long shutdown waits for in-progress background sweeps to finish. */
-const SHUTDOWN_MONITOR_STOP_TIMEOUT_MS = 10_000;
+const SHUTDOWN_MONITOR_STOP_TIMEOUT_MS = shutdownTimeoutMs("SHUTDOWN_MONITOR_STOP_TIMEOUT_MS", 10_000);
+
+/**
+ * Test-only fault injection (never active in production): pretend one
+ * background sweep is stuck mid-write for this many ms during shutdown, so the
+ * spawned-server tests can prove the monitor-stop give-up path is real.
+ */
+const SHUTDOWN_STALL_MONITOR_STOP_MS = (() => {
+  const raw = process.env["SHUTDOWN_STALL_MONITOR_STOP_MS"];
+  if (raw && process.env.NODE_ENV !== "production") {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
+})();
 
 /**
  * Grace window between flipping /api/healthz to 503 and closing the listener,
@@ -79,6 +97,8 @@ function stopBackgroundMonitors(timeoutMs: number): Promise<boolean> {
     stopGatewaySilenceMonitor().catch((err) => logger.error({ err }, "Gateway silence monitor stop failed")),
     stopBackupScheduler().catch((err) => logger.error({ err }, "Backup scheduler stop failed")),
     stopPrivilegedSessionSweeper().catch((err) => logger.error({ err }, "Privileged-session sweeper stop failed")),
+    // Test-only fault injection: a simulated sweep stuck mid-database-write.
+    ...(SHUTDOWN_STALL_MONITOR_STOP_MS > 0 ? [delay(SHUTDOWN_STALL_MONITOR_STOP_MS)] : []),
   ]).then(() => true);
   const timeout = new Promise<boolean>((resolve) => {
     const t = setTimeout(() => resolve(false), timeoutMs);
@@ -139,6 +159,15 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
   // still open, so load balancers stop routing new traffic here before we
   // close the socket.
   markShuttingDown();
+  // Test-only fault injection: a simulated deferred write that stays pending
+  // past the flush timeout, proving the flush give-up path.
+  const stallFlushRaw = process.env["SHUTDOWN_STALL_FLUSH_MS"];
+  if (stallFlushRaw && process.env.NODE_ENV !== "production") {
+    const stallFlushMs = Number(stallFlushRaw);
+    if (Number.isFinite(stallFlushMs) && stallFlushMs > 0) {
+      stallDeferredCommandNotificationsForTest(stallFlushMs);
+    }
+  }
   const pending = pendingDeferredCommandNotificationCount();
   logger.info(
     { signal, pendingDeferredNotifications: pending },

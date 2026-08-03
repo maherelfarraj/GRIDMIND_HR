@@ -202,6 +202,21 @@ export async function flushDeferredCommandNotifications(): Promise<void> {
   }
 }
 
+/**
+ * Test-only fault injection (no-op in production): register a fake deferred
+ * write that stays pending for `ms`, so the spawned-server shutdown tests can
+ * prove the flush-timeout give-up path is real.
+ */
+export function stallDeferredCommandNotificationsForTest(ms: number): void {
+  if (process.env.NODE_ENV === "production") return;
+  const p = new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, ms);
+    t.unref?.();
+  });
+  pendingDeferred.add(p);
+  void p.finally(() => pendingDeferred.delete(p));
+}
+
 /** Number of deferred notification writes still in flight (shutdown logging). */
 export function pendingDeferredCommandNotificationCount(): number {
   return pendingDeferred.size;
