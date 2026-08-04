@@ -15,6 +15,11 @@ assertAuthModeSafe();
 
 const app: Express = express();
 
+// Replit serves the app behind a TLS-terminating proxy. Without trusting it,
+// express-session sees the connection as plain HTTP and silently refuses to
+// set the `secure` session cookie in production, so logins never persist.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,

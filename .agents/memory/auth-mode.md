@@ -7,3 +7,6 @@ Rule: session auth in the API is enforced by default. The only opt-out is explic
 **Why:** the flag originally worked the other way (`PILOT_AUTH === "true"` enabled auth), so a missing or typo'd env var in a production deploy silently disabled all authentication; a review also rejected a dev script that auto-supplied the opt-out.
 
 **How to apply:** read the auth mode dynamically at request time (tests toggle env per-suite), never gate new security checks on truthy opt-in flags, and never bake `PILOT_AUTH=false` into launch scripts.
+
+## trust proxy is required in production
+`app.set("trust proxy", 1)` must stay immediately after app construction. Without it, express-session sees plain HTTP behind Replit's TLS proxy and silently never sets the `secure` session cookie in production — logins appear to succeed but no session persists (works fine in dev, breaks only on the published app).
