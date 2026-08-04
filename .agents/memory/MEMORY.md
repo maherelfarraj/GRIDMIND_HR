@@ -11,4 +11,5 @@
 - [Real backup & restore testing](backup-restore.md) — managed PG allows CREATE/DROP DATABASE; restore tests use scratch DBs, with drift tolerance on append-only tables.
 - [Privileged-session audit tagging](audit-session-tagging.md) — audit rows are tagged to break-glass sessions by a DB trigger, not app code; don't add per-write-site tagging.
 - [expo-print web quirk](expo-print-web.md) — web printAsync ignores html; print via hidden iframe, and install Expo modules with `expo install` to match the SDK.
+- [Publish build env detection](publish-build-env.md) — REPLIT_DEPLOYMENT is unset during publish builds; gate pre-build hooks with an explicit `[deployment.build].env` flag.
 - [Alert/recovery transition dedupe](alert-recovery-dedupe.md) — derive alerted state from the audit trail, claim transitions under a row-lock transaction; check-then-insert races fail review.

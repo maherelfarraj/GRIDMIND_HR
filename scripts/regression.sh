@@ -26,8 +26,18 @@ run_suite() {
   fi
 }
 
-run_suite "api-schema-drift" \
-  bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/schema-drift.test.ts src/__tests__/openapi-drift.test.ts"
+if [ -n "${REPLIT_DEPLOYMENT:-}" ] || [ -n "${PUBLISH_BUILD:-}" ]; then
+  # Publish builds run against the production database BEFORE its schema is
+  # synced, so the live-DB schema-drift test would always fail (chicken-and-egg).
+  # Run only the DB-independent OpenAPI drift test here; schema-drift still
+  # runs in the dev regression workflow.
+  echo "==> Publish build detected: skipping live-DB schema-drift test"
+  run_suite "api-openapi-drift" \
+    bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/openapi-drift.test.ts"
+else
+  run_suite "api-schema-drift" \
+    bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/schema-drift.test.ts src/__tests__/openapi-drift.test.ts"
+fi
 
 run_suite "mobile-tests" \
   bash -c "cd '$ROOT/artifacts/mobile' && npx vitest run"

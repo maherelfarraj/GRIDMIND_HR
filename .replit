@@ -9,7 +9,10 @@ deploymentTarget = "autoscale"
 # exit blocks the release; output names each failing suite.
 [deployment.build]
 args = ["bash", "scripts/regression.sh"]
-env = { "CI" = "true" }
+# PUBLISH_BUILD tells regression.sh to skip the live-DB schema-drift test:
+# publish builds run before the production DB schema is synced, so that
+# test always fails there (REPLIT_DEPLOYMENT is not set during builds).
+env = { "CI" = "true", "PUBLISH_BUILD" = "1" }
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
