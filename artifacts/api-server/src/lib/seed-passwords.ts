@@ -93,6 +93,9 @@ function writeOneTimePasswordHandoff(entries: Array<{ username: string; oneTimeP
   );
   // 'wx' = exclusive create: never clobbers another provisioner's handoff.
   fs.writeFileSync(filePath, handoffPayload(entries), { mode: 0o600, flag: "wx" });
+  // Harden to read-only so workspace editors (and other processes) cannot
+  // truncate or overwrite the file; the operator reads then deletes it.
+  fs.chmodSync(filePath, 0o400);
   return filePath;
 }
 
@@ -149,10 +152,24 @@ async function reconcileHandoffFiles(tx: Tx): Promise<void> {
     }
     if (valid.length === entries.length) continue;
     if (valid.length === 0) {
+      // chmod before delete: the file may be 0o400 (read-only); directory
+      // write permission is sufficient on Linux, but be explicit for clarity.
+      try { fs.chmodSync(filePath, 0o600); } catch { /* ignore if already gone */ }
       fs.rmSync(filePath, { force: true });
       logger.warn({ filePath }, "Removed one-time password handoff file with no valid credentials");
     } else {
-      fs.writeFileSync(filePath, handoffPayload(valid), { mode: 0o600 });
+      // Atomic rewrite: write to a sibling tmp file, harden it, then rename
+      // over the original so there is never a 0-byte intermediate state.
+      // If any step fails before rename, the original file is untouched.
+      const tmpPath = filePath + ".tmp";
+      try {
+        fs.writeFileSync(tmpPath, handoffPayload(valid), { mode: 0o600 });
+        fs.chmodSync(tmpPath, 0o400);
+        fs.renameSync(tmpPath, filePath);
+      } catch (err) {
+        try { fs.rmSync(tmpPath, { force: true }); } catch { /* best-effort cleanup */ }
+        throw err;
+      }
       logger.warn(
         { filePath, accounts: valid.map((e) => e.username) },
         "Pruned stale entries from one-time password handoff file",

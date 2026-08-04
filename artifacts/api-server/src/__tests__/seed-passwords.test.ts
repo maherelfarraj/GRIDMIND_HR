@@ -312,7 +312,7 @@ describe("seedDemoPasswords gating", () => {
       expect(handoffFiles.length).toBe(1);
       const handoffPath = path.join(otpDir, handoffFiles[0]!);
       const mode = fs.statSync(handoffPath).mode & 0o777;
-      expect(mode).toBe(0o600);
+      expect(mode).toBe(0o400);
       const handoff = JSON.parse(fs.readFileSync(handoffPath, "utf8"));
       const entry = handoff.accounts.find((a: { username: string }) => a.username === nullAcct.username);
       expect(entry).toBeTruthy();
@@ -413,6 +413,96 @@ describe("seedDemoPasswords gating", () => {
       }
       const matching = otps.filter((otp) => bcrypt.compareSync(otp, now.passwordHash!));
       expect(matching.length).toBe(1);
+    } finally {
+      await restore(before);
+      await restoreMarker(markerBefore);
+      fs.rmSync(otpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("writeOneTimePasswordHandoff creates the file with mode 0o400 (read-only)", async () => {
+    vi.stubEnv("SEED_DEMO_PASSWORDS", "");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DEMO_PILOT_PASSWORD", "");
+    const otpDir = fs.mkdtempSync(path.join(os.tmpdir(), "otp-handoff-mode-"));
+    vi.stubEnv("ONE_TIME_PASSWORD_DIR", otpDir);
+
+    const markerBefore = await markerExists();
+    const before = await snapshot();
+    const target = before[0]!;
+    try {
+      // Ensure the account is NULL-hash so provisioning creates a handoff file.
+      await db
+        .update(systemUsersTable)
+        .set({ passwordHash: null, mustChangePassword: false })
+        .where(eq(systemUsersTable.id, target.id));
+
+      await seedDemoPasswords();
+
+      const files = fs.readdirSync(otpDir).filter((n) => n.startsWith("one-time-passwords-"));
+      expect(files.length).toBeGreaterThanOrEqual(1);
+      for (const f of files) {
+        const mode = fs.statSync(path.join(otpDir, f)).mode & 0o777;
+        expect(mode).toBe(0o400);
+      }
+    } finally {
+      await restore(before);
+      await restoreMarker(markerBefore);
+      fs.rmSync(otpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reconcile rewrite is atomic: on injected rename failure, original content survives intact", async () => {
+    vi.stubEnv("SEED_DEMO_PASSWORDS", "");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DEMO_PILOT_PASSWORD", "");
+    const otpDir = fs.mkdtempSync(path.join(os.tmpdir(), "otp-handoff-atomic-"));
+    vi.stubEnv("ONE_TIME_PASSWORD_DIR", otpDir);
+
+    const markerBefore = await markerExists();
+    const before = await snapshot();
+    const target = before[0]!;
+    try {
+      // Set up a handoff file with one valid entry and one stale entry so
+      // reconcile will attempt a rewrite (valid.length > 0, < entries.length).
+      const validOtp = "Valid-OTP-atomic123";
+      await db
+        .update(systemUsersTable)
+        .set({ passwordHash: await bcrypt.hash(validOtp, 4), mustChangePassword: true })
+        .where(eq(systemUsersTable.id, target.id));
+      const otherUsername = before[1]!.username;
+      const originalContent = JSON.stringify({
+        accounts: [
+          { username: target.username, oneTimePassword: validOtp },
+          { username: otherUsername, oneTimePassword: "Stale-Never-Committed" },
+        ],
+      });
+      const mixedFile = path.join(otpDir, "one-time-passwords-1-atomic.json");
+      fs.writeFileSync(mixedFile, originalContent, { mode: 0o400 });
+
+      // Inject a failure at the rename step.
+      const renameOrig = fs.renameSync.bind(fs);
+      const renameSpy = vi.spyOn(fs, "renameSync").mockImplementationOnce((_src, _dst) => {
+        throw new Error("injected rename failure");
+      });
+
+      try {
+        await expect(seedDemoPasswords()).rejects.toThrow("injected rename failure");
+      } finally {
+        renameSpy.mockRestore();
+        // Restore rename for cleanup calls.
+        void renameOrig; // referenced to satisfy linter
+      }
+
+      // Original file must survive with its full content — no 0-byte intermediate.
+      expect(fs.existsSync(mixedFile)).toBe(true);
+      const surviving = fs.readFileSync(mixedFile, "utf8");
+      const parsed = JSON.parse(surviving);
+      expect(Array.isArray(parsed.accounts)).toBe(true);
+      expect(parsed.accounts.length).toBe(2);
+
+      // No lingering .tmp file either.
+      expect(fs.existsSync(mixedFile + ".tmp")).toBe(false);
     } finally {
       await restore(before);
       await restoreMarker(markerBefore);
