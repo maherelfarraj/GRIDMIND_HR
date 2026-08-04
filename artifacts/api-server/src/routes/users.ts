@@ -157,8 +157,13 @@ router.get("/users/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/users/:id", async (req, res): Promise<void> => {
-  // Demo mode: default to admin (userId=1) when no session is present.
-  // In production, enforce real session middleware before this guard.
+  // Admin-only: account fields (email, names, role, active) must not be
+  // editable by non-admin sessions calling the API directly.
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) {
+    res.status(403).json({ error: "Insufficient privileges to update users" });
+    return;
+  }
   const id = parseId(req.params.id);
   const parsed = UpdateUserBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }

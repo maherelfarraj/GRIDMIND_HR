@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Server, Search, Shield, UserCog, MoreHorizontal, KeyRound, Lock, LockOpen, Ticket, Copy, Check, Hourglass } from 'lucide-react';
+import { Server, Search, Shield, UserCog, MoreHorizontal, KeyRound, Lock, LockOpen, Ticket, Copy, Check, Hourglass, Pencil } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getPasswordIssues, PASSWORD_REQUIREMENTS_EN, PASSWORD_REQUIREMENTS_AR } from '@workspace/api-zod';
@@ -96,6 +96,45 @@ export default function Users() {
     } catch {
       toast({ title: t('Could not copy — select and copy manually', 'تعذر النسخ — حدد وانسخ يدويًا'), variant: 'destructive' });
     }
+  };
+
+  // --- Edit user (email / names) ---------------------------------------
+  const [editTarget, setEditTarget] = useState<{ id: number; name: string } | null>(null);
+  const [editEmail, setEditEmail] = useState('');
+  const [editNameEn, setEditNameEn] = useState('');
+  const [editNameAr, setEditNameAr] = useState('');
+
+  const openEditDialog = (user: { id: number; email: string; fullNameEn: string; fullNameAr: string }) => {
+    setEditTarget({ id: user.id, name: lang === 'en' ? user.fullNameEn : user.fullNameAr });
+    setEditEmail(user.email);
+    setEditNameEn(user.fullNameEn);
+    setEditNameAr(user.fullNameAr);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editTarget) return;
+    const email = editEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({ title: t('Invalid email address', 'عنوان البريد الإلكتروني غير صالح'), variant: 'destructive' });
+      return;
+    }
+    if (!editNameEn.trim() || !editNameAr.trim()) {
+      toast({ title: t('Name cannot be empty', 'لا يمكن ترك الاسم فارغاً'), variant: 'destructive' });
+      return;
+    }
+    updateUser.mutate(
+      { id: editTarget.id, data: { email, fullNameEn: editNameEn.trim(), fullNameAr: editNameAr.trim() } },
+      {
+        onSuccess: () => {
+          toast({ title: t('User updated', 'تم تحديث المستخدم'), description: t(`Changes saved for ${editTarget.name}.`, `تم حفظ التغييرات لـ ${editTarget.name}.`) });
+          setEditTarget(null);
+          queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+        },
+        onError: () => {
+          toast({ title: t('Failed to update user', 'فشل تحديث المستخدم'), variant: 'destructive' });
+        },
+      },
+    );
   };
 
   const [passwordTarget, setPasswordTarget] = useState<{ id: number; name: string } | null>(null);
@@ -270,6 +309,10 @@ export default function Users() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openEditDialog(user)} data-testid={`menu-edit-user-${user.id}`}>
+                            <Pencil className="w-4 h-4 me-2" />
+                            {t('Edit User', 'تعديل المستخدم')}
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setPasswordTarget({ id: user.id, name: lang === 'en' ? user.fullNameEn : user.fullNameAr })}>
                             <KeyRound className="w-4 h-4 me-2" />
                             {t('Set Password', 'تعيين كلمة المرور')}
@@ -297,6 +340,37 @@ export default function Users() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={editTarget !== null} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('Edit User', 'تعديل المستخدم')}</DialogTitle>
+            <DialogDescription>
+              {editTarget && t(`Update account details for ${editTarget.name}. Changes take effect immediately.`, `تحديث بيانات الحساب لـ ${editTarget.name}. تسري التغييرات فوراً.`)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">{t('Email', 'البريد الإلكتروني')}</Label>
+              <Input id="edit-email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} data-testid="input-edit-email" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-name-en">{t('Full Name (English)', 'الاسم الكامل (إنجليزي)')}</Label>
+              <Input id="edit-name-en" value={editNameEn} onChange={(e) => setEditNameEn(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-name-ar">{t('Full Name (Arabic)', 'الاسم الكامل (عربي)')}</Label>
+              <Input id="edit-name-ar" dir="rtl" value={editNameAr} onChange={(e) => setEditNameAr(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>{t('Cancel', 'إلغاء')}</Button>
+            <Button onClick={handleSaveEdit} disabled={updateUser.isPending} data-testid="button-save-edit-user">
+              {updateUser.isPending ? t('Saving...', 'جارٍ الحفظ...') : t('Save Changes', 'حفظ التغييرات')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={passwordTarget !== null} onOpenChange={(open) => { if (!open) closePasswordDialog(); }}>
         <DialogContent>
