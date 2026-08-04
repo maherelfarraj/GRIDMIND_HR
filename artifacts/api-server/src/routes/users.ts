@@ -133,9 +133,13 @@ router.get("/users", async (req, res): Promise<void> => {
   res.json(result);
 });
 
+// POST /users — create a new system user account (Super Administrator only).
 router.post("/users", async (req, res): Promise<void> => {
-  // Demo mode: default to admin (userId=1) when no session is present.
-  // In production, enforce real session middleware before this guard.
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) {
+    res.status(403).json({ error: "Insufficient privileges to create users" });
+    return;
+  }
   const parsed = CreateUserBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [user] = await db.insert(systemUsersTable).values(parsed.data).returning();

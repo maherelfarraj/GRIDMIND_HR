@@ -7,12 +7,17 @@
  *   - GET /users        → Super Administrator only (account enumeration).
  *   - GET /users/:id    → self, or Super Administrator for other records
  *                         (mobile uses the self read to learn its role).
+ *   - POST /users       → Super Administrator only (account creation).
+ *   - PATCH /users/:id  → Super Administrator only (field updates).
+ *   - POST /users/:id/password         → Super Administrator only.
+ *   - POST /users/:id/one-time-password → Super Administrator only.
+ *   - POST /users/:id/unlock           → Super Administrator only.
  *   - Unauthenticated requests are rejected outright.
  *
  * Runs under PILOT_AUTH=true so sessions are real. Fixtures are
  * self-cleaning.
  */
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import request from "supertest";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
@@ -208,5 +213,208 @@ describe("PATCH /api/users/:id authorization", () => {
       .send({ fullNameEn: "Also Should Not Apply" });
     expect(unauth.status).toBe(401);
     expect(unauth.body.passwordHash).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/users — account creation
+// ---------------------------------------------------------------------------
+
+const CREATED_USER_IDS: number[] = [];
+
+afterEach(async () => {
+  // Clean up any users created by POST /users tests.
+  for (const id of CREATED_USER_IDS.splice(0)) {
+    await db.delete(systemUsersTable).where(eq(systemUsersTable.id, id)).catch(() => {});
+  }
+});
+
+function newUserPayload(label: string) {
+  return {
+    username: `create-test-${label}-${SUFFIX}`,
+    email: `create-test-${label}-${SUFFIX}@test.example`,
+    fullNameEn: "Create Test",
+    fullNameAr: "اختبار",
+    roleId: 5,
+    isActive: true,
+    preferredLanguage: "en",
+  };
+}
+
+describe("POST /api/users authorization", () => {
+  it("rejects unauthenticated requests with 401 and does not create a user", async () => {
+    const payload = newUserPayload("unauth");
+    const res = await request(app).post("/api/users").send(payload);
+    expect(res.status).toBe(401);
+
+    // Confirm no row was created.
+    const rows = await db
+      .select()
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.username, payload.username));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("rejects non-admin sessions with 403 and does not create a user", async () => {
+    const payload = newUserPayload("nonadmin");
+    const agent = await loggedInAgent(NONADMIN_USERNAME, NONADMIN_PASSWORD);
+    const res = await agent.post("/api/users").send(payload);
+    expect(res.status).toBe(403);
+
+    // Confirm no row was created.
+    const rows = await db
+      .select()
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.username, payload.username));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("allows Super Administrator to create a user and returns 201", async () => {
+    const payload = newUserPayload("admin");
+    const agent = await loggedInAgent(ADMIN_USERNAME, ADMIN_PASSWORD);
+    const res = await agent.post("/api/users").send(payload);
+    expect(res.status).toBe(201);
+    expect(res.body.username).toBe(payload.username);
+    expect(res.body.passwordHash).toBeUndefined();
+
+    // Track the created ID so afterEach can remove it.
+    CREATED_USER_IDS.push(res.body.id as number);
+
+    // Confirm the row exists in the DB.
+    const rows = await db
+      .select()
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.id, res.body.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].username).toBe(payload.username);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/users/:id/password — admin-initiated password reset
+// ---------------------------------------------------------------------------
+
+const STRONG_PASSWORD = "TestReset999!";
+
+describe("POST /api/users/:id/password authorization", () => {
+  it("rejects unauthenticated requests with 401", async () => {
+    const res = await request(app)
+      .post(`/api/users/${patchTargetId}/password`)
+      .send({ password: STRONG_PASSWORD });
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects non-admin sessions with 403 and leaves the password hash unchanged", async () => {
+    const [before] = await db
+      .select()
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.id, patchTargetId));
+
+    const agent = await loggedInAgent(NONADMIN_USERNAME, NONADMIN_PASSWORD);
+    const res = await agent
+      .post(`/api/users/${patchTargetId}/password`)
+      .send({ password: STRONG_PASSWORD });
+    expect(res.status).toBe(403);
+
+    const [after] = await db
+      .select()
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.id, patchTargetId));
+    expect(after.passwordHash).toBe(before.passwordHash);
+  });
+
+  it("allows Super Administrator to reset a password", async () => {
+    const [before] = await db
+      .select()
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.id, patchTargetId));
+
+    const agent = await loggedInAgent(ADMIN_USERNAME, ADMIN_PASSWORD);
+    const res = await agent
+      .post(`/api/users/${patchTargetId}/password`)
+      .send({ password: STRONG_PASSWORD });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    // The stored hash must have changed.
+    const [after] = await db
+      .select()
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.id, patchTargetId));
+    expect(after.passwordHash).not.toBe(before.passwordHash);
+    // mustChangePassword must be set so the user is forced to pick a new one.
+    expect(after.mustChangePassword).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/users/:id/one-time-password — OTP issuance
+// ---------------------------------------------------------------------------
+
+describe("POST /api/users/:id/one-time-password authorization", () => {
+  it("rejects unauthenticated requests with 401", async () => {
+    const res = await request(app).post(`/api/users/${patchTargetId}/one-time-password`);
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects non-admin sessions with 403 and does not change the password hash", async () => {
+    const [before] = await db
+      .select()
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.id, patchTargetId));
+
+    const agent = await loggedInAgent(NONADMIN_USERNAME, NONADMIN_PASSWORD);
+    const res = await agent.post(`/api/users/${patchTargetId}/one-time-password`);
+    expect(res.status).toBe(403);
+
+    const [after] = await db
+      .select()
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.id, patchTargetId));
+    expect(after.passwordHash).toBe(before.passwordHash);
+  });
+
+  it("allows Super Administrator to issue an OTP and returns the plaintext exactly once", async () => {
+    const agent = await loggedInAgent(ADMIN_USERNAME, ADMIN_PASSWORD);
+    const res = await agent.post(`/api/users/${patchTargetId}/one-time-password`);
+    expect(res.status).toBe(200);
+
+    // The response must contain the one-time password — it is never stored
+    // or sent again.
+    expect(typeof res.body.oneTimePassword).toBe("string");
+    expect(res.body.oneTimePassword.length).toBeGreaterThan(0);
+    expect(res.body.username).toBe(PATCH_TARGET_USERNAME);
+    expect(res.body.mustChangePassword).toBe(true);
+
+    // The DB row must reflect mustChangePassword = true.
+    const [row] = await db
+      .select()
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.id, patchTargetId));
+    expect(row.mustChangePassword).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/users/:id/unlock — account unlock
+// ---------------------------------------------------------------------------
+
+describe("POST /api/users/:id/unlock authorization", () => {
+  it("rejects unauthenticated requests with 401", async () => {
+    const res = await request(app).post(`/api/users/${patchTargetId}/unlock`);
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects non-admin sessions with 403", async () => {
+    const agent = await loggedInAgent(NONADMIN_USERNAME, NONADMIN_PASSWORD);
+    const res = await agent.post(`/api/users/${patchTargetId}/unlock`);
+    expect(res.status).toBe(403);
+  });
+
+  it("allows Super Administrator to unlock an account", async () => {
+    const agent = await loggedInAgent(ADMIN_USERNAME, ADMIN_PASSWORD);
+    const res = await agent.post(`/api/users/${patchTargetId}/unlock`);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
   });
 });
