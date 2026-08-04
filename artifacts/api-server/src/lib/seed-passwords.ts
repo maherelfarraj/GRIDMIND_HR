@@ -116,6 +116,26 @@ async function reconcileHandoffFiles(tx: Tx): Promise<void> {
   const dir = handoffDir();
   if (!fs.existsSync(dir)) return;
 
+  // Sweep orphaned *.tmp files left by a crash between write and rename.
+  // They are never valid handoff files (the rename never completed), so
+  // remove them unconditionally. Credential contents are NEVER logged —
+  // we only log the path.
+  for (const name of fs.readdirSync(dir)) {
+    if (!name.endsWith(".tmp")) continue;
+    const tmpPath = path.join(dir, name);
+    try {
+      fs.chmodSync(tmpPath, 0o600);
+    } catch {
+      /* ignore — file may already be writable or gone */
+    }
+    try {
+      fs.rmSync(tmpPath, { force: true });
+      logger.warn({ tmpPath }, "Removed orphaned credential tmp file left by a previous crash");
+    } catch {
+      /* best-effort; leave for operator inspection if undeletable */
+    }
+  }
+
   const users = await tx
     .select({
       username: systemUsersTable.username,

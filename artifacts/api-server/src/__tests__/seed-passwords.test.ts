@@ -510,6 +510,72 @@ describe("seedDemoPasswords gating", () => {
     }
   });
 
+  it("in production, reconcile sweeps orphaned *.tmp files and never reads them as handoff files", async () => {
+    vi.stubEnv("SEED_DEMO_PASSWORDS", "");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DEMO_PILOT_PASSWORD", "");
+    const otpDir = fs.mkdtempSync(path.join(os.tmpdir(), "otp-handoff-tmpclean-"));
+    vi.stubEnv("ONE_TIME_PASSWORD_DIR", otpDir);
+
+    const markerBefore = await markerExists();
+    const before = await snapshot();
+    const target = before[0]!;
+    try {
+      // Arrange: leave an orphaned .tmp file as if the server crashed between
+      // writeFileSync and renameSync. The file has the expected prefix and
+      // plausible credential-like content so we can confirm it is never
+      // parsed or treated as a valid handoff.
+      const orphanTmp = path.join(otpDir, "one-time-passwords-0000-deadbeef.json.tmp");
+      fs.writeFileSync(
+        orphanTmp,
+        JSON.stringify({
+          accounts: [{ username: target.username, oneTimePassword: "Orphan-OTP-should-be-ignored" }],
+        }),
+        { mode: 0o600 },
+      );
+
+      // Also ensure at least one real account needs work so reconcile actually
+      // runs (NULL-hash triggers the provisioning + reconcile path).
+      await db
+        .update(systemUsersTable)
+        .set({ passwordHash: null, mustChangePassword: false })
+        .where(eq(systemUsersTable.id, target.id));
+
+      await seedDemoPasswords();
+
+      // Orphaned .tmp file must have been removed.
+      expect(fs.existsSync(orphanTmp)).toBe(false);
+
+      // The account must have received a proper random OTP, not the orphaned one.
+      const after = await snapshot();
+      const now = after.find((a) => a.id === target.id)!;
+      expect(now.passwordHash).toBeTruthy();
+      expect(bcrypt.compareSync("Orphan-OTP-should-be-ignored", now.passwordHash!)).toBe(false);
+      expect(now.mustChangePassword).toBe(true);
+
+      // The real handoff file must exist and hold a valid, matching OTP.
+      const handoffFiles = fs.readdirSync(otpDir).filter((n) => n.endsWith(".json"));
+      expect(handoffFiles.length).toBeGreaterThanOrEqual(1);
+      let foundMatchingOtp = false;
+      for (const f of handoffFiles) {
+        const parsed = JSON.parse(fs.readFileSync(path.join(otpDir, f), "utf8"));
+        for (const entry of parsed.accounts ?? []) {
+          if (
+            entry.username === target.username &&
+            bcrypt.compareSync(entry.oneTimePassword, now.passwordHash!)
+          ) {
+            foundMatchingOtp = true;
+          }
+        }
+      }
+      expect(foundMatchingOtp).toBe(true);
+    } finally {
+      await restore(before);
+      await restoreMarker(markerBefore);
+      fs.rmSync(otpDir, { recursive: true, force: true });
+    }
+  });
+
   it("does nothing when DEMO_PILOT_PASSWORD is not provided", async () => {
     vi.stubEnv("SEED_DEMO_PASSWORDS", "true");
     vi.stubEnv("NODE_ENV", "development");
