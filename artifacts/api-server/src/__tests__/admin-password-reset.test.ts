@@ -137,6 +137,84 @@ describe("forceAdminPasswordReset", () => {
     expect(admin.passwordHash).toBe(hashAfter);
   });
 
+  it("ADMIN_RESET_PASSWORD branch: revokes planted session, audit row has correct source metadata and no credential, supplied password never appears in logs", async () => {
+    vi.stubEnv("FORCE_ADMIN_PASSWORD_RESET", "true");
+    await db
+      .update(systemUsersTable)
+      .set({ mustChangePassword: false })
+      .where(eq(systemUsersTable.id, saved.id));
+
+    const strong = "Operator-SuppliedRecovery-7!z";
+    vi.stubEnv("ADMIN_RESET_PASSWORD", strong);
+
+    // Plant a session that must be revoked by the reset.
+    const sid = `test-areset-${Date.now()}`;
+    await db.execute(
+      sql`INSERT INTO "session" (sid, sess, expire) VALUES (${sid}, ${JSON.stringify({ userId: saved.id })}::json, now() + interval '1 hour')`,
+    );
+
+    // Capture output from all log levels to check for credential leaks.
+    const logged: string[] = [];
+    const captureLog = ((...args: unknown[]) => {
+      logged.push(JSON.stringify(args));
+    }) as never;
+    const spyWarn = vi.spyOn(logger, "warn").mockImplementation(captureLog);
+    const spyError = vi.spyOn(logger, "error").mockImplementation(captureLog);
+    const spyInfo = vi.spyOn(logger, "info").mockImplementation(captureLog);
+
+    // Capture high-water audit id before the reset.
+    const [{ maxId }] = await db
+      .select({ maxId: sql<number>`COALESCE(MAX(id), 0)` })
+      .from(auditLogsTable);
+
+    try {
+      expect(await forceAdminPasswordReset()).toBe(true);
+
+      // 1. Planted session must be dead.
+      const sessionRows = await db.execute(sql`SELECT sid FROM "session" WHERE sid = ${sid}`);
+      expect((sessionRows as { rows: unknown[] }).rows ?? sessionRows).toHaveLength(0);
+
+      // 2. Audit row: correct source field, non-negative revokedSessions, no credential material.
+      const auditRows = await db
+        .select()
+        .from(auditLogsTable)
+        .where(
+          sql`${auditLogsTable.action} = 'admin.emergency_password_reset'
+              AND ${auditLogsTable.id} > ${maxId}`,
+        )
+        .orderBy(desc(auditLogsTable.id));
+
+      expect(auditRows).toHaveLength(1);
+      const row = auditRows[0];
+      expect(row.actorUserId).toBeNull();
+      expect(row.entityType).toBe("system_user");
+      expect(row.entityId).toBe(saved.id);
+      expect(row.entityLabel).toBe("admin");
+
+      const detail = JSON.parse(row.changesJson ?? "{}") as Record<string, unknown>;
+      expect(detail.trigger).toBe("FORCE_ADMIN_PASSWORD_RESET");
+      // The supplied-password branch must write source: "ADMIN_RESET_PASSWORD".
+      expect(detail.source).toBe("ADMIN_RESET_PASSWORD");
+      expect(detail.mustChangePassword).toBe(true);
+      expect(typeof detail.revokedSessions).toBe("number");
+      // We planted exactly one session; at least 1 must be reported revoked.
+      expect(detail.revokedSessions as number).toBeGreaterThanOrEqual(1);
+      // No credential material in the audit detail.
+      expect(row.changesJson).not.toContain(strong);
+
+      // 3. The supplied password must not appear in any captured log line.
+      expect(logged.join("\n")).not.toContain(strong);
+
+      // No handoff file should exist — the supplied-password branch skips it.
+      expect(handoffFiles()).toHaveLength(0);
+    } finally {
+      spyWarn.mockRestore();
+      spyError.mockRestore();
+      spyInfo.mockRestore();
+      await db.execute(sql`DELETE FROM "session" WHERE sid = ${sid}`);
+    }
+  });
+
   it("writes an audit row (system actor, no credential) on successful reset", async () => {
     vi.stubEnv("FORCE_ADMIN_PASSWORD_RESET", "true");
     await db
