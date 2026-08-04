@@ -38,6 +38,7 @@ import { db, systemUsersTable, systemConfigTable } from "@workspace/db";
 import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { generateOneTimePassword } from "./oneTimePassword";
+import { revokeUserSessions } from "./sessionRevocation.js";
 
 /** Transaction handle type compatible with `db` for the queries we run. */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -322,6 +323,106 @@ async function hardenLocked(tx: Tx): Promise<number> {
   }
 
   return changed;
+}
+
+/**
+ * Operator-triggered admin password recovery.
+ *
+ * When the FORCE_ADMIN_PASSWORD_RESET env flag is "true" at boot, the admin
+ * account's password is rotated to a cryptographically random one-time
+ * password delivered via the operator-only 0600 handoff file (same protocol
+ * as production bootstrap provisioning: file written FIRST, hash committed
+ * after, never logged). The account is flagged must_change_password.
+ *
+ * Idempotence: repeated boots with the flag still set do NOT rotate again
+ * as long as a still-valid one-time password for the admin exists in a
+ * handoff file (verified against the live hash — the generic
+ * must_change_password flag alone is NOT trusted, since other flows set it
+ * and the file may have been deleted; in that case we rotate anyway rather
+ * than leave the operator locked out). After recovering, unset the flag.
+ *
+ * All existing admin sessions are revoked in the same transaction — a
+ * recovery reset must not leave possibly-compromised sessions alive.
+ */
+export async function forceAdminPasswordReset(): Promise<boolean> {
+  if (process.env.FORCE_ADMIN_PASSWORD_RESET !== "true") return false;
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${HARDENING_LOCK_KEY})`);
+
+    const [admin] = await tx
+      .select({
+        id: systemUsersTable.id,
+        username: systemUsersTable.username,
+        passwordHash: systemUsersTable.passwordHash,
+        mustChangePassword: systemUsersTable.mustChangePassword,
+      })
+      .from(systemUsersTable)
+      .where(eq(systemUsersTable.username, "admin"));
+    if (!admin) {
+      logger.error("FORCE_ADMIN_PASSWORD_RESET is set but no 'admin' account exists — nothing reset");
+      return false;
+    }
+
+    // Pending-reset detection must be reset-specific: skip only when a
+    // handoff file still holds an OTP that verifies against the live hash.
+    if (admin.mustChangePassword && admin.passwordHash !== null) {
+      const hasValidHandoff = await handoffHasValidEntry(admin.username, admin.passwordHash);
+      if (hasValidHandoff) {
+        logger.warn(
+          "FORCE_ADMIN_PASSWORD_RESET is set but a pending admin reset is already outstanding — not rotating again. Retrieve the one-time password from the operator handoff file, then unset the flag.",
+        );
+        return false;
+      }
+    }
+
+    const oneTimePassword = generateOneTimePassword();
+    const hash = await bcrypt.hash(oneTimePassword, 10);
+
+    // Handoff file FIRST: if it cannot be written, no hash is committed and
+    // the current (known) password keeps working — never a lockout.
+    const filePath = writeOneTimePasswordHandoff([{ username: admin.username, oneTimePassword }]);
+
+    await tx
+      .update(systemUsersTable)
+      .set({ passwordHash: hash, mustChangePassword: true })
+      .where(eq(systemUsersTable.id, admin.id));
+
+    // Atomic with the credential change: retained sessions die with the
+    // reset, or the whole reset rolls back.
+    await revokeUserSessions(tx, admin.id);
+
+    logger.warn(
+      { filePath },
+      "Admin password reset: a random one-time password was written to the operator-only handoff file (0600). Sign in with it once, set a new password, delete the file, and unset FORCE_ADMIN_PASSWORD_RESET.",
+    );
+    return true;
+  });
+}
+
+/** True if any handoff file holds an OTP for `username` matching `passwordHash`. */
+async function handoffHasValidEntry(username: string, passwordHash: string): Promise<boolean> {
+  const dir = handoffDir();
+  if (!fs.existsSync(dir)) return false;
+  for (const name of fs.readdirSync(dir)) {
+    if (!name.startsWith("one-time-passwords-") || !name.endsWith(".json")) continue;
+    let parsed: { accounts?: Array<{ username: string; oneTimePassword: string }> };
+    try {
+      parsed = JSON.parse(fs.readFileSync(path.join(dir, name), "utf8"));
+    } catch {
+      continue;
+    }
+    for (const entry of parsed.accounts ?? []) {
+      if (
+        entry.username === username &&
+        typeof entry.oneTimePassword === "string" &&
+        (await bcrypt.compare(entry.oneTimePassword, passwordHash))
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 export async function seedDemoPasswords(): Promise<number> {

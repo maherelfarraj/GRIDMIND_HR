@@ -10,7 +10,7 @@ import {
 } from "./lib/deviceCommandNotifications";
 import { startBackupScheduler, stopBackupScheduler } from "./lib/backupScheduler";
 import { startPrivilegedSessionSweeper, stopPrivilegedSessionSweeper } from "./lib/privilegedSessionSweeper";
-import { seedDemoPasswords } from "./lib/seed-passwords";
+import { seedDemoPasswords, forceAdminPasswordReset } from "./lib/seed-passwords";
 import { rotateLegacyGatewayKeys, rewrapGatewayKeysForPepperRotation, getPepperRotationStatus, sweepUnusableGatewayCredentials } from "./routes/attendanceGateway";
 import { runStartupMigrations } from "./lib/startupMigrations";
 import { markShuttingDown } from "./lib/shutdownState";
@@ -223,6 +223,7 @@ async function main() {
     // the listener is never opened.
     try {
       await seedDemoPasswords();
+      await forceAdminPasswordReset();
     } catch (err) {
       logger.error({ err }, "Production credential hardening failed — aborting startup; the listener was not opened");
       process.exit(1);
@@ -251,6 +252,9 @@ async function main() {
       // Dev/demo provisioning is best-effort and non-blocking.
       seedDemoPasswords().catch((err) => {
         logger.error({ err }, "Failed to provision demo password hashes");
+      });
+      forceAdminPasswordReset().catch((err) => {
+        logger.error({ err }, "Admin password reset at boot failed");
       });
     }
     rotateLegacyGatewayKeys()
