@@ -87,4 +87,3 @@ channel = "stable-25_05"
 [userenv.development]
 
 [userenv.shared]
-FORCE_ADMIN_PASSWORD_RESET = "true"
