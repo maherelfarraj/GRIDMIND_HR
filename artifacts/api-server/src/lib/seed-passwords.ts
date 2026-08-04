@@ -497,6 +497,7 @@ export async function forceAdminPasswordReset(): Promise<boolean> {
       entityLabel: admin.username,
       changesJson: JSON.stringify({
         trigger: "FORCE_ADMIN_PASSWORD_RESET",
+        source: "OTP_HANDOFF_FILE",
         mustChangePassword: true,
         revokedSessions,
       }),

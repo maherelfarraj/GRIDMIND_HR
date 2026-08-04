@@ -249,6 +249,8 @@ describe("forceAdminPasswordReset", () => {
 
     const detail = JSON.parse(row.changesJson ?? "{}");
     expect(detail.trigger).toBe("FORCE_ADMIN_PASSWORD_RESET");
+    // The OTP handoff path must always carry source: "OTP_HANDOFF_FILE".
+    expect(detail.source).toBe("OTP_HANDOFF_FILE");
     expect(detail.mustChangePassword).toBe(true);
     // revokedSessions is a non-negative integer (the seeded DB may or may not
     // have live sessions).

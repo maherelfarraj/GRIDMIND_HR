@@ -4,11 +4,48 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Shield, Search, Lock } from 'lucide-react';
+import { Shield, Search, Lock, KeyRound, FileKey } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
+const RECOVERY_METHOD_LABELS: Record<string, { en: string; ar: string; icon: React.ReactNode }> = {
+  ADMIN_RESET_PASSWORD: {
+    en: 'Operator-supplied password',
+    ar: 'كلمة مرور يوفرها المشغّل',
+    icon: <KeyRound className="w-3 h-3" />,
+  },
+  OTP_HANDOFF_FILE: {
+    en: 'OTP handoff file',
+    ar: 'ملف تسليم كلمة المرور',
+    icon: <FileKey className="w-3 h-3" />,
+  },
+};
+
+function EmergencyResetDetail({ changesJson, lang }: { changesJson: string | null; lang: 'en' | 'ar' }) {
+  if (!changesJson) return null;
+  let detail: Record<string, unknown>;
+  try {
+    detail = JSON.parse(changesJson);
+  } catch {
+    return null;
+  }
+  const source = typeof detail.source === 'string' ? detail.source : null;
+  if (!source) return null;
+  const label = RECOVERY_METHOD_LABELS[source];
+  if (!label) return (
+    <Badge variant="outline" className="font-sans text-[10px] rounded-sm border-transparent bg-muted ms-2">
+      {source}
+    </Badge>
+  );
+  return (
+    <Badge variant="outline" className="font-sans text-[10px] rounded-sm border-transparent bg-violet-500/10 text-violet-600 ms-2 gap-1">
+      {label.icon}
+      {lang === 'ar' ? label.ar : label.en}
+    </Badge>
+  );
+}
+
 export default function Audit() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { data: auditData, isLoading } = useListAuditLogs();
 
   return (
@@ -32,7 +69,7 @@ export default function Audit() {
         <CardHeader className="py-4 border-b">
           <div className="relative max-w-sm">
             <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
+            <Input
               placeholder={t('Search by user, entity, or action...', 'البحث حسب المستخدم، الكيان، أو الإجراء...')}
               className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
             />
@@ -77,15 +114,21 @@ export default function Audit() {
                       {log.actorUserName || 'SYSTEM'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={`font-mono text-[10px] uppercase rounded-sm border-transparent
-                        ${log.action === 'CREATE' ? 'bg-emerald-500/10 text-emerald-500' : 
-                          log.action === 'UPDATE' ? 'bg-blue-500/10 text-blue-500' : 
-                          log.action === 'DELETE' ? 'bg-red-500/10 text-red-500' : 
-                          log.action === 'login.failed' ? 'bg-amber-500/10 text-amber-500' : 
-                          log.action === 'login.lockout' ? 'bg-red-500/10 text-red-500' : 'bg-muted'}
-                      `}>
-                        {log.action}
-                      </Badge>
+                      <div className="flex items-center flex-wrap gap-1">
+                        <Badge variant="outline" className={`font-mono text-[10px] uppercase rounded-sm border-transparent
+                          ${log.action === 'CREATE' ? 'bg-emerald-500/10 text-emerald-500' :
+                            log.action === 'UPDATE' ? 'bg-blue-500/10 text-blue-500' :
+                            log.action === 'DELETE' ? 'bg-red-500/10 text-red-500' :
+                            log.action === 'login.failed' ? 'bg-amber-500/10 text-amber-500' :
+                            log.action === 'login.lockout' ? 'bg-red-500/10 text-red-500' :
+                            log.action === 'admin.emergency_password_reset' ? 'bg-red-500/10 text-red-600' : 'bg-muted'}
+                        `}>
+                          {log.action}
+                        </Badge>
+                        {log.action === 'admin.emergency_password_reset' && (
+                          <EmergencyResetDetail changesJson={log.changesJson ?? null} lang={lang} />
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <span className="text-muted-foreground uppercase">{log.entityType}</span>
