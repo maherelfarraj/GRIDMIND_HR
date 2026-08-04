@@ -29,7 +29,11 @@ function EmergencyResetDetail({ changesJson, lang }: { changesJson: string | nul
     return null;
   }
   const source = typeof detail.source === 'string' ? detail.source : null;
-  if (!source) return null;
+  if (!source) return (
+    <Badge variant="outline" className="font-sans text-[10px] rounded-sm border-transparent bg-muted text-muted-foreground ms-2">
+      {lang === 'ar' ? 'مُسجَّل قبل تتبع الطريقة' : 'Recorded before method tracking'}
+    </Badge>
+  );
   const label = RECOVERY_METHOD_LABELS[source];
   if (!label) return (
     <Badge variant="outline" className="font-sans text-[10px] rounded-sm border-transparent bg-muted ms-2">
