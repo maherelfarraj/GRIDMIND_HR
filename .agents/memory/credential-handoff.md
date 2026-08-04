@@ -10,3 +10,6 @@ Principles:
 - Security hardening must not depend on an optional env var being set; gate one-time passes with a persisted marker instead.
 
 **Why:** each of these was a review-blocking security finding in this project's production credential provisioning.
+
+## Verifying operator-set secrets
+Never trust that a user saved secrets via the Publishing UI — twice the "Production app secrets" entries were never actually persisted, so publishes booted without them and the recovery silently no-oped. Always verify with `viewEnvVars({ environment: "production" })`, and prefer setting non-secret flags via `setEnvVars` + `requestSecrets` (shared scope reaches production) instead of walking the user through the UI.
