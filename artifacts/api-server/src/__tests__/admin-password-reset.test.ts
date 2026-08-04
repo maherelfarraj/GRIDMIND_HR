@@ -94,7 +94,8 @@ describe("forceAdminPasswordReset", () => {
       expect(await bcrypt.compare(otp, admin.passwordHash!)).toBe(true);
       // File permissions: operator-only.
       const [name] = handoffFiles();
-      expect(fs.statSync(path.join(tmpDir, name)).mode & 0o777).toBe(0o600);
+      // Task "protect handoff files from editor wipes" made these read-only.
+      expect(fs.statSync(path.join(tmpDir, name)).mode & 0o777).toBe(0o400);
       // Session revoked atomically.
       const rows = await db.execute(sql`SELECT sid FROM "session" WHERE sid = ${sid}`);
       expect((rows as { rows: unknown[] }).rows ?? rows).toHaveLength(0);
@@ -104,6 +105,36 @@ describe("forceAdminPasswordReset", () => {
       spy.mockRestore();
       await db.execute(sql`DELETE FROM "session" WHERE sid = ${sid}`);
     }
+  });
+
+  it("uses ADMIN_RESET_PASSWORD when set: no handoff file, must_change flagged, weak values refused, idempotent", async () => {
+    vi.stubEnv("FORCE_ADMIN_PASSWORD_RESET", "true");
+    await db
+      .update(systemUsersTable)
+      .set({ mustChangePassword: false })
+      .where(eq(systemUsersTable.id, saved.id));
+
+    // Weak value → refused, nothing changes.
+    vi.stubEnv("ADMIN_RESET_PASSWORD", "weak");
+    expect(await forceAdminPasswordReset()).toBe(false);
+    let admin = await getAdmin();
+    expect(admin.passwordHash).toBe(saved.passwordHash);
+    expect(admin.mustChangePassword).toBe(false);
+
+    // Strong value → applied, no handoff file written, must_change flagged.
+    const strong = "Operator-Chosen-Recovery-9!x";
+    vi.stubEnv("ADMIN_RESET_PASSWORD", strong);
+    expect(await forceAdminPasswordReset()).toBe(true);
+    admin = await getAdmin();
+    expect(admin.mustChangePassword).toBe(true);
+    expect(await bcrypt.compare(strong, admin.passwordHash!)).toBe(true);
+    expect(handoffFiles()).toHaveLength(0);
+
+    // Second boot with the same value → skip, hash unchanged.
+    const hashAfter = admin.passwordHash;
+    expect(await forceAdminPasswordReset()).toBe(false);
+    admin = await getAdmin();
+    expect(admin.passwordHash).toBe(hashAfter);
   });
 
   it("writes an audit row (system actor, no credential) on successful reset", async () => {

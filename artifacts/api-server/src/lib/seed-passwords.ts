@@ -35,6 +35,7 @@ import fs from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
 import { db, systemUsersTable, systemConfigTable, auditLogsTable } from "@workspace/db";
+import { getPasswordIssues } from "@workspace/api-zod";
 import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { generateOneTimePassword } from "./oneTimePassword";
@@ -380,6 +381,16 @@ async function hardenLocked(tx: Tx): Promise<number> {
  *
  * All existing admin sessions are revoked in the same transaction — a
  * recovery reset must not leave possibly-compromised sessions alive.
+ *
+ * Deployed environments: the handoff file lives on the server's filesystem,
+ * which the operator cannot reach on a published deployment. For that case
+ * the operator may ALSO set ADMIN_RESET_PASSWORD (a deployment secret they
+ * typed themselves — it never appears in chat or logs). The reset then uses
+ * that value as the temporary password instead of writing a handoff file;
+ * the account is still flagged must_change_password and all admin sessions
+ * are revoked. Weak values are rejected (reset refused, old password keeps
+ * working). Idempotence: repeated boots skip while the supplied password
+ * still matches the live hash with the must-change flag set.
  */
 export async function forceAdminPasswordReset(): Promise<boolean> {
   if (process.env.FORCE_ADMIN_PASSWORD_RESET !== "true") return false;
@@ -399,6 +410,53 @@ export async function forceAdminPasswordReset(): Promise<boolean> {
     if (!admin) {
       logger.error("FORCE_ADMIN_PASSWORD_RESET is set but no 'admin' account exists — nothing reset");
       return false;
+    }
+
+    const suppliedPassword = process.env.ADMIN_RESET_PASSWORD;
+    if (suppliedPassword !== undefined && suppliedPassword !== "") {
+      // Operator-supplied temporary password (deployed environments where
+      // the handoff file is unreachable). Never log its value.
+      const issues = getPasswordIssues(suppliedPassword);
+      if (issues.length > 0) {
+        logger.error(
+          { issues: issues.map((i) => i.messageEn) },
+          "FORCE_ADMIN_PASSWORD_RESET: ADMIN_RESET_PASSWORD is too weak — reset refused; the existing password is unchanged",
+        );
+        return false;
+      }
+      if (
+        admin.mustChangePassword &&
+        admin.passwordHash !== null &&
+        (await bcrypt.compare(suppliedPassword, admin.passwordHash))
+      ) {
+        logger.warn(
+          "FORCE_ADMIN_PASSWORD_RESET: the supplied ADMIN_RESET_PASSWORD is already active and pending first-login change — not rotating again. Sign in, set a new password, then unset both variables.",
+        );
+        return false;
+      }
+      const suppliedHash = await bcrypt.hash(suppliedPassword, 10);
+      await tx
+        .update(systemUsersTable)
+        .set({ passwordHash: suppliedHash, mustChangePassword: true })
+        .where(eq(systemUsersTable.id, admin.id));
+      const revokedSessions = await revokeUserSessions(tx, admin.id);
+      await tx.insert(auditLogsTable).values({
+        actorUserId: null,
+        action: "admin.emergency_password_reset",
+        entityType: "system_user",
+        entityId: admin.id,
+        entityLabel: admin.username,
+        changesJson: JSON.stringify({
+          trigger: "FORCE_ADMIN_PASSWORD_RESET",
+          source: "ADMIN_RESET_PASSWORD",
+          mustChangePassword: true,
+          revokedSessions,
+        }),
+      });
+      logger.warn(
+        "Admin password reset: the operator-supplied ADMIN_RESET_PASSWORD is now the temporary admin password. Sign in with it once, set a new password, then unset FORCE_ADMIN_PASSWORD_RESET and ADMIN_RESET_PASSWORD.",
+      );
+      return true;
     }
 
     // Pending-reset detection must be reset-specific: skip only when a
