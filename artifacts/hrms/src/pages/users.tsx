@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearch } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
-import { useListUsers, useCreateUser, useGetUser, useUpdateUser, getGetUserQueryKey, useSetUserPassword, useUnlockUser, useIssueOneTimePassword, getListUsersQueryKey } from '@workspace/api-client-react';
+import { useListUsers, useCreateUser, useGetUser, useUpdateUser, getGetUserQueryKey, useSetUserPassword, useUnlockUser, useIssueOneTimePassword, getListUsersQueryKey, useListRoles, getListRolesQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Server, Search, Shield, UserCog, MoreHorizontal, KeyRound, Lock, LockOpen, Ticket, Copy, Check, Hourglass, Pencil } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -96,6 +97,74 @@ export default function Users() {
     } catch {
       toast({ title: t('Could not copy — select and copy manually', 'تعذر النسخ — حدد وانسخ يدويًا'), variant: 'destructive' });
     }
+  };
+
+  // --- Invite user (create account) ------------------------------------
+  // On success we roll straight into the existing OTP-issuance confirm
+  // dialog for the new account, so the admin leaves with a working
+  // one-time credential to hand to the person.
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteUsername, setInviteUsername] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteNameEn, setInviteNameEn] = useState('');
+  const [inviteNameAr, setInviteNameAr] = useState('');
+  const [inviteRoleId, setInviteRoleId] = useState<string>('');
+  const { data: rolesData } = useListRoles({ query: { enabled: inviteOpen, queryKey: getListRolesQueryKey() } });
+
+  const closeInviteDialog = () => {
+    setInviteOpen(false);
+    setInviteUsername('');
+    setInviteEmail('');
+    setInviteNameEn('');
+    setInviteNameAr('');
+    setInviteRoleId('');
+  };
+
+  const handleInvite = () => {
+    const username = inviteUsername.trim();
+    const email = inviteEmail.trim();
+    if (!/^[a-zA-Z0-9._-]{3,}$/.test(username)) {
+      toast({ title: t('Username must be at least 3 characters (letters, numbers, dots, dashes)', 'يجب أن يتكون اسم المستخدم من 3 أحرف على الأقل (أحرف وأرقام ونقاط وشرطات)'), variant: 'destructive' });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({ title: t('Invalid email address', 'عنوان البريد الإلكتروني غير صالح'), variant: 'destructive' });
+      return;
+    }
+    if (!inviteNameEn.trim() || !inviteNameAr.trim()) {
+      toast({ title: t('Name cannot be empty', 'لا يمكن ترك الاسم فارغاً'), variant: 'destructive' });
+      return;
+    }
+    if (!inviteRoleId) {
+      toast({ title: t('Please choose a role', 'يرجى اختيار دور'), variant: 'destructive' });
+      return;
+    }
+    createUser.mutate(
+      {
+        data: {
+          username,
+          email,
+          fullNameEn: inviteNameEn.trim(),
+          fullNameAr: inviteNameAr.trim(),
+          roleId: Number(inviteRoleId),
+          isActive: true,
+          preferredLanguage: lang,
+        },
+      },
+      {
+        onSuccess: (created) => {
+          const name = lang === 'en' ? created.fullNameEn : created.fullNameAr;
+          toast({ title: t('User created', 'تم إنشاء المستخدم'), description: t(`Now issue a one-time password for ${name}.`, `الآن أصدر كلمة مرور لمرة واحدة لـ ${name}.`) });
+          closeInviteDialog();
+          queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+          // Chain into the existing OTP confirm dialog for the new account.
+          setOtpTarget({ id: created.id, name });
+        },
+        onError: () => {
+          toast({ title: t('Failed to create user — the username or email may already be in use', 'فشل إنشاء المستخدم — قد يكون اسم المستخدم أو البريد الإلكتروني مستخدماً بالفعل'), variant: 'destructive' });
+        },
+      },
+    );
   };
 
   // --- Edit user (email / names) ---------------------------------------
@@ -185,7 +254,7 @@ export default function Users() {
             {t('Manage access, authentication, and user accounts.', 'إدارة الوصول والمصادقة وحسابات المستخدمين.')}
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setInviteOpen(true)} data-testid="button-invite-user">
           <UserCog className="w-4 h-4 me-2" />
           {t('Invite User', 'دعوة مستخدم')}
         </Button>
@@ -341,8 +410,58 @@ export default function Users() {
         </CardContent>
       </Card>
 
+      <Dialog open={inviteOpen} onOpenChange={(open) => { if (!open) closeInviteDialog(); }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('Invite User', 'دعوة مستخدم')}</DialogTitle>
+            <DialogDescription>
+              {t('Create a new account. You will get a one-time password to hand to the person; they set their own password on first sign-in.', 'أنشئ حساباً جديداً. ستحصل على كلمة مرور لمرة واحدة لتسليمها للشخص؛ وسيعين كلمة مروره الخاصة عند أول تسجيل دخول.')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="invite-username">{t('Username', 'اسم المستخدم')}</Label>
+              <Input id="invite-username" data-testid="input-invite-username" value={inviteUsername} onChange={(e) => setInviteUsername(e.target.value)} placeholder="maher" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite-email">{t('Email', 'البريد الإلكتروني')}</Label>
+              <Input id="invite-email" data-testid="input-invite-email" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="name@example.com" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite-name-en">{t('Full name (English)', 'الاسم الكامل (الإنجليزية)')}</Label>
+              <Input id="invite-name-en" data-testid="input-invite-name-en" value={inviteNameEn} onChange={(e) => setInviteNameEn(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite-name-ar">{t('Full name (Arabic)', 'الاسم الكامل (العربية)')}</Label>
+              <Input id="invite-name-ar" data-testid="input-invite-name-ar" dir="rtl" value={inviteNameAr} onChange={(e) => setInviteNameAr(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('Role', 'الدور')}</Label>
+              <Select value={inviteRoleId} onValueChange={setInviteRoleId}>
+                <SelectTrigger data-testid="select-invite-role">
+                  <SelectValue placeholder={t('Choose a role', 'اختر دوراً')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(rolesData ?? []).map((role) => (
+                    <SelectItem key={role.id} value={String(role.id)} data-testid={`select-invite-role-${role.id}`}>
+                      {lang === 'en' ? role.nameEn : role.nameAr}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeInviteDialog} data-testid="button-invite-cancel">{t('Cancel', 'إلغاء')}</Button>
+            <Button onClick={handleInvite} disabled={createUser.isPending} data-testid="button-invite-submit">
+              {createUser.isPending ? t('Creating…', 'جارٍ الإنشاء…') : t('Create User', 'إنشاء مستخدم')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={editTarget !== null} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('Edit User', 'تعديل المستخدم')}</DialogTitle>
             <DialogDescription>
@@ -373,7 +492,7 @@ export default function Users() {
       </Dialog>
 
       <Dialog open={passwordTarget !== null} onOpenChange={(open) => { if (!open) closePasswordDialog(); }}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('Set Password', 'تعيين كلمة المرور')}</DialogTitle>
             <DialogDescription>
@@ -414,7 +533,7 @@ export default function Users() {
       </Dialog>
 
       <Dialog open={otpTarget !== null} onOpenChange={(open) => { if (!open) setOtpTarget(null); }}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('Issue One-Time Password', 'إصدار كلمة مرور لمرة واحدة')}</DialogTitle>
             <DialogDescription>
@@ -434,7 +553,7 @@ export default function Users() {
       </Dialog>
 
       <Dialog open={issuedOtp !== null} onOpenChange={(open) => { if (!open) setIssuedOtp(null); }}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('One-Time Password Issued', 'تم إصدار كلمة المرور لمرة واحدة')}</DialogTitle>
             <DialogDescription>
