@@ -12,8 +12,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import bcrypt from "bcryptjs";
-import { eq, sql } from "drizzle-orm";
-import { db, systemUsersTable } from "@workspace/db";
+import { eq, sql, desc } from "drizzle-orm";
+import { db, systemUsersTable, auditLogsTable } from "@workspace/db";
 import { forceAdminPasswordReset } from "../lib/seed-passwords";
 import { logger } from "../lib/logger";
 
@@ -104,6 +104,77 @@ describe("forceAdminPasswordReset", () => {
       spy.mockRestore();
       await db.execute(sql`DELETE FROM "session" WHERE sid = ${sid}`);
     }
+  });
+
+  it("writes an audit row (system actor, no credential) on successful reset", async () => {
+    vi.stubEnv("FORCE_ADMIN_PASSWORD_RESET", "true");
+    await db
+      .update(systemUsersTable)
+      .set({ mustChangePassword: false })
+      .where(eq(systemUsersTable.id, saved.id));
+
+    // Capture the high-water audit id before the reset so we can select only
+    // rows inserted by this test run.
+    const [{ maxId }] = await db
+      .select({ maxId: sql<number>`COALESCE(MAX(id), 0)` })
+      .from(auditLogsTable);
+
+    expect(await forceAdminPasswordReset()).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(auditLogsTable)
+      .where(
+        sql`${auditLogsTable.action} = 'admin.emergency_password_reset'
+            AND ${auditLogsTable.id} > ${maxId}`,
+      )
+      .orderBy(desc(auditLogsTable.id));
+
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    // System actor: no user attached.
+    expect(row.actorUserId).toBeNull();
+    expect(row.entityType).toBe("system_user");
+    expect(row.entityId).toBe(saved.id);
+    expect(row.entityLabel).toBe("admin");
+
+    const detail = JSON.parse(row.changesJson ?? "{}");
+    expect(detail.trigger).toBe("FORCE_ADMIN_PASSWORD_RESET");
+    expect(detail.mustChangePassword).toBe(true);
+    // revokedSessions is a non-negative integer (the seeded DB may or may not
+    // have live sessions).
+    expect(typeof detail.revokedSessions).toBe("number");
+    expect(detail.revokedSessions).toBeGreaterThanOrEqual(0);
+
+    // The generated OTP must never appear in the audit detail.
+    const otp = readHandoffOtp();
+    expect(row.changesJson).not.toContain(otp);
+  });
+
+  it("writes no audit row when a valid pending handoff already exists (skip path)", async () => {
+    vi.stubEnv("FORCE_ADMIN_PASSWORD_RESET", "true");
+    await db
+      .update(systemUsersTable)
+      .set({ mustChangePassword: false })
+      .where(eq(systemUsersTable.id, saved.id));
+
+    // First call: rotates and writes one audit row.
+    expect(await forceAdminPasswordReset()).toBe(true);
+
+    const [{ countAfterFirst }] = await db
+      .select({ countAfterFirst: sql<number>`COUNT(*)` })
+      .from(auditLogsTable)
+      .where(sql`${auditLogsTable.action} = 'admin.emergency_password_reset'`);
+
+    // Second call: valid handoff still exists → skip, no new audit row.
+    expect(await forceAdminPasswordReset()).toBe(false);
+
+    const [{ countAfterSkip }] = await db
+      .select({ countAfterSkip: sql<number>`COUNT(*)` })
+      .from(auditLogsTable)
+      .where(sql`${auditLogsTable.action} = 'admin.emergency_password_reset'`);
+
+    expect(Number(countAfterSkip)).toBe(Number(countAfterFirst));
   });
 
   it("skips rotation while a still-valid handoff OTP exists, but rotates when the handoff file is gone", async () => {

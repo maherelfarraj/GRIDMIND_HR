@@ -34,7 +34,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
-import { db, systemUsersTable, systemConfigTable } from "@workspace/db";
+import { db, systemUsersTable, systemConfigTable, auditLogsTable } from "@workspace/db";
 import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { generateOneTimePassword } from "./oneTimePassword";
@@ -390,7 +390,22 @@ export async function forceAdminPasswordReset(): Promise<boolean> {
 
     // Atomic with the credential change: retained sessions die with the
     // reset, or the whole reset rolls back.
-    await revokeUserSessions(tx, admin.id);
+    const revokedSessions = await revokeUserSessions(tx, admin.id);
+
+    // Audit record: system/boot actor (actorUserId null), no password or OTP
+    // in the detail — credential-handoff rule forbids logging credentials.
+    await tx.insert(auditLogsTable).values({
+      actorUserId: null,
+      action: "admin.emergency_password_reset",
+      entityType: "system_user",
+      entityId: admin.id,
+      entityLabel: admin.username,
+      changesJson: JSON.stringify({
+        trigger: "FORCE_ADMIN_PASSWORD_RESET",
+        mustChangePassword: true,
+        revokedSessions,
+      }),
+    });
 
     logger.warn(
       { filePath },
