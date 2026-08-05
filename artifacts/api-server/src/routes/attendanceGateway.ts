@@ -333,16 +333,23 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
     : undefined;
   const deviceSkewMs = topSkew !== undefined ? Math.round(topSkew) : ctSkew !== undefined ? Math.round(ctSkew) : undefined;
   const deviceSkewAlert = deviceSkewMs !== undefined ? Math.abs(deviceSkewMs) > DEVICE_CLOCK_SKEW_ALERT_MS : undefined;
+  // Whether an admin was waiting for this heartbeat's connection-test result.
+  // True when connTestRequestedAt is set and this heartbeat carries a fresh
+  // connection-test result — we clear the flag atomically in the same update.
+  const hasConnTestResult = !!(connStatus || connMessage);
+  const testRequested = !!(reg.connTestRequestedAt && hasConnTestResult);
   await db
     .update(gatewayRegistrationsTable)
     .set({
       lastHeartbeatAt: new Date(),
       notes: adapterStatus ? `adapter: ${adapterStatus}` : reg.notes,
-      ...(connStatus || connMessage
+      ...(hasConnTestResult
         ? {
             adapterConnStatus: connStatus ?? (connMessage ? reg.adapterConnStatus : undefined),
             adapterConnMessage: typeof connMessage === "string" ? connMessage.slice(0, 2000) : reg.adapterConnMessage,
             adapterConnTestedAt: new Date(),
+            // Clear the on-demand test request flag — this heartbeat answered it.
+            connTestRequestedAt: null,
           }
         : {}),
       ...(deviceSkewMs !== undefined
@@ -423,6 +430,9 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
     driftAlert: drift !== null && Math.abs(drift) > DRIFT_ALERT_MS,
     deviceClockSkewMs: deviceSkewMs ?? null,
     deviceClockSkewAlert: deviceSkewAlert ?? false,
+    // Tells the gateway whether an admin was waiting for this result, so newer
+    // gateways can log that the on-demand test request was answered.
+    testRequested,
   });
 });
 
@@ -875,6 +885,43 @@ gatewayAdminRouter.patch("/gateway/registrations/:id", async (req, res): Promise
     }),
   });
   res.json({ ...reg, secretHash: undefined, silenceThresholdMs: effectiveSilenceThresholdMs(reg.silenceThresholdMinutes) });
+});
+
+// POST /gateway/registrations/:id/test — request an on-demand connection test.
+// Sets connTestRequestedAt = now (idempotent if already pending). The gateway
+// answers on its next heartbeat; the UI polls and shows a pending spinner until
+// adapterConnTestedAt >= connTestRequestedAt.
+gatewayAdminRouter.post("/gateway/registrations/:id/test", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid registration id" });
+    return;
+  }
+  const session = req.session as { userId?: number };
+  const actorUserId = session.userId!;
+  const [existing] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, id));
+  if (!existing) {
+    res.status(404).json({ error: "Gateway registration not found", errorAr: "تسجيل البوابة غير موجود" });
+    return;
+  }
+  if (existing.status === "REVOKED") {
+    res.status(409).json({ error: "Cannot request a connection test for a revoked gateway", errorAr: "لا يمكن طلب اختبار اتصال لبوابة ملغاة" });
+    return;
+  }
+  const [updated] = await db
+    .update(gatewayRegistrationsTable)
+    .set({ connTestRequestedAt: new Date(), updatedAt: new Date() })
+    .where(eq(gatewayRegistrationsTable.id, id))
+    .returning();
+  await db.insert(auditLogsTable).values({
+    action: "gateway_conn_test_requested",
+    entityType: "gateway_registration",
+    entityId: id,
+    entityLabel: existing.name,
+    actorUserId,
+    changesJson: JSON.stringify({ requestedAt: updated.connTestRequestedAt }),
+  });
+  res.json({ ...updated, secretHash: undefined });
 });
 
 // POST /gateway/registrations/:id/revoke

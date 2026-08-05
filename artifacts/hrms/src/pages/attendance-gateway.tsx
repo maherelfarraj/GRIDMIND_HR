@@ -15,7 +15,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Server, Plus, AlertCircle, CheckCircle, XCircle, Activity, Copy, Clock, ShieldAlert, AlertTriangle, Info, Pencil
+  Server, Plus, AlertCircle, CheckCircle, XCircle, Activity, Copy, Clock, ShieldAlert, AlertTriangle, Info, Pencil,
+  Loader2, FlaskConical,
 } from 'lucide-react';
 
 interface GatewayRegistration {
@@ -36,6 +37,8 @@ interface GatewayRegistration {
   adapterConnStatus: 'REACHABLE' | 'AUTH_FAILED' | 'UNREACHABLE' | 'NOT_CONFIGURED' | null;
   adapterConnMessage: string | null;
   adapterConnTestedAt: string | null;
+  /** Set when an admin requested an on-demand connection test; cleared by the next heartbeat that carries a result. */
+  connTestRequestedAt: string | null;
   sdkPresent: boolean | null;
   sdkVersion: string | null;
   notes: string | null;
@@ -96,6 +99,7 @@ interface ReconcileStatus {
   missing: string[];
   mismatched: string[];
 }
+
 export default function AttendanceGateway() {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
@@ -119,11 +123,26 @@ export default function AttendanceGateway() {
   // ack land without refreshing the page.
   const [reconcileInFlight, setReconcileInFlight] = useState(false);
 
+  /** A row is "test pending" when connTestRequestedAt is set and either no
+   *  test result exists yet, or the latest result pre-dates the request. */
+  const isTestPending = (reg: GatewayRegistration): boolean => {
+    if (!reg.connTestRequestedAt) return false;
+    if (!reg.adapterConnTestedAt) return true;
+    return new Date(reg.adapterConnTestedAt) < new Date(reg.connTestRequestedAt);
+  };
+
   const { data: registrations, isLoading: loadingRegistrations } = useQuery<GatewayRegistration[]>({
     queryKey: ['gateway-registrations'],
     queryFn: () => apiFetch('/api/gateway/registrations', { credentials: 'include' }).then(r => r.json()),
-    // Keep online/offline badges current without relying on notifications.
-    refetchInterval: reconcileInFlight ? 5_000 : 60_000,
+    // Poll at 5s while a reconcile is in-flight OR any row has an unanswered
+    // connection-test request. Both cases need fast feedback without a manual
+    // refresh; fall back to 60s when everything is quiet.
+    refetchInterval: (query) => {
+      if (reconcileInFlight) return 5_000;
+      const data = query.state.data;
+      if (data && data.some(isTestPending)) return 5_000;
+      return 60_000;
+    },
   });
 
   const { data: batches, isLoading: loadingBatches } = useQuery<ImportBatch[]>({
@@ -174,6 +193,37 @@ export default function AttendanceGateway() {
       toast({
         title: t('Error', 'خطأ'),
         description: e.message || t('Failed to queue the reconcile command.', 'فشل في جدولة أمر المطابقة.'),
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const testMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiFetch(`/api/gateway/registrations/${id}/test`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Failed to request test');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gateway-registrations'] });
+      toast({
+        title: t('Test requested', 'تم طلب الاختبار'),
+        description: t(
+          'Test requested — the gateway will answer on its next heartbeat.',
+          'تم طلب الاختبار — ستُجيب البوابة في نبضة القلب التالية.',
+        ),
+      });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: t('Error', 'خطأ'),
+        description: err.message,
         variant: 'destructive',
       });
     },
@@ -406,6 +456,24 @@ export default function AttendanceGateway() {
   };
 
   const getConnectionBadge = (reg: GatewayRegistration) => {
+    // Show a pending spinner while an on-demand test is in-flight.
+    const pending = isTestPending(reg);
+    if (pending) {
+      return (
+        <div className="space-y-1">
+          <Badge variant="outline" className="text-xs gap-1 bg-sky-500/10 text-sky-500 border-sky-500/20">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            {t('Test pending…', 'الاختبار معلق…')}
+          </Badge>
+          {reg.adapterConnTestedAt && (
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Clock className="w-3 h-3" />
+              {t('Last:', 'آخر:')} {formatDateTime(reg.adapterConnTestedAt)}
+            </div>
+          )}
+        </div>
+      );
+    }
     if (!reg.adapterConnStatus) {
       return <span className="text-xs text-muted-foreground">{t('No test yet', 'لا يوجد اختبار بعد')}</span>;
     }
@@ -852,17 +920,38 @@ export default function AttendanceGateway() {
                     </TableCell>
                     <TableCell className="text-center">
                       {reg.status === 'ACTIVE' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive h-8"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRevoke(reg.id);
-                          }}
-                        >
-                          {t('Revoke', 'إلغاء')}
-                        </Button>
+                        <div className="flex flex-col items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs gap-1"
+                            disabled={isTestPending(reg) || testMutation.isPending}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              testMutation.mutate(reg.id);
+                            }}
+                            title={isTestPending(reg)
+                              ? t('Test already pending', 'الاختبار معلق بالفعل')
+                              : t('Request an on-demand connection test', 'طلب اختبار اتصال فوري')}
+                          >
+                            {isTestPending(reg)
+                              ? <Loader2 className="w-3 h-3 animate-spin" />
+                              : <FlaskConical className="w-3 h-3" />
+                            }
+                            {t('Test now', 'اختبر الآن')}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive h-8 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRevoke(reg.id);
+                            }}
+                          >
+                            {t('Revoke', 'إلغاء')}
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
@@ -1124,7 +1213,7 @@ export default function AttendanceGateway() {
               {t('One-Time Secret', 'سر لمرة واحدة')}
             </DialogTitle>
             <DialogDescription>
-              {t('Copy this secret now. It cannot be retrieved again after you close this dialog.', 'انسخ هذا السر الآن. لا يمكن استرجاعه مرة أخرى بعد إغلاق هذه النافذة.')}
+              {t('Copy this secret now. It cannot be retrieved again after you close this dialog.', 'انسخ هذا السر الآن. لا يمكن استرجاعه مرة أخرى بعد إغلاق هذه النافظة.')}
             </DialogDescription>
           </DialogHeader>
 

@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import { createHash, createHmac, randomUUID } from "crypto";
-import { inArray, eq } from "drizzle-orm";
+import { inArray, eq, and } from "drizzle-orm";
 import {
   db,
   gatewayRegistrationsTable,
@@ -144,6 +144,115 @@ afterAll(async () => {
   await db.delete(deviceEmployeeMappingsTable).where(eq(deviceEmployeeMappingsTable.id, mappingId));
   await db.delete(auditLogsTable).where(eq(auditLogsTable.entityType, "gateway_registration"));
   await db.delete(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+});
+
+describe("admin: on-demand connection test", () => {
+  it("rejects anonymous requests with 401", async () => {
+    const res = await request(app).post(`/api/gateway/registrations/${registrationId}/test`);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 for an unknown registration id", async () => {
+    const res = await admin.post("/api/gateway/registrations/99999999/test");
+    expect(res.status).toBe(404);
+  });
+
+  it("sets connTestRequestedAt on an ACTIVE registration and writes an audit row", async () => {
+    const before = Date.now();
+    const res = await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    expect(res.status).toBe(200);
+    expect(res.body.secretHash).toBeUndefined();
+    expect(res.body.connTestRequestedAt).toBeTruthy();
+    const requestedAt = new Date(res.body.connTestRequestedAt).getTime();
+    expect(requestedAt).toBeGreaterThanOrEqual(before);
+
+    // DB reflects the flag.
+    const [reg] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(reg.connTestRequestedAt).toBeTruthy();
+
+    // Audit row was written.
+    const logs = await db
+      .select()
+      .from(auditLogsTable)
+      .where(and(eq(auditLogsTable.action, "gateway_conn_test_requested"), eq(auditLogsTable.entityId, registrationId)));
+    expect(logs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("is idempotent — calling again while pending is fine (just refreshes the timestamp)", async () => {
+    const res = await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    expect(res.status).toBe(200);
+    expect(res.body.connTestRequestedAt).toBeTruthy();
+  });
+
+  it("a signed heartbeat WITHOUT a connection-test result does not clear connTestRequestedAt", async () => {
+    // Ensure the flag is set first.
+    await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    const [before] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(before.connTestRequestedAt).toBeTruthy();
+
+    // Heartbeat with no connectionTest or adapterStatus — should not touch the flag.
+    const hb = await postSigned("/api/gateway/heartbeat", { deviceTimeMs: Date.now() });
+    expect(hb.status).toBe(200);
+    // testRequested should be false (no result was delivered).
+    expect(hb.body.testRequested).toBe(false);
+
+    const [after] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(after.connTestRequestedAt).toBeTruthy(); // still set
+  });
+
+  it("a signed heartbeat WITH a connection-test result returns testRequested:true and clears the flag", async () => {
+    // Make sure the flag is set.
+    await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    const [before] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(before.connTestRequestedAt).toBeTruthy();
+
+    // Heartbeat that carries a fresh connection-test result.
+    const hb = await postSigned("/api/gateway/heartbeat", {
+      deviceTimeMs: Date.now(),
+      connectionTest: { ok: true, status: "REACHABLE", message: "on-demand test answer" },
+    });
+    expect(hb.status).toBe(200);
+    // Gateway-facing flag: an admin was waiting for this result.
+    expect(hb.body.testRequested).toBe(true);
+
+    // Flag is cleared.
+    const [after] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(after.connTestRequestedAt).toBeNull();
+    expect(after.adapterConnStatus).toBe("REACHABLE");
+  });
+
+  it("returns 409 when trying to test a REVOKED registration", async () => {
+    // Create and immediately revoke a fresh registration for this test.
+    const cr = await admin
+      .post("/api/gateway/registrations")
+      .send({ name: "Temp-for-409-test", adapterType: "SIMULATOR" });
+    expect(cr.status).toBe(201);
+    const tmpId = cr.body.id;
+    try {
+      await admin.post(`/api/gateway/registrations/${tmpId}/revoke`);
+      const res = await admin.post(`/api/gateway/registrations/${tmpId}/test`);
+      expect(res.status).toBe(409);
+    } finally {
+      await db.delete(auditLogsTable).where(eq(auditLogsTable.entityId, tmpId));
+      await db.delete(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, tmpId));
+    }
+  });
+
+  it("GET /gateway/registrations includes connTestRequestedAt in the response", async () => {
+    // Set the flag on the main reg.
+    await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    const list = await admin.get("/api/gateway/registrations");
+    expect(list.status).toBe(200);
+    const mine = (list.body as Array<Record<string, unknown>>).find((r) => r.id === registrationId);
+    expect(mine).toBeTruthy();
+    expect("connTestRequestedAt" in mine!).toBe(true);
+    expect(mine!.connTestRequestedAt).toBeTruthy();
+    // Clear it so subsequent tests start clean.
+    await postSigned("/api/gateway/heartbeat", {
+      deviceTimeMs: Date.now(),
+      connectionTest: { ok: true, status: "REACHABLE", message: "cleanup" },
+    });
+  });
 });
 
 describe("unauthorized requests", () => {

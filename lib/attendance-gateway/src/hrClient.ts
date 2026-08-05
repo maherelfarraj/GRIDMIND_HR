@@ -35,7 +35,14 @@ export class HrClient {
     health?: { sdk?: AdapterSdkInfo; deviceClockSkewMs?: number | null },
   ) {
     const structured = typeof connectionTest === "object" && connectionTest !== null ? connectionTest : undefined;
-    return this.post<{ ok: boolean; clockDriftMs: number | null; driftAlert: boolean; commands?: DeliveredCommand[] }>("/gateway/heartbeat", {
+    return this.post<{
+      ok: boolean;
+      clockDriftMs: number | null;
+      driftAlert: boolean;
+      commands?: DeliveredCommand[];
+      /** True when the heartbeat answered a pending admin-requested connection test. */
+      testRequested?: boolean;
+    }>("/gateway/heartbeat", {
       deviceTimeMs: Date.now(),
       // Legacy free-text field kept for older HR cores.
       adapterStatus: structured ? structured.message : connectionTest,

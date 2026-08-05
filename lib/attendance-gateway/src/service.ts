@@ -250,6 +250,16 @@ export class GatewayService {
         sdk: this.resolveSdkInfo(t),
         deviceClockSkewMs: GatewayService.computeClockSkewMs(t),
       });
+      if (body.testRequested) {
+        // An admin was watching for this heartbeat's connection-test result.
+        // Log it so operators can correlate the on-demand request with the tick.
+        console.info(JSON.stringify({
+          level: "info",
+          event: "conn_test_answered",
+          adapterType: this.adapter.type,
+          message: "On-demand connection test result delivered to HR core in this heartbeat",
+        }));
+      }
       if (Array.isArray(body.commands) && body.commands.length > 0) {
         await this.executeCommands(body.commands);
       }

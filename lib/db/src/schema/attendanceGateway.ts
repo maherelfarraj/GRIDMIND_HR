@@ -48,6 +48,11 @@ export const gatewayRegistrationsTable = pgTable("gateway_registrations", {
   adapterConnStatus: varchar("adapter_conn_status", { length: 20 }),
   adapterConnMessage: text("adapter_conn_message"),
   adapterConnTestedAt: timestamp("adapter_conn_tested_at"),
+  // Set when an admin requests an on-demand connection test; cleared by the
+  // next heartbeat that carries a fresh connection-test result. The HR core
+  // never reaches into the customer network — the gateway answers on its own
+  // schedule, so this is a mailbox flag, not an RPC.
+  connTestRequestedAt: timestamp("conn_test_requested_at"),
   // Vendor SDK availability reported via heartbeat (null until a gateway
   // new enough to report them checks in).
   sdkPresent: boolean("sdk_present"),

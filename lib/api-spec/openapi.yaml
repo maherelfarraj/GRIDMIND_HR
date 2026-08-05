@@ -9606,6 +9606,7 @@ components:
           enum: [ REACHABLE, AUTH_FAILED, UNREACHABLE, NOT_CONFIGURED, null ]
         adapterConnMessage: { type: [ "string", "null" ] }
         adapterConnTestedAt: { type: [ "string", "null" ] }
+        connTestRequestedAt: { type: [ "string", "null" ] }
         deviceClockSkewMs: { type: [ "number", "null" ] }
         deviceClockSkewAlert: { type: boolean }
         sdkPresent: { type: [ "boolean", "null" ] }
