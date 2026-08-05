@@ -81,29 +81,51 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function AddProfileDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
-  const { t, lang } = useLanguage();
+/** Small inline badge for vault ref configured/missing state — used in selects. */
+function VaultConfigBadge({ configured }: { configured: boolean }) {
+  if (configured) {
+    return <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-emerald-300"><CheckCircle className="w-2.5 h-2.5" />OK</span>;
+  }
+  return <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-300"><AlertTriangle className="w-2.5 h-2.5" />Missing</span>;
+}
+
+function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean; onClose: () => void; onSaved: () => void; vaultRefs: any[] }) {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ profileName: '', integrationType: '', environment: 'development', baseUrl: '', description: '' });
+  const [form, setForm] = useState({ profileName: '', integrationType: '', environment: 'development', baseUrl: '', description: '', credentialVaultRefId: '' });
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  // Reset form when dialog opens
+  useEffect(() => { if (open) setForm({ profileName: '', integrationType: '', environment: 'development', baseUrl: '', description: '', credentialVaultRefId: '' }); }, [open]);
+
   async function handleSave() {
     setSaving(true);
     try {
-      const payload = {
+      const payload: Record<string, any> = {
         profileName: form.profileName,
         profileNameAr: form.profileName,
         integrationType: form.integrationType,
         environment: form.environment,
         connectionParamsJson: JSON.stringify({ baseUrl: form.baseUrl, description: form.description }),
       };
+      if (form.credentialVaultRefId) payload.credentialVaultRefId = parseInt(form.credentialVaultRefId);
       const res = await apiFetch('/api/integration-governance/connection-profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => null);
       toast({ title: t('Profile created', 'تم إنشاء الملف الشخصي') });
+      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
+        for (const w of data.warnings) {
+          toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
+        }
+      }
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
     finally { setSaving(false); }
   }
+
+  const selectedRef = vaultRefs.find(r => String(r.id) === form.credentialVaultRefId);
+
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-lg">
@@ -130,10 +152,124 @@ function AddProfileDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
           </div>
           <div><Label>{t('Base URL', 'الرابط الأساسي')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={form.baseUrl} onChange={e => set('baseUrl', e.target.value)} placeholder="https://..." /></div>
           <div><Label>{t('Description', 'الوصف')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={form.description} onChange={e => set('description', e.target.value)} /></div>
+          <div>
+            <Label>{t('Credential Vault Ref', 'مرجع خزنة الاعتماد')} <span className="text-slate-500 font-normal text-xs">{t('(optional)', '(اختياري)')}</span></Label>
+            <Select value={form.credentialVaultRefId} onValueChange={v => set('credentialVaultRefId', v === '__none__' ? '' : v)}>
+              <SelectTrigger className="mt-1 bg-slate-700 border-slate-600">
+                <SelectValue placeholder={t('None', 'بدون')} />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700">
+                <SelectItem value="__none__">{t('None', 'بدون')}</SelectItem>
+                {vaultRefs.map(r => (
+                  <SelectItem key={r.id} value={String(r.id)}>
+                    <span className="flex items-center gap-2">
+                      <span>{r.labelEn}</span>
+                      <VaultConfigBadge configured={r.configured} />
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedRef && !selectedRef.configured && (
+              <p className="mt-1 text-xs text-amber-300 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3 shrink-0" />
+                {t('This vault ref\'s env var is not set — a warning will appear after saving.', 'متغير بيئة مرجع الخزنة هذا غير مضبوط — سيظهر تحذير بعد الحفظ.')}
+              </p>
+            )}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
           <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">{saving ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Dialog to link or change the credential vault ref on an existing connection profile. */
+function LinkVaultRefDialog({ profile, vaultRefs, onClose, onSaved }: { profile: any; vaultRefs: any[]; onClose: () => void; onSaved: () => void }) {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [selectedId, setSelectedId] = useState<string>(profile?.credentialVaultRefId ? String(profile.credentialVaultRefId) : '__none__');
+
+  useEffect(() => {
+    setSelectedId(profile?.credentialVaultRefId ? String(profile.credentialVaultRefId) : '__none__');
+  }, [profile]);
+
+  const selectedRef = vaultRefs.find(r => String(r.id) === selectedId);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const body: Record<string, any> = {
+        credentialVaultRefId: selectedId === '__none__' ? null : parseInt(selectedId),
+      };
+      const res = await apiFetch(`/api/integration-governance/connection-profiles/${profile.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => null);
+      toast({ title: t('Credential vault ref updated', 'تم تحديث مرجع خزنة الاعتماد') });
+      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
+        for (const w of data.warnings) {
+          toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
+        }
+      }
+      onSaved(); onClose();
+    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Dialog open={!!profile} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            {t('Link Credential Vault Ref', 'ربط مرجع خزنة الاعتماد')}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <p className="text-sm text-slate-400">{profile?.profileName}</p>
+          <div>
+            <Label>{t('Credential Vault Ref', 'مرجع خزنة الاعتماد')}</Label>
+            <Select value={selectedId} onValueChange={setSelectedId}>
+              <SelectTrigger className="mt-1 bg-slate-700 border-slate-600">
+                <SelectValue placeholder={t('None', 'بدون')} />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700">
+                <SelectItem value="__none__">{t('None — unlink', 'بدون — إلغاء الربط')}</SelectItem>
+                {vaultRefs.map(r => (
+                  <SelectItem key={r.id} value={String(r.id)}>
+                    <span className="flex items-center gap-2">
+                      <span>{r.labelEn}</span>
+                      <VaultConfigBadge configured={r.configured} />
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedRef && (
+              <div className="mt-2 rounded-md border border-slate-700 bg-slate-700/30 p-2 text-xs space-y-1">
+                <p className="text-slate-300 font-medium">{selectedRef.labelEn}</p>
+                <p className="text-slate-500 font-mono">vault:****</p>
+                <div className="flex items-center gap-1">
+                  {selectedRef.configured
+                    ? <><CheckCircle className="w-3 h-3 text-emerald-400" /><span className="text-emerald-300">{t('Secret is configured', 'السر مُهيَّأ')}</span></>
+                    : <><AlertTriangle className="w-3 h-3 text-amber-400" /><span className="text-amber-300">{t('Secret env var is not set — saving will show a warning', 'متغير بيئة السر غير مضبوط — سيظهر تحذير عند الحفظ')}</span></>
+                  }
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">{saving ? t('Saving…', 'جاري الحفظ…') : t('Save', 'حفظ')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -168,7 +304,13 @@ function HealthSettingsDialog({ profile, onClose, onSaved }: { profile: any; onC
         body: JSON.stringify({ isHealthMonitoringEnabled: enabled, healthCheckIntervalMinutes: intervalNum, alertOnFailureCount: thresholdNum }),
       });
       if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => null);
       toast({ title: t('Health monitoring settings saved', 'تم حفظ إعدادات مراقبة الصحة') });
+      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
+        for (const w of data.warnings) {
+          toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
+        }
+      }
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
     finally { setSaving(false); }
@@ -352,6 +494,7 @@ export default function IntegrationGovernance() {
   const [healthTarget, setHealthTarget] = useState<any>(null);
   const [runningHealthChecks, setRunningHealthChecks] = useState(false);
   const [detailProfileId, setDetailProfileId] = useState<number | null>(null);
+  const [linkVaultTarget, setLinkVaultTarget] = useState<any>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -678,6 +821,9 @@ export default function IntegrationGovernance() {
                           <Button size="sm" variant="ghost" className="text-slate-300 hover:text-white h-7 px-2 text-xs" onClick={() => setHealthTarget(p)}>
                             <Settings2 className="w-3.5 h-3.5 me-1" />{t('Health', 'الصحة')}
                           </Button>
+                          <Button size="sm" variant="ghost" className="text-slate-300 hover:text-white h-7 px-2 text-xs" onClick={() => setLinkVaultTarget(p)}>
+                            <ShieldCheck className="w-3.5 h-3.5 me-1" />{t('Credential', 'اعتماد')}
+                          </Button>
                           {p.status !== 'inactive' && (
                             <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 h-7 px-2 text-xs" onClick={() => setSuspendTarget(p)}>{t('Suspend', 'تعليق')}</Button>
                           )}
@@ -704,17 +850,29 @@ export default function IntegrationGovernance() {
                       <TableHead className="text-slate-300">{t('Label', 'التسمية')}</TableHead>
                       <TableHead className="text-slate-300">{t('Type', 'النوع')}</TableHead>
                       <TableHead className="text-slate-300">{t('Vault Key Ref', 'مرجع مفتاح الخزنة')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Secret', 'السر')}</TableHead>
                       <TableHead className="text-slate-300">{t('Status', 'الحالة')}</TableHead>
                       <TableHead className="text-slate-300">{t('Last Rotated', 'آخر تدوير')}</TableHead>
                       <TableHead className="text-slate-300">{t('Rotation Due', 'موعد التدوير')}</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {vault.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-slate-400 py-8">{t('No vault entries', 'لا توجد إدخالات في الخزنة')}</TableCell></TableRow>
+                      {vault.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-400 py-8">{t('No vault entries', 'لا توجد إدخالات في الخزنة')}</TableCell></TableRow>
                       : vault.map(v => (
                         <TableRow key={v.id} className="border-slate-700 hover:bg-slate-700/30">
                           <TableCell className="text-white">{v.labelEn}</TableCell>
                           <TableCell><Badge variant="outline" className="text-xs border-slate-600 text-slate-300">{v.credentialType}</Badge></TableCell>
                           <TableCell className="font-mono text-slate-400 text-sm">vault:****</TableCell>
+                          <TableCell>
+                            {v.configured === true ? (
+                              <Badge variant="outline" className="text-xs bg-emerald-900/40 text-emerald-300 border-emerald-700" data-testid={`vault-configured-${v.id}`}>
+                                <CheckCircle className="w-3 h-3 me-1" />{t('Configured', 'مُهيَّأ')}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs bg-amber-900/40 text-amber-300 border-amber-700" data-testid={`vault-missing-${v.id}`}>
+                                <AlertTriangle className="w-3 h-3 me-1" />{t('Missing secret', 'سر مفقود')}
+                              </Badge>
+                            )}
+                          </TableCell>
                           <TableCell><Badge variant="outline" className={`text-xs ${statusBadge(v.status)}`}>{v.status}</Badge></TableCell>
                           <TableCell className="text-slate-300 text-sm">{v.lastRotatedAt ? new Date(v.lastRotatedAt).toLocaleDateString() : '—'}</TableCell>
                           <TableCell className="text-slate-300 text-sm">{v.rotationDueAt ? new Date(v.rotationDueAt).toLocaleDateString() : '—'}</TableCell>
@@ -811,7 +969,9 @@ export default function IntegrationGovernance() {
           </TabsContent>
         </Tabs>
 
-        <AddProfileDialog open={addProfileOpen} onClose={() => setAddProfileOpen(false)} onSaved={load} />
+        <AddProfileDialog open={addProfileOpen} onClose={() => setAddProfileOpen(false)} onSaved={load} vaultRefs={vault} />
+
+        {linkVaultTarget && <LinkVaultRefDialog profile={linkVaultTarget} vaultRefs={vault} onClose={() => setLinkVaultTarget(null)} onSaved={load} />}
 
         {healthTarget && <HealthSettingsDialog profile={healthTarget} onClose={() => setHealthTarget(null)} onSaved={load} />}
 
