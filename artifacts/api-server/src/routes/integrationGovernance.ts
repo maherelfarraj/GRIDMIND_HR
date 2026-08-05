@@ -15,6 +15,28 @@ import { getPepperRotationStatus } from "./attendanceGateway.js";
 
 const router = Router();
 
+// ─── Vault-ref helpers ────────────────────────────────────────────────────────
+
+/**
+ * Returns warning strings for every vault key ref that isn't set in process.env.
+ * Never exposes secret values, lengths, or partial contents — only the key name.
+ */
+function vaultRefWarnings(vaultKeyRef: string, vaultSecretRef?: string | null): string[] {
+  const warnings: string[] = [];
+  if (!process.env[vaultKeyRef]) {
+    warnings.push(`referenced secret ${vaultKeyRef} is not configured`);
+  }
+  if (vaultSecretRef && !process.env[vaultSecretRef]) {
+    warnings.push(`referenced secret ${vaultSecretRef} is not configured`);
+  }
+  return warnings;
+}
+
+/** Adds a `configured` boolean to a vault-ref row. Never exposes the secret value. */
+function withConfigured<T extends { vaultKeyRef: string }>(row: T): T & { configured: boolean } {
+  return { ...row, configured: Boolean(process.env[row.vaultKeyRef]) };
+}
+
 // ─── Security Email Delivery Status ──────────────────────────────────────────
 
 router.get("/integration-governance/security-email-status", async (_req, res): Promise<void> => {
@@ -39,7 +61,7 @@ router.get("/integration-governance/pepper-rotation-status", async (_req, res): 
 router.get("/integration-governance/credential-vault-refs", async (req, res): Promise<void> => {
   try {
     const rows = await db.select().from(integrationCredentialVaultRefsTable).orderBy(desc(integrationCredentialVaultRefsTable.createdAt));
-    res.json(rows);
+    res.json(rows.map(withConfigured));
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -50,7 +72,8 @@ router.post("/integration-governance/credential-vault-refs", async (req, res): P
       ...req.body, createdByUserId: req.body.createdByUserId ?? actorUserId,
     }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "credential_vault_ref", entityId: row.id, entityLabel: row.labelEn, actorUserId, changesJson: JSON.stringify({ after: row }) });
-    res.status(201).json(row);
+    const warnings = vaultRefWarnings(row.vaultKeyRef, row.vaultSecretRef);
+    res.status(201).json({ ...withConfigured(row), warnings });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -58,7 +81,7 @@ router.get("/integration-governance/credential-vault-refs/:id", async (req, res)
   try {
     const [row] = await db.select().from(integrationCredentialVaultRefsTable).where(eq(integrationCredentialVaultRefsTable.id, parseInt(req.params.id)));
     if (!row) return void res.status(404).json({ error: "Not found" });
-    res.json(row);
+    res.json(withConfigured(row));
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -70,7 +93,8 @@ router.patch("/integration-governance/credential-vault-refs/:id", async (req, re
     if (!before) return void res.status(404).json({ error: "Not found" });
     const [row] = await db.update(integrationCredentialVaultRefsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(integrationCredentialVaultRefsTable.id, id)).returning();
     await db.insert(auditLogsTable).values({ action: "update", entityType: "credential_vault_ref", entityId: id, entityLabel: row.labelEn, actorUserId, changesJson: JSON.stringify({ before, after: row }) });
-    res.json(row);
+    const warnings = vaultRefWarnings(row.vaultKeyRef, row.vaultSecretRef);
+    res.json({ ...withConfigured(row), warnings });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -116,7 +140,12 @@ router.post("/integration-governance/connection-profiles", async (req, res): Pro
       ...req.body, createdByUserId: req.body.createdByUserId ?? actorUserId,
     }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "connection_profile", entityId: row.id, entityLabel: row.profileName, actorUserId, changesJson: JSON.stringify({ after: row }) });
-    res.status(201).json(row);
+    const warnings: string[] = [];
+    if (row.credentialVaultRefId) {
+      const [vaultRef] = await db.select().from(integrationCredentialVaultRefsTable).where(eq(integrationCredentialVaultRefsTable.id, row.credentialVaultRefId));
+      if (vaultRef) warnings.push(...vaultRefWarnings(vaultRef.vaultKeyRef, vaultRef.vaultSecretRef));
+    }
+    res.status(201).json({ ...row, warnings });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -298,7 +327,12 @@ router.patch("/integration-governance/connection-profiles/:id", async (req, res)
     if (!before) return void res.status(404).json({ error: "Not found" });
     const [row] = await db.update(integrationConnectionProfilesTable).set({ ...req.body, updatedAt: new Date() }).where(eq(integrationConnectionProfilesTable.id, id)).returning();
     await db.insert(auditLogsTable).values({ action: "update", entityType: "connection_profile", entityId: id, entityLabel: row.profileName, actorUserId, changesJson: JSON.stringify({ before, after: row }) });
-    res.json(row);
+    const warnings: string[] = [];
+    if (row.credentialVaultRefId) {
+      const [vaultRef] = await db.select().from(integrationCredentialVaultRefsTable).where(eq(integrationCredentialVaultRefsTable.id, row.credentialVaultRefId));
+      if (vaultRef) warnings.push(...vaultRefWarnings(vaultRef.vaultKeyRef, vaultRef.vaultSecretRef));
+    }
+    res.json({ ...row, warnings });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

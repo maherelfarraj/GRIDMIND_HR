@@ -250,7 +250,14 @@ const ALLOWED_EXTRA_PROPERTIES: Record<string, string[]> = {
     "silent",            // server-computed: ACTIVE but no heartbeat within threshold
     "silenceThresholdMs", // server-computed: effective threshold after per-reg override
     "reconcileCommand"   // joined: latest RECONCILE device command for this gateway
-  ]
+  ],
+  "IntegrationCredentialVaultRef": [
+    "configured", // server-computed: true when process.env[vaultKeyRef] is set; never exposes the value
+    "warnings",   // present only on create/update: non-blocking list of unconfigured vault key refs
+  ],
+  "IntegrationConnectionProfile": [
+    "warnings",   // present only on create/update: non-blocking list of unconfigured vault key refs
+  ],
 };
 
 /**

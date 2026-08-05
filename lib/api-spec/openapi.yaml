@@ -16134,6 +16134,10 @@ components:
         createdByUserId: { type: [ "integer", "null" ] }
         createdAt: { type: string }
         updatedAt: { type: string }
+        # Computed: whether process.env[vaultKeyRef] is set. Never exposes the secret value.
+        configured: { type: boolean }
+        # Present only on create/update responses: non-blocking warnings for unconfigured secrets.
+        warnings: { type: array, items: { type: string } }
       required: [ id, labelEn, labelAr, credentialType, vaultKeyRef, status, createdAt, updatedAt ]
 
     IntegrationConnectionProfile:
@@ -16170,6 +16174,8 @@ components:
         createdByUserId: { type: [ "integer", "null" ] }
         createdAt: { type: string }
         updatedAt: { type: string }
+        # Present only on create/update responses: non-blocking warnings for unconfigured vault secrets.
+        warnings: { type: array, items: { type: string } }
       required: [ id, profileName, profileNameAr, integrationType, environment, connectionParamsJson, status, isHealthMonitoringEnabled, healthCheckIntervalMinutes, consecutiveFailures, alertOnFailureCount, retryEnabled, retryMaxAttempts, retryBackoffSeconds, isAirGapSafe, governanceStatus, createdAt, updatedAt ]
 
     IntegrationGovernanceRule:
