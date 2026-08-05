@@ -1,25 +1,33 @@
 import type { AdapterResult } from "./ldap-adapter.js";
 
+export interface DeviceConnectionOptions {
+  baseUrl?: string;
+  apiKey?: string;
+  timeoutMs?: number;
+}
+
 /**
- * Real attendance device API connection test. Reads connection details from
- * environment variables (vault-ref pattern):
+ * Real attendance device API connection test. Connection details come from
+ * the profile's options when provided (connectionParamsJson baseUrl, vault-
+ * ref-resolved API key), falling back to global environment variables:
  *   DEVICE_API_URL, DEVICE_API_KEY
- * Calls the device gateway's health endpoint (GET {DEVICE_API_URL}/health)
+ * Calls the device gateway's health endpoint (GET {baseUrl}/health)
  * with the API key as a Bearer token.
  */
-export async function testDeviceConnection(timeoutMs = 5000): Promise<AdapterResult> {
+export async function testDeviceConnection(options: DeviceConnectionOptions = {}): Promise<AdapterResult> {
   const start = Date.now();
-  const baseUrl = process.env.DEVICE_API_URL;
-  const apiKey = process.env.DEVICE_API_KEY;
+  const timeoutMs = options.timeoutMs ?? 5000;
+  const baseUrl = options.baseUrl || process.env.DEVICE_API_URL;
+  const apiKey = options.apiKey || process.env.DEVICE_API_KEY;
 
   const missing = [
-    !baseUrl && "DEVICE_API_URL",
-    !apiKey && "DEVICE_API_KEY",
+    !baseUrl && "base URL (profile connection params or DEVICE_API_URL)",
+    !apiKey && "API key (profile vault ref or DEVICE_API_KEY)",
   ].filter(Boolean);
   if (missing.length) {
     return {
       success: false,
-      message: `Missing environment variables: ${missing.join(", ")}`,
+      message: `Missing connection settings: ${missing.join(", ")}`,
       latencyMs: Date.now() - start,
       simulated: false,
     };

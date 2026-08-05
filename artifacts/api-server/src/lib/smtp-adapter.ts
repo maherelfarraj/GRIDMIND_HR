@@ -74,22 +74,31 @@ export async function sendSmtpMail(
   }
 }
 
-export async function testSmtpConnection(testRecipient?: string, timeoutMs = 8000): Promise<AdapterResult> {
+/**
+ * Real SMTP connection test. Connection details come from the profile's
+ * options when provided (connectionParamsJson host/port/user, vault-ref-
+ * resolved password), falling back to global environment variables:
+ *   SMTP_HOST, SMTP_PORT (default 587), SMTP_USER, SMTP_PASS
+ * Verifies the connection and sends a test message to `testRecipient`
+ * (falls back to SMTP_TEST_RECIPIENT env var, then the resolved user).
+ */
+export async function testSmtpConnection(testRecipient?: string, options: SmtpConnectionOptions = {}): Promise<AdapterResult> {
   const start = Date.now();
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT ?? "587");
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const timeoutMs = options.timeoutMs ?? 8000;
+  const host = options.host || process.env.SMTP_HOST;
+  const port = parseInt(String(options.port || process.env.SMTP_PORT || "587"));
+  const user = options.user || process.env.SMTP_USER;
+  const pass = options.pass || process.env.SMTP_PASS;
 
   const missing = [
-    !host && "SMTP_HOST",
-    !user && "SMTP_USER",
-    !pass && "SMTP_PASS",
+    !host && "host (profile connection params or SMTP_HOST)",
+    !user && "user (profile connection params or SMTP_USER)",
+    !pass && "password (profile vault ref or SMTP_PASS)",
   ].filter(Boolean);
   if (missing.length) {
     return {
       success: false,
-      message: `Missing environment variables: ${missing.join(", ")}`,
+      message: `Missing connection settings: ${missing.join(", ")}`,
       latencyMs: Date.now() - start,
       simulated: false,
     };
@@ -130,4 +139,12 @@ export async function testSmtpConnection(testRecipient?: string, timeoutMs = 800
   } finally {
     transporter.close();
   }
+}
+
+export interface SmtpConnectionOptions {
+  host?: string;
+  port?: string | number;
+  user?: string;
+  pass?: string;
+  timeoutMs?: number;
 }

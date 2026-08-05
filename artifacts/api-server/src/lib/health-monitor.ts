@@ -21,6 +21,7 @@ import {
 import { testLdapConnection, type AdapterResult } from "./ldap-adapter.js";
 import { testSmtpConnection } from "./smtp-adapter.js";
 import { testDeviceConnection } from "./device-adapter.js";
+import { resolveProfileConnection } from "./profile-connection.js";
 import { logger } from "./logger.js";
 import {
   createJobFailureAlerter,
@@ -52,22 +53,23 @@ export interface HealthMonitorRunResult {
 
 /** Runs the same adapter logic as the manual Test button. */
 export async function runConnectionTest(
-  profile: Pick<IntegrationConnectionProfile, "integrationType" | "governanceStatus">,
+  profile: Pick<IntegrationConnectionProfile, "integrationType" | "governanceStatus" | "connectionParamsJson" | "credentialVaultRefId">,
 ): Promise<{ success: boolean; message: string; latencyMs: number; simulated: boolean }> {
   if (profile.governanceStatus === "suspended") {
     return { success: false, message: "Profile is suspended", latencyMs: 0, simulated: false };
   }
+  const connOpts = await resolveProfileConnection(profile);
   let result: AdapterResult | null = null;
   switch (profile.integrationType) {
     case "ldap":
     case "active_directory":
-      result = await testLdapConnection();
+      result = await testLdapConnection(connOpts.ldap);
       break;
     case "smtp":
-      result = await testSmtpConnection();
+      result = await testSmtpConnection(undefined, connOpts.smtp);
       break;
     case "attendance_device":
-      result = await testDeviceConnection();
+      result = await testDeviceConnection(connOpts.device);
       break;
   }
   if (result) {

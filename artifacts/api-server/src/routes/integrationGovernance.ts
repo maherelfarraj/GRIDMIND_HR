@@ -9,6 +9,7 @@ import { testLdapConnection, type AdapterResult } from "../lib/ldap-adapter.js";
 import { testSmtpConnection } from "../lib/smtp-adapter.js";
 import { testDeviceConnection } from "../lib/device-adapter.js";
 import { runHealthChecksOnce, raiseHealthRecoveryIfAlerted } from "../lib/health-monitor.js";
+import { resolveProfileConnection } from "../lib/profile-connection.js";
 import { getSecurityEmailDeliveryStatus } from "../lib/email-alert-status.js";
 import { getPepperRotationStatus } from "./attendanceGateway.js";
 
@@ -146,18 +147,26 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
       latencyMs = 0;
       simulated = false;
     } else {
+      // Per-profile connection settings resolved via shared helper (same logic
+      // as the scheduled health monitor so both paths honour per-profile
+      // hosts/secrets, falling back to global env vars for absent fields).
+      const connOpts = await resolveProfileConnection(profile);
+
       // Real adapters for LDAP / AD, SMTP, and attendance devices.
       let result: AdapterResult | null = null;
       switch (profile.integrationType) {
         case "ldap":
         case "active_directory":
-          result = await testLdapConnection();
+          result = await testLdapConnection(connOpts.ldap);
           break;
         case "smtp":
-          result = await testSmtpConnection(typeof testRecipient === "string" ? testRecipient.trim() : undefined);
+          result = await testSmtpConnection(
+            typeof testRecipient === "string" ? testRecipient.trim() : undefined,
+            connOpts.smtp,
+          );
           break;
         case "attendance_device":
-          result = await testDeviceConnection();
+          result = await testDeviceConnection(connOpts.device);
           break;
       }
       if (result) {
