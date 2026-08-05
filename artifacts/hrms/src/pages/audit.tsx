@@ -1,11 +1,16 @@
 import { useLanguage } from '@/hooks/use-language';
 import { useListAuditLogs } from '@workspace/api-client-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Shield, Search, Lock, KeyRound, FileKey } from 'lucide-react';
+import { Shield, Search, Lock, KeyRound, FileKey, Network } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useState } from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDebounce } from '@/hooks/use-debounce';
+
+const SECURITY_ACTIONS = 'login.failed,login.lockout';
 
 const RECOVERY_METHOD_LABELS: Record<string, { en: string; ar: string; icon: React.ReactNode }> = {
   ADMIN_RESET_PASSWORD: {
@@ -50,7 +55,17 @@ function EmergencyResetDetail({ changesJson, lang }: { changesJson: string | nul
 
 export default function Audit() {
   const { t, lang } = useLanguage();
-  const { data: auditData, isLoading } = useListAuditLogs();
+  const [actionFilter, setActionFilter] = useState<string>('all');
+  const [labelSearch, setLabelSearch] = useState('');
+  const [ipSearch, setIpSearch] = useState('');
+  const debouncedLabel = useDebounce(labelSearch, 300);
+  const debouncedIp = useDebounce(ipSearch, 300);
+
+  const { data: auditData, isLoading } = useListAuditLogs({
+    action: actionFilter === 'all' ? undefined : actionFilter === 'security' ? SECURITY_ACTIONS : actionFilter,
+    entityLabel: debouncedLabel || undefined,
+    ipAddress: debouncedIp || undefined,
+  });
 
   return (
     <div className="space-y-6">
@@ -71,12 +86,41 @@ export default function Audit() {
 
       <Card>
         <CardHeader className="py-4 border-b">
-          <div className="relative max-w-sm">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder={t('Search by user, entity, or action...', 'البحث حسب المستخدم، الكيان، أو الإجراء...')}
-              className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
-            />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Select value={actionFilter} onValueChange={setActionFilter}>
+              <SelectTrigger className="w-full sm:w-56" data-testid="select-action-filter">
+                <SelectValue placeholder={t('All actions', 'جميع الإجراءات')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('All actions', 'جميع الإجراءات')}</SelectItem>
+                <SelectItem value="security">{t('Security events', 'أحداث الأمان')}</SelectItem>
+                <SelectItem value="login.failed">{t('Failed logins', 'محاولات دخول فاشلة')}</SelectItem>
+                <SelectItem value="login.lockout">{t('Lockouts', 'حالات القفل')}</SelectItem>
+                <SelectItem value="CREATE">{t('Create', 'إنشاء')}</SelectItem>
+                <SelectItem value="UPDATE">{t('Update', 'تحديث')}</SelectItem>
+                <SelectItem value="DELETE">{t('Delete', 'حذف')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={labelSearch}
+                onChange={(e) => setLabelSearch(e.target.value)}
+                placeholder={t('Filter by username / entity...', 'تصفية حسب اسم المستخدم / الكيان...')}
+                className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
+                data-testid="input-entity-label"
+              />
+            </div>
+            <div className="relative w-full sm:max-w-[200px]">
+              <Network className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={ipSearch}
+                onChange={(e) => setIpSearch(e.target.value)}
+                placeholder={t('Filter by IP...', 'تصفية حسب IP...')}
+                className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
+                data-testid="input-ip-address"
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -136,7 +180,11 @@ export default function Audit() {
                     </TableCell>
                     <TableCell>
                       <span className="text-muted-foreground uppercase">{log.entityType}</span>
-                      {log.entityId && <span className="ms-2 text-foreground">#{log.entityId}</span>}
+                      {log.entityLabel ? (
+                        <span className="ms-2 text-foreground">{log.entityLabel}</span>
+                      ) : log.entityId ? (
+                        <span className="ms-2 text-foreground">#{log.entityId}</span>
+                      ) : null}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {log.ipAddress || '-'}
@@ -151,3 +199,4 @@ export default function Audit() {
     </div>
   );
 }
+

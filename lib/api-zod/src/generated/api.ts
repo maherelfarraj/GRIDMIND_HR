@@ -927,6 +927,9 @@ export const DecideApprovalResponse = zod.object({
 export const ListAuditLogsQueryParams = zod.object({
   "entityType": zod.coerce.string().nullish(),
   "entityId": zod.coerce.number().int().nullish(),
+  "action": zod.coerce.string().nullish(),
+  "entityLabel": zod.coerce.string().nullish(),
+  "ipAddress": zod.coerce.string().nullish(),
   "actorUserId": zod.coerce.number().int().nullish(),
   "from": zod.coerce.string().nullish(),
   "to": zod.coerce.string().nullish(),

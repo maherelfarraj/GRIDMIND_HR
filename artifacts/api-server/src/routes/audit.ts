@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, auditLogsTable, systemUsersTable } from "@workspace/db";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte, sql, inArray, ilike } from "drizzle-orm";
 import { ListAuditLogsQueryParams } from "@workspace/api-zod";
 
 const router = Router();
@@ -12,6 +12,14 @@ router.get("/audit-logs", async (req, res): Promise<void> => {
   const conditions = [];
   if (q.entityType) conditions.push(eq(auditLogsTable.entityType, q.entityType));
   if (q.entityId) conditions.push(eq(auditLogsTable.entityId, q.entityId));
+  if (q.action) {
+    // Supports a single action or a comma-separated list (e.g. "login.failed,login.lockout")
+    const actions = q.action.split(",").map((a) => a.trim()).filter(Boolean);
+    if (actions.length === 1) conditions.push(eq(auditLogsTable.action, actions[0]));
+    else if (actions.length > 1) conditions.push(inArray(auditLogsTable.action, actions));
+  }
+  if (q.entityLabel) conditions.push(ilike(auditLogsTable.entityLabel, `%${q.entityLabel}%`));
+  if (q.ipAddress) conditions.push(ilike(auditLogsTable.ipAddress, `%${q.ipAddress}%`));
   if (q.actorUserId) conditions.push(eq(auditLogsTable.actorUserId, q.actorUserId));
   if (q.from) conditions.push(gte(auditLogsTable.createdAt, new Date(q.from)));
   if (q.to) conditions.push(lte(auditLogsTable.createdAt, new Date(q.to)));
@@ -20,9 +28,11 @@ router.get("/audit-logs", async (req, res): Promise<void> => {
   const limit = q.limit ?? 50;
   const offset = (page - 1) * limit;
 
-  const logs = conditions.length > 0
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const logs = where
     ? await db.select().from(auditLogsTable)
-        .where(and(...conditions))
+        .where(where)
         .orderBy(sql`${auditLogsTable.createdAt} desc`)
         .limit(limit).offset(offset)
     : await db.select().from(auditLogsTable)
@@ -46,7 +56,9 @@ router.get("/audit-logs", async (req, res): Promise<void> => {
     createdAt: l.createdAt.toISOString(),
   }));
 
-  const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(auditLogsTable);
+  const [{ total }] = where
+    ? await db.select({ total: sql<number>`count(*)::int` }).from(auditLogsTable).where(where)
+    : await db.select({ total: sql<number>`count(*)::int` }).from(auditLogsTable);
   res.json({ data, total, page, limit });
 });
 

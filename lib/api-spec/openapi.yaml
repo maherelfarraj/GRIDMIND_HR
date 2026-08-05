@@ -692,6 +692,18 @@ paths:
           schema:
             type: [ "integer", "null" ]
         - in: query
+          name: action
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: entityLabel
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: ipAddress
+          schema:
+            type: ["string", "null"]
+        - in: query
           name: actorUserId
           schema:
             type: [ "integer", "null" ]

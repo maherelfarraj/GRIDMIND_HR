@@ -18,6 +18,18 @@ entityId?: number | null;
 /**
  * @nullable
  */
+action?: string | null;
+/**
+ * @nullable
+ */
+entityLabel?: string | null;
+/**
+ * @nullable
+ */
+ipAddress?: string | null;
+/**
+ * @nullable
+ */
 actorUserId?: number | null;
 /**
  * @nullable
