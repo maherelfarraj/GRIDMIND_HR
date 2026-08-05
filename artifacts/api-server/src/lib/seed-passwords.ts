@@ -49,7 +49,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * concurrent instances. Reconciliation must never validate handoff entries
  * against a stale snapshot while another instance is mid-commit.
  */
-const HARDENING_LOCK_KEY = 921_151;
+export const HARDENING_LOCK_KEY = 921_151;
 
 const DEMO_ACCOUNTS = ["admin", "fatima.zahrani", "omar.ghamdi", "aisha.otaibi"];
 
@@ -81,11 +81,11 @@ function handoffPayload(entries: Array<{ username: string; oneTimePassword: stri
   );
 }
 
-function handoffDir(): string {
+export function handoffDir(): string {
   return process.env.ONE_TIME_PASSWORD_DIR || path.join(process.cwd(), ".credentials");
 }
 
-function writeOneTimePasswordHandoff(entries: Array<{ username: string; oneTimePassword: string }>): string {
+export function writeOneTimePasswordHandoff(entries: Array<{ username: string; oneTimePassword: string }>): string {
   const dir = handoffDir();
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const filePath = path.join(

@@ -35,6 +35,11 @@ async function getAdmin() {
 beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "otp-handoff-"));
   vi.stubEnv("ONE_TIME_PASSWORD_DIR", tmpDir);
+  // Clear ADMIN_RESET_PASSWORD so tests that exercise the OTP/handoff-file
+  // path are not silently diverted to the supplied-password branch by a live
+  // deployment secret.  Tests that want the supplied-password branch override
+  // this with their own vi.stubEnv("ADMIN_RESET_PASSWORD", ...) call.
+  vi.stubEnv("ADMIN_RESET_PASSWORD", "");
   const admin = await getAdmin();
   saved = admin;
 });
