@@ -38,6 +38,10 @@ args = "mobile-tests"
 task = "workflow.run"
 args = "regression"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "smoke"
+
 [[workflows.workflow]]
 name = "schema-drift"
 author = "agent"
@@ -67,6 +71,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "bash scripts/regression.sh"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "smoke"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/run-smoke.sh"
 
 [workflows.workflow.metadata]
 outputType = "console"

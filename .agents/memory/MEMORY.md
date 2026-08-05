@@ -13,4 +13,5 @@
 - [expo-print web quirk](expo-print-web.md) — web printAsync ignores html; print via hidden iframe, and install Expo modules with `expo install` to match the SDK.
 - [Publish build env detection](publish-build-env.md) — REPLIT_DEPLOYMENT is unset during publish builds; gate pre-build hooks with an explicit `[deployment.build].env` flag.
 - [Input-schema drift guard](input-schema-drift.md) — *Input/*Update spec fields must match drizzle columns; handlers insert body wholesale, so stale fields silently drop user input.
+- [Playwright on Nix](playwright-nix.md) — use nix-store chromium via executablePath, pin @playwright/test to match its revision; smoke suites must never silently rotate credentials.
 - [Alert/recovery transition dedupe](alert-recovery-dedupe.md) — derive alerted state from the audit trail, claim transitions under a row-lock transaction; check-then-insert races fail review.

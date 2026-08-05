@@ -1,0 +1,13 @@
+{
+  "name": "hrms-smoke",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Headless browser smoke suite for HRMS admin pages",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed"
+  },
+  "dependencies": {
+    "@playwright/test": "1.44.0"
+  }
+}
