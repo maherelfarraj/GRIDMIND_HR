@@ -1,5 +1,4 @@
-import { fetchGatewayRegistrations, selectOfflineGateways, type GatewayRegistration } from '@/lib/unspecced-api';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';
 import {
@@ -16,6 +15,7 @@ import {
   getGetDeviceQueryKey,
   getGetDeviceHealthQueryKey,
   getListDeviceCommandsQueryKey,
+  useListGatewayRegistrationsOptional,
   type AttendanceDeviceInput,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -70,7 +70,6 @@ export default function Devices() {
   const { data: devices, isLoading } = useListDevices();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [gateways, setGateways] = useState<GatewayRegistration[] | null>(null);
   const mappingsParams = { deviceId: selectedId ?? undefined };
   const {
     data: mappings = [],
@@ -121,17 +120,9 @@ export default function Devices() {
     },
   });
 
-  useEffect(() => {
-    let cancelled = false;
-    // Optional probe: the endpoint requires an authenticated session even in
-    // demo mode — a 401 resolves to null (banner hidden), never a redirect.
-    fetchGatewayRegistrations().then(data => {
-      if (!cancelled) setGateways(data);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  const offlineGateways = selectOfflineGateways(gateways);
+  const { data: gatewaysData } = useListGatewayRegistrationsOptional();
+  const gateways = gatewaysData ?? null;
+  const offlineGateways = (gateways ?? []).filter(g => g.status === 'ACTIVE' && g.silent);
 
   const { data: deviceDetail } = useGetDevice(selectedId || 0, { 
     query: { 

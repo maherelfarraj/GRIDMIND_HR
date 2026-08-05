@@ -12,14 +12,12 @@ import {
   listIntegrationAuditLog,
   runIntegrationHealthChecks,
   getConnectionProfile,
-} from '@workspace/api-client-react';
-import {
-  fetchSecurityEmailStatus,
-  fetchPepperRotationStatus,
+  getSecurityEmailStatus,
+  getPepperRotationStatus,
   createCredentialVaultRef,
   updateCredentialVaultRef,
   deleteCredentialVaultRef,
-} from '@/lib/unspecced-api';
+} from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';
 import { useToast } from '@/hooks/use-toast';
@@ -689,8 +687,8 @@ export default function IntegrationGovernance() {
         listCredentialVaultRefs(),
         listGovernanceRules(),
         listIntegrationAuditLog(),
-        fetchSecurityEmailStatus(),
-        fetchPepperRotationStatus(),
+        getSecurityEmailStatus(),
+        getPepperRotationStatus(),
       ]);
       setProfiles(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : []);
       const ev = e.status === 'fulfilled' ? (e.value as any) : null;

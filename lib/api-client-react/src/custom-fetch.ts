@@ -1,5 +1,11 @@
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
+  /**
+   * When true, a 401 Unauthorized response does NOT fire the global
+   * unauthorizedHandler (i.e. no session-expiry redirect). Use for optional
+   * probes where a 401 means "feature unavailable", not "session expired".
+   */
+  suppressUnauthorized?: boolean;
 };
 
 export type ErrorType<T = unknown> = ApiError<T>;
@@ -378,7 +384,7 @@ export async function customFetch<T = unknown>(
   options: CustomFetchOptions = {},
 ): Promise<T> {
   input = applyBaseUrl(input);
-  const { responseType = "auto", headers: headersInit, ...init } = options;
+  const { responseType = "auto", headers: headersInit, suppressUnauthorized, ...init } = options;
 
   const method = resolveMethod(input, init.method);
 
@@ -414,7 +420,7 @@ export async function customFetch<T = unknown>(
   const credentials = init.credentials ?? _defaultCredentials ?? undefined;
   const response = await fetch(input, { ...init, method, headers, credentials });
 
-  if (response.status === 401 && _unauthorizedHandler) {
+  if (response.status === 401 && _unauthorizedHandler && !suppressUnauthorized) {
     try {
       _unauthorizedHandler(response.clone());
     } catch {

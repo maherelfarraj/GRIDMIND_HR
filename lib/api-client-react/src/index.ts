@@ -1,5 +1,6 @@
 export * from "./generated/api";
 export * from "./generated/api.schemas";
+export { useListGatewayRegistrationsOptional } from "./useListGatewayRegistrationsOptional";
 export {
   ApiError,
   setBaseUrl,

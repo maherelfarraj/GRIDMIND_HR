@@ -14,8 +14,9 @@ import {
   listReadinessScorecard,
   listPilotDefects,
   getMigrationStatusSummary,
+  useListGatewayRegistrationsOptional,
+  type GatewayRegistration,
 } from '@workspace/api-client-react';
-import { fetchGatewayRegistrations } from '@/lib/unspecced-api';
 
 interface GoLiveSummary {
   isReadyForGoLive: boolean;
@@ -57,17 +58,7 @@ interface MigrationItem {
   isGoLiveBlocker: boolean;
 }
 
-interface GatewayRegistration {
-  id: number;
-  name: string;
-  nameAr?: string | null;
-  status: string;
-  silent: boolean;
-  silenceThresholdMs: number;
-  lastHeartbeatAt?: string | null;
-  lastSeenAt?: string | null;
-  adapterType?: string | null;
-}
+
 
 interface MigrationSummary {
   overallPct: number;
@@ -183,20 +174,19 @@ export default function ReadinessPage() {
   const [defects, setDefects] = useState<Defect[]>([]);
   const [migSummary, setMigSummary] = useState<MigrationSummary | null>(null);
   const [migItems, setMigItems] = useState<MigrationItem[]>([]);
-  const [gateways, setGateways] = useState<GatewayRegistration[] | null>(null);
+  const { data: gatewaysData } = useListGatewayRegistrationsOptional();
+  const gateways: GatewayRegistration[] | null = gatewaysData ?? null;
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [sumR, scR, defR, migSumR, gwR] = await Promise.allSettled([
+      const [sumR, scR, defR, migSumR] = await Promise.allSettled([
         getGoLiveGatesSummary(),
         listReadinessScorecard(),
         listPilotDefects({ status: 'open' }),
         getMigrationStatusSummary(),
-        fetchGatewayRegistrations(),
       ]);
-      if (gwR.status === 'fulfilled' && Array.isArray(gwR.value)) setGateways(gwR.value as GatewayRegistration[]);
       if (sumR.status === 'fulfilled') setSummary(sumR.value as unknown as GoLiveSummary);
       if (scR.status === 'fulfilled') {
         setScorecards(Array.isArray(scR.value) ? scR.value as unknown as Scorecard[] : (scR.value as any)?.scorecards ?? []);

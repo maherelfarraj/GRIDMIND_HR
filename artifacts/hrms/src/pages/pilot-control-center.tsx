@@ -16,7 +16,7 @@ import {
   overrideGoLiveGate,
   createPilotDefect,
 } from '@workspace/api-client-react';
-import { evaluateGoLiveGateSingle } from '@/lib/unspecced-api';
+
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';
 import { useToast } from '@/hooks/use-toast';
@@ -252,9 +252,9 @@ export default function PilotControlCenter() {
     finally { setRunningRestore(false); }
   }
 
-  async function handleManualEvaluate(gateId: number) {
+  async function handleManualEvaluate(_gateId: number) {
     try {
-      await evaluateGoLiveGateSingle(gateId);
+      await evaluateGoLiveGates();
       toast({ title: t('Gate evaluated', 'تم تقييم البوابة') });
       loadAll();
     } catch { /* silent */ }

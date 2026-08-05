@@ -8413,6 +8413,46 @@ paths:
                       secret: { type: string, description: Plaintext secret; returned once only }
         '401': { description: Authentication required }
 
+  /gateway/registrations/{id}:
+    patch:
+      operationId: updateGatewayRegistration
+      tags: [ AttendanceGateway ]
+      summary: Update per-registration admin settings (currently only silence threshold)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GatewayRegistrationUpdate'
+      responses:
+        '200':
+          description: Updated registration
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GatewayRegistration' }
+        '400': { description: Invalid silenceThresholdMinutes }
+        '401': { description: Authentication required }
+        '404': { description: Not found }
+
+  /gateway/registrations/{id}/reconcile:
+    post:
+      operationId: reconcileGatewayRegistration
+      tags: [ AttendanceGateway ]
+      summary: Queue an immediate RECONCILE command for a gateway registration
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '201':
+          description: Reconcile command queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceCommand' }
+        '401': { description: Authentication required }
+        '404': { description: Not found }
+        '409': { description: Gateway not ACTIVE or reconcile already in-flight }
+
   /gateway/registrations/{id}/test:
     post:
       operationId: requestGatewayConnectionTest
@@ -10640,6 +10680,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/IntegrationConnectionProfile"
 
+  /integration-governance/security-email-status:
+    get:
+      operationId: getSecurityEmailStatus
+      tags: [ DeploymentOps ]
+      summary: Security alert email delivery status (in-memory watchdog state)
+      responses:
+        "200":
+          description: Current delivery status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityEmailStatus"
+
+  /integration-governance/pepper-rotation-status:
+    get:
+      operationId: getPepperRotationStatus
+      tags: [ DeploymentOps ]
+      summary: Gateway key pepper rotation window status
+      responses:
+        "200":
+          description: Current rotation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PepperRotationStatus"
+
   /integration-governance/credential-vault-refs:
     get:
       operationId: listCredentialVaultRefs
@@ -10654,6 +10720,66 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/IntegrationCredentialVaultRef"
+    post:
+      operationId: createCredentialVaultRef
+      tags: [ DeploymentOps ]
+      summary: Create a credential vault reference
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntegrationCredentialVaultRefInput"
+      responses:
+        "201":
+          description: Created vault ref (with warnings for unconfigured env vars)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationCredentialVaultRef"
+        "500":
+          description: Server error
+
+  /integration-governance/credential-vault-refs/{id}:
+    patch:
+      operationId: updateCredentialVaultRef
+      tags: [ DeploymentOps ]
+      summary: Update a credential vault reference
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntegrationCredentialVaultRefUpdate"
+      responses:
+        "200":
+          description: Updated vault ref (with warnings for unconfigured env vars)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationCredentialVaultRef"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteCredentialVaultRef
+      tags: [ DeploymentOps ]
+      summary: Delete a credential vault reference
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                required: [ success ]
+        "404":
+          description: Not found
 
   /integration-governance/governance-rules:
     get:
@@ -18098,3 +18224,60 @@ components:
         executedAt: { type: string }
         createdAt: { type: string }
       required: [ id, runId, scenarioId, result, isGoLiveBlocker, executedAt, createdAt ]
+
+    GatewayRegistrationUpdate:
+      type: object
+      description: Admin-editable fields for a gateway registration. silenceThresholdMinutes=null resets to the global default.
+      required: [ silenceThresholdMinutes ]
+      properties:
+        silenceThresholdMinutes: { type: [ "integer", "null" ], description: "Per-registration silence alarm threshold (1–1440 minutes), or null for the global default" }
+
+    SecurityEmailStatus:
+      type: object
+      description: In-memory watchdog state for security alert email delivery.
+      properties:
+        outageActive: { type: boolean }
+        lastFailureMessage: { type: [ "string", "null" ] }
+        lastFailureAt: { type: [ "string", "null" ] }
+        outageSince: { type: [ "string", "null" ] }
+        lastSuccessAt: { type: [ "string", "null" ] }
+      required: [ outageActive ]
+
+    PepperRotationStatus:
+      type: object
+      description: Gateway key pepper rotation window status.
+      properties:
+        windowOpen: { type: boolean }
+        rotationComplete: { type: boolean }
+        pendingRewrap: { type: integer }
+        unrecoverable: { type: integer }
+      required: [ windowOpen, rotationComplete, pendingRewrap, unrecoverable ]
+
+    IntegrationCredentialVaultRefInput:
+      type: object
+      description: Fields required to create a credential vault reference.
+      required: [ labelEn, labelAr, credentialType, vaultKeyRef ]
+      properties:
+        labelEn: { type: string }
+        labelAr: { type: string }
+        credentialType: { type: string }
+        vaultKeyRef: { type: string }
+        vaultSecretRef: { type: [ "string", "null" ] }
+        descriptionEn: { type: [ "string", "null" ] }
+        descriptionAr: { type: [ "string", "null" ] }
+        status: { type: string }
+        ownerUserId: { type: [ "integer", "null" ] }
+
+    IntegrationCredentialVaultRefUpdate:
+      type: object
+      description: Fields allowed when updating a credential vault reference.
+      properties:
+        labelEn: { type: string }
+        labelAr: { type: string }
+        credentialType: { type: string }
+        vaultKeyRef: { type: string }
+        vaultSecretRef: { type: [ "string", "null" ] }
+        descriptionEn: { type: [ "string", "null" ] }
+        descriptionAr: { type: [ "string", "null" ] }
+        status: { type: string }
+        ownerUserId: { type: [ "integer", "null" ] }

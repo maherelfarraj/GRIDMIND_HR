@@ -6294,6 +6294,80 @@ export interface SecurityTestFinding {
   createdAt: string;
 }
 
+/**
+ * Admin-editable fields for a gateway registration. silenceThresholdMinutes=null resets to the global default.
+ */
+export interface GatewayRegistrationUpdate {
+  /**
+     * Per-registration silence alarm threshold (1–1440 minutes), or null for the global default
+     * @nullable
+     */
+  silenceThresholdMinutes: number | null;
+}
+
+/**
+ * In-memory watchdog state for security alert email delivery.
+ */
+export interface SecurityEmailStatus {
+  outageActive: boolean;
+  /** @nullable */
+  lastFailureMessage?: string | null;
+  /** @nullable */
+  lastFailureAt?: string | null;
+  /** @nullable */
+  outageSince?: string | null;
+  /** @nullable */
+  lastSuccessAt?: string | null;
+}
+
+/**
+ * Gateway key pepper rotation window status.
+ */
+export interface PepperRotationStatus {
+  windowOpen: boolean;
+  rotationComplete: boolean;
+  pendingRewrap: number;
+  unrecoverable: number;
+}
+
+/**
+ * Fields required to create a credential vault reference.
+ */
+export interface IntegrationCredentialVaultRefInput {
+  labelEn: string;
+  labelAr: string;
+  credentialType: string;
+  vaultKeyRef: string;
+  /** @nullable */
+  vaultSecretRef?: string | null;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  status?: string;
+  /** @nullable */
+  ownerUserId?: number | null;
+}
+
+/**
+ * Fields allowed when updating a credential vault reference.
+ */
+export interface IntegrationCredentialVaultRefUpdate {
+  labelEn?: string;
+  labelAr?: string;
+  credentialType?: string;
+  vaultKeyRef?: string;
+  /** @nullable */
+  vaultSecretRef?: string | null;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  descriptionAr?: string | null;
+  status?: string;
+  /** @nullable */
+  ownerUserId?: number | null;
+}
+
 export type ListEmployeesParams = {
 /**
  * @nullable
@@ -8364,6 +8438,10 @@ export type ApproveConnectionProfileBody = {
 export type SuspendConnectionProfileBody = {
   /** @nullable */
   reason?: string | null;
+};
+
+export type DeleteCredentialVaultRef200 = {
+  success: boolean;
 };
 
 export type ListGovernanceRulesParams = {

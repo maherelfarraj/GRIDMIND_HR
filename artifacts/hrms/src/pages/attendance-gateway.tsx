@@ -16,7 +16,7 @@ import {
   Server, Plus, AlertCircle, CheckCircle, XCircle, Activity, Copy, Clock, ShieldAlert, AlertTriangle, Info, Pencil,
   Loader2, WifiOff, RefreshCw, X,
 } from 'lucide-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useListGatewayRegistrations, getListGatewayRegistrationsQueryKey,
   useListGatewayBatches, getListGatewayBatchesQueryKey,
@@ -25,16 +25,13 @@ import {
   useRevokeGatewayRegistration,
   useRequestGatewayConnectionTest,
   useCancelGatewayConnectionTest,
+  useReconcileGatewayRegistration,
+  useUpdateGatewayRegistration,
 } from '@workspace/api-client-react';
 import type {
   GatewayRegistration,
   CreateGatewayRegistrationBody,
 } from '@workspace/api-client-react';
-// The "reconcile now" (POST /gateway/registrations/{id}/reconcile) and the
-// per-registration silence-threshold update (PATCH /gateway/registrations/{id})
-// endpoints are not described in the OpenAPI spec, so no generated hook exists.
-// They are invoked through helpers in lib/unspecced-api.ts.
-import { reconcileGatewayRegistration, patchGatewayRegistrationThreshold } from '@/lib/unspecced-api';
 
 export default function AttendanceGateway() {
   const { t, lang } = useLanguage();
@@ -115,26 +112,25 @@ export default function AttendanceGateway() {
   );
   if (anyReconcilePending !== reconcileInFlight) setReconcileInFlight(anyReconcilePending);
 
-  // "Reconcile now" has no generated client hook (endpoint absent from the
-  // OpenAPI spec), so it uses the helper from lib/unspecced-api.ts.
-  const reconcileNowMutation = useMutation({
-    mutationFn: (id: number) => reconcileGatewayRegistration(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
-      toast({
-        title: t('Reconcile queued', 'تمت جدولة المطابقة'),
-        description: t(
-          'The command will be delivered with the gateway\'s next heartbeat; the outcome appears here once the gateway acknowledges it.',
-          'سيتم تسليم الأمر مع نبضة البوابة التالية؛ ستظهر النتيجة هنا بمجرد تأكيد البوابة.',
-        ),
-      });
-    },
-    onError: (e: Error) => {
-      toast({
-        title: t('Error', 'خطأ'),
-        description: e.message || t('Failed to queue the reconcile command.', 'فشل في جدولة أمر المطابقة.'),
-        variant: 'destructive',
-      });
+  const reconcileNowMutation = useReconcileGatewayRegistration({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
+        toast({
+          title: t('Reconcile queued', 'تمت جدولة المطابقة'),
+          description: t(
+            'The command will be delivered with the gateway\'s next heartbeat; the outcome appears here once the gateway acknowledges it.',
+            'سيتم تسليم الأمر مع نبضة البوابة التالية؛ ستظهر النتيجة هنا بمجرد تأكيد البوابة.',
+          ),
+        });
+      },
+      onError: (e: Error) => {
+        toast({
+          title: t('Error', 'خطأ'),
+          description: e.message || t('Failed to queue the reconcile command.', 'فشل في جدولة أمر المطابقة.'),
+          variant: 'destructive',
+        });
+      },
     },
   });
 
@@ -227,25 +223,23 @@ export default function AttendanceGateway() {
   // Silence-threshold editing (per-registration alarm window)
   const [thresholdEdit, setThresholdEdit] = useState<{ reg: GatewayRegistration; value: string } | null>(null);
 
-  // The per-registration silence-threshold PATCH has no generated client hook
-  // (endpoint absent from the OpenAPI spec), so it uses the helper in lib/unspecced-api.ts.
-  const thresholdMutation = useMutation({
-    mutationFn: ({ id, minutes }: { id: number; minutes: number | null }) =>
-      patchGatewayRegistrationThreshold(id, minutes),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
-      setThresholdEdit(null);
-      toast({
-        title: t('Threshold Updated', 'تم تحديث الحد'),
-        description: t('The silence alarm window has been updated.', 'تم تحديث نافذة إنذار الصمت.'),
-      });
-    },
-    onError: (e: Error) => {
-      toast({
-        title: t('Error', 'خطأ'),
-        description: e.message || t('Failed to update the silence threshold.', 'فشل في تحديث حد الصمت.'),
-        variant: 'destructive',
-      });
+  const thresholdMutation = useUpdateGatewayRegistration({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
+        setThresholdEdit(null);
+        toast({
+          title: t('Threshold Updated', 'تم تحديث الحد'),
+          description: t('The silence alarm window has been updated.', 'تم تحديث نافذة إنذار الصمت.'),
+        });
+      },
+      onError: (e: Error) => {
+        toast({
+          title: t('Error', 'خطأ'),
+          description: e.message || t('Failed to update the silence threshold.', 'فشل في تحديث حد الصمت.'),
+          variant: 'destructive',
+        });
+      },
     },
   });
 
@@ -253,7 +247,7 @@ export default function AttendanceGateway() {
     if (!thresholdEdit) return;
     const trimmed = thresholdEdit.value.trim();
     if (trimmed === '') {
-      thresholdMutation.mutate({ id: thresholdEdit.reg.id!, minutes: null });
+      thresholdMutation.mutate({ id: thresholdEdit.reg.id!, data: { silenceThresholdMinutes: null } });
       return;
     }
     const minutes = Number(trimmed);
@@ -265,7 +259,7 @@ export default function AttendanceGateway() {
       });
       return;
     }
-    thresholdMutation.mutate({ id: thresholdEdit.reg.id!, minutes });
+    thresholdMutation.mutate({ id: thresholdEdit.reg.id!, data: { silenceThresholdMinutes: minutes } });
   };
 
   const handleCreate = () => {
@@ -840,7 +834,7 @@ export default function AttendanceGateway() {
                             disabled={reconcileNowMutation.isPending}
                             onClick={(e) => {
                               e.stopPropagation();
-                              reconcileNowMutation.mutate(reg.id!);
+                              reconcileNowMutation.mutate({ id: reg.id! });
                             }}
                             title={t('Queue a reconcile command', 'جدولة أمر مطابقة')}
                           >

@@ -14442,6 +14442,78 @@ export const CreateGatewayRegistrationResponse = zod.object({
 
 
 /**
+ * @summary Update per-registration admin settings (currently only silence threshold)
+ */
+export const UpdateGatewayRegistrationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateGatewayRegistrationBody = zod.object({
+  "silenceThresholdMinutes": zod.number().nullable().describe('Per-registration silence alarm threshold (1–1440 minutes), or null for the global default')
+}).describe('Admin-editable fields for a gateway registration. silenceThresholdMinutes=null resets to the global default.')
+
+export const UpdateGatewayRegistrationResponse = zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string().optional(),
+  "nameAr": zod.string().nullish(),
+  "deviceId": zod.number().nullish(),
+  "adapterType": zod.enum(['ZKTECO', 'SUPREMA', 'ZKTECO_NATIVE', 'SUPREMA_NATIVE', 'GENERIC_REST', 'CSV', 'SIMULATOR']).optional(),
+  "status": zod.enum(['ACTIVE', 'REVOKED']).optional(),
+  "registeredByUserId": zod.number().optional(),
+  "lastSeenAt": zod.string().nullish(),
+  "lastHeartbeatAt": zod.string().nullish(),
+  "clockDriftMs": zod.number().nullish(),
+  "driftAlert": zod.boolean().optional(),
+  "credentialUnusable": zod.boolean().optional().describe('Stored credential envelope cannot be decrypted (tampering or a lost pepper) — the gateway must be re-registered; clears automatically once the stored credential decrypts again.'),
+  "adapterConnStatus": zod.union([zod.literal('REACHABLE'),zod.literal('AUTH_FAILED'),zod.literal('UNREACHABLE'),zod.literal('NOT_CONFIGURED'),zod.literal(null)]).nullish(),
+  "adapterConnMessage": zod.string().nullish(),
+  "adapterConnTestedAt": zod.string().nullish(),
+  "connTestRequestedAt": zod.string().nullish(),
+  "connTestTimedOut": zod.boolean().optional().describe('Server-computed. True when a test request has been pending (connTestRequestedAt set, no heartbeat with a result received) for longer than max(2 × effective silence threshold, 5 minutes). The UI should show a \"gateway did not respond\" state instead of a spinner and offer cancel\/retry actions.\n'),
+  "deviceClockSkewMs": zod.number().nullish(),
+  "deviceClockSkewAlert": zod.boolean().optional(),
+  "sdkPresent": zod.boolean().nullish(),
+  "sdkVersion": zod.string().nullish(),
+  "silenceThresholdMinutes": zod.number().nullish().describe('Per-registration silent-gateway alarm window in minutes; null falls back to the global default.'),
+  "silent": zod.boolean().optional().describe('Server-computed. True when the registration is ACTIVE and the last contact (lastHeartbeatAt, falling back to lastSeenAt then createdAt) occurred more than silenceThresholdMs milliseconds ago. Mirrors the verdict used by the notification sweep.\n'),
+  "silenceThresholdMs": zod.number().optional().describe('Server-computed. Effective silence threshold in milliseconds after applying the per-registration override (silenceThresholdMinutes converted to ms) or, when that field is null, the global GATEWAY_SILENCE_THRESHOLD_MS default.\n'),
+  "reconcileCommand": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['PENDING', 'DELIVERED', 'ACKNOWLEDGED', 'EXPIRED', 'FAILED']),
+  "resultMessage": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "acknowledgedAt": zod.string().nullable()
+})]).optional().describe('Server-computed. The most recent RECONCILE device command issued for this registration, or null if none has ever been issued. Used by the admin UI to show queued, delivered, or acknowledged feedback for the \"reconcile now\" action.\n'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('A registered local Attendance Gateway (secretHash is intentionally never exposed through the API).\n')
+
+
+/**
+ * @summary Queue an immediate RECONCILE command for a gateway registration
+ */
+export const ReconcileGatewayRegistrationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ReconcileGatewayRegistrationResponse = zod.object({
+  "id": zod.number(),
+  "deviceId": zod.number(),
+  "registrationId": zod.number(),
+  "command": zod.string(),
+  "status": zod.string(),
+  "requestedByUserId": zod.number().nullish(),
+  "resultMessage": zod.string().nullish(),
+  "deliveredAt": zod.string().nullish(),
+  "acknowledgedAt": zod.string().nullish(),
+  "outcomeNotifiedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
  * @summary Request an on-demand connection test; gateway answers on next heartbeat
  */
 export const RequestGatewayConnectionTestParams = zod.object({
@@ -17692,6 +17764,29 @@ export const SuspendConnectionProfileResponse = zod.object({
 
 
 /**
+ * @summary Security alert email delivery status (in-memory watchdog state)
+ */
+export const GetSecurityEmailStatusResponse = zod.object({
+  "outageActive": zod.boolean(),
+  "lastFailureMessage": zod.string().nullish(),
+  "lastFailureAt": zod.string().nullish(),
+  "outageSince": zod.string().nullish(),
+  "lastSuccessAt": zod.string().nullish()
+}).describe('In-memory watchdog state for security alert email delivery.')
+
+
+/**
+ * @summary Gateway key pepper rotation window status
+ */
+export const GetPepperRotationStatusResponse = zod.object({
+  "windowOpen": zod.boolean(),
+  "rotationComplete": zod.boolean(),
+  "pendingRewrap": zod.number(),
+  "unrecoverable": zod.number()
+}).describe('Gateway key pepper rotation window status.')
+
+
+/**
  * @summary List credential vault references
  */
 export const ListCredentialVaultRefsResponseItem = zod.object({
@@ -17714,6 +17809,94 @@ export const ListCredentialVaultRefsResponseItem = zod.object({
   "warnings": zod.array(zod.string()).optional()
 })
 export const ListCredentialVaultRefsResponse = zod.array(ListCredentialVaultRefsResponseItem)
+
+
+/**
+ * @summary Create a credential vault reference
+ */
+export const CreateCredentialVaultRefBody = zod.object({
+  "labelEn": zod.string(),
+  "labelAr": zod.string(),
+  "credentialType": zod.string(),
+  "vaultKeyRef": zod.string(),
+  "vaultSecretRef": zod.string().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "ownerUserId": zod.number().nullish()
+}).describe('Fields required to create a credential vault reference.')
+
+export const CreateCredentialVaultRefResponse = zod.object({
+  "id": zod.number(),
+  "labelEn": zod.string(),
+  "labelAr": zod.string(),
+  "credentialType": zod.string(),
+  "vaultKeyRef": zod.string(),
+  "vaultSecretRef": zod.string().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "status": zod.string(),
+  "lastRotatedAt": zod.string().nullish(),
+  "rotationDueAt": zod.string().nullish(),
+  "ownerUserId": zod.number().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "configured": zod.boolean().optional(),
+  "warnings": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Update a credential vault reference
+ */
+export const UpdateCredentialVaultRefParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateCredentialVaultRefBody = zod.object({
+  "labelEn": zod.string().optional(),
+  "labelAr": zod.string().optional(),
+  "credentialType": zod.string().optional(),
+  "vaultKeyRef": zod.string().optional(),
+  "vaultSecretRef": zod.string().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "ownerUserId": zod.number().nullish()
+}).describe('Fields allowed when updating a credential vault reference.')
+
+export const UpdateCredentialVaultRefResponse = zod.object({
+  "id": zod.number(),
+  "labelEn": zod.string(),
+  "labelAr": zod.string(),
+  "credentialType": zod.string(),
+  "vaultKeyRef": zod.string(),
+  "vaultSecretRef": zod.string().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "status": zod.string(),
+  "lastRotatedAt": zod.string().nullish(),
+  "rotationDueAt": zod.string().nullish(),
+  "ownerUserId": zod.number().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "configured": zod.boolean().optional(),
+  "warnings": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Delete a credential vault reference
+ */
+export const DeleteCredentialVaultRefParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteCredentialVaultRefResponse = zod.object({
+  "success": zod.boolean()
+})
 
 
 /**

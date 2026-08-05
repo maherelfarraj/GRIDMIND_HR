@@ -126,6 +126,7 @@ import type {
   DecideAttendanceCorrectionBody,
   DeclineJobOfferBody,
   DeleteConnectionProfile200,
+  DeleteCredentialVaultRef200,
   DeleteExportJobsId200,
   DeleteImportJob200,
   DeleteImportMappingTemplate200,
@@ -200,6 +201,7 @@ import type {
   ExportConfigPackage200,
   ExportJob,
   GatewayRegistration,
+  GatewayRegistrationUpdate,
   GenerateDocumentFromTemplateBody,
   GetAnalyticsAttendanceAnomalies200,
   GetAnalyticsAttendanceAnomaliesParams,
@@ -253,6 +255,8 @@ import type {
   IntegrationConnector,
   IntegrationConnectorInput,
   IntegrationCredentialVaultRef,
+  IntegrationCredentialVaultRefInput,
+  IntegrationCredentialVaultRefUpdate,
   IntegrationEvent,
   IntegrationGovernanceRule,
   IntegrationRetryQueue,
@@ -461,6 +465,7 @@ import type {
   PayrollRunSummary,
   PayrollVarianceLog,
   Payslip,
+  PepperRotationStatus,
   Permission,
   PilotDefect,
   PlaceLegalHoldBody,
@@ -532,6 +537,7 @@ import type {
   SecurityAlert,
   SecurityClearance,
   SecurityClearanceInput,
+  SecurityEmailStatus,
   SecurityTestRun,
   SecurityTestScenario,
   SetPasswordInput,
@@ -34157,6 +34163,149 @@ export const useCreateGatewayRegistration = <TError = ErrorType<void>,
       return useMutation(getCreateGatewayRegistrationMutationOptions(options));
     }
 
+export const getUpdateGatewayRegistrationUrl = (id: number,) => {
+
+
+
+
+  return `/api/gateway/registrations/${id}`
+}
+
+/**
+ * @summary Update per-registration admin settings (currently only silence threshold)
+ */
+export const updateGatewayRegistration = async (id: number,
+    gatewayRegistrationUpdate: GatewayRegistrationUpdate, options?: Parameters<typeof customFetch>[1]): Promise<GatewayRegistration> => {
+
+  return customFetch<GatewayRegistration>(getUpdateGatewayRegistrationUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(gatewayRegistrationUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateGatewayRegistrationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGatewayRegistration>>, TError,{id: number;data: BodyType<GatewayRegistrationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGatewayRegistration>>, TError,{id: number;data: BodyType<GatewayRegistrationUpdate>}, TContext> => {
+
+const mutationKey = ['updateGatewayRegistration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGatewayRegistration>>, {id: number;data: BodyType<GatewayRegistrationUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateGatewayRegistration(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGatewayRegistrationMutationResult = NonNullable<Awaited<ReturnType<typeof updateGatewayRegistration>>>
+    export type UpdateGatewayRegistrationMutationBody = BodyType<GatewayRegistrationUpdate>
+    export type UpdateGatewayRegistrationMutationError = ErrorType<void>
+
+    /**
+ * @summary Update per-registration admin settings (currently only silence threshold)
+ */
+export const useUpdateGatewayRegistration = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGatewayRegistration>>, TError,{id: number;data: BodyType<GatewayRegistrationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateGatewayRegistration>>,
+        TError,
+        {id: number;data: BodyType<GatewayRegistrationUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateGatewayRegistrationMutationOptions(options));
+    }
+
+export const getReconcileGatewayRegistrationUrl = (id: number,) => {
+
+
+
+
+  return `/api/gateway/registrations/${id}/reconcile`
+}
+
+/**
+ * @summary Queue an immediate RECONCILE command for a gateway registration
+ */
+export const reconcileGatewayRegistration = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<DeviceCommand> => {
+
+  return customFetch<DeviceCommand>(getReconcileGatewayRegistrationUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReconcileGatewayRegistrationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reconcileGatewayRegistration>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reconcileGatewayRegistration>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['reconcileGatewayRegistration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reconcileGatewayRegistration>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  reconcileGatewayRegistration(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReconcileGatewayRegistrationMutationResult = NonNullable<Awaited<ReturnType<typeof reconcileGatewayRegistration>>>
+
+    export type ReconcileGatewayRegistrationMutationError = ErrorType<void>
+
+    /**
+ * @summary Queue an immediate RECONCILE command for a gateway registration
+ */
+export const useReconcileGatewayRegistration = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reconcileGatewayRegistration>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reconcileGatewayRegistration>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getReconcileGatewayRegistrationMutationOptions(options));
+    }
+
 export const getRequestGatewayConnectionTestUrl = (id: number,) => {
 
 
@@ -41729,6 +41878,160 @@ export const useSuspendConnectionProfile = <TError = ErrorType<unknown>,
       return useMutation(getSuspendConnectionProfileMutationOptions(options));
     }
 
+export const getGetSecurityEmailStatusUrl = () => {
+
+
+
+
+  return `/api/integration-governance/security-email-status`
+}
+
+/**
+ * @summary Security alert email delivery status (in-memory watchdog state)
+ */
+export const getSecurityEmailStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<SecurityEmailStatus> => {
+
+  return customFetch<SecurityEmailStatus>(getGetSecurityEmailStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSecurityEmailStatusQueryKey = () => {
+    return [
+    `/api/integration-governance/security-email-status`
+    ] as const;
+    }
+
+
+export const getGetSecurityEmailStatusQueryOptions = <TData = Awaited<ReturnType<typeof getSecurityEmailStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSecurityEmailStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSecurityEmailStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSecurityEmailStatus>>> = ({ signal }) => getSecurityEmailStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSecurityEmailStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSecurityEmailStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getSecurityEmailStatus>>>
+export type GetSecurityEmailStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Security alert email delivery status (in-memory watchdog state)
+ */
+
+export function useGetSecurityEmailStatus<TData = Awaited<ReturnType<typeof getSecurityEmailStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSecurityEmailStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSecurityEmailStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPepperRotationStatusUrl = () => {
+
+
+
+
+  return `/api/integration-governance/pepper-rotation-status`
+}
+
+/**
+ * @summary Gateway key pepper rotation window status
+ */
+export const getPepperRotationStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<PepperRotationStatus> => {
+
+  return customFetch<PepperRotationStatus>(getGetPepperRotationStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPepperRotationStatusQueryKey = () => {
+    return [
+    `/api/integration-governance/pepper-rotation-status`
+    ] as const;
+    }
+
+
+export const getGetPepperRotationStatusQueryOptions = <TData = Awaited<ReturnType<typeof getPepperRotationStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPepperRotationStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPepperRotationStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPepperRotationStatus>>> = ({ signal }) => getPepperRotationStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPepperRotationStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPepperRotationStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getPepperRotationStatus>>>
+export type GetPepperRotationStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Gateway key pepper rotation window status
+ */
+
+export function useGetPepperRotationStatus<TData = Awaited<ReturnType<typeof getPepperRotationStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPepperRotationStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPepperRotationStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListCredentialVaultRefsUrl = () => {
 
 
@@ -41805,6 +42108,220 @@ export function useListCredentialVaultRefs<TData = Awaited<ReturnType<typeof lis
 
 
 
+
+export const getCreateCredentialVaultRefUrl = () => {
+
+
+
+
+  return `/api/integration-governance/credential-vault-refs`
+}
+
+/**
+ * @summary Create a credential vault reference
+ */
+export const createCredentialVaultRef = async (integrationCredentialVaultRefInput: IntegrationCredentialVaultRefInput, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationCredentialVaultRef> => {
+
+  return customFetch<IntegrationCredentialVaultRef>(getCreateCredentialVaultRefUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(integrationCredentialVaultRefInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCredentialVaultRefMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCredentialVaultRef>>, TError,{data: BodyType<IntegrationCredentialVaultRefInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCredentialVaultRef>>, TError,{data: BodyType<IntegrationCredentialVaultRefInput>}, TContext> => {
+
+const mutationKey = ['createCredentialVaultRef'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCredentialVaultRef>>, {data: BodyType<IntegrationCredentialVaultRefInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCredentialVaultRef(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCredentialVaultRefMutationResult = NonNullable<Awaited<ReturnType<typeof createCredentialVaultRef>>>
+    export type CreateCredentialVaultRefMutationBody = BodyType<IntegrationCredentialVaultRefInput>
+    export type CreateCredentialVaultRefMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a credential vault reference
+ */
+export const useCreateCredentialVaultRef = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCredentialVaultRef>>, TError,{data: BodyType<IntegrationCredentialVaultRefInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCredentialVaultRef>>,
+        TError,
+        {data: BodyType<IntegrationCredentialVaultRefInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCredentialVaultRefMutationOptions(options));
+    }
+
+export const getUpdateCredentialVaultRefUrl = (id: number,) => {
+
+
+
+
+  return `/api/integration-governance/credential-vault-refs/${id}`
+}
+
+/**
+ * @summary Update a credential vault reference
+ */
+export const updateCredentialVaultRef = async (id: number,
+    integrationCredentialVaultRefUpdate: IntegrationCredentialVaultRefUpdate, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationCredentialVaultRef> => {
+
+  return customFetch<IntegrationCredentialVaultRef>(getUpdateCredentialVaultRefUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(integrationCredentialVaultRefUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateCredentialVaultRefMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCredentialVaultRef>>, TError,{id: number;data: BodyType<IntegrationCredentialVaultRefUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCredentialVaultRef>>, TError,{id: number;data: BodyType<IntegrationCredentialVaultRefUpdate>}, TContext> => {
+
+const mutationKey = ['updateCredentialVaultRef'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCredentialVaultRef>>, {id: number;data: BodyType<IntegrationCredentialVaultRefUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCredentialVaultRef(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCredentialVaultRefMutationResult = NonNullable<Awaited<ReturnType<typeof updateCredentialVaultRef>>>
+    export type UpdateCredentialVaultRefMutationBody = BodyType<IntegrationCredentialVaultRefUpdate>
+    export type UpdateCredentialVaultRefMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a credential vault reference
+ */
+export const useUpdateCredentialVaultRef = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCredentialVaultRef>>, TError,{id: number;data: BodyType<IntegrationCredentialVaultRefUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCredentialVaultRef>>,
+        TError,
+        {id: number;data: BodyType<IntegrationCredentialVaultRefUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateCredentialVaultRefMutationOptions(options));
+    }
+
+export const getDeleteCredentialVaultRefUrl = (id: number,) => {
+
+
+
+
+  return `/api/integration-governance/credential-vault-refs/${id}`
+}
+
+/**
+ * @summary Delete a credential vault reference
+ */
+export const deleteCredentialVaultRef = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<DeleteCredentialVaultRef200> => {
+
+  return customFetch<DeleteCredentialVaultRef200>(getDeleteCredentialVaultRefUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCredentialVaultRefMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCredentialVaultRef>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCredentialVaultRef>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteCredentialVaultRef'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCredentialVaultRef>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteCredentialVaultRef(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCredentialVaultRefMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCredentialVaultRef>>>
+
+    export type DeleteCredentialVaultRefMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a credential vault reference
+ */
+export const useDeleteCredentialVaultRef = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCredentialVaultRef>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCredentialVaultRef>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteCredentialVaultRefMutationOptions(options));
+    }
 
 export const getListGovernanceRulesUrl = (params?: ListGovernanceRulesParams,) => {
   const normalizedParams = new URLSearchParams();

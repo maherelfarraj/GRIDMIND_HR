@@ -329,6 +329,14 @@ const REQUEST_SCHEMA_TABLES: Record<string, string | null> = {
   PayrollApprovalInput: null, // payroll.ts approve step: reads decision fields explicitly
   PrivilegedSessionReview: null, // privilegedSessions.ts review: reads fields explicitly
   LicenseActivationInput: null, // license.ts activate: reads the activation key explicitly
+  // gateway/attendanceGateway.ts PATCH handler: validates silenceThresholdMinutes
+  // explicitly (range check, null → reset) before a targeted .set(); never
+  // inserts the body wholesale, so a stale field cannot be silently dropped.
+  GatewayRegistrationUpdate: null,
+  // integrationGovernance.ts POST/PATCH handlers: wholesale insert/update into
+  // integration_credential_vault_refs. Fields match the drizzle table columns.
+  IntegrationCredentialVaultRefInput: "integration_credential_vault_refs",
+  IntegrationCredentialVaultRefUpdate: "integration_credential_vault_refs",
 };
 function singularize(word: string): string {
   if (/(ss|us)$/.test(word)) return word; // status, access, ...
