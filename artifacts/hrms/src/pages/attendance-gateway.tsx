@@ -33,8 +33,8 @@ import type {
 // The "reconcile now" (POST /gateway/registrations/{id}/reconcile) and the
 // per-registration silence-threshold update (PATCH /gateway/registrations/{id})
 // endpoints are not described in the OpenAPI spec, so no generated hook exists.
-// They are invoked through the raw apiFetch client below with an explicit note.
-import { apiFetch } from '@/lib/api';
+// They are invoked through helpers in lib/unspecced-api.ts.
+import { reconcileGatewayRegistration, patchGatewayRegistrationThreshold } from '@/lib/unspecced-api';
 
 export default function AttendanceGateway() {
   const { t, lang } = useLanguage();
@@ -116,19 +116,9 @@ export default function AttendanceGateway() {
   if (anyReconcilePending !== reconcileInFlight) setReconcileInFlight(anyReconcilePending);
 
   // "Reconcile now" has no generated client hook (endpoint absent from the
-  // OpenAPI spec), so it is issued with the raw apiFetch client.
+  // OpenAPI spec), so it uses the helper from lib/unspecced-api.ts.
   const reconcileNowMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiFetch(`/api/gateway/registrations/${id}/reconcile`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to queue reconcile');
-      }
-      return res.json();
-    },
+    mutationFn: (id: number) => reconcileGatewayRegistration(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
       toast({
@@ -238,21 +228,10 @@ export default function AttendanceGateway() {
   const [thresholdEdit, setThresholdEdit] = useState<{ reg: GatewayRegistration; value: string } | null>(null);
 
   // The per-registration silence-threshold PATCH has no generated client hook
-  // (endpoint absent from the OpenAPI spec), so it uses the raw apiFetch client.
+  // (endpoint absent from the OpenAPI spec), so it uses the helper in lib/unspecced-api.ts.
   const thresholdMutation = useMutation({
-    mutationFn: async ({ id, minutes }: { id: number; minutes: number | null }) => {
-      const res = await apiFetch(`/api/gateway/registrations/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ silenceThresholdMinutes: minutes }),
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to update threshold');
-      }
-      return res.json();
-    },
+    mutationFn: ({ id, minutes }: { id: number; minutes: number | null }) =>
+      patchGatewayRegistrationThreshold(id, minutes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
       setThresholdEdit(null);

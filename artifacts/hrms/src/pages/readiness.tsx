@@ -9,7 +9,13 @@ import {
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-import { apiFetch } from '@/lib/api';
+import {
+  getGoLiveGatesSummary,
+  listReadinessScorecard,
+  listPilotDefects,
+  getMigrationStatusSummary,
+} from '@workspace/api-client-react';
+import { fetchGatewayRegistrations } from '@/lib/unspecced-api';
 
 interface GoLiveSummary {
   isReadyForGoLive: boolean;
@@ -184,18 +190,20 @@ export default function ReadinessPage() {
     async function load() {
       setLoading(true);
       const [sumR, scR, defR, migSumR, gwR] = await Promise.allSettled([
-        apiFetch('/api/go-live-gates/summary').then(r => r.json()),
-        apiFetch('/api/readiness-scorecard').then(r => r.json()),
-        apiFetch('/api/pilot-defects?status=open').then(r => r.json()),
-        apiFetch('/api/migration-status/summary').then(r => r.json()),
-        apiFetch('/api/gateway/registrations', { credentials: 'include' }).then(r => (r.ok ? r.json() : null)),
+        getGoLiveGatesSummary(),
+        listReadinessScorecard(),
+        listPilotDefects({ status: 'open' }),
+        getMigrationStatusSummary(),
+        fetchGatewayRegistrations(),
       ]);
-      if (gwR.status === 'fulfilled' && Array.isArray(gwR.value)) setGateways(gwR.value);
-      if (sumR.status === 'fulfilled') setSummary(sumR.value);
-      if (scR.status === 'fulfilled') setScorecards(Array.isArray(scR.value) ? scR.value : scR.value?.scorecards ?? []);
-      if (defR.status === 'fulfilled') setDefects(Array.isArray(defR.value) ? defR.value : defR.value?.defects ?? []);
+      if (gwR.status === 'fulfilled' && Array.isArray(gwR.value)) setGateways(gwR.value as GatewayRegistration[]);
+      if (sumR.status === 'fulfilled') setSummary(sumR.value as unknown as GoLiveSummary);
+      if (scR.status === 'fulfilled') {
+        setScorecards(Array.isArray(scR.value) ? scR.value as unknown as Scorecard[] : (scR.value as any)?.scorecards ?? []);
+      }
+      if (defR.status === 'fulfilled') setDefects(Array.isArray(defR.value) ? defR.value as unknown as Defect[] : (defR.value as any)?.defects ?? []);
       if (migSumR.status === 'fulfilled') {
-        const v = migSumR.value;
+        const v = migSumR.value as any;
         setMigSummary(v?.summary ?? v ?? null);
         setMigItems(v?.items ?? []);
       }

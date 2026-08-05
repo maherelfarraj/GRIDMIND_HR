@@ -1,4 +1,4 @@
-import { fetchGatewayRegistrations, selectOfflineGateways, type GatewayRegistration } from '@/lib/gateways';
+import { fetchGatewayRegistrations, selectOfflineGateways, type GatewayRegistration } from '@/lib/unspecced-api';
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';

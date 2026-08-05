@@ -1,9 +1,7 @@
-import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';
-import { useListDevices } from '@workspace/api-client-react';
-import { useQuery } from '@tanstack/react-query';
+import { useListDevices, useListPunchEvents, useListMissingPunches } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -61,17 +59,16 @@ export default function PunchEvents() {
   const [missingOnly, setMissingOnly] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<PunchEvent | null>(null);
 
-  const { data: events, isLoading } = useQuery<PunchEvent[]>({
-    queryKey: ['punch-events'],
-    queryFn: () =>
-      apiFetch('/api/punch-events?limit=100', { credentials: 'include' }).then(r => r.json()),
-  });
+  const { data: eventsRaw, isLoading } = useListPunchEvents({ limit: 100 });
+  // The API returns either a PunchEvent[] directly or a wrapped { data: [] }
+  const events: PunchEvent[] | undefined = Array.isArray(eventsRaw)
+    ? (eventsRaw as unknown as PunchEvent[])
+    : ((eventsRaw as any)?.data ?? undefined);
 
-  const { data: missingData } = useQuery<PunchEvent[]>({
-    queryKey: ['punch-events-missing'],
-    queryFn: () =>
-      apiFetch('/api/punch-events/missing', { credentials: 'include' }).then(r => r.json()),
-  });
+  const { data: missingRaw } = useListMissingPunches();
+  const missingData: PunchEvent[] | undefined = Array.isArray(missingRaw)
+    ? (missingRaw as unknown as PunchEvent[])
+    : undefined;
 
   const filtered = (events ?? []).filter(ev => {
     if (filterDate && !ev.eventTime.startsWith(filterDate)) return false;

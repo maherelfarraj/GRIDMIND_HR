@@ -1,5 +1,25 @@
-import { apiFetch } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
+import {
+  listConnectionProfiles,
+  createConnectionProfile,
+  updateConnectionProfile,
+  testConnectionProfile,
+  approveConnectionProfile,
+  suspendConnectionProfile,
+  listCredentialVaultRefs,
+  listGovernanceRules,
+  updateGovernanceRule,
+  listIntegrationAuditLog,
+  runIntegrationHealthChecks,
+  getConnectionProfile,
+} from '@workspace/api-client-react';
+import {
+  fetchSecurityEmailStatus,
+  fetchPepperRotationStatus,
+  createCredentialVaultRef,
+  updateCredentialVaultRef,
+  deleteCredentialVaultRef,
+} from '@/lib/unspecced-api';
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';
 import { useToast } from '@/hooks/use-toast';
@@ -109,15 +129,9 @@ function AddVaultRefDialog({ open, onClose, onSaved }: { open: boolean; onClose:
         credentialType: form.credentialType,
         vaultKeyRef: form.vaultKeyRef,
       };
-      const res = await apiFetch('/api/integration-governance/credential-vault-refs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json().catch(() => null);
+      const data: any = await createCredentialVaultRef(payload);
       toast({ title: t('Vault ref created', 'تم إنشاء مرجع الخزنة') });
-      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
+      if (data && Array.isArray(data.warnings) && data.warnings.length > 0) {
         for (const w of data.warnings) {
           toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
         }
@@ -201,15 +215,9 @@ function EditVaultRefDialog({ vaultRef, onClose, onSaved }: { vaultRef: any; onC
         credentialType: form.credentialType,
         vaultKeyRef: form.vaultKeyRef,
       };
-      const res = await apiFetch(`/api/integration-governance/credential-vault-refs/${vaultRef.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json().catch(() => null);
+      const data: any = await updateCredentialVaultRef(vaultRef.id, payload);
       toast({ title: t('Vault ref updated', 'تم تحديث مرجع الخزنة') });
-      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
+      if (data && Array.isArray(data.warnings) && data.warnings.length > 0) {
         for (const w of data.warnings) {
           toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
         }
@@ -295,11 +303,9 @@ function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean
         connectionParamsJson: JSON.stringify({ baseUrl: form.baseUrl, description: form.description }),
       };
       if (form.credentialVaultRefId) payload.credentialVaultRefId = parseInt(form.credentialVaultRefId);
-      const res = await apiFetch('/api/integration-governance/connection-profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error();
-      const data = await res.json().catch(() => null);
+      const data: any = await createConnectionProfile(payload as any);
       toast({ title: t('Profile created', 'تم إنشاء الملف الشخصي') });
-      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
+      if (data && Array.isArray(data.warnings) && data.warnings.length > 0) {
         for (const w of data.warnings) {
           toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
         }
@@ -392,15 +398,9 @@ function LinkVaultRefDialog({ profile, vaultRefs, onClose, onSaved }: { profile:
       const body: Record<string, any> = {
         credentialVaultRefId: selectedId === '__none__' ? null : parseInt(selectedId),
       };
-      const res = await apiFetch(`/api/integration-governance/connection-profiles/${profile.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json().catch(() => null);
+      const data: any = await updateConnectionProfile(profile.id, body as any);
       toast({ title: t('Credential vault ref updated', 'تم تحديث مرجع خزنة الاعتماد') });
-      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
+      if (data && Array.isArray(data.warnings) && data.warnings.length > 0) {
         for (const w of data.warnings) {
           toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
         }
@@ -484,15 +484,13 @@ function HealthSettingsDialog({ profile, onClose, onSaved }: { profile: any; onC
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await apiFetch(`/api/integration-governance/connection-profiles/${profile.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isHealthMonitoringEnabled: enabled, healthCheckIntervalMinutes: intervalNum, alertOnFailureCount: thresholdNum }),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json().catch(() => null);
+      const data: any = await updateConnectionProfile(profile.id, {
+        isHealthMonitoringEnabled: enabled,
+        healthCheckIntervalMinutes: intervalNum,
+        alertOnFailureCount: thresholdNum,
+      } as any);
       toast({ title: t('Health monitoring settings saved', 'تم حفظ إعدادات مراقبة الصحة') });
-      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
+      if (data && Array.isArray(data.warnings) && data.warnings.length > 0) {
         for (const w of data.warnings) {
           toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
         }
@@ -549,13 +547,10 @@ function ProfileDetailDialog({ profileId, onClose }: { profileId: number | null;
     let cancelled = false;
     setLoading(true); setError(false); setDetail(null); setEvents([]);
     Promise.all([
-      apiFetch(`/api/integration-governance/connection-profiles/${profileId}`)
-        .then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-      apiFetch(`/api/integration-governance/audit-log?profileId=${profileId}&pageSize=25`)
-        .then(r => r.ok ? r.json() : { data: [] })
-        .catch(() => ({ data: [] })),
+      getConnectionProfile(profileId),
+      listIntegrationAuditLog({ profileId, pageSize: 25 }).catch(() => ({ data: [] } as any)),
     ])
-      .then(([d, a]) => { if (!cancelled) { setDetail(d); setEvents(Array.isArray(a?.data) ? a.data : []); } })
+      .then(([d, a]: [any, any]) => { if (!cancelled) { setDetail(d); setEvents(Array.isArray(a?.data) ? a.data : []); } })
       .catch(() => { if (!cancelled) setError(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -690,16 +685,18 @@ export default function IntegrationGovernance() {
     setLoading(true);
     try {
       const [p, v, r, a, e, pep] = await Promise.allSettled([
-        apiFetch('/api/integration-governance/connection-profiles').then(r => r.json()),
-        apiFetch('/api/integration-governance/credential-vault-refs').then(r => r.json()),
-        apiFetch('/api/integration-governance/governance-rules').then(r => r.json()),
-        apiFetch('/api/integration-governance/audit-log').then(r => r.json()),
-        apiFetch('/api/integration-governance/security-email-status').then(r => r.json()),
-        apiFetch('/api/integration-governance/pepper-rotation-status').then(r => r.json()),
+        listConnectionProfiles(),
+        listCredentialVaultRefs(),
+        listGovernanceRules(),
+        listIntegrationAuditLog(),
+        fetchSecurityEmailStatus(),
+        fetchPepperRotationStatus(),
       ]);
       setProfiles(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : []);
-      setEmailStatus(e.status === 'fulfilled' && e.value && typeof e.value.outageActive === 'boolean' ? e.value : null);
-      setPepperStatus(pep.status === 'fulfilled' && pep.value && typeof pep.value.windowOpen === 'boolean' ? pep.value : null);
+      const ev = e.status === 'fulfilled' ? (e.value as any) : null;
+      setEmailStatus(ev && typeof ev.outageActive === 'boolean' ? ev : null);
+      const pepv = pep.status === 'fulfilled' ? (pep.value as any) : null;
+      setPepperStatus(pepv && typeof pepv.windowOpen === 'boolean' ? pepv : null);
       setVault(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : []);
       setRules(r.status === 'fulfilled' && Array.isArray(r.value) ? r.value : []);
       setAuditLog(a.status === 'fulfilled' && Array.isArray(a.value?.data) ? a.value.data : []);
@@ -711,15 +708,11 @@ export default function IntegrationGovernance() {
   async function testConnection(id: number, testRecipient?: string) {
     setTestingIds(prev => new Set(prev).add(id));
     try {
-      const res = await apiFetch(`/api/integration-governance/connection-profiles/${id}/test`, {
-        method: 'POST',
-        ...(testRecipient ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testRecipient }) } : {}),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data || typeof data.success !== 'boolean') {
+      const data: any = await testConnectionProfile(id, testRecipient ? { testRecipient } as any : undefined);
+      if (!data || typeof data.success !== 'boolean') {
         toast({
           title: t('Test failed', 'فشل الاختبار'),
-          description: data?.error || data?.message || t(`Server returned an unexpected response (HTTP ${res.status})`, `أعاد الخادم استجابة غير متوقعة (HTTP ${res.status})`),
+          description: data?.error || data?.message || t('Server returned an unexpected response', 'أعاد الخادم استجابة غير متوقعة'),
           variant: 'destructive',
         });
         return;
@@ -743,7 +736,7 @@ export default function IntegrationGovernance() {
 
   async function approveProfile(id: number) {
     try {
-      await apiFetch(`/api/integration-governance/connection-profiles/${id}/approve`, { method: 'POST' });
+      await approveConnectionProfile(id);
       toast({ title: t('Approved', 'تمت الموافقة') });
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -752,7 +745,7 @@ export default function IntegrationGovernance() {
   async function suspendProfile() {
     if (!suspendTarget) return;
     try {
-      await apiFetch(`/api/integration-governance/connection-profiles/${suspendTarget.id}/suspend`, { method: 'POST' });
+      await suspendConnectionProfile(suspendTarget.id);
       toast({ title: t('Suspended', 'تم التعليق') });
       setSuspendTarget(null);
       load();
@@ -762,13 +755,8 @@ export default function IntegrationGovernance() {
   async function runHealthChecksNow() {
     setRunningHealthChecks(true);
     try {
-      const res = await apiFetch('/api/integration-governance/health-checks/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force: true }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data || typeof data.checked !== 'number') {
+      const data: any = await runIntegrationHealthChecks({ force: true });
+      if (!data || typeof data.checked !== 'number') {
         toast({ title: t('Health checks failed', 'فشلت فحوصات الصحة'), description: data?.error, variant: 'destructive' });
         return;
       }
@@ -790,7 +778,7 @@ export default function IntegrationGovernance() {
 
   async function toggleRule(id: number, active: boolean) {
     try {
-      await apiFetch(`/api/integration-governance/governance-rules/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: active }) });
+      await updateGovernanceRule(id, { isActive: active } as any);
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
@@ -798,8 +786,7 @@ export default function IntegrationGovernance() {
   async function deleteVaultRef() {
     if (!deleteVaultTarget) return;
     try {
-      const res = await apiFetch(`/api/integration-governance/credential-vault-refs/${deleteVaultTarget.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
+      await deleteCredentialVaultRef(deleteVaultTarget.id);
       toast({ title: t('Vault ref deleted', 'تم حذف مرجع الخزنة') });
       setDeleteVaultTarget(null);
       load();
@@ -1314,12 +1301,7 @@ function EditProfileNameArDialog({ profile, onClose, onSaved }: { profile: any; 
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await apiFetch(`/api/integration-governance/connection-profiles/${profile.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileNameAr: profileNameAr.trim() || profile.profileName }),
-      });
-      if (!res.ok) throw new Error();
+      await updateConnectionProfile(profile.id, { profileNameAr: profileNameAr.trim() || profile.profileName } as any);
       toast({ title: t('Arabic name updated', 'تم تحديث الاسم بالعربية') });
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }

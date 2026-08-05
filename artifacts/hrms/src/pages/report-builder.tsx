@@ -1,5 +1,13 @@
-import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
+import {
+  getReportBuilderConfigs,
+  postReportBuilderConfigs,
+  postReportBuilderConfigsIdRun,
+  postReportBuilderConfigsIdExport,
+  deleteReportBuilderConfigsId,
+  getExportJobs,
+  postExportJobsIdRetry,
+} from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';
 import { useToast } from '@/hooks/use-toast';
@@ -119,9 +127,8 @@ function MyReportsTab() {
 
   function loadConfigs() {
     setLoading(true);
-    apiFetch('/api/report-builder-configs')
-      .then(r => r.json())
-      .then(d => setConfigs(Array.isArray(d) ? d : d?.data ?? []))
+    getReportBuilderConfigs()
+      .then(d => setConfigs(Array.isArray(d) ? d : (d as any)?.data ?? []))
       .catch(() => setConfigs([]))
       .finally(() => setLoading(false));
   }
@@ -133,9 +140,8 @@ function MyReportsTab() {
     setRunDialogOpen(true);
     setRunResults([]);
     try {
-      const res = await apiFetch(`/api/report-builder-configs/${id}/run`, { method: 'POST' });
-      const data = await res.json();
-      setRunResults(Array.isArray(data) ? data : data?.rows ?? data?.data ?? []);
+      const data = await postReportBuilderConfigsIdRun(id);
+      setRunResults(Array.isArray(data) ? data : (data as any)?.rows ?? (data as any)?.data ?? []);
     } catch {
       toast({ title: t('Error running report', 'خطأ في تشغيل التقرير'), variant: 'destructive' });
       setRunDialogOpen(false);
@@ -146,9 +152,8 @@ function MyReportsTab() {
 
   async function handleExport(id: number) {
     try {
-      const res = await apiFetch(`/api/report-builder-configs/${id}/export`, { method: 'POST' });
-      const data = await res.json();
-      const jobId = data?.jobId ?? data?.id ?? 'N';
+      const data = await postReportBuilderConfigsIdExport(id);
+      const jobId = (data as any)?.jobId ?? (data as any)?.id ?? 'N';
       toast({ title: t('Export queued', 'تم قائمة التصدير'), description: `Job #${jobId}` });
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
@@ -157,7 +162,7 @@ function MyReportsTab() {
 
   async function handleDelete(id: number) {
     try {
-      await apiFetch(`/api/report-builder-configs/${id}`, { method: 'DELETE' });
+      await deleteReportBuilderConfigsId(id);
       toast({ title: t('Deleted', 'تم الحذف') });
       loadConfigs();
     } catch {
@@ -260,11 +265,7 @@ function NewReportTab({ onCreated }: { onCreated: () => void }) {
     }
     setSaving(true);
     try {
-      await apiFetch('/api/report-builder-configs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
+      await postReportBuilderConfigs(form as any);
       toast({ title: t('Report created', 'تم إنشاء التقرير') });
       setForm({ nameEn: '', nameAr: '', dataSource: '', description: '', roleRestriction: '', isPublic: false });
       onCreated();
@@ -357,9 +358,8 @@ function ExportQueueTab() {
 
   function loadJobs() {
     setLoading(true);
-    apiFetch('/api/export-jobs')
-      .then(r => r.json())
-      .then(d => setJobs(Array.isArray(d) ? d : d?.data ?? []))
+    getExportJobs()
+      .then(d => setJobs(Array.isArray(d) ? d : (d as any)?.data ?? []))
       .catch(() => setJobs([]))
       .finally(() => setLoading(false));
   }
@@ -368,7 +368,7 @@ function ExportQueueTab() {
 
   async function handleRetry(id: number) {
     try {
-      await apiFetch(`/api/export-jobs/${id}/retry`, { method: 'POST' });
+      await postExportJobsIdRetry(id);
       toast({ title: t('Retry queued', 'تمت إعادة المحاولة') });
       loadJobs();
     } catch {

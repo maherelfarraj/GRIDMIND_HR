@@ -92,7 +92,7 @@ function HealthChecksTab() {
   async function runChecks() {
     try {
       await runMut.mutateAsync();
-    } catch {}
+    } catch { /* errors shown via toast from the mutation */ }
     await new Promise(r => setTimeout(r, 1000));
     setRan(true);
     toast({ title: t('✓ Simulated — not a production action', '✓ محاكاة — ليس إجراءً إنتاجيًا') });

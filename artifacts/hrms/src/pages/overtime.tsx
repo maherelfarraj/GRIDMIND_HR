@@ -1,10 +1,9 @@
-import { apiFetch } from '@/lib/api';
 import { useMemo, useState } from 'react';
 import { useSearch, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';
-import { useListAttendance } from '@workspace/api-client-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useListAttendance, useListOvertimeRules, useCreateOvertimeRule } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -76,34 +75,26 @@ export default function Overtime() {
   })();
   const clearFilter = () => navigate('/overtime', { replace: true });
 
-  const { data: rules, isLoading: loadingRules } = useQuery<OvertimeRule[]>({
-    queryKey: ['overtime-rules'],
-    queryFn: () => apiFetch('/api/overtime-rules', { credentials: 'include' }).then(r => r.json()),
-  });
+  const { data: rules, isLoading: loadingRules } = useListOvertimeRules() as {
+    data: OvertimeRule[] | undefined;
+    isLoading: boolean;
+  };
 
   const { data: attendanceData, isLoading: loadingAttendance } = useListAttendance({
     departmentId: filterDepartmentId ?? undefined,
   });
 
-  const createRule = useMutation({
-    mutationFn: (data: typeof defaultRuleForm) =>
-      apiFetch('/api/overtime-rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data),
-      }).then(async r => {
-        if (!r.ok) throw new Error(await r.text());
-        return r.json();
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['overtime-rules'] });
-      toast({ title: t('Success', 'نجاح'), description: t('OT rule created.', 'تم إنشاء قاعدة العمل الإضافي.') });
-      setDialogOpen(false);
-      setRuleForm({ ...defaultRuleForm });
-    },
-    onError: (err: any) => {
-      toast({ title: t('Error', 'خطأ'), description: err.message, variant: 'destructive' });
+  const createRule = useCreateOvertimeRule({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['/api/overtime-rules'] });
+        toast({ title: t('Success', 'نجاح'), description: t('OT rule created.', 'تم إنشاء قاعدة العمل الإضافي.') });
+        setDialogOpen(false);
+        setRuleForm({ ...defaultRuleForm });
+      },
+      onError: (err: any) => {
+        toast({ title: t('Error', 'خطأ'), description: err.message, variant: 'destructive' });
+      },
     },
   });
 
@@ -480,7 +471,7 @@ export default function Overtime() {
               {t('Cancel', 'إلغاء')}
             </Button>
             <Button
-              onClick={() => createRule.mutate(ruleForm)}
+              onClick={() => createRule.mutate({ data: ruleForm as any })}
               disabled={createRule.isPending || !ruleForm.nameEn}
             >
               {createRule.isPending ? t('Creating...', 'جارٍ الإنشاء...') : t('Create Rule', 'إنشاء القاعدة')}

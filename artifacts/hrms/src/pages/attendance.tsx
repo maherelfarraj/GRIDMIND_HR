@@ -1,9 +1,16 @@
-import { apiFetch } from '@/lib/api';
 import { useMemo, useState } from 'react';
 import { useSearch, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
 import { localName, localFullName } from '@/lib/localise';
-import { useListAttendance, useGetAttendanceDailySummary, useListDevices, useListEmployees, useListDepartments } from '@workspace/api-client-react';
+import {
+  useListAttendance, useGetAttendanceDailySummary, useListDevices, useListEmployees, useListDepartments,
+  createAttendanceCorrection,
+  listDeviceMappings,
+  createDeviceMapping,
+  deleteDeviceMapping,
+  listAttendanceCorrections,
+  decideAttendanceCorrection,
+} from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -160,22 +167,14 @@ export default function Attendance() {
     
     setSubmittingCorrection(true);
     try {
-      const res = await apiFetch(`/api/attendance/${selectedAttendance.id}/correction`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          employeeId: selectedAttendance.employeeId,
-          correctionType,
-          originalValue: correctionType === 'check_in' ? selectedAttendance.checkInTime : 
-                          correctionType === 'check_out' ? selectedAttendance.checkOutTime : selectedAttendance.status,
-          requestedValue,
-          reason: correctionReason,
-        }),
+      await createAttendanceCorrection(selectedAttendance.id, {
+        employeeId: selectedAttendance.employeeId,
+        correctionType,
+        originalValue: correctionType === 'check_in' ? selectedAttendance.checkInTime :
+                        correctionType === 'check_out' ? selectedAttendance.checkOutTime : selectedAttendance.status,
+        requestedValue,
+        reason: correctionReason,
       });
-
-      if (!res.ok) throw new Error('Failed to submit correction');
-      
       toast({ title: t('Success', 'نجاح'), description: t('Correction request submitted', 'تم إرسال طلب التصحيح') });
       setCorrectionDialog(false);
       queryClient.invalidateQueries({ queryKey: ['listAttendance'] });
@@ -189,11 +188,9 @@ export default function Attendance() {
   const fetchDeviceMappings = async (deviceId: number) => {
     setLoadingMappings(true);
     try {
-      const res = await apiFetch(`/api/device-mappings?deviceId=${deviceId}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch mappings');
-      const data = await res.json();
-      setDeviceMappings(data);
-    } catch (error) {
+      const data = await listDeviceMappings({ deviceId });
+      setDeviceMappings(data as unknown as DeviceMapping[]);
+    } catch {
       toast({ title: t('Error', 'خطأ'), description: 'Failed to load device mappings', variant: 'destructive' });
     } finally {
       setLoadingMappings(false);
@@ -210,21 +207,13 @@ export default function Attendance() {
     
     setEnrolling(true);
     try {
-      const res = await apiFetch(`/api/devices/${selectedDevice}/mappings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          employeeId: Number(enrollEmployeeId),
-          accessLevel: enrollAccessLevel,
-          biometricType: enrollBiometricType,
-          enrolledAt: new Date().toISOString(),
-          notes: null,
-        }),
-      });
-
-      if (!res.ok) throw new Error('Failed to enroll employee');
-      
+      await createDeviceMapping(selectedDevice, {
+        employeeId: Number(enrollEmployeeId),
+        accessLevel: enrollAccessLevel,
+        biometricType: enrollBiometricType,
+        enrolledAt: new Date().toISOString(),
+        notes: null,
+      } as any);
       toast({ title: t('Success', 'نجاح'), description: t('Employee enrolled successfully', 'تم تسجيل الموظف بنجاح') });
       setEnrollDialog(false);
       setEnrollEmployeeId('');
@@ -238,13 +227,7 @@ export default function Attendance() {
 
   const removeMapping = async (deviceId: number, employeeId: number) => {
     try {
-      const res = await apiFetch(`/api/devices/${deviceId}/mappings/${employeeId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (!res.ok) throw new Error('Failed to remove mapping');
-      
+      await deleteDeviceMapping(deviceId, employeeId);
       toast({ title: t('Success', 'نجاح'), description: t('Employee removed from device', 'تم إزالة الموظف من الجهاز') });
       fetchDeviceMappings(deviceId);
     } catch (error: any) {
@@ -255,12 +238,9 @@ export default function Attendance() {
   const fetchCorrections = async (status?: string) => {
     setLoadingCorrections(true);
     try {
-      const url = status ? `/api/attendance/corrections?status=${status}` : '/api/attendance/corrections';
-      const res = await apiFetch(url, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch corrections');
-      const data = await res.json();
-      setCorrections(data);
-    } catch (error) {
+      const data = await listAttendanceCorrections(status ? { status } : undefined);
+      setCorrections(data as unknown as Correction[]);
+    } catch {
       toast({ title: t('Error', 'خطأ'), description: 'Failed to load corrections', variant: 'destructive' });
     } finally {
       setLoadingCorrections(false);
@@ -270,20 +250,12 @@ export default function Attendance() {
   const decideCorrection = async (id: number, decision: 'approved' | 'rejected', note?: string) => {
     setDecidingId(id);
     try {
-      const res = await apiFetch(`/api/attendance/corrections/${id}/decision`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ decision, reviewNote: note }),
-      });
-
-      if (!res.ok) throw new Error('Failed to decide correction');
-      
-      toast({ 
-        title: t('Success', 'نجاح'), 
-        description: decision === 'approved' 
-          ? t('Correction approved', 'تمت الموافقة على التصحيح') 
-          : t('Correction rejected', 'تم رفض التصحيح')
+      await decideAttendanceCorrection(id, { decision, reviewNote: note });
+      toast({
+        title: t('Success', 'نجاح'),
+        description: decision === 'approved'
+          ? t('Correction approved', 'تمت الموافقة على التصحيح')
+          : t('Correction rejected', 'تم رفض التصحيح'),
       });
       fetchCorrections();
       setRejectDialogId(null);

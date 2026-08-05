@@ -1,5 +1,22 @@
-import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
+import {
+  getGoLiveGatesSummary,
+  listReadinessScorecard,
+  listGoLiveGates,
+  listPilotDefects,
+  listMigrationStatus,
+  getLatestRestoreTests,
+  getLatestBackup,
+  getUatTestRunsSummary,
+  listConnectionProfiles,
+  listDevices,
+  evaluateGoLiveGates,
+  recalculateReadinessScorecard,
+  runRestoreTest,
+  overrideGoLiveGate,
+  createPilotDefect,
+} from '@workspace/api-client-react';
+import { evaluateGoLiveGateSingle } from '@/lib/unspecced-api';
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';
 import { useToast } from '@/hooks/use-toast';
@@ -71,13 +88,13 @@ function SkeletonCard() {
 function RaiseDefectDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [form, setForm] = useState({ titleEn: '', module: '', severity: 'medium', description: '', isGoLiveBlocker: false });
+  const [form, setForm] = useState({ titleEn: '', module: '', severity: 'medium', descriptionEn: '', isGoLiveBlocker: false });
   const [saving, setSaving] = useState(false);
 
   async function submit() {
     setSaving(true);
     try {
-      await apiFetch('/api/pilot-defects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      await createPilotDefect(form as any);
       toast({ title: t('Defect raised', 'تم رفع العيب') });
       onCreated();
       onClose();
@@ -95,7 +112,7 @@ function RaiseDefectDialog({ open, onClose, onCreated }: { open: boolean; onClos
           <select className="w-full bg-slate-700 border border-slate-600 text-white rounded px-3 py-2 text-sm" value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}>
             {['critical','high','medium','low'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <Textarea placeholder={t('Description', 'الوصف')} className="bg-slate-700 border-slate-600 text-white" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          <Textarea placeholder={t('Description', 'الوصف')} className="bg-slate-700 border-slate-600 text-white" value={form.descriptionEn} onChange={e => setForm(f => ({ ...f, descriptionEn: e.target.value }))} />
           <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
             <input type="checkbox" checked={form.isGoLiveBlocker} onChange={e => setForm(f => ({ ...f, isGoLiveBlocker: e.target.checked }))} />
             {t('Go-live blocker', 'يعيق الإطلاق')}
@@ -122,7 +139,7 @@ function OverrideGateDialog({ gate, open, onClose, onDone }: { gate: GoLiveGate 
     if (!gate) return;
     setSaving(true);
     try {
-      await apiFetch(`/api/go-live-gates/${gate.id}/override`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
+      await overrideGoLiveGate(gate.gateKey, { reason });
       toast({ title: t('Gate overridden', 'تم تجاوز البوابة') });
       onDone();
       onClose();
@@ -177,28 +194,28 @@ export default function PilotControlCenter() {
     setLoading(true);
     try {
       const [sum, sc, g, def, mig, bk, uat, pr, dev] = await Promise.allSettled([
-        apiFetch('/api/go-live-gates/summary').then(r => r.json()),
-        apiFetch('/api/readiness-scorecard').then(r => r.json()),
-        apiFetch('/api/go-live-gates').then(r => r.json()),
-        apiFetch('/api/pilot-defects?status=open').then(r => r.json()),
-        apiFetch('/api/migration-status').then(r => r.json()),
-        Promise.all([apiFetch('/api/restore-tests/latest').then(r => r.json()), apiFetch('/api/admin/backup').then(r => r.json())]),
-        apiFetch('/api/uat-test-runs/summary').then(r => r.json()),
-        apiFetch('/api/integration-governance/connection-profiles').then(r => r.json()),
-        apiFetch('/api/devices').then(r => r.json()),
+        getGoLiveGatesSummary(),
+        listReadinessScorecard(),
+        listGoLiveGates(),
+        listPilotDefects({ status: 'open' }),
+        listMigrationStatus(),
+        Promise.all([getLatestRestoreTests(), getLatestBackup()]),
+        getUatTestRunsSummary(),
+        listConnectionProfiles(),
+        listDevices(),
       ]);
-      if (sum.status === 'fulfilled') setSummary(sum.value);
-      if (sc.status === 'fulfilled') setScorecards(Array.isArray(sc.value) ? sc.value : sc.value.scorecards ?? []);
-      if (g.status === 'fulfilled') setGates(Array.isArray(g.value) ? g.value : g.value.gates ?? []);
-      if (def.status === 'fulfilled') setDefects(Array.isArray(def.value) ? def.value : def.value.defects ?? []);
-      if (mig.status === 'fulfilled') setMigrations(Array.isArray(mig.value) ? mig.value : mig.value.items ?? []);
+      if (sum.status === 'fulfilled') setSummary(sum.value as any);
+      if (sc.status === 'fulfilled') setScorecards(Array.isArray(sc.value) ? sc.value as any[] : (sc.value as any)?.scorecards ?? []);
+      if (g.status === 'fulfilled') setGates(Array.isArray(g.value) ? g.value as any[] : (g.value as any)?.gates ?? []);
+      if (def.status === 'fulfilled') setDefects(Array.isArray(def.value) ? def.value as any[] : (def.value as any)?.defects ?? []);
+      if (mig.status === 'fulfilled') setMigrations(Array.isArray(mig.value) ? mig.value as any[] : (mig.value as any)?.items ?? []);
       if (bk.status === 'fulfilled') {
         const [rt, bkup] = bk.value as [any, any];
         setBackup({ lastRestoreTest: rt?.test ?? rt, lastBackup: bkup?.backup ?? bkup });
       }
-      if (uat.status === 'fulfilled') setUatSummary(uat.value);
-      if (pr.status === 'fulfilled') setProfiles(Array.isArray(pr.value) ? pr.value : pr.value.profiles ?? []);
-      if (dev.status === 'fulfilled') setDevices(Array.isArray(dev.value) ? dev.value : dev.value.devices ?? []);
+      if (uat.status === 'fulfilled') setUatSummary(uat.value as any);
+      if (pr.status === 'fulfilled') setProfiles(Array.isArray(pr.value) ? pr.value as any[] : (pr.value as any)?.profiles ?? []);
+      if (dev.status === 'fulfilled') setDevices(Array.isArray(dev.value) ? dev.value as any[] : (dev.value as any)?.devices ?? []);
     } catch { /* silent */ }
     finally { setLoading(false); }
   }
@@ -208,7 +225,7 @@ export default function PilotControlCenter() {
   async function handleEvaluate() {
     setEvaluating(true);
     try {
-      await apiFetch('/api/go-live-gates/evaluate', { method: 'POST' });
+      await evaluateGoLiveGates();
       toast({ title: t('Gates re-evaluated', 'تمت إعادة تقييم البوابات') });
       loadAll();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -218,7 +235,7 @@ export default function PilotControlCenter() {
   async function handleRecalculate() {
     setRecalculating(true);
     try {
-      await apiFetch('/api/readiness-scorecard/recalculate', { method: 'POST' });
+      await recalculateReadinessScorecard();
       toast({ title: t('Scorecards recalculated', 'تمت إعادة حساب بطاقات الجاهزية') });
       loadAll();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -228,8 +245,8 @@ export default function PilotControlCenter() {
   async function handleRunRestore() {
     setRunningRestore(true);
     try {
-      const res = await apiFetch('/api/restore-tests', { method: 'POST' }).then(r => r.json());
-      setRestoreResult(res.result ?? 'completed');
+      const res = await runRestoreTest();
+      setRestoreResult((res as any)?.result ?? 'completed');
       loadAll();
     } catch { setRestoreResult('error'); }
     finally { setRunningRestore(false); }
@@ -237,7 +254,7 @@ export default function PilotControlCenter() {
 
   async function handleManualEvaluate(gateId: number) {
     try {
-      await apiFetch(`/api/go-live-gates/${gateId}/evaluate`, { method: 'POST' });
+      await evaluateGoLiveGateSingle(gateId);
       toast({ title: t('Gate evaluated', 'تم تقييم البوابة') });
       loadAll();
     } catch { /* silent */ }

@@ -196,7 +196,7 @@ export default function PolicyGovernance() {
   }
 
   function toggleExpand(id: number) {
-    setExpanded(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+    setExpanded(prev => { const s = new Set(prev); if (s.has(id)) { s.delete(id); } else { s.add(id); } return s; });
   }
 
   const pending = requests.filter(r => r.status === 'draft');
