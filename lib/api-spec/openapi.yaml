@@ -9709,6 +9709,33 @@ components:
         silenceThresholdMinutes:
           type: [ "number", "null" ]
           description: Per-registration silent-gateway alarm window in minutes; null falls back to the global default.
+        silent:
+          type: boolean
+          description: >
+            Server-computed. True when the registration is ACTIVE and the last contact
+            (lastHeartbeatAt, falling back to lastSeenAt then createdAt) occurred more than
+            silenceThresholdMs milliseconds ago. Mirrors the verdict used by the notification sweep.
+        silenceThresholdMs:
+          type: number
+          description: >
+            Server-computed. Effective silence threshold in milliseconds after applying the
+            per-registration override (silenceThresholdMinutes converted to ms) or, when that
+            field is null, the global GATEWAY_SILENCE_THRESHOLD_MS default.
+        reconcileCommand:
+          description: >
+            Server-computed. The most recent RECONCILE device command issued for this registration,
+            or null if none has ever been issued. Used by the admin UI to show queued, delivered,
+            or acknowledged feedback for the "reconcile now" action.
+          oneOf:
+            - type: "null"
+            - type: object
+              properties:
+                id: { type: number }
+                status: { type: string, enum: [ PENDING, DELIVERED, ACKNOWLEDGED, EXPIRED, FAILED ] }
+                resultMessage: { type: [ "string", "null" ] }
+                createdAt: { type: string }
+                acknowledgedAt: { type: [ "string", "null" ] }
+              required: [ id, status, resultMessage, createdAt, acknowledgedAt ]
         notes: { type: [ "string", "null" ] }
         createdAt: { type: string }
         updatedAt: { type: string }
