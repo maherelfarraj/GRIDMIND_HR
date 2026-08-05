@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw, Pencil } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw, Pencil, Trash2 } from 'lucide-react';
 
 function intTypeIcon(type: string): React.ComponentType<{ className?: string }> {
   const map: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -178,59 +178,91 @@ function AddVaultRefDialog({ open, onClose, onSaved }: { open: boolean; onClose:
   );
 }
 
-function EditVaultRefLabelArDialog({ vaultRef, onClose, onSaved }: { vaultRef: any; onClose: () => void; onSaved: () => void }) {
+function EditVaultRefDialog({ vaultRef, onClose, onSaved }: { vaultRef: any; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [labelAr, setLabelAr] = useState('');
+  const [form, setForm] = useState({ labelEn: '', labelAr: '', credentialType: '', vaultKeyRef: '' });
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
-  useEffect(() => { if (vaultRef) setLabelAr(vaultRef.labelAr ?? ''); }, [vaultRef]);
+  useEffect(() => {
+    if (vaultRef) {
+      setForm({ labelEn: vaultRef.labelEn ?? '', labelAr: vaultRef.labelAr ?? '', credentialType: vaultRef.credentialType ?? '', vaultKeyRef: vaultRef.vaultKeyRef ?? '' });
+    }
+  }, [vaultRef]);
 
   async function handleSave() {
     setSaving(true);
     try {
+      const payload = {
+        labelEn: form.labelEn,
+        labelAr: form.labelAr.trim() || form.labelEn,
+        credentialType: form.credentialType,
+        vaultKeyRef: form.vaultKeyRef,
+      };
       const res = await apiFetch(`/api/integration-governance/credential-vault-refs/${vaultRef.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ labelAr: labelAr.trim() || vaultRef.labelEn }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
-      toast({ title: t('Arabic label updated', 'تم تحديث الاسم بالعربية') });
+      const data = await res.json().catch(() => null);
+      toast({ title: t('Vault ref updated', 'تم تحديث مرجع الخزنة') });
+      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
+        for (const w of data.warnings) {
+          toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
+        }
+      }
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
     finally { setSaving(false); }
   }
 
+  const canSave = form.labelEn.trim() !== '' && form.credentialType !== '' && form.vaultKeyRef.trim() !== '';
+
   return (
     <Dialog open={!!vaultRef} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
+      <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Pencil className="w-4 h-4 text-blue-400" />
-            {t('Edit Arabic label', 'تعديل الاسم بالعربية')}
+            <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            {t('Edit Vault Ref', 'تعديل مرجع خزنة')}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-2">
-          <div className="rounded-md border border-slate-700 bg-slate-700/30 p-2 text-xs text-slate-400">
-            <span className="text-slate-500">{t('English name:', 'الاسم بالإنجليزية:')}</span>{' '}
-            <span className="text-white font-medium">{vaultRef?.labelEn}</span>
+          <div className="rounded-md border border-amber-700/50 bg-amber-900/20 p-2 flex items-start gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-amber-300 text-xs">{t('Only the env var name is stored — never a secret value.', 'يُخزَّن اسم متغير البيئة فقط — لا قيمة السر أبدًا.')}</p>
           </div>
           <div>
-            <Label>{t('Arabic label', 'الاسم بالعربية')}</Label>
-            <Input
-              dir="rtl"
-              className="mt-1 bg-slate-700 border-slate-600"
-              value={labelAr}
-              onChange={e => setLabelAr(e.target.value)}
-              placeholder={vaultRef?.labelEn}
-              autoFocus
-            />
-            <p className="mt-1 text-xs text-slate-500">{t('Shown to Arabic-speaking users. Leave blank to fall back to the English name.', 'يظهر للمستخدمين الناطقين بالعربية. اتركه فارغاً للرجوع إلى الاسم الإنجليزي.')}</p>
+            <Label>{t('Name (English)', 'الاسم (إنجليزي)')}</Label>
+            <Input className="mt-1 bg-slate-700 border-slate-600" value={form.labelEn} onChange={e => set('labelEn', e.target.value)} placeholder={t('e.g. LDAP bind credentials', 'مثال: بيانات اعتماد ربط LDAP')} />
+          </div>
+          <div>
+            <Label>{t('Name (Arabic)', 'الاسم (عربي)')}</Label>
+            <Input dir="rtl" className="mt-1 bg-slate-700 border-slate-600" value={form.labelAr} onChange={e => set('labelAr', e.target.value)} placeholder={form.labelEn || t('Shown to Arabic-speaking users', 'يظهر للمستخدمين الناطقين بالعربية')} />
+            <p className="mt-1 text-xs text-slate-500">{t('Leave blank to fall back to the English name.', 'اتركه فارغاً للرجوع إلى الاسم الإنجليزي.')}</p>
+          </div>
+          <div>
+            <Label>{t('Credential Type', 'نوع الاعتماد')}</Label>
+            <Select value={form.credentialType} onValueChange={v => set('credentialType', v)}>
+              <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue placeholder={t('Select type', 'اختر النوع')} /></SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700">
+                {['ldap','active_directory','smtp','sms_gateway','attendance_device','finance_api','document_signing','sso_saml','sso_oidc','internal_api'].map(ct => (
+                  <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>{t('Env Var Key', 'اسم متغير البيئة')}</Label>
+            <Input className="mt-1 bg-slate-700 border-slate-600 font-mono" value={form.vaultKeyRef} onChange={e => set('vaultKeyRef', e.target.value)} placeholder="MY_SERVICE_API_KEY" />
+            <p className="mt-1 text-xs text-slate-500">{t('The environment variable name that holds this credential.', 'اسم متغير البيئة الذي يحتوي على بيانات الاعتماد هذه.')}</p>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={handleSave} disabled={saving || !canSave} className="bg-blue-600 hover:bg-blue-700">
             {saving ? t('Saving…', 'جاري الحفظ…') : t('Save', 'حفظ')}
           </Button>
         </DialogFooter>
@@ -238,6 +270,8 @@ function EditVaultRefLabelArDialog({ vaultRef, onClose, onSaved }: { vaultRef: a
     </Dialog>
   );
 }
+
+
 function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean; onClose: () => void; onSaved: () => void; vaultRefs: any[] }) {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
@@ -647,7 +681,8 @@ export default function IntegrationGovernance() {
   const [detailProfileId, setDetailProfileId] = useState<number | null>(null);
   const [linkVaultTarget, setLinkVaultTarget] = useState<any>(null);
   const [addVaultRefOpen, setAddVaultRefOpen] = useState(false);
-  const [editVaultRef, setEditVaultRef] = useState<any>(null);
+  const [editVaultTarget, setEditVaultTarget] = useState<any>(null);
+  const [deleteVaultTarget, setDeleteVaultTarget] = useState<any>(null);
   const [editProfile, setEditProfile] = useState<any>(null);
 
   const load = useCallback(async () => {
@@ -755,6 +790,17 @@ export default function IntegrationGovernance() {
   async function toggleRule(id: number, active: boolean) {
     try {
       await apiFetch(`/api/integration-governance/governance-rules/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: active }) });
+      load();
+    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+  }
+
+  async function deleteVaultRef() {
+    if (!deleteVaultTarget) return;
+    try {
+      const res = await apiFetch(`/api/integration-governance/credential-vault-refs/${deleteVaultTarget.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      toast({ title: t('Vault ref deleted', 'تم حذف مرجع الخزنة') });
+      setDeleteVaultTarget(null);
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
@@ -1008,8 +1054,8 @@ export default function IntegrationGovernance() {
                 <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
                 <p className="text-amber-300 text-sm font-medium">
                   {vault.filter(v => !v.configured).length === 1
-                    ? t('1 vault ref is missing its environment variable — set the variable so integrations using it can authenticate.', 'مرجع خزنة واحد يفتقد متغير البيئة الخاص به — اضبط المتغير حتى تتمكن التكاملات التي تستخدمه من المصادقة.')
-                    : t(`${vault.filter(v => !v.configured).length} vault refs are missing their environment variables — set the variables so integrations using them can authenticate.`, `${vault.filter(v => !v.configured).length} مراجع خزنة تفتقد متغيرات البيئة الخاصة بها — اضبط المتغيرات حتى تتمكن التكاملات التي تستخدمها من المصادقة.`)}
+                    ? t('1 vault ref is missing its environment variable — set the variable so integrations using it can authenticate.', 'يوجد مرجع خزنة واحد لم يُضبط متغير بيئته — اضبط المتغير لتتمكن التكاملات التي تستخدمه من المصادقة.')
+                    : t(`${vault.filter(v => !v.configured).length} vault refs are missing their environment variables — set the variables so integrations using them can authenticate.`, `${vault.filter(v => !v.configured).length} مراجع خزنة لم تُضبط متغيرات بيئتها — اضبط المتغيرات لتتمكن التكاملات التي تستخدمها من المصادقة.`)}
                 </p>
               </div>
             )}
@@ -1025,12 +1071,12 @@ export default function IntegrationGovernance() {
                       <TableHead className="text-slate-300">{t('Status', 'الحالة')}</TableHead>
                       <TableHead className="text-slate-300">{t('Last Rotated', 'آخر تدوير')}</TableHead>
                       <TableHead className="text-slate-300">{t('Rotation Due', 'موعد التدوير')}</TableHead>
-                      <TableHead className="text-slate-300 w-16">{t('Actions', 'إجراءات')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Actions', 'إجراءات')}</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
                       {vault.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center text-slate-400 py-8">{t('No vault entries', 'لا توجد إدخالات في الخزنة')}</TableCell></TableRow>
                       : [...vault].sort((a, b) => (a.configured === b.configured ? 0 : a.configured ? 1 : -1)).map(v => (
-                        <TableRow key={v.id} className={`border-slate-700 ${!v.configured ? 'bg-amber-900/10 hover:bg-amber-900/20 border-l-2 border-l-amber-600' : 'hover:bg-slate-700/30'}`}>
+                        <TableRow key={v.id} className={`border-slate-700 ${v.configured ? 'hover:bg-slate-700/30' : 'bg-amber-900/10 hover:bg-amber-900/20 border-l-2 border-l-amber-600'}`}>
                           <TableCell className="text-white font-medium">{lang === 'ar' ? (v.labelAr || v.labelEn) : v.labelEn}</TableCell>
                           <TableCell><Badge variant="outline" className="text-xs border-slate-600 text-slate-300">{v.credentialType}</Badge></TableCell>
                           <TableCell className="font-mono text-slate-400 text-sm">vault:****</TableCell>
@@ -1049,9 +1095,14 @@ export default function IntegrationGovernance() {
                           <TableCell className="text-slate-300 text-sm">{v.lastRotatedAt ? new Date(v.lastRotatedAt).toLocaleDateString() : '—'}</TableCell>
                           <TableCell className="text-slate-300 text-sm">{v.rotationDueAt ? new Date(v.rotationDueAt).toLocaleDateString() : '—'}</TableCell>
                           <TableCell>
-                            <Button size="sm" variant="ghost" className="text-slate-400 hover:text-blue-300 h-7 w-7 p-0" title={t('Edit Arabic label', 'تعديل الاسم بالعربية')} onClick={() => setEditVaultRef(v)}>
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-white" onClick={() => setEditVaultTarget(v)} title={t('Edit', 'تعديل')}>
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-400 hover:text-red-300" onClick={() => setDeleteVaultTarget(v)} title={t('Delete', 'حذف')}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1148,12 +1199,43 @@ export default function IntegrationGovernance() {
 
         <AddProfileDialog open={addProfileOpen} onClose={() => setAddProfileOpen(false)} onSaved={load} vaultRefs={vault} />
         <AddVaultRefDialog open={addVaultRefOpen} onClose={() => setAddVaultRefOpen(false)} onSaved={load} />
+        {editVaultTarget && <EditVaultRefDialog vaultRef={editVaultTarget} onClose={() => setEditVaultTarget(null)} onSaved={load} />}
+        {editProfile && <EditProfileNameArDialog profile={editProfile} onClose={() => setEditProfile(null)} onSaved={load} />}
+
+        <AlertDialog open={!!deleteVaultTarget} onOpenChange={v => !v && setDeleteVaultTarget(null)}>
+          <AlertDialogContent className="bg-slate-800 border-slate-700 text-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('Delete vault ref?', 'حذف مرجع الخزنة؟')}</AlertDialogTitle>
+              <AlertDialogDescription className="text-slate-400 space-y-2">
+                <span>
+                  {t('Delete', 'حذف')} <strong className="text-white">{deleteVaultTarget?.labelEn}</strong>?
+                  {' '}{t('This action is audit-logged and cannot be undone.', 'هذا الإجراء مسجل تدقيقياً ولا يمكن التراجع عنه.')}
+                </span>
+                {(() => {
+                  const linked = profiles.filter(p => p.credentialVaultRefId === deleteVaultTarget?.id);
+                  if (linked.length === 0) return null;
+                  return (
+                    <span className="flex items-start gap-1.5 mt-2 text-amber-300">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>
+                        {t(
+                          `This ref is used by ${linked.length} connection profile${linked.length === 1 ? '' : 's'}: ${linked.map((p: any) => p.profileName).join(', ')}. Those profiles will lose their credential ref.`,
+                          `هذا المرجع مستخدم في ${linked.length} ملف اتصال: ${linked.map((p: any) => p.profileName).join(', ')}. ستفقد تلك الملفات مرجع بيانات الاعتماد.`,
+                        )}
+                      </span>
+                    </span>
+                  );
+                })()}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-slate-600">{t('Cancel', 'إلغاء')}</AlertDialogCancel>
+              <AlertDialogAction onClick={deleteVaultRef} className="bg-red-600 hover:bg-red-700">{t('Delete', 'حذف')}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {linkVaultTarget && <LinkVaultRefDialog profile={linkVaultTarget} vaultRefs={vault} onClose={() => setLinkVaultTarget(null)} onSaved={load} />}
-
-        {editVaultRef && <EditVaultRefLabelArDialog vaultRef={editVaultRef} onClose={() => setEditVaultRef(null)} onSaved={load} />}
-
-        {editProfile && <EditProfileNameArDialog profile={editProfile} onClose={() => setEditProfile(null)} onSaved={load} />}
 
         {healthTarget && <HealthSettingsDialog profile={healthTarget} onClose={() => setHealthTarget(null)} onSaved={load} />}
 
