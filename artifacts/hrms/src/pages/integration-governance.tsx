@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw, Pencil } from 'lucide-react';
 
 function intTypeIcon(type: string): React.ComponentType<{ className?: string }> {
   const map: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -178,8 +178,68 @@ function AddVaultRefDialog({ open, onClose, onSaved }: { open: boolean; onClose:
   );
 }
 
-function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean; onClose: () => void; onSaved: () => void; vaultRefs: any[] }) {
+function EditVaultRefLabelArDialog({ vaultRef, onClose, onSaved }: { vaultRef: any; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [labelAr, setLabelAr] = useState('');
+
+  useEffect(() => { if (vaultRef) setLabelAr(vaultRef.labelAr ?? ''); }, [vaultRef]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await apiFetch(`/api/integration-governance/credential-vault-refs/${vaultRef.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labelAr: labelAr.trim() || vaultRef.labelEn }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: t('Arabic label updated', 'تم تحديث الاسم بالعربية') });
+      onSaved(); onClose();
+    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Dialog open={!!vaultRef} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="w-4 h-4 text-blue-400" />
+            {t('Edit Arabic label', 'تعديل الاسم بالعربية')}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="rounded-md border border-slate-700 bg-slate-700/30 p-2 text-xs text-slate-400">
+            <span className="text-slate-500">{t('English name:', 'الاسم بالإنجليزية:')}</span>{' '}
+            <span className="text-white font-medium">{vaultRef?.labelEn}</span>
+          </div>
+          <div>
+            <Label>{t('Arabic label', 'الاسم بالعربية')}</Label>
+            <Input
+              dir="rtl"
+              className="mt-1 bg-slate-700 border-slate-600"
+              value={labelAr}
+              onChange={e => setLabelAr(e.target.value)}
+              placeholder={vaultRef?.labelEn}
+              autoFocus
+            />
+            <p className="mt-1 text-xs text-slate-500">{t('Shown to Arabic-speaking users. Leave blank to fall back to the English name.', 'يظهر للمستخدمين الناطقين بالعربية. اتركه فارغاً للرجوع إلى الاسم الإنجليزي.')}</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+            {saving ? t('Saving…', 'جاري الحفظ…') : t('Save', 'حفظ')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean; onClose: () => void; onSaved: () => void; vaultRefs: any[] }) {
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ profileName: '', profileNameAr: '', integrationType: '', environment: 'development', baseUrl: '', description: '', credentialVaultRefId: '' });
@@ -254,7 +314,7 @@ function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean
                 {vaultRefs.map(r => (
                   <SelectItem key={r.id} value={String(r.id)}>
                     <span className="flex items-center gap-2">
-                      <span>{r.labelEn}</span>
+                      <span>{lang === 'ar' ? (r.labelAr || r.labelEn) : r.labelEn}</span>
                       <VaultConfigBadge configured={r.configured} />
                     </span>
                   </SelectItem>
@@ -280,7 +340,7 @@ function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean
 
 /** Dialog to link or change the credential vault ref on an existing connection profile. */
 function LinkVaultRefDialog({ profile, vaultRefs, onClose, onSaved }: { profile: any; vaultRefs: any[]; onClose: () => void; onSaved: () => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [selectedId, setSelectedId] = useState<string>(profile?.credentialVaultRefId ? String(profile.credentialVaultRefId) : '__none__');
@@ -337,7 +397,7 @@ function LinkVaultRefDialog({ profile, vaultRefs, onClose, onSaved }: { profile:
                 {vaultRefs.map(r => (
                   <SelectItem key={r.id} value={String(r.id)}>
                     <span className="flex items-center gap-2">
-                      <span>{r.labelEn}</span>
+                      <span>{lang === 'ar' ? (r.labelAr || r.labelEn) : r.labelEn}</span>
                       <VaultConfigBadge configured={r.configured} />
                     </span>
                   </SelectItem>
@@ -346,7 +406,7 @@ function LinkVaultRefDialog({ profile, vaultRefs, onClose, onSaved }: { profile:
             </Select>
             {selectedRef && (
               <div className="mt-2 rounded-md border border-slate-700 bg-slate-700/30 p-2 text-xs space-y-1">
-                <p className="text-slate-300 font-medium">{selectedRef.labelEn}</p>
+                <p className="text-slate-300 font-medium">{lang === 'ar' ? (selectedRef.labelAr || selectedRef.labelEn) : selectedRef.labelEn}</p>
                 <p className="text-slate-500 font-mono">vault:****</p>
                 <div className="flex items-center gap-1">
                   {selectedRef.configured
@@ -587,6 +647,8 @@ export default function IntegrationGovernance() {
   const [detailProfileId, setDetailProfileId] = useState<number | null>(null);
   const [linkVaultTarget, setLinkVaultTarget] = useState<any>(null);
   const [addVaultRefOpen, setAddVaultRefOpen] = useState(false);
+  const [editVaultRef, setEditVaultRef] = useState<any>(null);
+  const [editProfile, setEditProfile] = useState<any>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -838,7 +900,7 @@ export default function IntegrationGovernance() {
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded bg-slate-700 flex items-center justify-center"><Icon className="w-4 h-4 text-slate-300" /></div>
                             <div>
-                              <p className="text-white font-medium text-sm">{p.profileName}</p>
+                              <p className="text-white font-medium text-sm">{lang === 'ar' ? (p.profileNameAr || p.profileName) : p.profileName}</p>
                               <p className="text-slate-400 text-xs">{p.integrationType}</p>
                             </div>
                           </div>
@@ -916,6 +978,9 @@ export default function IntegrationGovernance() {
                           <Button size="sm" variant="ghost" className="text-slate-300 hover:text-white h-7 px-2 text-xs" onClick={() => setLinkVaultTarget(p)}>
                             <ShieldCheck className="w-3.5 h-3.5 me-1" />{t('Credential', 'اعتماد')}
                           </Button>
+                          <Button size="sm" variant="ghost" className="text-slate-400 hover:text-blue-300 h-7 w-7 p-0" title={t('Edit Arabic name', 'تعديل الاسم بالعربية')} onClick={() => setEditProfile(p)}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
                           {p.status !== 'inactive' && (
                             <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 h-7 px-2 text-xs" onClick={() => setSuspendTarget(p)}>{t('Suspend', 'تعليق')}</Button>
                           )}
@@ -943,8 +1008,8 @@ export default function IntegrationGovernance() {
                 <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
                 <p className="text-amber-300 text-sm font-medium">
                   {vault.filter(v => !v.configured).length === 1
-                    ? t('1 vault ref is missing its environment variable — set the variable so integrations using it can authenticate.', 'يوجد مرجع خزنة واحد لم يُضبط متغير بيئته — اضبط المتغير لتتمكن التكاملات التي تستخدمه من المصادقة.')
-                    : t(`${vault.filter(v => !v.configured).length} vault refs are missing their environment variables — set the variables so integrations using them can authenticate.`, `${vault.filter(v => !v.configured).length} مراجع خزنة لم تُضبط متغيرات بيئتها — اضبط المتغيرات لتتمكن التكاملات التي تستخدمها من المصادقة.`)}
+                    ? t('1 vault ref is missing its environment variable — set the variable so integrations using it can authenticate.', 'مرجع خزنة واحد يفتقد متغير البيئة الخاص به — اضبط المتغير حتى تتمكن التكاملات التي تستخدمه من المصادقة.')
+                    : t(`${vault.filter(v => !v.configured).length} vault refs are missing their environment variables — set the variables so integrations using them can authenticate.`, `${vault.filter(v => !v.configured).length} مراجع خزنة تفتقد متغيرات البيئة الخاصة بها — اضبط المتغيرات حتى تتمكن التكاملات التي تستخدمها من المصادقة.`)}
                 </p>
               </div>
             )}
@@ -960,12 +1025,13 @@ export default function IntegrationGovernance() {
                       <TableHead className="text-slate-300">{t('Status', 'الحالة')}</TableHead>
                       <TableHead className="text-slate-300">{t('Last Rotated', 'آخر تدوير')}</TableHead>
                       <TableHead className="text-slate-300">{t('Rotation Due', 'موعد التدوير')}</TableHead>
+                      <TableHead className="text-slate-300 w-16">{t('Actions', 'إجراءات')}</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {vault.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-400 py-8">{t('No vault entries', 'لا توجد إدخالات في الخزنة')}</TableCell></TableRow>
+                      {vault.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center text-slate-400 py-8">{t('No vault entries', 'لا توجد إدخالات في الخزنة')}</TableCell></TableRow>
                       : [...vault].sort((a, b) => (a.configured === b.configured ? 0 : a.configured ? 1 : -1)).map(v => (
-                        <TableRow key={v.id} className={`border-slate-700 ${v.configured ? 'hover:bg-slate-700/30' : 'bg-amber-900/10 hover:bg-amber-900/20 border-l-2 border-l-amber-600'}`}>
-                          <TableCell className="text-white font-medium">{v.labelEn}</TableCell>
+                        <TableRow key={v.id} className={`border-slate-700 ${!v.configured ? 'bg-amber-900/10 hover:bg-amber-900/20 border-l-2 border-l-amber-600' : 'hover:bg-slate-700/30'}`}>
+                          <TableCell className="text-white font-medium">{lang === 'ar' ? (v.labelAr || v.labelEn) : v.labelEn}</TableCell>
                           <TableCell><Badge variant="outline" className="text-xs border-slate-600 text-slate-300">{v.credentialType}</Badge></TableCell>
                           <TableCell className="font-mono text-slate-400 text-sm">vault:****</TableCell>
                           <TableCell>
@@ -982,6 +1048,11 @@ export default function IntegrationGovernance() {
                           <TableCell><Badge variant="outline" className={`text-xs ${statusBadge(v.status)}`}>{v.status}</Badge></TableCell>
                           <TableCell className="text-slate-300 text-sm">{v.lastRotatedAt ? new Date(v.lastRotatedAt).toLocaleDateString() : '—'}</TableCell>
                           <TableCell className="text-slate-300 text-sm">{v.rotationDueAt ? new Date(v.rotationDueAt).toLocaleDateString() : '—'}</TableCell>
+                          <TableCell>
+                            <Button size="sm" variant="ghost" className="text-slate-400 hover:text-blue-300 h-7 w-7 p-0" title={t('Edit Arabic label', 'تعديل الاسم بالعربية')} onClick={() => setEditVaultRef(v)}>
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1080,6 +1151,10 @@ export default function IntegrationGovernance() {
 
         {linkVaultTarget && <LinkVaultRefDialog profile={linkVaultTarget} vaultRefs={vault} onClose={() => setLinkVaultTarget(null)} onSaved={load} />}
 
+        {editVaultRef && <EditVaultRefLabelArDialog vaultRef={editVaultRef} onClose={() => setEditVaultRef(null)} onSaved={load} />}
+
+        {editProfile && <EditProfileNameArDialog profile={editProfile} onClose={() => setEditProfile(null)} onSaved={load} />}
+
         {healthTarget && <HealthSettingsDialog profile={healthTarget} onClose={() => setHealthTarget(null)} onSaved={load} />}
 
         <ProfileDetailDialog profileId={detailProfileId} onClose={() => setDetailProfileId(null)} />
@@ -1142,5 +1217,66 @@ export default function IntegrationGovernance() {
         </AlertDialog>
       </div>
     </AnimatedPage>
+  );
+}
+
+function EditProfileNameArDialog({ profile, onClose, onSaved }: { profile: any; onClose: () => void; onSaved: () => void }) {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [profileNameAr, setProfileNameAr] = useState('');
+
+  useEffect(() => { if (profile) setProfileNameAr(profile.profileNameAr ?? ''); }, [profile]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await apiFetch(`/api/integration-governance/connection-profiles/${profile.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileNameAr: profileNameAr.trim() || profile.profileName }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: t('Arabic name updated', 'تم تحديث الاسم بالعربية') });
+      onSaved(); onClose();
+    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Dialog open={!!profile} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="w-4 h-4 text-blue-400" />
+            {t('Edit Arabic name', 'تعديل الاسم بالعربية')}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="rounded-md border border-slate-700 bg-slate-700/30 p-2 text-xs text-slate-400">
+            <span className="text-slate-500">{t('English name:', 'الاسم بالإنجليزية:')}</span>{' '}
+            <span className="text-white font-medium">{profile?.profileName}</span>
+          </div>
+          <div>
+            <Label>{t('Arabic name', 'الاسم بالعربية')}</Label>
+            <Input
+              dir="rtl"
+              className="mt-1 bg-slate-700 border-slate-600"
+              value={profileNameAr}
+              onChange={e => setProfileNameAr(e.target.value)}
+              placeholder={profile?.profileName}
+              autoFocus
+            />
+            <p className="mt-1 text-xs text-slate-500">{t('Shown to Arabic-speaking users. Leave blank to fall back to the English name.', 'يظهر للمستخدمين الناطقين بالعربية. اتركه فارغاً للرجوع إلى الاسم الإنجليزي.')}</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+            {saving ? t('Saving…', 'جاري الحفظ…') : t('Save', 'حفظ')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
