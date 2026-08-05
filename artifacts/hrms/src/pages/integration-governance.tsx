@@ -938,6 +938,16 @@ export default function IntegrationGovernance() {
               <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
               <p className="text-amber-400 text-sm">{t('Vault stores key REFERENCES only — never actual credentials. Rotate credentials in your vault system, then update the rotation timestamp here.', 'تخزن الخزنة مراجع المفاتيح فقط — وليس بيانات الاعتماد الفعلية. قم بتدوير بيانات الاعتماد في نظام الخزنة الخاص بك، ثم قم بتحديث طابع التدوير الزمني هنا.')}</p>
             </div>
+            {!loading && vault.filter(v => !v.configured).length > 0 && (
+              <div className="rounded-md border border-amber-700 bg-amber-900/25 p-3 flex items-start gap-2" data-testid="vault-missing-banner">
+                <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-amber-300 text-sm font-medium">
+                  {vault.filter(v => !v.configured).length === 1
+                    ? t('1 vault ref is missing its environment variable — set the variable so integrations using it can authenticate.', 'يوجد مرجع خزنة واحد لم يُضبط متغير بيئته — اضبط المتغير لتتمكن التكاملات التي تستخدمه من المصادقة.')
+                    : t(`${vault.filter(v => !v.configured).length} vault refs are missing their environment variables — set the variables so integrations using them can authenticate.`, `${vault.filter(v => !v.configured).length} مراجع خزنة لم تُضبط متغيرات بيئتها — اضبط المتغيرات لتتمكن التكاملات التي تستخدمها من المصادقة.`)}
+                </p>
+              </div>
+            )}
             <Card className="bg-slate-800 border-slate-700">
               <CardContent className="p-0">
                 {loading ? <div className="p-4 space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 bg-slate-700" />)}</div> : (
@@ -946,16 +956,16 @@ export default function IntegrationGovernance() {
                       <TableHead className="text-slate-300">{t('Label', 'التسمية')}</TableHead>
                       <TableHead className="text-slate-300">{t('Type', 'النوع')}</TableHead>
                       <TableHead className="text-slate-300">{t('Vault Key Ref', 'مرجع مفتاح الخزنة')}</TableHead>
-                      <TableHead className="text-slate-300">{t('Secret', 'السر')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Secret status', 'حالة السر')}</TableHead>
                       <TableHead className="text-slate-300">{t('Status', 'الحالة')}</TableHead>
                       <TableHead className="text-slate-300">{t('Last Rotated', 'آخر تدوير')}</TableHead>
                       <TableHead className="text-slate-300">{t('Rotation Due', 'موعد التدوير')}</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
                       {vault.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-400 py-8">{t('No vault entries', 'لا توجد إدخالات في الخزنة')}</TableCell></TableRow>
-                      : vault.map(v => (
-                        <TableRow key={v.id} className="border-slate-700 hover:bg-slate-700/30">
-                          <TableCell className="text-white">{v.labelEn}</TableCell>
+                      : [...vault].sort((a, b) => (a.configured === b.configured ? 0 : a.configured ? 1 : -1)).map(v => (
+                        <TableRow key={v.id} className={`border-slate-700 ${v.configured ? 'hover:bg-slate-700/30' : 'bg-amber-900/10 hover:bg-amber-900/20 border-l-2 border-l-amber-600'}`}>
+                          <TableCell className="text-white font-medium">{v.labelEn}</TableCell>
                           <TableCell><Badge variant="outline" className="text-xs border-slate-600 text-slate-300">{v.credentialType}</Badge></TableCell>
                           <TableCell className="font-mono text-slate-400 text-sm">vault:****</TableCell>
                           <TableCell>
@@ -964,7 +974,7 @@ export default function IntegrationGovernance() {
                                 <CheckCircle className="w-3 h-3 me-1" />{t('Configured', 'مُهيَّأ')}
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-xs bg-amber-900/40 text-amber-300 border-amber-700" data-testid={`vault-missing-${v.id}`}>
+                              <Badge variant="outline" className="text-xs bg-amber-900/50 text-amber-200 border-amber-600 font-semibold" data-testid={`vault-missing-${v.id}`}>
                                 <AlertTriangle className="w-3 h-3 me-1" />{t('Missing secret', 'سر مفقود')}
                               </Badge>
                             )}
