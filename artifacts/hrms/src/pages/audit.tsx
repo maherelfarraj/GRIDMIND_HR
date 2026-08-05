@@ -9,8 +9,16 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDebounce } from '@/hooks/use-debounce';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 
 const SECURITY_ACTIONS = 'login.failed,login.lockout';
+const PAGE_SIZE = 50;
 
 const RECOVERY_METHOD_LABELS: Record<string, { en: string; ar: string; icon: React.ReactNode }> = {
   ADMIN_RESET_PASSWORD: {
@@ -58,6 +66,7 @@ export default function Audit() {
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [labelSearch, setLabelSearch] = useState('');
   const [ipSearch, setIpSearch] = useState('');
+  const [page, setPage] = useState(1);
   const debouncedLabel = useDebounce(labelSearch, 300);
   const debouncedIp = useDebounce(ipSearch, 300);
 
@@ -65,7 +74,27 @@ export default function Audit() {
     action: actionFilter === 'all' ? undefined : actionFilter === 'security' ? SECURITY_ACTIONS : actionFilter,
     entityLabel: debouncedLabel || undefined,
     ipAddress: debouncedIp || undefined,
+    page,
+    limit: PAGE_SIZE,
   });
+
+  const total = auditData?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  function handleActionChange(value: string) {
+    setActionFilter(value);
+    setPage(1);
+  }
+
+  function handleLabelChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setLabelSearch(e.target.value);
+    setPage(1);
+  }
+
+  function handleIpChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setIpSearch(e.target.value);
+    setPage(1);
+  }
 
   return (
     <div className="space-y-6">
@@ -87,7 +116,7 @@ export default function Audit() {
       <Card>
         <CardHeader className="py-4 border-b">
           <div className="flex flex-col sm:flex-row gap-3">
-            <Select value={actionFilter} onValueChange={setActionFilter}>
+            <Select value={actionFilter} onValueChange={handleActionChange}>
               <SelectTrigger className="w-full sm:w-56" data-testid="select-action-filter">
                 <SelectValue placeholder={t('All actions', 'جميع الإجراءات')} />
               </SelectTrigger>
@@ -105,7 +134,7 @@ export default function Audit() {
               <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 value={labelSearch}
-                onChange={(e) => setLabelSearch(e.target.value)}
+                onChange={handleLabelChange}
                 placeholder={t('Filter by username / entity...', 'تصفية حسب اسم المستخدم / الكيان...')}
                 className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
                 data-testid="input-entity-label"
@@ -115,7 +144,7 @@ export default function Audit() {
               <Network className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 value={ipSearch}
-                onChange={(e) => setIpSearch(e.target.value)}
+                onChange={handleIpChange}
                 placeholder={t('Filter by IP...', 'تصفية حسب IP...')}
                 className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
                 data-testid="input-ip-address"
@@ -195,8 +224,44 @@ export default function Audit() {
             </TableBody>
           </Table>
         </CardContent>
+
+        {/* Pagination footer */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t text-sm text-muted-foreground">
+          <span>
+            {isLoading ? (
+              <Skeleton className="h-4 w-40" />
+            ) : (
+              t(
+                `${total.toLocaleString()} record${total !== 1 ? 's' : ''} total`,
+                `${total.toLocaleString()} سجل إجمالاً`,
+              )
+            )}
+          </span>
+          <Pagination className="w-auto mx-0">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  aria-disabled={page <= 1}
+                  className={page <= 1 ? 'pointer-events-none opacity-40' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+              <PaginationItem>
+                <span className="px-3 py-1 text-sm font-medium tabular-nums">
+                  {t(`Page ${page} of ${totalPages}`, `صفحة ${page} من ${totalPages}`)}
+                </span>
+              </PaginationItem>
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  aria-disabled={page >= totalPages}
+                  className={page >= totalPages ? 'pointer-events-none opacity-40' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       </Card>
     </div>
   );
 }
-
