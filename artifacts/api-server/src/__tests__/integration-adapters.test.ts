@@ -534,3 +534,239 @@ describe("Connection profile /test route audit logging", () => {
     expect(typeof meta.latencyMs).toBe("number");
   });
 });
+
+// ─── Per-profile host resolution: two-profile differentiation ────────────────
+//
+// These tests are the primary regression guard for per-profile host resolution.
+// They create TWO profiles of the same integration type with DIFFERENT hosts
+// AND different environments (one staging, one production) and verify that each
+// /test result message references only that profile's own host — not the global
+// env var host, and not the other profile's host. Spanning environments catches
+// any regression where production profiles are silently routed differently from
+// staging ones. A regression that routes every profile to the global env var
+// would make both messages identical and both assertions would fire.
+//
+// We also cover the env-var fallback path: a profile with no host in
+// connectionParamsJson must fall through to the global env var.
+
+describe("Per-profile host resolution: two-profile differentiation (LDAP)", () => {
+  const localVaultRefIds: number[] = [];
+  const localProfileIds: number[] = [];
+
+  afterAll(async () => {
+    if (localProfileIds.length) {
+      await db.delete(integrationAuditLogTable)
+        .where(inArray(integrationAuditLogTable.profileId, localProfileIds));
+      await db.delete(integrationConnectionProfilesTable)
+        .where(inArray(integrationConnectionProfilesTable.id, localProfileIds));
+    }
+    if (localVaultRefIds.length) {
+      await db.delete(integrationCredentialVaultRefsTable)
+        .where(inArray(integrationCredentialVaultRefsTable.id, localVaultRefIds));
+    }
+  });
+
+  async function createLdapProfile(host: string, label: string, environment: "staging" | "production") {
+    const [ref] = await db.insert(integrationCredentialVaultRefsTable).values({
+      labelEn: `${label} cred ${Date.now()}`,
+      labelAr: "بيانات اعتماد",
+      credentialType: "ldap",
+      vaultKeyRef: `vault:two_profile_ldap_${label}_${Date.now()}`,
+      status: "active",
+      createdByUserId: 1,
+    }).returning();
+    localVaultRefIds.push(ref.id);
+
+    const [profile] = await db.insert(integrationConnectionProfilesTable).values({
+      profileName: `${label} LDAP ${Date.now()}`,
+      profileNameAr: "ملف LDAP",
+      integrationType: "ldap",
+      environment,
+      // host set per-profile; bindDn also in params so vault secret isn't needed
+      connectionParamsJson: JSON.stringify({ host, port: 389, bindDn: `cn=${label},dc=test` }),
+      credentialVaultRefId: ref.id,
+      createdByUserId: 1,
+    }).returning();
+    localProfileIds.push(profile.id);
+    return profile.id;
+  }
+
+  it("staging and production profiles each hit their own host, not the other's or the global", async () => {
+    // Global host is a distinct third value — must NOT appear in either result.
+    process.env.LDAP_HOST = "global.ldap.should-not-appear.test";
+    process.env.LDAP_BIND_DN = "cn=global,dc=test";
+    process.env.LDAP_BIND_PASSWORD = "global-pass";
+
+    // Alpha is staging, Beta is production — different environments, different hosts.
+    const profileAlphaId = await createLdapProfile("profile-alpha.ldap.test", "alpha", "staging");
+    const profileBetaId  = await createLdapProfile("profile-beta.ldap.test",  "beta",  "production");
+
+    const [resAlpha, resBeta] = await Promise.all([
+      request(app).post(`/api/integration-governance/connection-profiles/${profileAlphaId}/test`),
+      request(app).post(`/api/integration-governance/connection-profiles/${profileBetaId}/test`),
+    ]);
+
+    expect(resAlpha.status).toBe(200);
+    expect(resBeta.status).toBe(200);
+
+    // Both will fail (unresolvable hostnames), but each failure message must cite
+    // that profile's own host.
+    expect(resAlpha.body.message).toContain("profile-alpha.ldap.test");
+    expect(resAlpha.body.message).not.toContain("profile-beta.ldap.test");
+    expect(resAlpha.body.message).not.toContain("global.ldap.should-not-appear.test");
+
+    expect(resBeta.body.message).toContain("profile-beta.ldap.test");
+    expect(resBeta.body.message).not.toContain("profile-alpha.ldap.test");
+    expect(resBeta.body.message).not.toContain("global.ldap.should-not-appear.test");
+
+    // simulated must be false for a real adapter type
+    expect(resAlpha.body.simulated).toBe(false);
+    expect(resBeta.body.simulated).toBe(false);
+  });
+
+  it("LDAP profile without host in connectionParamsJson falls back to global LDAP_HOST", async () => {
+    process.env.LDAP_HOST = "global-fallback.ldap.test";
+    process.env.LDAP_BIND_DN = "cn=fallback,dc=test";
+    process.env.LDAP_BIND_PASSWORD = "fallback-pass";
+
+    // Profile has no host — connectionParamsJson only has bindDn so we don't
+    // hit the "missing settings" branch, and the adapter must use LDAP_HOST.
+    const [ref] = await db.insert(integrationCredentialVaultRefsTable).values({
+      labelEn: `Fallback LDAP cred ${Date.now()}`,
+      labelAr: "بيانات اعتماد",
+      credentialType: "ldap",
+      vaultKeyRef: `vault:ldap_fallback_${Date.now()}`,
+      status: "active",
+      createdByUserId: 1,
+    }).returning();
+    localVaultRefIds.push(ref.id);
+
+    const [profile] = await db.insert(integrationConnectionProfilesTable).values({
+      profileName: `Fallback LDAP ${Date.now()}`,
+      profileNameAr: "ملف احتياطي",
+      integrationType: "ldap",
+      environment: "staging",
+      // No host — adapter must fall back to LDAP_HOST env var
+      connectionParamsJson: JSON.stringify({ bindDn: "cn=profile-nohost,dc=test" }),
+      credentialVaultRefId: ref.id,
+      createdByUserId: 1,
+    }).returning();
+    localProfileIds.push(profile.id);
+
+    const res = await request(app)
+      .post(`/api/integration-governance/connection-profiles/${profile.id}/test`);
+    expect(res.status).toBe(200);
+    // Failure is expected (host is unresolvable) but message must cite the GLOBAL host
+    expect(res.body.message).toContain("global-fallback.ldap.test");
+    expect(res.body.simulated).toBe(false);
+  });
+});
+
+describe("Per-profile host resolution: two-profile differentiation (device adapter)", () => {
+  const localVaultRefIds: number[] = [];
+  const localProfileIds: number[] = [];
+
+  afterAll(async () => {
+    if (localProfileIds.length) {
+      await db.delete(integrationAuditLogTable)
+        .where(inArray(integrationAuditLogTable.profileId, localProfileIds));
+      await db.delete(integrationConnectionProfilesTable)
+        .where(inArray(integrationConnectionProfilesTable.id, localProfileIds));
+    }
+    if (localVaultRefIds.length) {
+      await db.delete(integrationCredentialVaultRefsTable)
+        .where(inArray(integrationCredentialVaultRefsTable.id, localVaultRefIds));
+    }
+  });
+
+  async function createDeviceProfile(baseUrl: string, label: string, environment: "staging" | "production") {
+    const [ref] = await db.insert(integrationCredentialVaultRefsTable).values({
+      labelEn: `${label} device cred ${Date.now()}`,
+      labelAr: "بيانات اعتماد",
+      credentialType: "attendance_device",
+      vaultKeyRef: `vault:two_profile_device_${label}_${Date.now()}`,
+      status: "active",
+      createdByUserId: 1,
+    }).returning();
+    localVaultRefIds.push(ref.id);
+
+    const [profile] = await db.insert(integrationConnectionProfilesTable).values({
+      profileName: `${label} device ${Date.now()}`,
+      profileNameAr: "ملف جهاز",
+      integrationType: "attendance_device",
+      environment,
+      connectionParamsJson: JSON.stringify({ baseUrl }),
+      credentialVaultRefId: ref.id,
+      createdByUserId: 1,
+    }).returning();
+    localProfileIds.push(profile.id);
+    return profile.id;
+  }
+
+  it("staging and production device profiles route to their own servers independently", async () => {
+    // Global would succeed (/ok) — production profile B must NOT fall back to it.
+    process.env.DEVICE_API_URL = `${stubBaseUrl}/ok`;
+    process.env.DEVICE_API_KEY = "global-device-key";
+
+    // Profile A (staging)    → /ok (healthy stub) → expect success
+    // Profile B (production) → /fail (503 stub)   → expect failure with 503 in message
+    const profileAId = await createDeviceProfile(`${stubBaseUrl}/ok`,  "dev-ok",   "staging");
+    const profileBId = await createDeviceProfile(`${stubBaseUrl}/fail`, "dev-fail", "production");
+
+    const [resA, resB] = await Promise.all([
+      request(app).post(`/api/integration-governance/connection-profiles/${profileAId}/test`),
+      request(app).post(`/api/integration-governance/connection-profiles/${profileBId}/test`),
+    ]);
+
+    expect(resA.status).toBe(200);
+    expect(resB.status).toBe(200);
+
+    // Profile A hit the /ok path — must succeed
+    expect(resA.body.success).toBe(true);
+    expect(resA.body.simulated).toBe(false);
+    expect(resA.body.message).toContain("/ok/health");
+    expect(resA.body.message).not.toContain("/fail");
+
+    // Profile B hit the /fail path — must report 503, not a success
+    expect(resB.body.success).toBe(false);
+    expect(resB.body.simulated).toBe(false);
+    expect(resB.body.message).toContain("503");
+    expect(resB.body.message).toContain("/fail/health");
+    expect(resB.body.message).not.toContain("/ok/health");
+  });
+
+  it("device profile without baseUrl in connectionParamsJson falls back to global DEVICE_API_URL", async () => {
+    process.env.DEVICE_API_URL = `${stubBaseUrl}/ok`;
+    process.env.DEVICE_API_KEY = "global-device-key";
+
+    const [ref] = await db.insert(integrationCredentialVaultRefsTable).values({
+      labelEn: `Fallback device cred ${Date.now()}`,
+      labelAr: "بيانات اعتماد",
+      credentialType: "attendance_device",
+      vaultKeyRef: `vault:device_fallback_${Date.now()}`,
+      status: "active",
+      createdByUserId: 1,
+    }).returning();
+    localVaultRefIds.push(ref.id);
+
+    const [profile] = await db.insert(integrationConnectionProfilesTable).values({
+      profileName: `Fallback device ${Date.now()}`,
+      profileNameAr: "ملف جهاز احتياطي",
+      integrationType: "attendance_device",
+      environment: "staging",
+      // No baseUrl — must fall back to DEVICE_API_URL env var
+      connectionParamsJson: JSON.stringify({}),
+      credentialVaultRefId: ref.id,
+      createdByUserId: 1,
+    }).returning();
+    localProfileIds.push(profile.id);
+
+    const res = await request(app)
+      .post(`/api/integration-governance/connection-profiles/${profile.id}/test`);
+    expect(res.status).toBe(200);
+    // Global /ok → should succeed and mention the /ok/health path
+    expect(res.body.success).toBe(true);
+    expect(res.body.simulated).toBe(false);
+    expect(res.body.message).toContain("/ok/health");
+  });
+});
