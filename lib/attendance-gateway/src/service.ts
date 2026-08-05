@@ -203,7 +203,12 @@ export class GatewayService {
    * and that is exactly when the HR core most needs the structured
    * testConnection() result (UNREACHABLE / AUTH_FAILED / NOT_CONFIGURED).
    */
-  async tick(): Promise<{ pollError: string | null; heartbeatError: string | null }> {
+  async tick(): Promise<{ pollError: string | null; heartbeatError: string | null; testRequested: boolean }> {
+    // Capture when testConnection() was called — the server uses this to
+    // decide whether the result is fresh enough to answer a pending
+    // admin-requested connection test (connectionTestRunAt must be ≥
+    // connTestRequestedAt). Captured before the call so latency is minimal.
+    const connectionTestRunAt = Date.now();
     // testConnection() runs FIRST so the device clock-skew gate applies to
     // this tick's poll (not the next one). The same result feeds the
     // heartbeat below — no second connection round-trip.
@@ -244,20 +249,27 @@ export class GatewayService {
     }
 
     let heartbeatError: string | null = null;
+    let testRequested = false;
     try {
       const t = heartbeatTest ?? await this.adapter.testConnection();
       const { body } = await this.hr.heartbeat(t, {
         sdk: this.resolveSdkInfo(t),
         deviceClockSkewMs: GatewayService.computeClockSkewMs(t),
+        // Tell the server when this tick ran testConnection() so it can
+        // determine whether the result is fresh enough to answer a pending
+        // admin-requested test (result must post-date the request).
+        connectionTestRunAt,
       });
-      if (body.testRequested) {
-        // An admin was watching for this heartbeat's connection-test result.
-        // Log it so operators can correlate the on-demand request with the tick.
+      testRequested = body.testRequested === true;
+      if (testRequested) {
+        // testRequested: true means a test is still pending — the result in
+        // this heartbeat pre-dates the admin's request. The scheduler will
+        // fire a nudge tick so the next heartbeat carries a fresh result.
         console.info(JSON.stringify({
           level: "info",
-          event: "conn_test_answered",
+          event: "conn_test_pending",
           adapterType: this.adapter.type,
-          message: "On-demand connection test result delivered to HR core in this heartbeat",
+          message: "Admin-requested connection test outstanding — scheduling early tick to deliver a fresh result",
         }));
       }
       if (Array.isArray(body.commands) && body.commands.length > 0) {
@@ -267,7 +279,7 @@ export class GatewayService {
       heartbeatError = e instanceof Error ? e.message : String(e);
       this.lastError = heartbeatError;
     }
-    return { pollError, heartbeatError };
+    return { pollError, heartbeatError, testRequested };
   }
 
   /**

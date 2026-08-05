@@ -32,7 +32,7 @@ export class HrClient {
 
   async heartbeat(
     connectionTest?: AdapterTestResult | string,
-    health?: { sdk?: AdapterSdkInfo; deviceClockSkewMs?: number | null },
+    health?: { sdk?: AdapterSdkInfo; deviceClockSkewMs?: number | null; connectionTestRunAt?: number },
   ) {
     const structured = typeof connectionTest === "object" && connectionTest !== null ? connectionTest : undefined;
     return this.post<{
@@ -40,7 +40,15 @@ export class HrClient {
       clockDriftMs: number | null;
       driftAlert: boolean;
       commands?: DeliveredCommand[];
-      /** True when the heartbeat answered a pending admin-requested connection test. */
+      /**
+       * True when an admin-requested connection test is still outstanding and
+       * was NOT answered by this heartbeat (the result pre-dates the request).
+       * The gateway should schedule an early tick so the next heartbeat
+       * carries a fresh result and resolves the test.
+       *
+       * False when no test is pending, or when this heartbeat just answered
+       * the pending test (result obtained after the request timestamp).
+       */
       testRequested?: boolean;
     }>("/gateway/heartbeat", {
       deviceTimeMs: Date.now(),
@@ -60,6 +68,12 @@ export class HrClient {
       // spot a missing vendor SDK or a drifting device clock remotely.
       ...(health?.sdk ? { sdkPresent: health.sdk.present, sdkVersion: health.sdk.version } : {}),
       ...(health && health.deviceClockSkewMs !== undefined ? { deviceClockSkewMs: health.deviceClockSkewMs } : {}),
+      // When did this tick run testConnection()? The server uses this to
+      // decide whether the result is fresh enough to answer a pending
+      // admin-requested test (connectionTestRunAt >= connTestRequestedAt).
+      // Absent on older gateways; server falls back to treating the result
+      // as fresh (backward compatibility).
+      ...(health?.connectionTestRunAt !== undefined ? { connectionTestRunAt: health.connectionTestRunAt } : {}),
     });
   }
 

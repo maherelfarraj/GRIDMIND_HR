@@ -1,6 +1,7 @@
 import { EncryptedQueue } from "./queue.js";
 import { HrClient } from "./hrClient.js";
 import { GatewayService } from "./service.js";
+import { runScheduler, MIN_NUDGE_INTERVAL_MS } from "./scheduler.js";
 import { deriveSigningKey } from "./signing.js";
 import { SimulatorAdapter } from "./adapters/simulator.js";
 import { GenericRestAdapter } from "./adapters/genericRest.js";
@@ -91,15 +92,28 @@ async function main(): Promise<void> {
   await service.init();
 
   const pollIntervalMs = parseInt(process.env.POLL_INTERVAL_MS ?? "60000", 10);
-  const tick = async (): Promise<void> => {
-    // service.tick() heartbeats even when poll/flush fail, so connection
-    // failures still reach the HR core admin screen.
-    const { pollError, heartbeatError } = await service.tick();
-    if (pollError) console.error("[gateway] poll/flush failed:", pollError);
-    if (heartbeatError) console.error("[gateway] heartbeat failed:", heartbeatError);
-  };
-  setInterval(tick, pollIntervalMs);
-  void tick();
+  // NUDGE_INTERVAL_MS: how long to wait before the next tick when a heartbeat
+  // response carries testRequested=true (pending admin connection-test, result
+  // pre-dated the request). Floored at MIN_NUDGE_INTERVAL_MS (5 s) to prevent
+  // hot loops. Default 10 s — a fresh result arrives within seconds.
+  // optionalPositiveIntEnv throws loudly on NaN/non-integer/negative values so
+  // a bad env var never silently collapses to a zero-delay tight loop.
+  const nudgeIntervalMs = Math.max(
+    optionalPositiveIntEnv("NUDGE_INTERVAL_MS") ?? 10_000,
+    MIN_NUDGE_INTERVAL_MS,
+  );
+  runScheduler(
+    async () => {
+      // service.tick() heartbeats even when poll/flush fail, so connection
+      // failures still reach the HR core admin screen.
+      const { pollError, heartbeatError, testRequested } = await service.tick();
+      if (pollError) console.error("[gateway] poll/flush failed:", pollError);
+      if (heartbeatError) console.error("[gateway] heartbeat failed:", heartbeatError);
+      return { testRequested };
+    },
+    pollIntervalMs,
+    nudgeIntervalMs,
+  );
 
   // Local operator API: loopback-only by default; mutating endpoints require
   // the operator token (see localApi.ts).

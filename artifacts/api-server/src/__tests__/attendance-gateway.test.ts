@@ -14,7 +14,7 @@
  *
  * All fixtures are self-cleaning.
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
 import { createHash, createHmac, randomUUID } from "crypto";
 import { inArray, eq, and } from "drizzle-orm";
@@ -34,6 +34,7 @@ import path from "path";
 
 // Gateway-side pieces run in-process against the supertest app via a fetch shim.
 import { EncryptedQueue } from "../../../../lib/attendance-gateway/src/queue.js";
+import { runScheduler } from "../../../../lib/attendance-gateway/src/scheduler.js";
 import { HrClient } from "../../../../lib/attendance-gateway/src/hrClient.js";
 import { GatewayService } from "../../../../lib/attendance-gateway/src/service.js";
 import { deriveSigningKey } from "../../../../lib/attendance-gateway/src/signing.js";
@@ -184,41 +185,88 @@ describe("admin: on-demand connection test", () => {
     expect(res.body.connTestRequestedAt).toBeTruthy();
   });
 
-  it("a signed heartbeat WITHOUT a connection-test result does not clear connTestRequestedAt", async () => {
+  it("a signed heartbeat WITHOUT a connection-test result does not clear connTestRequestedAt and signals pending", async () => {
     // Ensure the flag is set first.
     await admin.post(`/api/gateway/registrations/${registrationId}/test`);
     const [before] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
     expect(before.connTestRequestedAt).toBeTruthy();
 
-    // Heartbeat with no connectionTest or adapterStatus — should not touch the flag.
+    // Heartbeat with no connectionTest or adapterStatus — cannot answer a test.
     const hb = await postSigned("/api/gateway/heartbeat", { deviceTimeMs: Date.now() });
     expect(hb.status).toBe(200);
-    // testRequested should be false (no result was delivered).
-    expect(hb.body.testRequested).toBe(false);
+    // testRequested: true — admin test is still pending, gateway should nudge.
+    expect(hb.body.testRequested).toBe(true);
 
     const [after] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
     expect(after.connTestRequestedAt).toBeTruthy(); // still set
   });
 
-  it("a signed heartbeat WITH a connection-test result returns testRequested:true and clears the flag", async () => {
+  it("a heartbeat with a FRESH result (connectionTestRunAt >= connTestRequestedAt) clears the flag", async () => {
     // Make sure the flag is set.
     await admin.post(`/api/gateway/registrations/${registrationId}/test`);
     const [before] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
     expect(before.connTestRequestedAt).toBeTruthy();
+    const requestedAt = before.connTestRequestedAt!.getTime();
 
-    // Heartbeat that carries a fresh connection-test result.
+    // Heartbeat with connectionTestRunAt AFTER the request → answers the test.
     const hb = await postSigned("/api/gateway/heartbeat", {
       deviceTimeMs: Date.now(),
       connectionTest: { ok: true, status: "REACHABLE", message: "on-demand test answer" },
+      connectionTestRunAt: requestedAt + 100,   // 100 ms after request → fresh
     });
     expect(hb.status).toBe(200);
-    // Gateway-facing flag: an admin was waiting for this result.
-    expect(hb.body.testRequested).toBe(true);
+    // testRequested: false — test was just answered, normal cadence resumes.
+    expect(hb.body.testRequested).toBe(false);
 
     // Flag is cleared.
     const [after] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
     expect(after.connTestRequestedAt).toBeNull();
     expect(after.adapterConnStatus).toBe("REACHABLE");
+  });
+
+  it("a heartbeat with a STALE result (connectionTestRunAt < connTestRequestedAt) leaves flag set and signals pending", async () => {
+    await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    const [before] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    const requestedAt = before.connTestRequestedAt!.getTime();
+
+    // Heartbeat with connectionTestRunAt BEFORE the request → stale result.
+    const hb = await postSigned("/api/gateway/heartbeat", {
+      deviceTimeMs: Date.now(),
+      connectionTest: { ok: true, status: "REACHABLE", message: "stale result" },
+      connectionTestRunAt: requestedAt - 5000, // 5 s before request → stale
+    });
+    expect(hb.status).toBe(200);
+    // testRequested: true — still pending; nudge needed.
+    expect(hb.body.testRequested).toBe(true);
+
+    // Flag is NOT cleared, but status IS refreshed (stale result still useful
+    // for display).
+    const [after] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(after.connTestRequestedAt).toBeTruthy();
+    expect(after.adapterConnStatus).toBe("REACHABLE"); // display updated
+
+    // Clean up: send a fresh heartbeat to clear the flag.
+    await postSigned("/api/gateway/heartbeat", {
+      deviceTimeMs: Date.now(),
+      connectionTest: { ok: true, status: "REACHABLE", message: "cleanup" },
+      connectionTestRunAt: requestedAt + 1000,
+    });
+  });
+
+  it("a heartbeat without connectionTestRunAt (older gateway) is treated as fresh and clears the flag", async () => {
+    await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    const [before] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(before.connTestRequestedAt).toBeTruthy();
+
+    // No connectionTestRunAt → backward-compat path: treat as fresh.
+    const hb = await postSigned("/api/gateway/heartbeat", {
+      deviceTimeMs: Date.now(),
+      connectionTest: { ok: true, status: "REACHABLE", message: "legacy gateway answer" },
+    });
+    expect(hb.status).toBe(200);
+    expect(hb.body.testRequested).toBe(false); // answered → normal cadence
+    const [after] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(after.connTestRequestedAt).toBeNull(); // cleared
   });
 
   it("returns 409 when trying to test a REVOKED registration", async () => {
@@ -1067,6 +1115,71 @@ describe("CSV import parsing", () => {
     const again = parseCsvPunches(`device_user_id,event_time,event_type\n${DEVICE_USER_ID},2030-06-12T05:00:00Z,IN`);
     expect(again.punches[0].deviceEventUid).toBe(punches[0].deviceEventUid);
   });
+});
+
+describe("end-to-end timing: nudge delivers a fresh connection-test result within nudgeIntervalMs", () => {
+  /**
+   * End-to-end proof of the two-phase resolution protocol:
+   *
+   *  Phase 1 — stale tick: the gateway ran testConnection() BEFORE the admin
+   *    clicked. connectionTestRunAt < connTestRequestedAt so the server returns
+   *    testRequested: true and does NOT clear the flag. The scheduler would fire
+   *    a nudge at ≤ nudgeIntervalMs (covered by nudgeScheduling.test.ts).
+   *
+   *  Phase 2 — fresh tick (the nudge): connectionTestRunAt >= connTestRequestedAt
+   *    so the server clears the flag and returns testRequested: false.
+   *
+   * The test calls service.tick() directly twice so async HTTP calls complete
+   * naturally without fighting the scheduler's MIN_NUDGE_INTERVAL_MS floor (5 s).
+   * The scheduler's timing contract ("nudge fires within nudgeIntervalMs") is
+   * already proved by the fake-timer tests in nudgeScheduling.test.ts.
+   */
+  it("stale tick: flag stays + testRequested:true; fresh tick: flag cleared + testRequested:false", async () => {
+    const dir = path.join(os.tmpdir(), `gw-e2e-nudge-${Date.now()}`);
+    const queue = new EncryptedQueue(dir, "test-queue-key");
+    await queue.init();
+
+    const hr = new HrClient({ hrApiUrl: "/api", gatewayId: registrationId, signingKey, fetchImpl: supertestFetch() });
+    const service = new GatewayService(queue, hr, new SimulatorAdapter([]));
+
+    // Set connTestRequestedAt 100 ms into the future.
+    // connectionTestRunAt is captured at the VERY START of service.tick()
+    // (before any async work), so even a slow first tick sees:
+    //   connectionTestRunAt ≈ now < connTestRequestedAt = now + 100 ms → stale.
+    const STALE_OFFSET_MS = 100;
+    const testRequestedAt = new Date(Date.now() + STALE_OFFSET_MS);
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ connTestRequestedAt: testRequestedAt })
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+
+    // — Tick 1 (stale) ——————————————————————————————————————————————————————
+    const tick1 = await service.tick();
+
+    expect(tick1.testRequested).toBe(true); // pending: result pre-dates request ✓
+    const [afterTick1] = await db
+      .select({ connTestRequestedAt: gatewayRegistrationsTable.connTestRequestedAt })
+      .from(gatewayRegistrationsTable)
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(afterTick1.connTestRequestedAt).not.toBeNull(); // flag NOT cleared ✓
+
+    // — Wait for connTestRequestedAt to pass ——————————————————————————————
+    // In production the scheduler fires a nudge after nudgeIntervalMs (default
+    // 10 s, floored at 5 s). Here we just wait until the stale window expires
+    // so the next tick's connectionTestRunAt >= connTestRequestedAt.
+    const msUntilFresh = Math.max(0, testRequestedAt.getTime() - Date.now()) + 20;
+    await new Promise<void>(resolve => setTimeout(resolve, msUntilFresh));
+
+    // — Tick 2 (fresh / nudge) ——————————————————————————————————————————————
+    const tick2 = await service.tick();
+
+    expect(tick2.testRequested).toBe(false); // answered: result post-dates request ✓
+    const [afterTick2] = await db
+      .select({ connTestRequestedAt: gatewayRegistrationsTable.connTestRequestedAt })
+      .from(gatewayRegistrationsTable)
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(afterTick2.connTestRequestedAt).toBeNull(); // flag cleared ✓
+  }, 5_000);
 });
 
 describe("revocation", () => {

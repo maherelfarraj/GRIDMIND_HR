@@ -300,13 +300,25 @@ export const gatewayMachineRouter: ReturnType<typeof Router> = Router();
 // POST /gateway/heartbeat — device health ping
 gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (req: GatewayRequest, res): Promise<void> => {
   const reg = req.gatewayRegistration!;
-  const { deviceTimeMs, adapterStatus, connectionTest, sdkPresent, sdkVersion, deviceClockSkewMs } = req.body as {
+  const { deviceTimeMs, adapterStatus, connectionTest, sdkPresent, sdkVersion, deviceClockSkewMs, connectionTestRunAt } = req.body as {
     deviceTimeMs?: number;
     adapterStatus?: string;
     connectionTest?: { ok?: boolean; status?: string; message?: string; clockSkewMs?: number };
     sdkPresent?: boolean;
     sdkVersion?: string | null;
     deviceClockSkewMs?: number | null;
+    /**
+     * Unix-ms timestamp captured by the gateway just before it called
+     * testConnection() for this tick. The server uses it to decide whether
+     * the result is fresh enough to answer a pending admin-requested test:
+     * if connectionTestRunAt < connTestRequestedAt, the test was run before
+     * the admin clicked and the result is stale — don't clear the flag yet;
+     * signal testRequested: true so the gateway schedules a nudge tick.
+     *
+     * Absent on older gateways; treated as "fresh" for backward compatibility
+     * (older gateways never sent the field, so we preserve their behaviour).
+     */
+    connectionTestRunAt?: number;
   };
   const drift = await recordDrift(reg, deviceTimeMs);
   const VALID_CONN_STATUSES = new Set(["REACHABLE", "AUTH_FAILED", "UNREACHABLE", "NOT_CONFIGURED"]);
@@ -333,11 +345,35 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
     : undefined;
   const deviceSkewMs = topSkew !== undefined ? Math.round(topSkew) : ctSkew !== undefined ? Math.round(ctSkew) : undefined;
   const deviceSkewAlert = deviceSkewMs !== undefined ? Math.abs(deviceSkewMs) > DEVICE_CLOCK_SKEW_ALERT_MS : undefined;
-  // Whether an admin was waiting for this heartbeat's connection-test result.
-  // True when connTestRequestedAt is set and this heartbeat carries a fresh
-  // connection-test result — we clear the flag atomically in the same update.
   const hasConnTestResult = !!(connStatus || connMessage);
-  const testRequested = !!(reg.connTestRequestedAt && hasConnTestResult);
+  //
+  // Two-phase pending-test resolution:
+  //
+  //  • "Stale" heartbeat: connTestRequestedAt is set, but this heartbeat's
+  //    connectionTestRunAt < connTestRequestedAt — the test ran before the
+  //    admin clicked. Update the connection-status display (stale is still
+  //    useful) but do NOT clear the flag. Return testRequested: true so the
+  //    gateway schedules a nudge tick with a fresh result soon.
+  //
+  //  • "Fresh" heartbeat: connectionTestRunAt >= connTestRequestedAt, OR the
+  //    field is absent (older gateway without the field — treat as fresh for
+  //    backward compatibility). Clear the flag atomically. Return
+  //    testRequested: false — normal poll cadence resumes.
+  //
+  //  Heartbeats without any connection-test result never clear the flag.
+  //
+  const validRunAt = typeof connectionTestRunAt === "number" && Number.isFinite(connectionTestRunAt)
+    ? connectionTestRunAt
+    : undefined;
+  // testAnswered: this heartbeat carries a result that post-dates the request.
+  const testAnswered = !!(
+    reg.connTestRequestedAt &&
+    hasConnTestResult &&
+    (validRunAt === undefined || validRunAt >= reg.connTestRequestedAt.getTime())
+  );
+  // testRequested: true means a test is still pending; false means answered
+  // (or no test was ever requested).
+  const testRequested = !!(reg.connTestRequestedAt && !testAnswered);
   await db
     .update(gatewayRegistrationsTable)
     .set({
@@ -348,8 +384,11 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
             adapterConnStatus: connStatus ?? (connMessage ? reg.adapterConnStatus : undefined),
             adapterConnMessage: typeof connMessage === "string" ? connMessage.slice(0, 2000) : reg.adapterConnMessage,
             adapterConnTestedAt: new Date(),
-            // Clear the on-demand test request flag — this heartbeat answered it.
-            connTestRequestedAt: null,
+            // Only clear the flag when this heartbeat's result is fresh enough
+            // to answer the pending test (testAnswered). Stale results still
+            // update the connection-status display but leave the flag set so
+            // the gateway schedules a nudge tick with a fresh result.
+            ...(testAnswered ? { connTestRequestedAt: null } : {}),
           }
         : {}),
       ...(deviceSkewMs !== undefined
@@ -430,8 +469,10 @@ gatewayMachineRouter.post("/gateway/heartbeat", verifyGatewaySignature, async (r
     driftAlert: drift !== null && Math.abs(drift) > DRIFT_ALERT_MS,
     deviceClockSkewMs: deviceSkewMs ?? null,
     deviceClockSkewAlert: deviceSkewAlert ?? false,
-    // Tells the gateway whether an admin was waiting for this result, so newer
-    // gateways can log that the on-demand test request was answered.
+    // testRequested: true  → pending test not yet answered (stale result);
+    //                        gateway should schedule a nudge tick.
+    // testRequested: false → no pending test, or this heartbeat just answered
+    //                        one; normal poll cadence resumes.
     testRequested,
   });
 });
