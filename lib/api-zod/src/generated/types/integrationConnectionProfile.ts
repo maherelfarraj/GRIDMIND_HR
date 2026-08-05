@@ -51,4 +51,5 @@ export interface IntegrationConnectionProfile {
   createdByUserId?: number | null;
   createdAt: string;
   updatedAt: string;
+  warnings?: string[];
 }

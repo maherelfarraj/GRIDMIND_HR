@@ -1,5 +1,11 @@
-import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useListOrganizations, useGetOrganizationBranding, useUpsertOrganizationBranding,
+  useListOrgReportTemplates, useCreateOrgReportTemplate,
+  getGetOrganizationBrandingQueryKey, getListOrgReportTemplatesQueryKey,
+} from '@workspace/api-client-react';
+import type { OrganizationBranding, OrgReportTemplate } from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -19,24 +25,18 @@ import { AlertTriangle, Palette, Plus, Eye } from 'lucide-react';
 function AddTemplateDialog({ open, onClose, onSaved, orgId }: { open: boolean; onClose: () => void; onSaved: () => void; orgId: string }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const createMut = useCreateOrgReportTemplate();
   const [form, setForm] = useState({ nameEn: '', templateType: '', paperSize: 'A4', defaultExportFormat: 'pdf', isDefault: false });
   function set(k: string, v: string | boolean) { setForm(f => ({ ...f, [k]: v })); }
 
   async function handleSave() {
-    setSaving(true);
     try {
-      const res = await apiFetch('/api/org-report-templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, orgId }),
-      });
-      if (!res.ok) throw new Error();
+      await createMut.mutateAsync({ data: { ...form, orgId: Number(orgId) } });
       toast({ title: t('Template created', 'تم إنشاء القالب') });
       onSaved(); onClose();
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
-    } finally { setSaving(false); }
+    }
   }
 
   return (
@@ -67,8 +67,8 @@ function AddTemplateDialog({ open, onClose, onSaved, orgId }: { open: boolean; o
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
-            {saving ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}
+          <Button onClick={handleSave} disabled={createMut.isPending} className="bg-blue-600 hover:bg-blue-700">
+            {createMut.isPending ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -76,65 +76,85 @@ function AddTemplateDialog({ open, onClose, onSaved, orgId }: { open: boolean; o
   );
 }
 
+type BrandingForm = {
+  displayNameEn: string; displayNameAr: string; taglineEn: string; taglineAr: string;
+  primaryColor: string; accentColor: string; defaultTheme: string;
+  logoUrl: string; loginMessageEn: string; loginMessageAr: string; customCssSnippet: string;
+  footerTextEn: string; footerTextAr: string;
+};
+
+const EMPTY_BRANDING: BrandingForm = {
+  displayNameEn: '', displayNameAr: '', taglineEn: '', taglineAr: '',
+  primaryColor: '#3b82f6', accentColor: '#6366f1', defaultTheme: 'dark',
+  logoUrl: '', loginMessageEn: '', loginMessageAr: '', customCssSnippet: '',
+  footerTextEn: '', footerTextAr: '',
+};
+
 export default function OrgBranding() {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [orgs, setOrgs] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   const [selectedOrg, setSelectedOrg] = useState('');
-  const [branding, setBranding] = useState<any>(null);
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [loadingBranding, setLoadingBranding] = useState(false);
-  const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [addTemplateOpen, setAddTemplateOpen] = useState(false);
-  const [form, setForm] = useState({
-    displayNameEn: '', displayNameAr: '', taglineEn: '', taglineAr: '',
-    primaryColor: '#3b82f6', accentColor: '#6366f1', defaultTheme: 'dark',
-    logoUrl: '', loginMessageEn: '', loginMessageAr: '', customCssSnippet: '',
-    footerTextEn: '', footerTextAr: '',
+  const [form, setForm] = useState<BrandingForm>(EMPTY_BRANDING);
+
+  function setF(k: keyof BrandingForm, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  const { data: orgsData } = useListOrganizations();
+  const orgs = Array.isArray(orgsData) ? orgsData : [];
+
+  useEffect(() => {
+    if (orgs.length > 0 && !selectedOrg) setSelectedOrg(String(orgs[0].id));
+  }, [orgs, selectedOrg]);
+
+  const orgIdNum = selectedOrg ? Number(selectedOrg) : 0;
+
+  const { data: branding, isLoading: loadingBranding } = useGetOrganizationBranding(orgIdNum, {
+    query: { enabled: !!selectedOrg, queryKey: getGetOrganizationBrandingQueryKey(orgIdNum) },
   });
 
-  function setF(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
-
   useEffect(() => {
-    apiFetch('/api/organizations').then(r => r.json()).then(d => {
-      const list = Array.isArray(d) ? d : (d.organizations ?? []);
-      setOrgs(list);
-      if (list.length > 0) setSelectedOrg(String(list[0].id));
-    }).catch(() => {});
-  }, []);
+    if (branding) {
+      const b = branding as OrganizationBranding;
+      setForm({
+        displayNameEn: b.displayNameEn ?? '',
+        displayNameAr: b.displayNameAr ?? '',
+        taglineEn: b.taglineEn ?? '',
+        taglineAr: b.taglineAr ?? '',
+        primaryColor: b.primaryColor ?? '#3b82f6',
+        accentColor: b.accentColor ?? '#6366f1',
+        defaultTheme: b.defaultTheme ?? 'dark',
+        logoUrl: b.logoUrl ?? '',
+        loginMessageEn: b.loginMessageEn ?? '',
+        loginMessageAr: b.loginMessageAr ?? '',
+        customCssSnippet: b.customCssSnippet ?? '',
+        footerTextEn: b.footerTextEn ?? '',
+        footerTextAr: b.footerTextAr ?? '',
+      });
+    } else {
+      setForm(EMPTY_BRANDING);
+    }
+  }, [branding]);
 
-  useEffect(() => {
-    if (!selectedOrg) return;
-    setLoadingBranding(true);
-    apiFetch(`/api/org-branding/${selectedOrg}`)
-      .then(r => r.json())
-      .then(d => { setBranding(d); setForm(f => ({ ...f, ...d })); })
-      .catch(() => {})
-      .finally(() => setLoadingBranding(false));
+  const { data: templatesData, isLoading: loadingTemplates } = useListOrgReportTemplates(
+    { orgId: orgIdNum },
+    { query: { enabled: !!selectedOrg, queryKey: getListOrgReportTemplatesQueryKey({ orgId: orgIdNum }) } },
+  );
+  const templates: OrgReportTemplate[] = Array.isArray(templatesData) ? templatesData : [];
 
-    setLoadingTemplates(true);
-    apiFetch(`/api/org-report-templates?orgId=${selectedOrg}`)
-      .then(r => r.json())
-      .then(d => setTemplates(Array.isArray(d) ? d : []))
-      .catch(() => setTemplates([]))
-      .finally(() => setLoadingTemplates(false));
-  }, [selectedOrg]);
+  const upsertMut = useUpsertOrganizationBranding();
 
   async function handleSave() {
-    setSaving(true);
     try {
-      const res = await apiFetch(`/api/org-branding/${selectedOrg}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error();
+      await upsertMut.mutateAsync({ orgId: orgIdNum, data: { ...form } });
       toast({ title: t('Branding saved', 'تم حفظ الهوية البصرية') });
+      queryClient.invalidateQueries({ queryKey: getGetOrganizationBrandingQueryKey(orgIdNum) });
     } catch {
       toast({ title: t('Error saving', 'خطأ في الحفظ'), variant: 'destructive' });
-    } finally { setSaving(false); }
+    }
   }
+
+  const saving = upsertMut.isPending;
 
   return (
     <AnimatedPage>
@@ -233,7 +253,7 @@ export default function OrgBranding() {
                   </Card>
 
                   <div className="flex justify-end">
-                    <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                    <Button onClick={handleSave} disabled={saving || !selectedOrg} className="bg-blue-600 hover:bg-blue-700">
                       {saving ? t('Saving…', 'جاري الحفظ…') : t('Save Branding', 'حفظ الهوية البصرية')}
                     </Button>
                   </div>
@@ -311,7 +331,12 @@ export default function OrgBranding() {
                 )}
               </CardContent>
             </Card>
-            <AddTemplateDialog open={addTemplateOpen} onClose={() => setAddTemplateOpen(false)} onSaved={() => { /* reload */ }} orgId={selectedOrg} />
+            <AddTemplateDialog
+              open={addTemplateOpen}
+              onClose={() => setAddTemplateOpen(false)}
+              onSaved={() => queryClient.invalidateQueries({ queryKey: getListOrgReportTemplatesQueryKey({ orgId: orgIdNum }) })}
+              orgId={selectedOrg}
+            />
           </TabsContent>
         </Tabs>
       </div>

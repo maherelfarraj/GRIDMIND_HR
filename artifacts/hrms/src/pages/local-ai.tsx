@@ -1,5 +1,15 @@
-import { apiFetch } from '@/lib/api';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useGetAiConfig, useUpdateAiConfig, useListAiQueries,
+  useAiPolicySearch, useAiReportQuery, useAiClassifyDocument, useUpdateDocument,
+  getGetAiConfigQueryKey,
+} from '@workspace/api-client-react';
+import type {
+  AiConfig, AiConfigInput, AiQuery,
+  AiPolicySearch200ResultsItem, AiReportQuery200, AiReportQuery200PreviewRowsItem,
+  AiClassifyDocument200,
+} from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -26,6 +36,18 @@ import {
 function fmtDate(s: string | null | undefined) {
   if (!s) return '—';
   return new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function parseFeatures(enabledFeatures: string | null | undefined): string[] {
+  if (!enabledFeatures) return [];
+  try {
+    const parsed = JSON.parse(enabledFeatures);
+    if (Array.isArray(parsed)) return parsed.map(String);
+  } catch {
+    // fall back to comma-separated
+    return enabledFeatures.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  return [];
 }
 
 function SimBadge() {
@@ -66,9 +88,9 @@ function ConfidenceBar({ score }: { score: number }) {
 
 // ─── AI Banner ────────────────────────────────────────────────────────────────
 
-function AiBanner({ config }: { config: any }) {
+function AiBanner({ config }: { config: AiConfig | null | undefined }) {
   const { t } = useLanguage();
-  const isConnected = config?.modelEndpoint && config?.isEnabled;
+  const isConnected = !!config?.modelEndpoint && !!config?.isEnabled;
   return (
     <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
       isConnected
@@ -99,28 +121,23 @@ function AiBanner({ config }: { config: any }) {
 function PolicySearchTab() {
   const { t } = useLanguage();
   const { toast } = useToast();
+  const searchMut = useAiPolicySearch();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<AiPolicySearch200ResultsItem[]>([]);
   const [wasSimulated, setWasSimulated] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const loading = searchMut.isPending;
 
   async function handleSearch() {
     if (!query.trim()) return;
-    setLoading(true);
     setResults([]);
+    setSearched(true);
     try {
-      const res = await apiFetch('/api/ai/policy-search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
-      });
-      const data = await res.json();
-      setResults(Array.isArray(data) ? data : data?.results ?? []);
-      setWasSimulated(data?.wasSimulated ?? true);
+      const data = await searchMut.mutateAsync({ data: { query } });
+      setResults(data?.results ?? []);
+      setWasSimulated(data?.simulated ?? true);
     } catch {
       toast({ title: t('Search failed', 'فشل البحث'), variant: 'destructive' });
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -161,36 +178,31 @@ function PolicySearchTab() {
 
       {!loading && results.length > 0 && (
         <div className="space-y-3">
-          {results.map((r: any, i: number) => (
+          {results.map((r, i) => (
             <Card key={i} className="bg-slate-800 border-slate-700">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span className="text-white font-medium text-sm">{r.documentTitle ?? r.title ?? '—'}</span>
+                    <span className="text-white font-medium text-sm">{r.title ?? '—'}</span>
                   </div>
-                  {r.documentName && (
+                  {r.documentId != null && (
                     <a href="#" className="text-xs text-sky-400 hover:underline shrink-0">
                       {t('Open Document', 'فتح المستند')}
                     </a>
                   )}
                 </div>
                 <p className="text-slate-300 text-sm mb-2"
-                  dangerouslySetInnerHTML={{ __html: r.excerpt ?? r.snippet ?? '' }}
+                  dangerouslySetInnerHTML={{ __html: r.excerpt ?? '' }}
                 />
-                <RelevanceBar score={r.relevanceScore ?? r.score ?? 0.5} />
-                {(r.documentName || r.page) && (
-                  <p className="text-xs text-slate-500 mt-1">
-                    {r.documentName}{r.page ? ` — ${t('Page', 'صفحة')} ${r.page}` : ''}
-                  </p>
-                )}
+                <RelevanceBar score={r.relevanceScore ?? 0.5} />
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      {!loading && results.length === 0 && query && (
+      {!loading && results.length === 0 && searched && (
         <p className="text-center text-slate-500 py-8">{t('No results found', 'لم يتم العثور على نتائج')}</p>
       )}
     </div>
@@ -208,30 +220,23 @@ const EXAMPLE_QUERIES = [
 function ReportQueryTab() {
   const { t } = useLanguage();
   const { toast } = useToast();
+  const reportMut = useAiReportQuery();
   const [question, setQuestion] = useState('');
-  const [result, setResult] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<AiReportQuery200 | null>(null);
+  const loading = reportMut.isPending;
 
   async function handleAsk() {
     if (!question.trim()) return;
-    setLoading(true);
     setResult(null);
     try {
-      const res = await apiFetch('/api/ai/report-query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question }),
-      });
-      const data = await res.json();
+      const data = await reportMut.mutateAsync({ data: { query: question } });
       setResult(data);
     } catch {
       toast({ title: t('Query failed', 'فشل الاستعلام'), variant: 'destructive' });
-    } finally {
-      setLoading(false);
     }
   }
 
-  const previewRows: any[] = result?.previewData ?? result?.rows ?? [];
+  const previewRows: AiReportQuery200PreviewRowsItem[] = result?.previewRows ?? [];
   const cols = previewRows.length > 0 ? Object.keys(previewRows[0]) : [];
 
   return (
@@ -282,10 +287,10 @@ function ReportQueryTab() {
               <CardTitle className="text-white text-sm">{t('Interpretation', 'التفسير')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-slate-300 text-sm">{result.interpretation ?? result.message ?? '—'}</p>
-              {result.suggestedReportName && (
+              <p className="text-slate-300 text-sm">{result.interpretation ?? '—'}</p>
+              {result.suggestedReport && (
                 <p className="text-xs text-amber-400 mt-2">
-                  {t('Suggested report:', 'التقرير المقترح:')} <span className="font-medium">{result.suggestedReportName}</span>
+                  {t('Suggested report:', 'التقرير المقترح:')} <span className="font-medium">{result.suggestedReport}</span>
                 </p>
               )}
             </CardContent>
@@ -305,7 +310,7 @@ function ReportQueryTab() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {previewRows.slice(0, 5).map((row: any, i: number) => (
+                      {previewRows.slice(0, 5).map((row, i) => (
                         <TableRow key={i} className="border-slate-700">
                           {cols.map(c => (
                             <TableCell key={c} className="text-slate-300 text-xs">{String(row[c] ?? '—')}</TableCell>
@@ -329,38 +334,37 @@ function ReportQueryTab() {
 function ClassifyDocumentTab() {
   const { t } = useLanguage();
   const { toast } = useToast();
+  const classifyMut = useAiClassifyDocument();
+  const updateDocMut = useUpdateDocument();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [documentId, setDocumentId] = useState('');
-  const [result, setResult] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<AiClassifyDocument200 | null>(null);
+  const loading = classifyMut.isPending;
 
   async function handleClassify() {
     if (!title.trim()) return;
-    setLoading(true);
     setResult(null);
     try {
-      const res = await apiFetch('/api/ai/classify-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content: content || undefined, documentId: documentId || undefined }),
+      const data = await classifyMut.mutateAsync({
+        data: {
+          title,
+          content: content || undefined,
+          documentId: documentId ? Number(documentId) : undefined,
+        },
       });
-      const data = await res.json();
       setResult(data);
     } catch {
       toast({ title: t('Classification failed', 'فشل التصنيف'), variant: 'destructive' });
-    } finally {
-      setLoading(false);
     }
   }
 
   async function handleApply() {
     if (!result || !documentId) return;
     try {
-      await apiFetch(`/api/documents/${documentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: result.category }),
+      await updateDocMut.mutateAsync({
+        id: Number(documentId),
+        data: { category: result.suggestedCategory },
       });
       toast({ title: t('Category applied', 'تم تطبيق الفئة') });
     } catch {
@@ -418,11 +422,11 @@ function ClassifyDocumentTab() {
           <CardContent className="space-y-3">
             <div>
               <p className="text-xs text-slate-500 mb-1">{t('Suggested Category', 'الفئة المقترحة')}</p>
-              <Badge className="bg-[#1e3a5f] text-white capitalize">{result.category ?? '—'}</Badge>
+              <Badge className="bg-[#1e3a5f] text-white capitalize">{result.suggestedCategory ?? '—'}</Badge>
             </div>
             <div>
               <p className="text-xs text-slate-500 mb-1">{t('Confidence', 'مستوى الثقة')}</p>
-              <ConfidenceBar score={result.confidence ?? result.score ?? 0.5} />
+              <ConfidenceBar score={result.confidence ?? 0.5} />
             </div>
             {result.reasoning && (
               <div>
@@ -435,6 +439,7 @@ function ClassifyDocumentTab() {
                 size="sm"
                 className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
                 onClick={handleApply}
+                disabled={updateDocMut.isPending}
               >
                 <CheckCircle className="w-4 h-4 me-1" />
                 {t('Apply to Document', 'تطبيق على المستند')}
@@ -454,51 +459,49 @@ const FEATURE_KEYS = ['policy_search', 'report_query', 'document_classify', 'ano
 function ConfigurationTab() {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [config, setConfig] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [queries, setQueries] = useState<any[]>([]);
-  const [queriesLoading, setQueriesLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const configQuery = useGetAiConfig();
+  const updateMut = useUpdateAiConfig();
+  const queriesQuery = useListAiQueries();
+  const [draft, setDraft] = useState<AiConfigInput | null>(null);
 
-  useEffect(() => {
-    apiFetch('/api/ai/config')
-      .then(r => r.json())
-      .then(setConfig)
-      .catch(() => setConfig({}))
-      .finally(() => setLoading(false));
+  const config: AiConfigInput = draft ?? {
+    modelEndpoint: configQuery.data?.modelEndpoint ?? '',
+    modelName: configQuery.data?.modelName ?? '',
+    isEnabled: configQuery.data?.isEnabled ?? false,
+    enabledFeatures: configQuery.data?.enabledFeatures ?? null,
+    maxTokens: configQuery.data?.maxTokens,
+    temperatureX100: configQuery.data?.temperatureX100,
+    requireApprovalForBulk: configQuery.data?.requireApprovalForBulk,
+    auditAllQueries: configQuery.data?.auditAllQueries,
+  };
 
-    apiFetch('/api/ai/queries')
-      .then(r => r.json())
-      .then(d => setQueries(Array.isArray(d) ? d : d?.data ?? []))
-      .catch(() => setQueries([]))
-      .finally(() => setQueriesLoading(false));
-  }, []);
+  const loading = configQuery.isLoading;
+  const saving = updateMut.isPending;
+  const queries: AiQuery[] = queriesQuery.data?.data ?? [];
+  const queriesLoading = queriesQuery.isLoading;
 
-  function setF(k: string, v: unknown) {
-    setConfig((p: any) => ({ ...p, [k]: v }));
+  const temperature = (config.temperatureX100 ?? 70) / 100;
+  const features = parseFeatures(config.enabledFeatures);
+
+  function setF<K extends keyof AiConfigInput>(k: K, v: AiConfigInput[K]) {
+    setDraft(p => ({ ...(p ?? config), [k]: v }));
   }
 
   function toggleFeature(feat: string) {
-    const current: string[] = config?.enabledFeatures ?? [];
-    const updated = current.includes(feat)
-      ? current.filter(f => f !== feat)
-      : [...current, feat];
-    setF('enabledFeatures', updated);
+    const updated = features.includes(feat)
+      ? features.filter(f => f !== feat)
+      : [...features, feat];
+    setF('enabledFeatures', JSON.stringify(updated));
   }
 
   async function handleSave() {
-    setSaving(true);
     try {
-      await apiFetch('/api/ai/config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      });
+      await updateMut.mutateAsync({ data: config });
+      queryClient.invalidateQueries({ queryKey: getGetAiConfigQueryKey() });
       toast({ title: t('Configuration saved', 'تم حفظ الإعدادات') });
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -516,7 +519,7 @@ function ConfigurationTab() {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-3">
             <Switch
-              checked={!!config?.isEnabled}
+              checked={!!config.isEnabled}
               onCheckedChange={v => setF('isEnabled', v)}
             />
             <Label className="text-slate-300">{t('AI Enabled', 'تفعيل الذكاء الاصطناعي')}</Label>
@@ -526,7 +529,7 @@ function ConfigurationTab() {
             <Label className="text-slate-300">{t('Model Endpoint', 'نقطة نهاية النموذج')}</Label>
             <Input
               className="bg-slate-700 border-slate-600 text-white mt-1"
-              value={config?.modelEndpoint ?? ''}
+              value={config.modelEndpoint ?? ''}
               onChange={e => setF('modelEndpoint', e.target.value)}
               placeholder="http://localhost:11434"
             />
@@ -535,7 +538,7 @@ function ConfigurationTab() {
             <Label className="text-slate-300">{t('Model Name', 'اسم النموذج')}</Label>
             <Input
               className="bg-slate-700 border-slate-600 text-white mt-1"
-              value={config?.modelName ?? ''}
+              value={config.modelName ?? ''}
               onChange={e => setF('modelName', e.target.value)}
               placeholder="llama3"
             />
@@ -546,21 +549,21 @@ function ConfigurationTab() {
               <Input
                 className="bg-slate-700 border-slate-600 text-white mt-1"
                 type="number"
-                value={config?.maxTokens ?? ''}
+                value={config.maxTokens ?? ''}
                 onChange={e => setF('maxTokens', Number(e.target.value))}
                 placeholder="2048"
               />
             </div>
             <div>
               <Label className="text-slate-300">
-                {t('Temperature', 'درجة الحرارة')} ({(config?.temperature ?? 0.7).toFixed(1)})
+                {t('Temperature', 'درجة الحرارة')} ({temperature.toFixed(1)})
               </Label>
               <input
                 type="range"
                 min="0" max="1" step="0.1"
                 className="mt-2 w-full accent-amber-500"
-                value={config?.temperature ?? 0.7}
-                onChange={e => setF('temperature', parseFloat(e.target.value))}
+                value={temperature}
+                onChange={e => setF('temperatureX100', Math.round(parseFloat(e.target.value) * 100))}
               />
             </div>
           </div>
@@ -570,7 +573,7 @@ function ConfigurationTab() {
               {FEATURE_KEYS.map(feat => (
                 <div key={feat} className="flex items-center gap-3">
                   <Switch
-                    checked={(config?.enabledFeatures ?? []).includes(feat)}
+                    checked={features.includes(feat)}
                     onCheckedChange={() => toggleFeature(feat)}
                   />
                   <Label className="text-slate-300 capitalize">{feat.replace(/_/g, ' ')}</Label>
@@ -580,7 +583,7 @@ function ConfigurationTab() {
           </div>
           <div className="flex items-center gap-3">
             <Switch
-              checked={!!config?.auditAllQueries}
+              checked={!!config.auditAllQueries}
               onCheckedChange={v => setF('auditAllQueries', v)}
             />
             <Label className="text-slate-300">{t('Audit All Queries', 'تدقيق جميع الاستعلامات')}</Label>
@@ -629,21 +632,21 @@ function ConfigurationTab() {
                       </TableCell>
                     </TableRow>
                   )
-                  : queries.map((q: any, i: number) => (
+                  : queries.map((q, i) => (
                     <TableRow key={i} className="border-slate-700 hover:bg-slate-700/40">
                       <TableCell>
                         <Badge variant="outline" className="text-xs border-slate-600 text-slate-300 capitalize">
-                          {(q.featureType ?? q.feature ?? '—').replace(/_/g, ' ')}
+                          {(q.featureType ?? '—').replace(/_/g, ' ')}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-slate-300 text-xs max-w-[200px] truncate">
-                        {q.query ?? q.queryText ?? '—'}
+                        {q.queryText ?? '—'}
                       </TableCell>
-                      <TableCell className="text-slate-400 text-xs">{q.modelUsed ?? q.model ?? '—'}</TableCell>
+                      <TableCell className="text-slate-400 text-xs">{q.modelUsed ?? '—'}</TableCell>
                       <TableCell className="text-slate-400 text-xs">{q.durationMs != null ? `${q.durationMs}ms` : '—'}</TableCell>
-                      <TableCell className="text-slate-400 text-xs">{fmtDate(q.createdAt ?? q.timestamp)}</TableCell>
+                      <TableCell className="text-slate-400 text-xs">{fmtDate(q.createdAt)}</TableCell>
                       <TableCell>
-                        {(q.wasSimulated || q.simulated) && <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">⚠</Badge>}
+                        {q.wasSimulated && <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">⚠</Badge>}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -659,16 +662,9 @@ function ConfigurationTab() {
 
 export default function LocalAi() {
   const { t } = useLanguage();
-  const [aiConfig, setAiConfig] = useState<any>(null);
-  const [configLoading, setConfigLoading] = useState(true);
-
-  useEffect(() => {
-    apiFetch('/api/ai/config')
-      .then(r => r.json())
-      .then(setAiConfig)
-      .catch(() => setAiConfig(null))
-      .finally(() => setConfigLoading(false));
-  }, []);
+  const configQuery = useGetAiConfig();
+  const aiConfig = configQuery.data;
+  const configLoading = configQuery.isLoading;
 
   if (configLoading) {
     return (

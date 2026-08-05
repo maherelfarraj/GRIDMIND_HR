@@ -5,6 +5,7 @@ import {
   calendarConfigsTable, retentionRulesTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { CreateEmploymentTypeConfigBody } from "@workspace/api-zod";
 
 const router = Router();
 
@@ -153,8 +154,10 @@ router.get("/employment-type-configs", async (req, res): Promise<void> => {
 
 router.post("/employment-type-configs", async (req, res): Promise<void> => {
   try {
+    const parsed = CreateEmploymentTypeConfigBody.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
     const actorUserId: number = (req as any).session?.userId ?? 1;
-    const [row] = await db.insert(employmentTypeConfigsTable).values({ ...req.body }).returning();
+    const [row] = await db.insert(employmentTypeConfigsTable).values({ ...parsed.data }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "employment_type_config", entityId: row.id, entityLabel: row.labelEn, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
   } catch (err: any) { res.status(500).json({ error: err.message }); }

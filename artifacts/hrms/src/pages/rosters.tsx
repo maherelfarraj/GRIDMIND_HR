@@ -1,8 +1,7 @@
-import { apiFetch } from '@/lib/api';
 import { useState, useMemo } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { useListDepartments } from '@workspace/api-client-react';
-import { useQuery } from '@tanstack/react-query';
+import { useListDepartments, useListRosters, useListShifts } from '@workspace/api-client-react';
+import type { RosterEntry } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -12,25 +11,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { ChevronLeft, ChevronRight, CalendarDays, Users, XCircle, AlertCircle, CalendarOff } from 'lucide-react';
 
-interface RosterEntry {
-  id: number;
-  employeeId: number;
-  employeeNameEn: string;
-  employeeNameAr: string;
-  shiftId: number | null;
-  shiftCode: string | null;
-  date: string;
-  status: 'scheduled' | 'worked' | 'absent' | 'late' | 'off' | 'holiday';
-  isOffDay: boolean;
-  isPublicHoliday: boolean;
+function rosterNameEn(r: RosterEntry): string {
+  return [r.firstNameEn, r.lastNameEn].filter(Boolean).join(' ').trim() || `#${r.employeeId}`;
 }
 
-interface Shift {
-  id: number;
-  shiftCode: string;
-  color: string;
-  nameEn: string;
-  nameAr: string;
+function rosterNameAr(r: RosterEntry): string {
+  return [r.firstNameAr, r.lastNameAr].filter(Boolean).join(' ').trim() || rosterNameEn(r);
 }
 
 function getWeekDates(weekStart: Date): string[] {
@@ -64,19 +50,13 @@ export default function Rosters() {
   const weekEnd = weekDates[6];
   const weekStartStr = weekDates[0];
 
-  const { data: rosters, isLoading: loadingRosters } = useQuery<RosterEntry[]>({
-    queryKey: ['rosters', weekStartStr, weekEnd, departmentId],
-    queryFn: () => {
-      let url = `/api/rosters?weekStart=${weekStartStr}&weekEnd=${weekEnd}`;
-      if (departmentId !== 'all') url += `&departmentId=${departmentId}`;
-      return apiFetch(url, { credentials: 'include' }).then(r => r.json());
-    },
+  const { data: rosters, isLoading: loadingRosters } = useListRosters({
+    weekStart: weekStartStr,
+    weekEnd,
+    ...(departmentId !== 'all' ? { departmentId: Number(departmentId) } : {}),
   });
 
-  const { data: shifts } = useQuery<Shift[]>({
-    queryKey: ['shifts'],
-    queryFn: () => apiFetch('/api/shifts', { credentials: 'include' }).then(r => r.json()),
-  });
+  const { data: shifts } = useListShifts();
 
   const shiftColorMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -91,7 +71,7 @@ export default function Rosters() {
     for (const r of rosters) {
       if (!seen.has(r.employeeId)) {
         seen.add(r.employeeId);
-        result.push({ id: r.employeeId, nameEn: r.employeeNameEn, nameAr: r.employeeNameAr });
+        result.push({ id: r.employeeId, nameEn: rosterNameEn(r), nameAr: rosterNameAr(r) });
       }
     }
     return result;

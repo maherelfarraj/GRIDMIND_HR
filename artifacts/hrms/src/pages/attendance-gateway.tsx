@@ -1,7 +1,5 @@
-import { apiFetch } from '@/lib/api';
 import React, { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -16,91 +14,27 @@ import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { useToast } from '@/hooks/use-toast';
 import {
   Server, Plus, AlertCircle, CheckCircle, XCircle, Activity, Copy, Clock, ShieldAlert, AlertTriangle, Info, Pencil,
-  Loader2, FlaskConical, WifiOff, RefreshCw, X,
+  Loader2, WifiOff, RefreshCw, X,
 } from 'lucide-react';
-
-interface GatewayRegistration {
-  id: number;
-  name: string;
-  nameAr: string | null;
-  deviceId: number | null;
-  adapterType: 'ZKTECO' | 'SUPREMA' | 'ZKTECO_NATIVE' | 'SUPREMA_NATIVE' | 'GENERIC_REST' | 'CSV' | 'SIMULATOR';
-  status: 'ACTIVE' | 'REVOKED';
-  /** Stored credential envelope cannot be decrypted — gateway must be re-registered. */
-  credentialUnusable: boolean;
-  lastSeenAt: string | null;
-  lastHeartbeatAt: string | null;
-  clockDriftMs: number | null;
-  driftAlert: boolean;
-  deviceClockSkewMs: number | null;
-  deviceClockSkewAlert: boolean;
-  adapterConnStatus: 'REACHABLE' | 'AUTH_FAILED' | 'UNREACHABLE' | 'NOT_CONFIGURED' | null;
-  adapterConnMessage: string | null;
-  adapterConnTestedAt: string | null;
-  /** Set when an admin requested an on-demand connection test; cleared by the next heartbeat that carries a result. */
-  connTestRequestedAt: string | null;
-  /** Server-computed: test request has been pending longer than max(2×silence threshold, 5 min) with no answer. */
-  connTestTimedOut?: boolean;
-  sdkPresent: boolean | null;
-  sdkVersion: string | null;
-  notes: string | null;
-  createdAt: string;
-  /** Per-registration silence threshold in minutes; null = global default. */
-  silenceThresholdMinutes: number | null;
-  /** Server-computed: ACTIVE but no heartbeat within the silence threshold. */
-  silent?: boolean;
-  /** Effective threshold (per-registration override or global default). */
-  silenceThresholdMs?: number;
-  /** Latest RECONCILE command queued for this gateway (feedback for "Reconcile now"). */
-  reconcileCommand?: {
-    id: number;
-    status: 'PENDING' | 'DELIVERED' | 'ACKNOWLEDGED' | 'FAILED' | 'EXPIRED';
-    resultMessage: string | null;
-    createdAt: string;
-    acknowledgedAt: string | null;
-  } | null;
-}
-
-interface ImportBatch {
-  id: number;
-  batchUuid: string;
-  registrationId: number;
-  source: string;
-  receivedAt: string;
-  eventCount: number;
-  insertedCount: number;
-  duplicateCount: number;
-  errorCount: number;
-  unmappedCount: number;
-  rawPayloadSha256: string;
-  signatureValid: boolean;
-  clockDriftMs: number | null;
-  status: 'COMPLETED' | 'PARTIAL' | 'FAILED';
-  errorSummary: string | null;
-}
-
-interface CreateRegistrationPayload {
-  name: string;
-  nameAr?: string;
-  deviceId?: number;
-  adapterType: 'ZKTECO' | 'SUPREMA' | 'ZKTECO_NATIVE' | 'SUPREMA_NATIVE' | 'GENERIC_REST' | 'CSV' | 'SIMULATOR';
-  notes?: string;
-  silenceThresholdMinutes?: number;
-}
-
-interface CreateRegistrationResponse {
-  registration: GatewayRegistration;
-  secret: string;
-}
-
-interface ReconcileStatus {
-  registrationId: number | null;
-  registrationName: string | null;
-  reconciledAt: string;
-  checked: number;
-  missing: string[];
-  mismatched: string[];
-}
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useListGatewayRegistrations, getListGatewayRegistrationsQueryKey,
+  useListGatewayBatches, getListGatewayBatchesQueryKey,
+  useGetGatewayReconcileStatus, getGetGatewayReconcileStatusQueryKey,
+  useCreateGatewayRegistration,
+  useRevokeGatewayRegistration,
+  useRequestGatewayConnectionTest,
+  useCancelGatewayConnectionTest,
+} from '@workspace/api-client-react';
+import type {
+  GatewayRegistration,
+  CreateGatewayRegistrationBody,
+} from '@workspace/api-client-react';
+// The "reconcile now" (POST /gateway/registrations/{id}/reconcile) and the
+// per-registration silence-threshold update (PATCH /gateway/registrations/{id})
+// endpoints are not described in the OpenAPI spec, so no generated hook exists.
+// They are invoked through the raw apiFetch client below with an explicit note.
+import { apiFetch } from '@/lib/api';
 
 export default function AttendanceGateway() {
   const { t, lang } = useLanguage();
@@ -111,7 +45,7 @@ export default function AttendanceGateway() {
   const [selectedRegistration, setSelectedRegistration] = useState<number | null>(null);
   const [oneTimeSecret, setOneTimeSecret] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState<CreateRegistrationPayload>({
+  const [formData, setFormData] = useState<CreateGatewayRegistrationBody>({
     name: '',
     nameAr: '',
     adapterType: 'GENERIC_REST',
@@ -139,36 +73,41 @@ export default function AttendanceGateway() {
    *  within the server-computed timeout window. */
   const isTestTimedOut = (reg: GatewayRegistration): boolean => !!reg.connTestTimedOut;
 
-  const { data: registrations, isLoading: loadingRegistrations } = useQuery<GatewayRegistration[]>({
-    queryKey: ['gateway-registrations'],
-    queryFn: () => apiFetch('/api/gateway/registrations', { credentials: 'include' }).then(r => r.json()),
-    // Poll at 5s while a reconcile is in-flight, any row has an unanswered
-    // connection-test request (pending or timed-out). Timed-out rows still
-    // need fast polling so a late-arriving heartbeat can clear the state.
-    // Falls back to 60s when everything is quiet.
-    refetchInterval: (query) => {
-      if (reconcileInFlight) return 5_000;
-      const data = query.state.data;
-      if (data && data.some(r => isTestPending(r) || isTestTimedOut(r))) return 5_000;
-      return 60_000;
+  const { data: registrations, isLoading: loadingRegistrations } = useListGatewayRegistrations({
+    query: {
+      queryKey: getListGatewayRegistrationsQueryKey(),
+      // Poll at 5s while a reconcile is in-flight, or any row has an unanswered
+      // connection-test request (pending or timed-out). Timed-out rows still
+      // need fast polling so a late-arriving heartbeat can clear the state.
+      // Falls back to 60s when everything is quiet.
+      refetchInterval: (query) => {
+        if (reconcileInFlight) return 5_000;
+        const data = query.state.data;
+        if (data && data.some(r => isTestPending(r) || isTestTimedOut(r))) return 5_000;
+        return 60_000;
+      },
     },
   });
 
-  const { data: batches, isLoading: loadingBatches } = useQuery<ImportBatch[]>({
-    queryKey: ['gateway-batches', selectedRegistration],
-    queryFn: () =>
-      apiFetch(`/api/gateway/batches${selectedRegistration ? `?registrationId=${selectedRegistration}` : ''}`, { credentials: 'include' }).then(r => r.json()),
-    enabled: !!selectedRegistration,
-  });
+  const batchesParams = selectedRegistration ? { registrationId: selectedRegistration } : undefined;
+  const { data: batches, isLoading: loadingBatches } = useListGatewayBatches(
+    batchesParams,
+    {
+      query: {
+        enabled: !!selectedRegistration,
+        queryKey: getListGatewayBatchesQueryKey(batchesParams),
+      },
+    },
+  );
 
-  const { data: reconcileStatus } = useQuery<ReconcileStatus[]>({
-    queryKey: ['gateway-reconcile-status'],
-    queryFn: () => apiFetch('/api/gateway/reconcile-status', { credentials: 'include' }).then(r => r.json()),
-    refetchInterval: reconcileInFlight ? 5_000 : false,
+  const { data: reconcileStatus } = useGetGatewayReconcileStatus({
+    query: {
+      queryKey: getGetGatewayReconcileStatusQueryKey(),
+      refetchInterval: reconcileInFlight ? 5_000 : false,
+    },
   });
 
   const reconcileAlerts = (reconcileStatus ?? []).filter(s => s.missing.length > 0 || s.mismatched.length > 0);
-  const reconcileStatusByReg = new Map((reconcileStatus ?? []).map(s => [s.registrationId, s]));
 
   // Any registration with a queued/delivered reconcile keeps fast polling on.
   const anyReconcilePending = (registrations ?? []).some(
@@ -176,6 +115,8 @@ export default function AttendanceGateway() {
   );
   if (anyReconcilePending !== reconcileInFlight) setReconcileInFlight(anyReconcilePending);
 
+  // "Reconcile now" has no generated client hook (endpoint absent from the
+  // OpenAPI spec), so it is issued with the raw apiFetch client.
   const reconcileNowMutation = useMutation({
     mutationFn: async (id: number) => {
       const res = await apiFetch(`/api/gateway/registrations/${id}/reconcile`, {
@@ -189,7 +130,7 @@ export default function AttendanceGateway() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gateway-registrations'] });
+      queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
       toast({
         title: t('Reconcile queued', 'تمت جدولة المطابقة'),
         description: t(
@@ -207,127 +148,97 @@ export default function AttendanceGateway() {
     },
   });
 
-  const testMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiFetch(`/api/gateway/registrations/${id}/test`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? 'Failed to request test');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gateway-registrations'] });
-      toast({
-        title: t('Test requested', 'تم طلب الاختبار'),
-        description: t(
-          'Test requested — the gateway will answer on its next heartbeat.',
-          'تم طلب الاختبار — ستُجيب البوابة في نبضة القلب التالية.',
-        ),
-      });
-    },
-    onError: (err: Error) => {
-      toast({
-        title: t('Error', 'خطأ'),
-        description: err.message,
-        variant: 'destructive',
-      });
+  const testMutation = useRequestGatewayConnectionTest({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
+        toast({
+          title: t('Test requested', 'تم طلب الاختبار'),
+          description: t(
+            'Test requested — the gateway will answer on its next heartbeat.',
+            'تم طلب الاختبار — ستُجيب البوابة في نبضة القلب التالية.',
+          ),
+        });
+      },
+      onError: (err: Error) => {
+        toast({
+          title: t('Error', 'خطأ'),
+          description: err.message,
+          variant: 'destructive',
+        });
+      },
     },
   });
 
-  const cancelTestMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiFetch(`/api/gateway/registrations/${id}/test/cancel`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? 'Failed to cancel test request');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gateway-registrations'] });
-      toast({
-        title: t('Test request cleared', 'تم مسح طلب الاختبار'),
-        description: t(
-          'The pending test request has been cancelled.',
-          'تم إلغاء طلب الاختبار المعلق.',
-        ),
-      });
-    },
-    onError: (err: Error) => {
-      toast({
-        title: t('Error', 'خطأ'),
-        description: err.message,
-        variant: 'destructive',
-      });
+  const cancelTestMutation = useCancelGatewayConnectionTest({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
+        toast({
+          title: t('Test request cleared', 'تم مسح طلب الاختبار'),
+          description: t(
+            'The pending test request has been cancelled.',
+            'تم إلغاء طلب الاختبار المعلق.',
+          ),
+        });
+      },
+      onError: (err: Error) => {
+        toast({
+          title: t('Error', 'خطأ'),
+          description: err.message,
+          variant: 'destructive',
+        });
+      },
     },
   });
 
-  const createMutation = useMutation({
-    mutationFn: async (payload: CreateRegistrationPayload) => {
-      const res = await apiFetch('/api/gateway/registrations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Failed to create registration');
-      return res.json() as Promise<CreateRegistrationResponse>;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['gateway-registrations'] });
-      setOneTimeSecret(data.secret);
-      setShowCreateDialog(false);
-      setFormData({ name: '', nameAr: '', adapterType: 'GENERIC_REST', notes: '' });
-      setCreateThreshold('');
-      toast({
-        title: t('Gateway Registered', 'تم تسجيل البوابة'),
-        description: t('Gateway registration created successfully. Copy the secret now — it cannot be retrieved again.', 'تم إنشاء تسجيل البوابة بنجاح. انسخ السر الآن — لا يمكن استرجاعه مرة أخرى.'),
-      });
-    },
-    onError: () => {
-      toast({
-        title: t('Error', 'خطأ'),
-        description: t('Failed to create gateway registration.', 'فشل في إنشاء تسجيل البوابة.'),
-        variant: 'destructive',
-      });
+  const createMutation = useCreateGatewayRegistration({
+    mutation: {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
+        setOneTimeSecret(data.secret ?? null);
+        setShowCreateDialog(false);
+        setFormData({ name: '', nameAr: '', adapterType: 'GENERIC_REST', notes: '' });
+        setCreateThreshold('');
+        toast({
+          title: t('Gateway Registered', 'تم تسجيل البوابة'),
+          description: t('Gateway registration created successfully. Copy the secret now — it cannot be retrieved again.', 'تم إنشاء تسجيل البوابة بنجاح. انسخ السر الآن — لا يمكن استرجاعه مرة أخرى.'),
+        });
+      },
+      onError: () => {
+        toast({
+          title: t('Error', 'خطأ'),
+          description: t('Failed to create gateway registration.', 'فشل في إنشاء تسجيل البوابة.'),
+          variant: 'destructive',
+        });
+      },
     },
   });
 
-  const revokeMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiFetch(`/api/gateway/registrations/${id}/revoke`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Failed to revoke');
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gateway-registrations'] });
-      toast({
-        title: t('Gateway Revoked', 'تم إلغاء البوابة'),
-        description: t('Gateway registration has been revoked.', 'تم إلغاء تسجيل البوابة.'),
-      });
-    },
-    onError: () => {
-      toast({
-        title: t('Error', 'خطأ'),
-        description: t('Failed to revoke gateway.', 'فشل في إلغاء البوابة.'),
-        variant: 'destructive',
-      });
+  const revokeMutation = useRevokeGatewayRegistration({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
+        toast({
+          title: t('Gateway Revoked', 'تم إلغاء البوابة'),
+          description: t('Gateway registration has been revoked.', 'تم إلغاء تسجيل البوابة.'),
+        });
+      },
+      onError: () => {
+        toast({
+          title: t('Error', 'خطأ'),
+          description: t('Failed to revoke gateway.', 'فشل في إلغاء البوابة.'),
+          variant: 'destructive',
+        });
+      },
     },
   });
 
   // Silence-threshold editing (per-registration alarm window)
   const [thresholdEdit, setThresholdEdit] = useState<{ reg: GatewayRegistration; value: string } | null>(null);
 
+  // The per-registration silence-threshold PATCH has no generated client hook
+  // (endpoint absent from the OpenAPI spec), so it uses the raw apiFetch client.
   const thresholdMutation = useMutation({
     mutationFn: async ({ id, minutes }: { id: number; minutes: number | null }) => {
       const res = await apiFetch(`/api/gateway/registrations/${id}`, {
@@ -343,7 +254,7 @@ export default function AttendanceGateway() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gateway-registrations'] });
+      queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
       setThresholdEdit(null);
       toast({
         title: t('Threshold Updated', 'تم تحديث الحد'),
@@ -363,7 +274,7 @@ export default function AttendanceGateway() {
     if (!thresholdEdit) return;
     const trimmed = thresholdEdit.value.trim();
     if (trimmed === '') {
-      thresholdMutation.mutate({ id: thresholdEdit.reg.id, minutes: null });
+      thresholdMutation.mutate({ id: thresholdEdit.reg.id!, minutes: null });
       return;
     }
     const minutes = Number(trimmed);
@@ -375,7 +286,7 @@ export default function AttendanceGateway() {
       });
       return;
     }
-    thresholdMutation.mutate({ id: thresholdEdit.reg.id, minutes });
+    thresholdMutation.mutate({ id: thresholdEdit.reg.id!, minutes });
   };
 
   const handleCreate = () => {
@@ -393,12 +304,12 @@ export default function AttendanceGateway() {
       }
       silenceThresholdMinutes = minutes;
     }
-    createMutation.mutate({ ...formData, silenceThresholdMinutes });
+    createMutation.mutate({ data: { ...formData, silenceThresholdMinutes } });
   };
 
   const handleRevoke = (id: number) => {
     if (confirm(t('Are you sure you want to revoke this gateway? This action cannot be undone.', 'هل أنت متأكد من إلغاء هذه البوابة؟ لا يمكن التراجع عن هذا الإجراء.'))) {
-      revokeMutation.mutate(id);
+      revokeMutation.mutate({ id });
     }
   };
 
@@ -518,7 +429,7 @@ export default function AttendanceGateway() {
               size="sm"
               className="h-6 text-[11px] px-2 gap-1"
               disabled={cancelTestMutation.isPending}
-              onClick={(e) => { e.stopPropagation(); cancelTestMutation.mutate(reg.id); }}
+              onClick={(e) => { e.stopPropagation(); cancelTestMutation.mutate({ id: reg.id! }); }}
               title={t('Cancel the pending test request', 'إلغاء طلب الاختبار المعلق')}
             >
               <X className="w-3 h-3" />
@@ -529,7 +440,7 @@ export default function AttendanceGateway() {
               size="sm"
               className="h-6 text-[11px] px-2 gap-1"
               disabled={testMutation.isPending}
-              onClick={(e) => { e.stopPropagation(); testMutation.mutate(reg.id); }}
+              onClick={(e) => { e.stopPropagation(); testMutation.mutate({ id: reg.id! }); }}
               title={t('Re-issue the test request', 'إعادة إصدار طلب الاختبار')}
             >
               <RefreshCw className="w-3 h-3" />
@@ -676,6 +587,52 @@ export default function AttendanceGateway() {
     }
   };
 
+  /** Feedback badge for the latest RECONCILE command queued for a gateway. */
+  const getReconcileBadge = (reg: GatewayRegistration) => {
+    const cmd = reg.reconcileCommand;
+    if (!cmd) return null;
+    const conf: Record<string, { cls: string; icon: React.ReactNode; label: string }> = {
+      PENDING: {
+        cls: 'bg-sky-500/10 text-sky-500 border-sky-500/20',
+        icon: <Clock className="w-3 h-3" />,
+        label: t('Reconcile queued', 'المطابقة في الانتظار'),
+      },
+      DELIVERED: {
+        cls: 'bg-sky-500/10 text-sky-500 border-sky-500/20',
+        icon: <Loader2 className="w-3 h-3 animate-spin" />,
+        label: t('Reconcile delivered', 'تم تسليم المطابقة'),
+      },
+      ACKNOWLEDGED: {
+        cls: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+        icon: <CheckCircle className="w-3 h-3" />,
+        label: t('Reconcile done', 'اكتملت المطابقة'),
+      },
+      FAILED: {
+        cls: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
+        icon: <XCircle className="w-3 h-3" />,
+        label: t('Reconcile failed', 'فشلت المطابقة'),
+      },
+      EXPIRED: {
+        cls: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+        icon: <AlertTriangle className="w-3 h-3" />,
+        label: t('Reconcile expired', 'انتهت صلاحية المطابقة'),
+      },
+    };
+    const c = conf[cmd.status];
+    if (!c) return null;
+    return (
+      <div className="space-y-1" title={cmd.resultMessage ?? undefined}>
+        <Badge variant="outline" className={`text-xs gap-1 ${c.cls}`}>
+          {c.icon}
+          {c.label}
+        </Badge>
+        {cmd.resultMessage && (
+          <div className="text-[11px] text-muted-foreground max-w-[220px] truncate">{cmd.resultMessage}</div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <AnimatedPage className="space-y-6">
       {/* Header */}
@@ -744,125 +701,13 @@ export default function AttendanceGateway() {
                       <code className="font-mono break-all">{alert.mismatched.join(', ')}</code>
                     </span>
                   )}
-                  {' ('}{formatDateTime(alert.reconciledAt)}{')'}
+                  {' ('}{formatDateTime(alert.reconciledAt ?? null)}{')'}
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
       )}
-
-      {/* Batch reconciliation: per-gateway verdict + on-demand reconcile */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Batch Reconciliation', 'مطابقة الدفعات')}</CardTitle>
-          <CardDescription>
-            {t(
-              'Latest reconcile verdict per gateway. "Reconcile now" delivers an immediate check with the gateway\'s next heartbeat instead of waiting for the automatic 15-minute cadence.',
-              'أحدث نتيجة مطابقة لكل بوابة. «مطابقة الآن» تُرسل فحصًا فوريًا مع نبضة البوابة التالية بدلًا من انتظار الدورة التلقائية كل 15 دقيقة.',
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow>
-                <TableHead>{t('Gateway', 'البوابة')}</TableHead>
-                <TableHead>{t('Last Reconcile', 'آخر مطابقة')}</TableHead>
-                <TableHead>{t('Verdict', 'النتيجة')}</TableHead>
-                <TableHead>{t('Manual Reconcile', 'مطابقة يدوية')}</TableHead>
-                <TableHead className="text-center">{t('Actions', 'إجراءات')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {!registrations || registrations.filter(r => r.status === 'ACTIVE').length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    {t('No active gateways.', 'لا توجد بوابات نشطة.')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                registrations.filter(r => r.status === 'ACTIVE').map(reg => {
-                  const status = reconcileStatusByReg.get(reg.id);
-                  const cmd = reg.reconcileCommand;
-                  const cmdPending = cmd && (cmd.status === 'PENDING' || cmd.status === 'DELIVERED');
-                  return (
-                    <TableRow key={reg.id}>
-                      <TableCell className="font-medium">{lang === 'en' ? reg.name : (reg.nameAr || reg.name)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {status ? formatDateTime(status.reconciledAt) : t('Never reconciled', 'لم تتم مطابقة بعد')}
-                      </TableCell>
-                      <TableCell>
-                        {!status ? (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        ) : status.missing.length > 0 || status.mismatched.length > 0 ? (
-                          <Badge variant="outline" className="text-xs gap-1 bg-rose-500/10 text-rose-500 border-rose-500/20">
-                            <AlertTriangle className="w-3 h-3" />
-                            {t(
-                              `${status.missing.length} missing, ${status.mismatched.length} mismatched`,
-                              `${status.missing.length} مفقودة، ${status.mismatched.length} غير متطابقة`,
-                            )}
-                          </Badge>
-                        ) : status.checked > 0 ? (
-                          <Badge variant="outline" className="text-xs gap-1 bg-amber-500/10 text-amber-500 border-amber-500/20">
-                            <Clock className="w-3 h-3" />
-                            {t(`${status.checked} unconfirmed checked — all held by server`, `${status.checked} غير مؤكدة تم فحصها — كلها لدى الخادم`)}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs gap-1 bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
-                            <CheckCircle className="w-3 h-3" />
-                            {t('All batches confirmed', 'تم تأكيد كل الدفعات')}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {!cmd ? (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        ) : cmdPending ? (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {cmd.status === 'PENDING'
-                              ? t('Queued — awaiting next heartbeat', 'في الانتظار — بانتظار النبضة التالية')
-                              : t('Delivered — awaiting gateway result', 'تم التسليم — بانتظار نتيجة البوابة')}
-                          </span>
-                        ) : (
-                          <div className="text-xs space-y-0.5" title={cmd.resultMessage ?? undefined}>
-                            <span className={
-                              cmd.status === 'ACKNOWLEDGED' ? 'text-emerald-500' : cmd.status === 'FAILED' ? 'text-rose-500' : 'text-amber-500'
-                            }>
-                              {cmd.status === 'ACKNOWLEDGED'
-                                ? t('Completed', 'اكتملت')
-                                : cmd.status === 'FAILED'
-                                  ? t('Failed', 'فشلت')
-                                  : t('Expired — gateway offline?', 'انتهت الصلاحية — هل البوابة غير متصلة؟')}
-                              {' ('}{formatDateTime(cmd.acknowledgedAt ?? cmd.createdAt)}{')'}
-                            </span>
-                            {cmd.resultMessage && (
-                              <div className="text-muted-foreground max-w-[260px] truncate">{cmd.resultMessage}</div>
-                            )}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8"
-                          disabled={!!cmdPending || reconcileNowMutation.isPending}
-                          onClick={() => reconcileNowMutation.mutate(reg.id)}
-                        >
-                          <Activity className="w-3 h-3 me-1" />
-                          {cmdPending ? t('Reconcile pending…', 'المطابقة قيد التنفيذ…') : t('Reconcile now', 'مطابقة الآن')}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
 
       {/* Registrations Table */}
       <Card>
@@ -883,6 +728,8 @@ export default function AttendanceGateway() {
                 <TableHead>{t('Connection', 'الاتصال')}</TableHead>
                 <TableHead>{t('Clock Drift', 'انحراف الساعة')}</TableHead>
                 <TableHead>{t('SDK / Device Clock', 'SDK / ساعة الجهاز')}</TableHead>
+                <TableHead>{t('Silence Window', 'نافذة الصمت')}</TableHead>
+                <TableHead>{t('Reconcile', 'المطابقة')}</TableHead>
                 <TableHead>{t('Created', 'تم الإنشاء')}</TableHead>
                 <TableHead className="text-center">{t('Actions', 'إجراءات')}</TableHead>
               </TableRow>
@@ -891,20 +738,14 @@ export default function AttendanceGateway() {
               {loadingRegistrations ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20 mx-auto" /></TableCell>
+                    {Array.from({ length: 11 }).map((__, j) => (
+                      <TableCell key={j}><Skeleton className="h-4 w-20" /></TableCell>
+                    ))}
                   </TableRow>
                 ))
               ) : !registrations || registrations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center py-12 text-muted-foreground">
                     <Server className="w-8 h-8 mx-auto mb-3 opacity-20" />
                     {t('No gateway registrations found.', 'لا توجد تسجيلات بوابات.')}
                   </TableCell>
@@ -914,7 +755,7 @@ export default function AttendanceGateway() {
                   <TableRow
                     key={reg.id}
                     className={`cursor-pointer hover:bg-muted/50 ${selectedRegistration === reg.id ? 'bg-primary/5' : ''}`}
-                    onClick={() => setSelectedRegistration(reg.id)}
+                    onClick={() => reg.id != null && setSelectedRegistration(reg.id)}
                   >
                     <TableCell className="font-medium">
                       <div>
@@ -922,33 +763,24 @@ export default function AttendanceGateway() {
                         {reg.notes && (
                           <div className="text-xs text-muted-foreground mt-1">{reg.notes}</div>
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {getAdapterBadge(reg.adapterType)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <Badge
-                          variant={reg.status === 'ACTIVE' ? 'default' : 'secondary'}
-                          className="text-xs"
-                        >
-                          {reg.status}
-                        </Badge>
                         {reg.credentialUnusable && (
-                          <Badge
-                            variant="outline"
-                            className="text-xs gap-1 bg-rose-500/10 text-rose-500 border-rose-500/20"
-                            title={t(
-                              'The stored credential for this gateway cannot be decrypted (tampering or a lost server key). Every request from it is rejected. Revoke it and register a new gateway.',
-                              'تعذر فك تشفير بيانات اعتماد هذه البوابة (تلاعب أو فقدان مفتاح الخادم). يتم رفض كل طلباتها. قم بإلغائها وتسجيل بوابة جديدة.',
-                            )}
-                          >
-                            <AlertTriangle className="w-3 h-3" />
-                            {t('Credential unusable — re-register', 'بيانات الاعتماد غير صالحة — أعد التسجيل')}
-                          </Badge>
+                          <div className="mt-1 flex items-center gap-1 text-[11px] text-rose-500">
+                            <ShieldAlert className="w-3 h-3" />
+                            {t('Credential unusable — re-register', 'بيانات الاعتماد غير قابلة للاستخدام — أعد التسجيل')}
+                          </div>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {getAdapterBadge(reg.adapterType ?? '')}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={reg.status === 'ACTIVE' ? 'default' : 'secondary'}
+                        className="text-xs"
+                      >
+                        {reg.status}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
@@ -957,26 +789,6 @@ export default function AttendanceGateway() {
                           {getHealthIcon(reg)}
                           <span className="text-sm">{getHealthText(reg)}</span>
                         </div>
-                        {reg.status === 'ACTIVE' && (
-                          <button
-                            type="button"
-                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                            title={t('Minutes without a heartbeat before an offline alarm is raised. Click to edit.', 'الدقائق دون نبضات قبل إطلاق إنذار عدم الاتصال. انقر للتعديل.')}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setThresholdEdit({ reg, value: reg.silenceThresholdMinutes != null ? String(reg.silenceThresholdMinutes) : '' });
-                            }}
-                          >
-                            <Clock className="w-3 h-3" />
-                            <span>
-                              {t('Alarm after', 'إنذار بعد')}{' '}
-                              {Math.round((reg.silenceThresholdMs ?? DEFAULT_SILENCE_THRESHOLD_MS) / 60_000)}
-                              {t('m', ' د')}
-                              {reg.silenceThresholdMinutes == null && <span className="opacity-70"> ({t('default', 'افتراضي')})</span>}
-                            </span>
-                            <Pencil className="w-3 h-3 opacity-60" />
-                          </button>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -999,38 +811,69 @@ export default function AttendanceGateway() {
                     <TableCell>
                       {getSdkAndClockCell(reg)}
                     </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">
+                          {reg.silenceThresholdMinutes != null
+                            ? t(`${reg.silenceThresholdMinutes}m`, `${reg.silenceThresholdMinutes} د`)
+                            : t('Default', 'افتراضي')}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setThresholdEdit({ reg, value: reg.silenceThresholdMinutes != null ? String(reg.silenceThresholdMinutes) : '' });
+                          }}
+                          title={t('Edit silence alarm window', 'تعديل نافذة إنذار الصمت')}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {getReconcileBadge(reg) ?? <span className="text-xs text-muted-foreground">-</span>}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatDateTime(reg.createdAt)}
+                      {formatDateTime(reg.createdAt ?? null)}
                     </TableCell>
                     <TableCell className="text-center">
                       {reg.status === 'ACTIVE' && (
-                        <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center justify-center gap-1">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            className="h-8 text-xs gap-1"
-                            disabled={(isTestPending(reg) && !isTestTimedOut(reg)) || testMutation.isPending}
+                            className="h-8"
+                            disabled={testMutation.isPending || isTestPending(reg)}
                             onClick={(e) => {
                               e.stopPropagation();
-                              testMutation.mutate(reg.id);
+                              testMutation.mutate({ id: reg.id! });
                             }}
-                            title={isTestPending(reg)
-                              ? t('Test already pending', 'الاختبار معلق بالفعل')
-                              : t('Request an on-demand connection test', 'طلب اختبار اتصال فوري')}
+                            title={t('Request an on-demand connection test', 'طلب اختبار اتصال عند الطلب')}
                           >
-                            {isTestPending(reg)
-                              ? <Loader2 className="w-3 h-3 animate-spin" />
-                              : <FlaskConical className="w-3 h-3" />
-                            }
-                            {t('Test now', 'اختبر الآن')}
+                            {t('Test', 'اختبار')}
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-destructive h-8 text-xs"
+                            className="h-8"
+                            disabled={reconcileNowMutation.isPending}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRevoke(reg.id);
+                              reconcileNowMutation.mutate(reg.id!);
+                            }}
+                            title={t('Queue a reconcile command', 'جدولة أمر مطابقة')}
+                          >
+                            {t('Reconcile', 'مطابقة')}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive h-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (reg.id != null) handleRevoke(reg.id);
                             }}
                           >
                             {t('Revoke', 'إلغاء')}
@@ -1096,7 +939,7 @@ export default function AttendanceGateway() {
                   batches.map(batch => (
                     <TableRow key={batch.id}>
                       <TableCell className="text-sm font-mono">
-                        {formatDateTime(batch.receivedAt)}
+                        {formatDateTime(batch.receivedAt ?? null)}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {batch.source}
@@ -1111,21 +954,21 @@ export default function AttendanceGateway() {
                         {batch.duplicateCount}
                       </TableCell>
                       <TableCell className="text-center">
-                        {batch.errorCount > 0 ? (
+                        {(batch.errorCount ?? 0) > 0 ? (
                           <span className="text-rose-500 font-semibold">{batch.errorCount}</span>
                         ) : (
                           <span className="text-muted-foreground">0</span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        {batch.unmappedCount > 0 ? (
+                        {(batch.unmappedCount ?? 0) > 0 ? (
                           <span className="text-amber-500 font-semibold">{batch.unmappedCount}</span>
                         ) : (
                           <span className="text-muted-foreground">0</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        {getBatchStatusBadge(batch.status)}
+                        {getBatchStatusBadge(batch.status ?? '')}
                       </TableCell>
                       <TableCell className="text-center">
                         {batch.signatureValid ? (
@@ -1168,7 +1011,7 @@ export default function AttendanceGateway() {
               <Label htmlFor="nameAr">{t('Name (Arabic)', 'الاسم (عربي)')}</Label>
               <Input
                 id="nameAr"
-                value={formData.nameAr}
+                value={formData.nameAr ?? ''}
                 onChange={e => setFormData({ ...formData, nameAr: e.target.value })}
                 placeholder={t('Optional Arabic name', 'اسم عربي اختياري')}
               />
@@ -1177,8 +1020,8 @@ export default function AttendanceGateway() {
             <div>
               <Label htmlFor="adapterType">{t('Adapter Type', 'نوع المحول')}</Label>
               <Select
-                value={formData.adapterType}
-                onValueChange={(value) => setFormData({ ...formData, adapterType: value as any })}
+                value={formData.adapterType ?? undefined}
+                onValueChange={(value) => setFormData({ ...formData, adapterType: value as CreateGatewayRegistrationBody['adapterType'] })}
               >
                 <SelectTrigger id="adapterType">
                   <SelectValue />
@@ -1207,20 +1050,9 @@ export default function AttendanceGateway() {
             </div>
 
             <div>
-              <Label htmlFor="notes">{t('Notes', 'ملاحظات')}</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                placeholder={t('Optional notes', 'ملاحظات اختيارية')}
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="createSilenceThreshold">{t('Silence alarm window (minutes, optional)', 'نافذة إنذار الصمت (بالدقائق، اختياري)')}</Label>
+              <Label htmlFor="silenceThreshold">{t('Silence Alarm Window (minutes, optional)', 'نافذة إنذار الصمت (دقائق، اختياري)')}</Label>
               <Input
-                id="createSilenceThreshold"
+                id="silenceThreshold"
                 type="number"
                 min={1}
                 max={1440}
@@ -1228,9 +1060,17 @@ export default function AttendanceGateway() {
                 onChange={e => setCreateThreshold(e.target.value)}
                 placeholder={t('Leave empty for the global default', 'اتركه فارغًا للإعداد الافتراضي العام')}
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                {t('Minutes without a heartbeat before an offline alert (1–1440).', 'الدقائق بدون نبضة قبل إنذار عدم الاتصال (1–1440).')}
-              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="notes">{t('Notes', 'ملاحظات')}</Label>
+              <Textarea
+                id="notes"
+                value={formData.notes ?? ''}
+                onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                placeholder={t('Optional notes', 'ملاحظات اختيارية')}
+                rows={3}
+              />
             </div>
           </div>
 
@@ -1245,38 +1085,30 @@ export default function AttendanceGateway() {
         </DialogContent>
       </Dialog>
 
-      {/* Silence Threshold Dialog */}
+      {/* Silence-threshold Edit Dialog */}
       <Dialog open={!!thresholdEdit} onOpenChange={(open) => !open && setThresholdEdit(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{t('Silence Alarm Window', 'نافذة إنذار الصمت')}</DialogTitle>
             <DialogDescription>
-              {thresholdEdit && t(
-                `How many minutes "${thresholdEdit.reg.name}" may stay quiet (no heartbeat) before admins are alerted. Leave empty to use the global default.`,
-                `عدد الدقائق التي يمكن أن تبقى فيها "${thresholdEdit.reg.nameAr || thresholdEdit.reg.name}" صامتة (بدون نبضات) قبل تنبيه المسؤولين. اتركه فارغًا لاستخدام الإعداد الافتراضي العام.`
+              {t(
+                'Set how long a gateway may stay silent before it is flagged offline. Leave empty to use the global default.',
+                'حدد المدة التي يمكن أن تبقى فيها البوابة صامتة قبل وضع علامة غير متصل. اتركه فارغًا لاستخدام الإعداد الافتراضي العام.',
               )}
             </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-2">
-            <Label htmlFor="silenceThreshold">{t('Minutes (1–1440)', 'الدقائق (1–1440)')}</Label>
+            <Label htmlFor="thresholdEdit">{t('Minutes (1–1440)', 'دقائق (1–1440)')}</Label>
             <Input
-              id="silenceThreshold"
+              id="thresholdEdit"
               type="number"
               min={1}
               max={1440}
               value={thresholdEdit?.value ?? ''}
-              onChange={e => thresholdEdit && setThresholdEdit({ ...thresholdEdit, value: e.target.value })}
-              placeholder={t('Empty = global default', 'فارغ = الافتراضي العام')}
+              onChange={e => setThresholdEdit(prev => prev ? { ...prev, value: e.target.value } : prev)}
+              placeholder={t('Global default', 'الإعداد الافتراضي العام')}
             />
-            <p className="text-xs text-muted-foreground">
-              {t(
-                'Use a laxer window for gateways on flaky links (e.g. cellular) and a tighter one where fast detection matters.',
-                'استخدم نافذة أوسع للبوابات ذات الاتصال غير المستقر (مثل الشبكة الخلوية) ونافذة أضيق حيث يهم الاكتشاف السريع.'
-              )}
-            </p>
           </div>
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setThresholdEdit(null)}>
               {t('Cancel', 'إلغاء')}
@@ -1297,7 +1129,7 @@ export default function AttendanceGateway() {
               {t('One-Time Secret', 'سر لمرة واحدة')}
             </DialogTitle>
             <DialogDescription>
-              {t('Copy this secret now. It cannot be retrieved again after you close this dialog.', 'انسخ هذا السر الآن. لا يمكن استرجاعه مرة أخرى بعد إغلاق هذه النافظة.')}
+              {t('Copy this secret now. It cannot be retrieved again after you close this dialog.', 'انسخ هذا السر الآن. لا يمكن استرجاعه مرة أخرى بعد إغلاق هذه النافذة.')}
             </DialogDescription>
           </DialogHeader>
 

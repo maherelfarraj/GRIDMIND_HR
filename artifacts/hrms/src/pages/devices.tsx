@@ -1,4 +1,3 @@
-import { apiFetch } from '@/lib/api';
 import { fetchGatewayRegistrations, selectOfflineGateways, type GatewayRegistration } from '@/lib/gateways';
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
@@ -10,6 +9,8 @@ import {
   useUpdateDevice,
   useRestartDevice,
   useListDeviceCommands,
+  useListDeviceMappings,
+  getListDeviceMappingsQueryKey,
   getListDevicesQueryKey,
   getGetDeviceQueryKey,
   getGetDeviceHealthQueryKey,
@@ -46,13 +47,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-interface DeviceMapping {
-  deviceId: number;
-  employeeId: number;
-  employeeNameEn: string;
-  isActive: boolean;
-}
-
 const emptyDeviceForm: AttendanceDeviceInput = {
   name: '',
   serialNumber: '',
@@ -75,9 +69,15 @@ export default function Devices() {
   const { data: devices, isLoading } = useListDevices();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [mappings, setMappings] = useState<DeviceMapping[]>([]);
-  const [loadingMappings, setLoadingMappings] = useState(false);
   const [gateways, setGateways] = useState<GatewayRegistration[] | null>(null);
+  const mappingsParams = { deviceId: selectedId ?? undefined };
+  const {
+    data: mappings = [],
+    isLoading: loadingMappings,
+  } = useListDeviceMappings(
+    mappingsParams,
+    { query: { enabled: selectedId != null, queryKey: getListDeviceMappingsQueryKey(mappingsParams) } },
+  );
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmStatusOpen, setConfirmStatusOpen] = useState(false);
@@ -202,20 +202,8 @@ export default function Devices() {
     }
   });
 
-  const handleDeviceSelect = async (id: number) => {
+  const handleDeviceSelect = (id: number) => {
     setSelectedId(id);
-    setLoadingMappings(true);
-    try {
-      const res = await apiFetch(`/api/device-mappings?deviceId=${id}`, { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setMappings(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch mappings', error);
-    } finally {
-      setLoadingMappings(false);
-    }
   };
 
   return (
@@ -623,7 +611,7 @@ export default function Devices() {
                       <div className="flex items-center gap-3">
                         <Cpu className="w-8 h-8 text-muted-foreground" />
                         <div>
-                          <p className="text-2xl font-bold">{mappings.filter(m => m.isActive).length}</p>
+                          <p className="text-2xl font-bold">{mappings.length}</p>
                           <p className="text-xs text-muted-foreground">
                             {t('Active enrollments', 'تسجيلات نشطة')} / {mappings.length} {t('total', 'إجمالي')}
                           </p>

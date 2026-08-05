@@ -1,9 +1,15 @@
-import { apiFetch } from '@/lib/api';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useListPolicyChangeRequests, useCreatePolicyChangeRequest, useSubmitPolicyChangeRequest,
+  useWithdrawPolicyChangeRequest, useApprovePolicyChangeRequest, useRejectPolicyChangeRequest,
+  getListPolicyChangeRequestsQueryKey,
+} from '@workspace/api-client-react';
+import type { PolicyChangeRequest } from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,9 +23,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { GitBranch, Plus, AlertTriangle, CheckCircle, XCircle, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react';
 
-function fmtDate(s: string | null) {
+function fmtDate(s: string | null | undefined) {
   if (!s) return '—';
   return new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function parseJson(s: string | null | undefined): unknown {
+  if (!s) return null;
+  try { return JSON.parse(s); } catch { return s; }
 }
 
 function policyAreaBadge(area: string) {
@@ -46,18 +57,15 @@ function statusBadge(status: string) {
 function NewChangeDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const createMut = useCreatePolicyChangeRequest();
   const [form, setForm] = useState({ policyArea: '', titleEn: '', titleAr: '', targetEntityType: '', changeAfterJson: '' });
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
   async function handleSave() {
-    setSaving(true);
     try {
-      const res = await apiFetch('/api/policy-change-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      if (!res.ok) throw new Error();
+      await createMut.mutateAsync({ data: { ...form } });
       toast({ title: t('Change request created', 'تم إنشاء طلب التغيير') });
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setSaving(false); }
   }
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -83,7 +91,7 @@ function NewChangeDialog({ open, onClose, onSaved }: { open: boolean; onClose: (
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">{saving ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
+          <Button onClick={handleSave} disabled={createMut.isPending} className="bg-blue-600 hover:bg-blue-700">{createMut.isPending ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -107,8 +115,8 @@ function RejectDialog({ open, onClose, onConfirm }: { open: boolean; onClose: ()
   );
 }
 
-function DiffBlock({ label, json }: { label: string; json: any }) {
-  if (!json) return null;
+function DiffBlock({ label, json }: { label: string; json: unknown }) {
+  if (json == null) return null;
   return (
     <div className="space-y-1">
       <p className="text-xs text-slate-400 uppercase">{label}</p>
@@ -120,68 +128,70 @@ function DiffBlock({ label, json }: { label: string; json: any }) {
 export default function PolicyGovernance() {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [newChangeOpen, setNewChangeOpen] = useState(false);
-  const [rejectTarget, setRejectTarget] = useState<any>(null);
-  const [rollbackTarget, setRollbackTarget] = useState<any>(null);
+  const [rejectTarget, setRejectTarget] = useState<PolicyChangeRequest | null>(null);
+  const [rollbackTarget, setRollbackTarget] = useState<PolicyChangeRequest | null>(null);
   const [rollbackReason, setRollbackReason] = useState('');
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await apiFetch('/api/policy-change-requests');
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setRequests(Array.isArray(data) ? data : []);
-    } catch { setRequests([]); }
-    finally { setLoading(false); }
-  }
+  const { data, isLoading } = useListPolicyChangeRequests();
+  const requests: PolicyChangeRequest[] = Array.isArray(data) ? data : [];
+  const loading = isLoading;
 
-  useEffect(() => { load(); }, []);
+  const submitMut = useSubmitPolicyChangeRequest();
+  const withdrawMut = useWithdrawPolicyChangeRequest();
+  const approveMut = useApprovePolicyChangeRequest();
+  const rejectMut = useRejectPolicyChangeRequest();
+
+  function refetch() {
+    queryClient.invalidateQueries({ queryKey: getListPolicyChangeRequestsQueryKey() });
+  }
 
   async function submitForReview(id: number) {
     try {
-      await apiFetch(`/api/policy-change-requests/${id}/submit`, { method: 'POST' });
+      await submitMut.mutateAsync({ id });
       toast({ title: t('Submitted for review', 'تم الإرسال للمراجعة') });
-      load();
+      refetch();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
   async function withdraw(id: number) {
     try {
-      await apiFetch(`/api/policy-change-requests/${id}/withdraw`, { method: 'POST' });
+      await withdrawMut.mutateAsync({ id });
       toast({ title: t('Withdrawn', 'تم السحب') });
-      load();
+      refetch();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
   async function approve(id: number) {
     try {
-      await apiFetch(`/api/policy-change-requests/${id}/approve`, { method: 'POST' });
+      await approveMut.mutateAsync({ id });
       toast({ title: t('Approved', 'تمت الموافقة') });
-      load();
+      refetch();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
   async function reject(id: number, reason: string) {
     try {
-      await apiFetch(`/api/policy-change-requests/${id}/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
+      await rejectMut.mutateAsync({ id, data: { checkerComment: reason } });
       toast({ title: t('Rejected', 'تم الرفض') });
       setRejectTarget(null);
-      load();
+      refetch();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
-  async function rollback(id: number) {
-    try {
-      await apiFetch(`/api/policy-change-requests/${id}/rollback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: rollbackReason }) });
-      toast({ title: t('Rolled back', 'تم التراجع') });
-      setRollbackTarget(null);
-      setRollbackReason('');
-      load();
-    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+  function rollback() {
+    // Rollback targets a policy version (POST /policy-versions/{id}/rollback), but the
+    // policy change request does not expose the linked policy version id, so this action
+    // cannot be reliably wired from this screen.
+    toast({
+      title: t('Rollback unavailable', 'التراجع غير متاح'),
+      description: t('This change request has no linked policy version to roll back.', 'لا يوجد إصدار سياسة مرتبط بهذا الطلب للتراجع عنه.'),
+      variant: 'destructive',
+    });
+    setRollbackTarget(null);
+    setRollbackReason('');
   }
 
   function toggleExpand(id: number) {
@@ -229,7 +239,7 @@ export default function PolicyGovernance() {
                       <TableHead className="text-slate-300">{t('Policy Area', 'مجال السياسة')}</TableHead>
                       <TableHead className="text-slate-300">{t('Status', 'الحالة')}</TableHead>
                       <TableHead className="text-slate-300">{t('Maker', 'المُنشئ')}</TableHead>
-                      <TableHead className="text-slate-300">{t('Submitted', 'مُقدَّم')}</TableHead>
+                      <TableHead className="text-slate-300">{t('Created', 'أُنشئ')}</TableHead>
                       <TableHead className="text-slate-300">{t('Actions', 'الإجراءات')}</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
@@ -239,8 +249,8 @@ export default function PolicyGovernance() {
                           <TableCell className="text-white font-medium">{r.titleEn}</TableCell>
                           <TableCell><Badge variant="outline" className={`text-xs ${policyAreaBadge(r.policyArea)}`}>{r.policyArea}</Badge></TableCell>
                           <TableCell><Badge variant="outline" className={`text-xs ${statusBadge(r.status)}`}>{r.status}</Badge></TableCell>
-                          <TableCell className="text-slate-300 text-sm">{r.makerId ?? '—'}</TableCell>
-                          <TableCell className="text-slate-300 text-sm">{fmtDate(r.submittedAt)}</TableCell>
+                          <TableCell className="text-slate-300 text-sm">{r.makerUserId ?? '—'}</TableCell>
+                          <TableCell className="text-slate-300 text-sm">{fmtDate(r.createdAt)}</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
                               <Button size="sm" variant="ghost" className="text-emerald-400 hover:text-emerald-300 h-7 px-2" onClick={() => submitForReview(r.id)}>{t('Submit', 'إرسال')}</Button>
@@ -272,7 +282,7 @@ export default function PolicyGovernance() {
                             </button>
                             <Badge variant="outline" className={`text-xs ${policyAreaBadge(r.policyArea)}`}>{r.policyArea}</Badge>
                           </div>
-                          <p className="text-slate-400 text-xs mt-1">{t('Submitted', 'مُقدَّم')}: {fmtDate(r.submittedAt)} · {t('Maker', 'المُنشئ')}: {r.makerId ?? '—'}</p>
+                          <p className="text-slate-400 text-xs mt-1">{t('Created', 'أُنشئ')}: {fmtDate(r.createdAt)} · {t('Maker', 'المُنشئ')}: {r.makerUserId ?? '—'}</p>
                         </div>
                         <div className="flex gap-1 shrink-0">
                           <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-7 px-3" onClick={() => approve(r.id)}><CheckCircle className="w-3.5 h-3.5 me-1" />{t('Approve', 'موافقة')}</Button>
@@ -281,8 +291,8 @@ export default function PolicyGovernance() {
                       </div>
                       {expanded.has(r.id) && (
                         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-700">
-                          <DiffBlock label={t('Before', 'قبل')} json={r.changeBeforeJson} />
-                          <DiffBlock label={t('After', 'بعد')} json={r.changeAfterJson} />
+                          <DiffBlock label={t('Before', 'قبل')} json={parseJson(r.changeBeforeJson)} />
+                          <DiffBlock label={t('After', 'بعد')} json={parseJson(r.changeAfterJson)} />
                         </div>
                       )}
                     </CardContent>
@@ -317,8 +327,8 @@ export default function PolicyGovernance() {
                       <p className="text-slate-400 text-xs">{fmtDate(r.appliedAt ?? r.updatedAt)}</p>
                       {expanded.has(r.id) && (
                         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-700">
-                          <DiffBlock label={t('Before', 'قبل')} json={r.changeBeforeJson} />
-                          <DiffBlock label={t('After', 'بعد')} json={r.changeAfterJson} />
+                          <DiffBlock label={t('Before', 'قبل')} json={parseJson(r.changeBeforeJson)} />
+                          <DiffBlock label={t('After', 'بعد')} json={parseJson(r.changeAfterJson)} />
                         </div>
                       )}
                     </CardContent>
@@ -329,7 +339,7 @@ export default function PolicyGovernance() {
           </TabsContent>
         </Tabs>
 
-        <NewChangeDialog open={newChangeOpen} onClose={() => setNewChangeOpen(false)} onSaved={load} />
+        <NewChangeDialog open={newChangeOpen} onClose={() => setNewChangeOpen(false)} onSaved={refetch} />
         <RejectDialog open={!!rejectTarget} onClose={() => setRejectTarget(null)} onConfirm={reason => rejectTarget && reject(rejectTarget.id, reason)} />
 
         <AlertDialog open={!!rollbackTarget} onOpenChange={v => !v && setRollbackTarget(null)}>
@@ -346,7 +356,7 @@ export default function PolicyGovernance() {
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel className="border-slate-600">{t('Cancel', 'إلغاء')}</AlertDialogCancel>
-              <AlertDialogAction onClick={() => rollbackTarget && rollback(rollbackTarget.id)} className="bg-amber-600 hover:bg-amber-700">{t('Rollback', 'تراجع')}</AlertDialogAction>
+              <AlertDialogAction onClick={() => rollback()} className="bg-amber-600 hover:bg-amber-700">{t('Rollback', 'تراجع')}</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

@@ -1,5 +1,15 @@
-import { apiFetch } from '@/lib/api';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useListIntegrationConnectors, useUpdateIntegrationConnector, useTestIntegrationConnector,
+  useGetConnectorHealth, useListIntegrationRetryQueue, useRetryIntegrationQueueEntry,
+  useAbandonIntegrationQueueEntry, useClearAbandonedRetryQueue, useListIntegrationEvents,
+  getListIntegrationConnectorsQueryKey, getListIntegrationRetryQueueQueryKey,
+  getGetConnectorHealthQueryKey,
+} from '@workspace/api-client-react';
+import type {
+  IntegrationConnector, IntegrationRetryQueue, IntegrationEvent, ConnectionHealthLog,
+} from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -81,37 +91,40 @@ function StatusBadge({ status }: { status: string }) {
 
 function ConfigureDialog({ open, connector, onClose, onSaved }: {
   open: boolean;
-  connector: any;
+  connector: IntegrationConnector | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { t } = useLanguage();
   const { toast } = useToast();
+  const updateMut = useUpdateIntegrationConnector();
   const [endpoint, setEndpoint] = useState(connector?.endpoint ?? '');
-  const [port, setPort] = useState(String(connector?.port ?? ''));
-  const [saving, setSaving] = useState(false);
+  const [port, setPort] = useState(String(connector?.portNumber ?? ''));
 
   useEffect(() => {
     setEndpoint(connector?.endpoint ?? '');
-    setPort(String(connector?.port ?? ''));
+    setPort(String(connector?.portNumber ?? ''));
   }, [connector]);
 
   async function handleSave() {
     if (!connector) return;
-    setSaving(true);
     try {
-      await apiFetch(`/api/integration-connectors/${connector.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint, port: port ? Number(port) : undefined }),
+      await updateMut.mutateAsync({
+        id: connector.id,
+        data: {
+          nameEn: connector.nameEn,
+          nameAr: connector.nameAr,
+          connectorType: connector.connectorType,
+          protocol: connector.protocol,
+          endpoint,
+          portNumber: port ? Number(port) : null,
+        },
       });
       toast({ title: t('Saved', 'تم الحفظ') });
       onSaved();
       onClose();
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -120,7 +133,7 @@ function ConfigureDialog({ open, connector, onClose, onSaved }: {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{t('Configure Connector', 'تكوين الموصل')}</DialogTitle>
-          <DialogDescription>{connector?.name ?? ''}</DialogDescription>
+          <DialogDescription>{connector?.nameEn ?? ''}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div>
@@ -137,9 +150,9 @@ function ConfigureDialog({ open, connector, onClose, onSaved }: {
           <Button
             className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
             onClick={handleSave}
-            disabled={saving}
+            disabled={updateMut.isPending}
           >
-            {saving ? t('Saving…', 'جاري الحفظ…') : t('Save', 'حفظ')}
+            {updateMut.isPending ? t('Saving…', 'جاري الحفظ…') : t('Save', 'حفظ')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -150,22 +163,22 @@ function ConfigureDialog({ open, connector, onClose, onSaved }: {
 // ─── Connectors Tab ───────────────────────────────────────────────────────────
 
 function ConnectorsTab({ connectors, loading, onRefresh }: {
-  connectors: any[];
+  connectors: IntegrationConnector[];
   loading: boolean;
   onRefresh: () => void;
 }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [configConnector, setConfigConnector] = useState<any>(null);
+  const testMut = useTestIntegrationConnector();
+  const [configConnector, setConfigConnector] = useState<IntegrationConnector | null>(null);
   const [testingIds, setTestingIds] = useState<Set<number>>(new Set());
 
   async function handleTest(id: number) {
     setTestingIds(prev => new Set(prev).add(id));
     try {
-      const res = await apiFetch(`/api/integration-connectors/${id}/test`, { method: 'POST' });
-      const data = await res.json();
-      const latency = data?.latencyMs ?? data?.latency ?? '?';
-      const simulated = data?.simulated || data?.wasSimulated;
+      const data = await testMut.mutateAsync({ id });
+      const latency = data?.latencyMs ?? '?';
+      const simulated = data?.simulated;
       toast({
         title: t('Connection test result', 'نتيجة اختبار الاتصال'),
         description: `${data?.success ? '✅' : '❌'} ${latency}ms${simulated ? ' ⚠ Simulated' : ''}`,
@@ -205,7 +218,7 @@ function ConnectorsTab({ connectors, loading, onRefresh }: {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {connectors.map((c: any) => {
+          {connectors.map((c) => {
             const Icon = connectorIcon(c.connectorType ?? '');
             return (
               <Card key={c.id} className="bg-slate-800 border-slate-700">
@@ -217,7 +230,7 @@ function ConnectorsTab({ connectors, loading, onRefresh }: {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <StatusDot status={c.status ?? 'unconfigured'} />
-                        <span className="text-white font-medium text-sm truncate">{c.name ?? '—'}</span>
+                        <span className="text-white font-medium text-sm truncate">{c.nameEn ?? '—'}</span>
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
                         <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400 capitalize">
@@ -280,12 +293,11 @@ function ConnectorsTab({ connectors, loading, onRefresh }: {
 
 // ─── Health Monitor Tab ───────────────────────────────────────────────────────
 
-function HealthMonitorTab({ connectors }: { connectors: any[] }) {
+function HealthMonitorTab({ connectors }: { connectors: IntegrationConnector[] }) {
   const { t } = useLanguage();
   const { toast } = useToast();
+  const testMut = useTestIntegrationConnector();
   const [selectedId, setSelectedId] = useState<string>('');
-  const [health, setHealth] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [testingAll, setTestingAll] = useState(false);
 
   useEffect(() => {
@@ -294,15 +306,12 @@ function HealthMonitorTab({ connectors }: { connectors: any[] }) {
     }
   }, [connectors, selectedId]);
 
-  useEffect(() => {
-    if (!selectedId) return;
-    setLoading(true);
-    apiFetch(`/api/integration-connectors/${selectedId}/health`)
-      .then(r => r.json())
-      .then(d => setHealth(Array.isArray(d) ? d : d?.tests ?? d?.history ?? []))
-      .catch(() => setHealth([]))
-      .finally(() => setLoading(false));
-  }, [selectedId]);
+  const numericId = selectedId ? Number(selectedId) : 0;
+  const healthQuery = useGetConnectorHealth(numericId, undefined, {
+    query: { enabled: !!selectedId, queryKey: getGetConnectorHealthQueryKey(numericId) },
+  });
+  const health: ConnectionHealthLog[] = healthQuery.data ?? [];
+  const loading = healthQuery.isLoading && !!selectedId;
 
   async function handleTestAll() {
     setTestingAll(true);
@@ -310,16 +319,17 @@ function HealthMonitorTab({ connectors }: { connectors: any[] }) {
     let fail = 0;
     await Promise.allSettled(
       connectors.map(c =>
-        apiFetch(`/api/integration-connectors/${c.id}/test`, { method: 'POST' })
+        testMut.mutateAsync({ id: c.id })
           .then(() => ok++)
           .catch(() => fail++)
       )
     );
     toast({ title: t('Test All complete', 'اكتمل اختبار الكل'), description: `✅ ${ok}  ❌ ${fail}` });
     setTestingAll(false);
+    healthQuery.refetch();
   }
 
-  const maxLatency = Math.max(...health.map((h: any) => h.latencyMs ?? 0), 1);
+  const maxLatency = Math.max(...health.map(h => h.latencyMs ?? 0), 1);
 
   return (
     <div className="space-y-4">
@@ -330,7 +340,7 @@ function HealthMonitorTab({ connectors }: { connectors: any[] }) {
           </SelectTrigger>
           <SelectContent>
             {connectors.map(c => (
-              <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              <SelectItem key={c.id} value={String(c.id)}>{c.nameEn}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -353,7 +363,7 @@ function HealthMonitorTab({ connectors }: { connectors: any[] }) {
           ) : health.length === 0 ? (
             <p className="text-center text-slate-500 py-8">{t('No health history', 'لا يوجد سجل صحة')}</p>
           ) : (
-            health.map((h: any, i: number) => (
+            health.map((h, i) => (
               <div key={i} className="flex items-center gap-3 py-2 border-b border-slate-700 last:border-0">
                 {h.success ? (
                   <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -362,7 +372,7 @@ function HealthMonitorTab({ connectors }: { connectors: any[] }) {
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-300 text-xs">{fmtDate(h.testedAt ?? h.timestamp)}</span>
+                    <span className="text-slate-300 text-xs">{fmtDate(h.testedAt)}</span>
                     {h.errorMessage && (
                       <span className="text-red-400 text-xs truncate">{h.errorMessage}</span>
                     )}
@@ -390,28 +400,32 @@ function HealthMonitorTab({ connectors }: { connectors: any[] }) {
 
 // ─── Retry Queue Tab ──────────────────────────────────────────────────────────
 
-function RetryQueueTab() {
+function RetryQueueTab({ connectors }: { connectors: IntegrationConnector[] }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const queueQuery = useListIntegrationRetryQueue();
+  const items: IntegrationRetryQueue[] = queueQuery.data ?? [];
+  const loading = queueQuery.isLoading;
+  const retryMut = useRetryIntegrationQueueEntry();
+  const abandonMut = useAbandonIntegrationQueueEntry();
+  const clearMut = useClearAbandonedRetryQueue();
 
-  function loadItems() {
-    setLoading(true);
-    apiFetch('/api/integration-retry-queue')
-      .then(r => r.json())
-      .then(d => setItems(Array.isArray(d) ? d : d?.data ?? []))
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
+  const connectorName = useMemo(() => {
+    const map = new Map<number, string>();
+    connectors.forEach(c => map.set(c.id, c.nameEn));
+    return map;
+  }, [connectors]);
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: getListIntegrationRetryQueueQueryKey() });
   }
-
-  useEffect(() => { loadItems(); }, []);
 
   async function handleRetry(id: number) {
     try {
-      await apiFetch(`/api/integration-retry-queue/${id}/retry`, { method: 'POST' });
+      await retryMut.mutateAsync({ id });
       toast({ title: t('Retry queued', 'تمت إعادة المحاولة') });
-      loadItems();
+      invalidate();
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
     }
@@ -419,9 +433,9 @@ function RetryQueueTab() {
 
   async function handleAbandon(id: number) {
     try {
-      await apiFetch(`/api/integration-retry-queue/${id}`, { method: 'DELETE' });
+      await abandonMut.mutateAsync({ id });
       toast({ title: t('Abandoned', 'تم التخلي') });
-      loadItems();
+      invalidate();
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
     }
@@ -429,9 +443,9 @@ function RetryQueueTab() {
 
   async function handleClearAbandoned() {
     try {
-      await apiFetch('/api/integration-retry-queue/clear-abandoned', { method: 'POST' });
+      await clearMut.mutateAsync();
       toast({ title: t('Cleared abandoned items', 'تم مسح العناصر المتروكة') });
-      loadItems();
+      invalidate();
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
     }
@@ -444,7 +458,7 @@ function RetryQueueTab() {
           <Trash2 className="w-4 h-4 me-1" />
           {t('Clear Abandoned', 'مسح المتروكة')}
         </Button>
-        <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={loadItems}>
+        <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={() => queueQuery.refetch()}>
           <RefreshCw className="w-4 h-4 me-1" />
           {t('Refresh', 'تحديث')}
         </Button>
@@ -479,11 +493,11 @@ function RetryQueueTab() {
                       </TableCell>
                     </TableRow>
                   )
-                  : items.map((item: any) => (
+                  : items.map((item) => (
                     <TableRow key={item.id} className="border-slate-700 hover:bg-slate-700/40">
-                      <TableCell className="text-white">{item.connectorName ?? item.connector ?? '—'}</TableCell>
-                      <TableCell className="text-slate-300 text-sm">{item.operation ?? '—'}</TableCell>
-                      <TableCell className="text-slate-300">{item.attempts ?? 0}</TableCell>
+                      <TableCell className="text-white">{connectorName.get(item.connectorId) ?? '—'}</TableCell>
+                      <TableCell className="text-slate-300 text-sm">{item.operationType ?? '—'}</TableCell>
+                      <TableCell className="text-slate-300">{item.attemptCount ?? 0}</TableCell>
                       <TableCell className="text-slate-300 text-sm">{fmtDate(item.nextRetryAt)}</TableCell>
                       <TableCell><StatusBadge status={item.status ?? 'pending'} /></TableCell>
                       <TableCell>
@@ -508,28 +522,25 @@ function RetryQueueTab() {
 
 // ─── Event Log Tab ────────────────────────────────────────────────────────────
 
-function EventLogTab({ connectors }: { connectors: any[] }) {
+function EventLogTab({ connectors }: { connectors: IntegrationConnector[] }) {
   const { t } = useLanguage();
-  const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [connectorFilter, setConnectorFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
-  const loadEvents = useCallback(() => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (connectorFilter !== 'all') params.set('connectorId', connectorFilter);
-    if (typeFilter !== 'all') params.set('eventType', typeFilter);
-    apiFetch(`/api/integration-events?${params}`)
-      .then(r => r.json())
-      .then(d => setEvents(Array.isArray(d) ? d : d?.data ?? []))
-      .catch(() => setEvents([]))
-      .finally(() => setLoading(false));
-  }, [connectorFilter, typeFilter]);
+  const eventsQuery = useListIntegrationEvents({
+    ...(connectorFilter !== 'all' ? { connectorId: Number(connectorFilter) } : {}),
+    ...(typeFilter !== 'all' ? { eventType: typeFilter } : {}),
+  });
+  const events: IntegrationEvent[] = eventsQuery.data?.data ?? [];
+  const loading = eventsQuery.isLoading;
 
-  useEffect(() => { loadEvents(); }, [loadEvents]);
+  const connectorName = useMemo(() => {
+    const map = new Map<number, string>();
+    connectors.forEach(c => map.set(c.id, c.nameEn));
+    return map;
+  }, [connectors]);
 
-  const eventTypes = [...new Set(events.map((e: any) => e.eventType).filter(Boolean))];
+  const eventTypes = [...new Set(events.map(e => e.eventType).filter(Boolean))];
 
   return (
     <div className="space-y-4">
@@ -541,7 +552,7 @@ function EventLogTab({ connectors }: { connectors: any[] }) {
           <SelectContent>
             <SelectItem value="all">{t('All Connectors', 'كل الموصلات')}</SelectItem>
             {connectors.map(c => (
-              <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              <SelectItem key={c.id} value={String(c.id)}>{c.nameEn}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -589,10 +600,10 @@ function EventLogTab({ connectors }: { connectors: any[] }) {
                       </TableCell>
                     </TableRow>
                   )
-                  : events.map((ev: any, i: number) => (
+                  : events.map((ev, i) => (
                     <TableRow key={i} className="border-slate-700 hover:bg-slate-700/40">
-                      <TableCell className="text-slate-300 text-xs">{fmtDate(ev.timestamp ?? ev.createdAt)}</TableCell>
-                      <TableCell className="text-white text-sm">{ev.connectorName ?? '—'}</TableCell>
+                      <TableCell className="text-slate-300 text-xs">{fmtDate(ev.occurredAt)}</TableCell>
+                      <TableCell className="text-white text-sm">{ev.connectorId != null ? (connectorName.get(ev.connectorId) ?? '—') : '—'}</TableCell>
                       <TableCell className="text-slate-300 text-sm capitalize">{ev.eventType ?? '—'}</TableCell>
                       <TableCell>
                         {ev.direction === 'inbound' || ev.direction === 'in'
@@ -604,7 +615,7 @@ function EventLogTab({ connectors }: { connectors: any[] }) {
                           ? <CheckCircle className="w-4 h-4 text-emerald-500" />
                           : <XCircle className="w-4 h-4 text-red-500" />}
                       </TableCell>
-                      <TableCell className="text-slate-400 text-xs max-w-[200px] truncate">{ev.message ?? '—'}</TableCell>
+                      <TableCell className="text-slate-400 text-xs max-w-[200px] truncate">{ev.messageEn ?? '—'}</TableCell>
                       <TableCell className="text-slate-400 text-xs">{ev.durationMs != null ? `${ev.durationMs}ms` : '—'}</TableCell>
                     </TableRow>
                   ))}
@@ -620,19 +631,14 @@ function EventLogTab({ connectors }: { connectors: any[] }) {
 
 export default function IntegrationCenter() {
   const { t } = useLanguage();
-  const [connectors, setConnectors] = useState<any[]>([]);
-  const [connLoading, setConnLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const connectorsQuery = useListIntegrationConnectors();
+  const connectors: IntegrationConnector[] = connectorsQuery.data ?? [];
+  const connLoading = connectorsQuery.isLoading;
 
   function loadConnectors() {
-    setConnLoading(true);
-    apiFetch('/api/integration-connectors')
-      .then(r => r.json())
-      .then(d => setConnectors(Array.isArray(d) ? d : d?.data ?? []))
-      .catch(() => setConnectors([]))
-      .finally(() => setConnLoading(false));
+    queryClient.invalidateQueries({ queryKey: getListIntegrationConnectorsQueryKey() });
   }
-
-  useEffect(() => { loadConnectors(); }, []);
 
   return (
     <AnimatedPage>
@@ -673,7 +679,7 @@ export default function IntegrationCenter() {
           </TabsContent>
 
           <TabsContent value="retry" className="mt-4">
-            <RetryQueueTab />
+            <RetryQueueTab connectors={connectors} />
           </TabsContent>
 
           <TabsContent value="events" className="mt-4">

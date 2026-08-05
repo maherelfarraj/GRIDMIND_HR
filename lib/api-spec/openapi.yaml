@@ -9667,8 +9667,1533 @@ paths:
                   deleted: { type: boolean }
                 required: [deleted]
 
+  # ─── System Diagnostics ─────────────────────────────────────
+  /diagnostics:
+    get:
+      operationId: getDiagnostics
+      tags: [ DeploymentOps ]
+      summary: Latest system health check run
+      responses:
+        "200":
+          description: Latest diagnostics run
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SystemHealthCheck"
+                  summary:
+                    type: object
+                    properties:
+                      pass: { type: number }
+                      warn: { type: number }
+                      fail: { type: number }
+                      total: { type: number }
+                    required: [ pass, warn, fail, total ]
+                  runId: { type: [ "string", "null" ] }
+                  runAt: { type: [ "string", "null" ] }
+                required: [ checks, summary ]
+
+  /diagnostics/run:
+    post:
+      operationId: runDiagnostics
+      tags: [ DeploymentOps ]
+      summary: Run a new batch of system health checks
+      responses:
+        "201":
+          description: Diagnostics run results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SystemHealthCheck"
+                  summary:
+                    type: object
+                    properties:
+                      pass: { type: number }
+                      warn: { type: number }
+                      fail: { type: number }
+                      total: { type: number }
+                    required: [ pass, warn, fail, total ]
+                  runId: { type: string }
+                  runAt: { type: string }
+                  simulated: { type: boolean }
+                required: [ checks, summary, runId, runAt ]
+
+  # ─── Go-Live Gates ──────────────────────────────────────────
+  /go-live-gates:
+    get:
+      operationId: listGoLiveGates
+      tags: [ DeploymentOps ]
+      summary: List all go-live gates grouped by category
+      responses:
+        "200":
+          description: Gates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GoLiveGate"
+                  grouped:
+                    type: object
+                    additionalProperties:
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/GoLiveGate"
+                required: [ gates, grouped ]
+
+  /go-live-gates/summary:
+    get:
+      operationId: getGoLiveGatesSummary
+      tags: [ DeploymentOps ]
+      summary: Go-live gate rollup summary
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalGates: { type: number }
+                  passed: { type: number }
+                  failed: { type: number }
+                  warnings: { type: number }
+                  blocked: { type: number }
+                  criticalBlockers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: number }
+                        gateCode: { type: string }
+                        titleEn: { type: string }
+                        severity: { type: string }
+                        status: { type: string }
+                        blockerDescriptionEn: { type: [ "string", "null" ] }
+                      required: [ id, gateCode, titleEn, severity, status ]
+                  isReadyForGoLive: { type: boolean }
+                required: [ totalGates, passed, failed, warnings, blocked, criticalBlockers, isReadyForGoLive ]
+
+  /go-live-gates/evaluate:
+    post:
+      operationId: evaluateGoLiveGates
+      tags: [ DeploymentOps ]
+      summary: Re-evaluate all automated go-live gates
+      responses:
+        "200":
+          description: Evaluation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  evaluated: { type: number }
+                  passed: { type: number }
+                  failed: { type: number }
+                  gates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GoLiveGate"
+                required: [ evaluated, passed, failed, gates ]
+
+  /go-live-gates/{gateCode}/override:
+    post:
+      operationId: overrideGoLiveGate
+      tags: [ DeploymentOps ]
+      summary: Manually override a go-live gate
+      parameters:
+        - { name: gateCode, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+              required: [ reason ]
+      responses:
+        "200":
+          description: Overridden gate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoLiveGate"
+        "404":
+          description: Not found
+
+  # ─── Readiness Scorecard ────────────────────────────────────
+  /readiness-scorecard:
+    get:
+      operationId: listReadinessScorecard
+      tags: [ DeploymentOps ]
+      summary: List readiness scorecards per module
+      responses:
+        "200":
+          description: Scorecards
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReadinessScorecard"
+
+  /readiness-scorecard/recalculate:
+    post:
+      operationId: recalculateReadinessScorecard
+      tags: [ DeploymentOps ]
+      summary: Recalculate all module scorecards
+      responses:
+        "200":
+          description: Recalculated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recalculated: { type: number }
+                  scorecards:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReadinessScorecard"
+                required: [ recalculated, scorecards ]
+
+  # ─── Pilot Defects ──────────────────────────────────────────
+  /pilot-defects:
+    get:
+      operationId: listPilotDefects
+      tags: [ DeploymentOps ]
+      summary: List pilot defects
+      parameters:
+        - { name: module, in: query, schema: { type: [ "string", "null" ] } }
+        - { name: severity, in: query, schema: { type: [ "string", "null" ] } }
+        - { name: status, in: query, schema: { type: [ "string", "null" ] } }
+        - { name: isBlocker, in: query, schema: { type: [ "string", "null" ] } }
+      responses:
+        "200":
+          description: Defects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PilotDefect"
+    post:
+      operationId: createPilotDefect
+      tags: [ DeploymentOps ]
+      summary: Report a pilot defect
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                module: { type: string }
+                titleEn: { type: string }
+                titleAr: { type: [ "string", "null" ] }
+                descriptionEn: { type: [ "string", "null" ] }
+                stepsToReproduce: { type: [ "string", "null" ] }
+                severity: { type: [ "string", "null" ] }
+                isGoLiveBlocker: { type: [ "boolean", "null" ] }
+                relatedGateCode: { type: [ "string", "null" ] }
+                sourceTestCode: { type: [ "string", "null" ] }
+                assignedToUserId: { type: [ "number", "null" ] }
+              required: [ module, titleEn ]
+      responses:
+        "201":
+          description: Created defect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PilotDefect"
+
+  # ─── Migration Status ───────────────────────────────────────
+  /migration-status:
+    get:
+      operationId: listMigrationStatus
+      tags: [ DeploymentOps ]
+      summary: List data migration items
+      responses:
+        "200":
+          description: Migration items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MigrationStatus"
+
+  /migration-status/summary:
+    get:
+      operationId: getMigrationStatusSummary
+      tags: [ DeploymentOps ]
+      summary: Migration progress rollup
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: number }
+                  complete: { type: number }
+                  incomplete: { type: number }
+                  blockers: { type: number }
+                  byStatus:
+                    type: object
+                    properties:
+                      not_started: { type: number }
+                      in_progress: { type: number }
+                      complete: { type: number }
+                      failed: { type: number }
+                      skipped: { type: number }
+                    required: [ not_started, in_progress, complete, failed, skipped ]
+                required: [ total, complete, incomplete, blockers, byStatus ]
+
+  # ─── Restore Tests ──────────────────────────────────────────
+  /restore-tests:
+    post:
+      operationId: runRestoreTest
+      tags: [ DeploymentOps ]
+      summary: Run a backup restore test
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                backupRecordId: { type: [ "number", "null" ] }
+                notes: { type: [ "string", "null" ] }
+      responses:
+        "201":
+          description: Restore test outcome
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/RestoreTestResult"
+                  - type: object
+                    properties:
+                      backupRecord:
+                        $ref: "#/components/schemas/BackupRecord"
+
+  /restore-tests/latest:
+    get:
+      operationId: getLatestRestoreTests
+      tags: [ DeploymentOps ]
+      summary: Latest restore test per restore type
+      responses:
+        "200":
+          description: Latest restore tests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  latest:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RestoreTestResult"
+                required: [ latest ]
+
+  /admin/backup:
+    get:
+      operationId: getLatestBackup
+      tags: [ DeploymentOps ]
+      summary: Most recent backup record
+      responses:
+        "200":
+          description: Latest backup
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  backup:
+                    oneOf:
+                      - $ref: "#/components/schemas/BackupRecord"
+                      - type: "null"
+                required: [ backup ]
+
+  # ─── UAT Scripts & Test Runs ────────────────────────────────
+  /uat-scripts:
+    get:
+      operationId: listUatScripts
+      tags: [ DeploymentOps ]
+      summary: List active UAT scripts
+      parameters:
+        - { name: role, in: query, schema: { type: [ "string", "null" ] } }
+        - { name: module, in: query, schema: { type: [ "string", "null" ] } }
+      responses:
+        "200":
+          description: UAT scripts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UatScript"
+
+  /uat-test-runs:
+    get:
+      operationId: listUatTestRuns
+      tags: [ DeploymentOps ]
+      summary: List UAT test runs
+      responses:
+        "200":
+          description: UAT test runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UatTestRun"
+    post:
+      operationId: createUatTestRun
+      tags: [ DeploymentOps ]
+      summary: Start a UAT test run
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scriptId: { type: number }
+                testerUserId: { type: [ "number", "null" ] }
+                testerRole: { type: [ "string", "null" ] }
+                testerNameEn: { type: [ "string", "null" ] }
+                browserInfo: { type: [ "string", "null" ] }
+                environment: { type: [ "string", "null" ] }
+              required: [ scriptId ]
+      responses:
+        "201":
+          description: Created run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UatTestRun"
+
+  /uat-test-runs/summary:
+    get:
+      operationId: getUatTestRunsSummary
+      tags: [ DeploymentOps ]
+      summary: UAT run rollup
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalRuns: { type: number }
+                  passed: { type: number }
+                  failed: { type: number }
+                  rolesCovered:
+                    type: array
+                    items: { type: string }
+                required: [ totalRuns, passed, failed, rolesCovered ]
+
+  /uat-test-runs/{id}/steps/{stepNumber}:
+    patch:
+      operationId: updateUatTestRunStep
+      tags: [ DeploymentOps ]
+      summary: Record a step result within a UAT run
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+        - { name: stepNumber, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                result: { type: string }
+                actualResultEn: { type: [ "string", "null" ] }
+                notes: { type: [ "string", "null" ] }
+                defectId: { type: [ "number", "null" ] }
+              required: [ result ]
+      responses:
+        "200":
+          description: Updated step
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UatTestRunStep"
+
+  /uat-test-runs/{id}/complete:
+    post:
+      operationId: completeUatTestRun
+      tags: [ DeploymentOps ]
+      summary: Complete a UAT run and compute overall result
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                overallNotes: { type: [ "string", "null" ] }
+      responses:
+        "200":
+          description: Completed run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UatTestRun"
+
+  # ─── Security Tests ─────────────────────────────────────────
+  /security-test-scenarios:
+    get:
+      operationId: listSecurityTestScenarios
+      tags: [ DeploymentOps ]
+      summary: List security test scenarios
+      responses:
+        "200":
+          description: Scenarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SecurityTestScenario"
+
+  /security-test-runs:
+    get:
+      operationId: listSecurityTestRuns
+      tags: [ DeploymentOps ]
+      summary: List security test runs
+      responses:
+        "200":
+          description: Runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SecurityTestRun"
+    post:
+      operationId: createSecurityTestRun
+      tags: [ DeploymentOps ]
+      summary: Trigger an automated security test run
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                runLabel: { type: [ "string", "null" ] }
+                runType: { type: [ "string", "null" ] }
+      responses:
+        "201":
+          description: Run outcome
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runId: { type: number }
+                  findings:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SecurityTestFinding"
+                  overallPosture: { type: string }
+                  run:
+                    $ref: "#/components/schemas/SecurityTestRun"
+                required: [ runId, findings, overallPosture, run ]
+
+  /security-test-runs/{id}:
+    get:
+      operationId: getSecurityTestRun
+      tags: [ DeploymentOps ]
+      summary: Get a security test run with findings
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Run with findings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SecurityTestRun"
+                  - type: object
+                    properties:
+                      findings:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/SecurityTestFinding"
+                    required: [ findings ]
+        "404":
+          description: Not found
+
+  /gateway/registrations/{id}/revoke:
+    post:
+      operationId: revokeGatewayRegistration
+      tags: [ devices ]
+      summary: Revoke a gateway registration
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Revoked registration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayRegistration"
+        "404":
+          description: Not found
+
+  /gateway/batches:
+    get:
+      operationId: listGatewayBatches
+      tags: [ devices ]
+      summary: List punch import batches
+      parameters:
+        - { name: registrationId, in: query, schema: { type: [ "integer", "null" ] } }
+        - { name: limit, in: query, schema: { type: [ "integer", "null" ] } }
+      responses:
+        "200":
+          description: Batches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PunchImportBatch"
+
+  /gateway/reconcile-status:
+    get:
+      operationId: getGatewayReconcileStatus
+      tags: [ devices ]
+      summary: Latest reconciliation status per registration
+      responses:
+        "200":
+          description: Reconcile status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    registrationId: { type: [ "number", "null" ] }
+                    registrationName: { type: [ "string", "null" ] }
+                    reconciledAt: { type: [ "string", "null" ] }
+                    checked: { type: number }
+                    missing:
+                      type: array
+                      items: { type: string }
+                    mismatched:
+                      type: array
+                      items: { type: string }
+                  required: [ checked, missing, mismatched ]
+
+  # ─── Device Mappings ────────────────────────────────────────
+  /device-mappings:
+    get:
+      operationId: listDeviceMappings
+      tags: [ devices ]
+      summary: List device-employee biometric mappings
+      parameters:
+        - { name: deviceId, in: query, schema: { type: [ "integer", "null" ] } }
+        - { name: employeeId, in: query, schema: { type: [ "integer", "null" ] } }
+      responses:
+        "200":
+          description: Mappings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceMappingView"
+
+  /devices/{id}/mappings:
+    get:
+      operationId: getDeviceMappings
+      tags: [ devices ]
+      summary: List mappings for a device
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Mappings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceMappingView"
+    post:
+      operationId: createDeviceMapping
+      tags: [ devices ]
+      summary: Enroll an employee on a device
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                employeeId: { type: number }
+                accessLevel: { type: [ "string", "null" ] }
+                biometricType: { type: [ "string", "null" ] }
+                enrolledAt: { type: [ "string", "null" ] }
+                enrolledByUserId: { type: [ "number", "null" ] }
+                notes: { type: [ "string", "null" ] }
+              required: [ employeeId ]
+      responses:
+        "201":
+          description: Created mapping
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceMappingView"
+
+  /devices/{deviceId}/mappings/{employeeId}:
+    delete:
+      operationId: deleteDeviceMapping
+      tags: [ devices ]
+      summary: Remove an employee mapping from a device
+      parameters:
+        - { name: deviceId, in: path, required: true, schema: { type: number } }
+        - { name: employeeId, in: path, required: true, schema: { type: number } }
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── Attendance Corrections ─────────────────────────────────
+  /attendance/corrections:
+    get:
+      operationId: listAttendanceCorrections
+      tags: [ attendance ]
+      summary: List attendance correction requests
+      parameters:
+        - { name: status, in: query, schema: { type: [ "string", "null" ] } }
+      responses:
+        "200":
+          description: Corrections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceCorrectionView"
+
+  /attendance/{id}/correction:
+    post:
+      operationId: createAttendanceCorrection
+      tags: [ attendance ]
+      summary: Request a correction for an attendance record
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                employeeId: { type: [ "number", "null" ] }
+                correctionType: { type: string }
+                originalValue: { type: [ "string", "null" ] }
+                requestedValue: { type: string }
+                reason: { type: string }
+                requestedByUserId: { type: [ "number", "null" ] }
+              required: [ correctionType, requestedValue, reason ]
+      responses:
+        "201":
+          description: Created correction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceCorrectionView"
+
+  /attendance/corrections/{id}/decision:
+    patch:
+      operationId: decideAttendanceCorrection
+      tags: [ attendance ]
+      summary: Approve or reject a correction request
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision: { type: string, enum: [ approved, rejected ] }
+                reviewNote: { type: [ "string", "null" ] }
+                reviewedByUserId: { type: [ "number", "null" ] }
+              required: [ decision ]
+      responses:
+        "200":
+          description: Decided correction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceCorrectionView"
+        "404":
+          description: Not found
+
+  # ─── Integration Governance ─────────────────────────────────
+  /integration-governance/connection-profiles:
+    get:
+      operationId: listConnectionProfiles
+      tags: [ DeploymentOps ]
+      summary: List integration connection profiles
+      parameters:
+        - { name: orgId, in: query, schema: { type: [ "integer", "null" ] } }
+        - { name: governanceStatus, in: query, schema: { type: [ "string", "null" ] } }
+        - { name: integrationType, in: query, schema: { type: [ "string", "null" ] } }
+      responses:
+        "200":
+          description: Profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntegrationConnectionProfile"
+    post:
+      operationId: createConnectionProfile
+      tags: [ DeploymentOps ]
+      summary: Create a connection profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "201":
+          description: Created profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationConnectionProfile"
+
+  /integration-governance/connection-profiles/{id}:
+    get:
+      operationId: getConnectionProfile
+      tags: [ DeploymentOps ]
+      summary: Get a connection profile
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationConnectionProfile"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateConnectionProfile
+      tags: [ DeploymentOps ]
+      summary: Update a connection profile
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationConnectionProfile"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteConnectionProfile
+      tags: [ DeploymentOps ]
+      summary: Delete a connection profile
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                required: [ success ]
+
+  /integration-governance/connection-profiles/{id}/test:
+    post:
+      operationId: testConnectionProfile
+      tags: [ DeploymentOps ]
+      summary: Test a connection profile
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                testRecipient: { type: [ "string", "null" ] }
+      responses:
+        "200":
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  latencyMs: { type: number }
+                  simulated: { type: boolean }
+                  testedAt: { type: string }
+                required: [ success, message, latencyMs, simulated, testedAt ]
+
+  /integration-governance/connection-profiles/{id}/approve:
+    post:
+      operationId: approveConnectionProfile
+      tags: [ DeploymentOps ]
+      summary: Approve a connection profile
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approvalNotes: { type: [ "string", "null" ] }
+      responses:
+        "200":
+          description: Approved profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationConnectionProfile"
+
+  /integration-governance/connection-profiles/{id}/suspend:
+    post:
+      operationId: suspendConnectionProfile
+      tags: [ DeploymentOps ]
+      summary: Suspend a connection profile
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: [ "string", "null" ] }
+      responses:
+        "200":
+          description: Suspended profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationConnectionProfile"
+
+  /integration-governance/credential-vault-refs:
+    get:
+      operationId: listCredentialVaultRefs
+      tags: [ DeploymentOps ]
+      summary: List credential vault references
+      responses:
+        "200":
+          description: Vault refs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntegrationCredentialVaultRef"
+
+  /integration-governance/governance-rules:
+    get:
+      operationId: listGovernanceRules
+      tags: [ DeploymentOps ]
+      summary: List integration governance rules
+      parameters:
+        - { name: orgId, in: query, schema: { type: [ "integer", "null" ] } }
+        - { name: integrationType, in: query, schema: { type: [ "string", "null" ] } }
+      responses:
+        "200":
+          description: Rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntegrationGovernanceRule"
+
+  /integration-governance/governance-rules/{id}:
+    patch:
+      operationId: updateGovernanceRule
+      tags: [ DeploymentOps ]
+      summary: Update a governance rule
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Updated rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationGovernanceRule"
+        "404":
+          description: Not found
+
+  /integration-governance/audit-log:
+    get:
+      operationId: listIntegrationAuditLog
+      tags: [ DeploymentOps ]
+      summary: List integration governance audit log entries
+      parameters:
+        - { name: profileId, in: query, schema: { type: [ "integer", "null" ] } }
+        - { name: page, in: query, schema: { type: [ "integer", "null" ] } }
+        - { name: pageSize, in: query, schema: { type: [ "integer", "null" ] } }
+      responses:
+        "200":
+          description: Audit log
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IntegrationAuditLog"
+                  page: { type: number }
+                  pageSize: { type: number }
+                required: [ data, page, pageSize ]
+
+  /integration-governance/health-checks/run:
+    post:
+      operationId: runIntegrationHealthChecks
+      tags: [ DeploymentOps ]
+      summary: Run integration health checks now
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force: { type: [ "boolean", "null" ] }
+      responses:
+        "200":
+          description: Health check run result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  # ─── Policy Governance ──────────────────────────────────────
+  /policy-change-requests:
+    get:
+      operationId: listPolicyChangeRequests
+      tags: [ DeploymentOps ]
+      summary: List policy change requests
+      parameters:
+        - { name: status, in: query, schema: { type: [ "string", "null" ] } }
+        - { name: policyArea, in: query, schema: { type: [ "string", "null" ] } }
+        - { name: orgId, in: query, schema: { type: [ "integer", "null" ] } }
+      responses:
+        "200":
+          description: Change requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyChangeRequest"
+    post:
+      operationId: createPolicyChangeRequest
+      tags: [ DeploymentOps ]
+      summary: Create a policy change request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "201":
+          description: Created request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyChangeRequest"
+
+  /policy-change-requests/{id}/submit:
+    patch:
+      operationId: submitPolicyChangeRequest
+      tags: [ DeploymentOps ]
+      summary: Submit a draft change request for review
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Submitted request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyChangeRequest"
+        "404":
+          description: Not found
+
+  /policy-change-requests/{id}/withdraw:
+    patch:
+      operationId: withdrawPolicyChangeRequest
+      tags: [ DeploymentOps ]
+      summary: Withdraw a change request
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Withdrawn request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyChangeRequest"
+        "404":
+          description: Not found
+
+  /policy-change-requests/{id}/approve:
+    patch:
+      operationId: approvePolicyChangeRequest
+      tags: [ DeploymentOps ]
+      summary: Approve a change request
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                checkerComment: { type: [ "string", "null" ] }
+      responses:
+        "200":
+          description: Approved request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyChangeRequest"
+        "404":
+          description: Not found
+
+  /policy-change-requests/{id}/reject:
+    patch:
+      operationId: rejectPolicyChangeRequest
+      tags: [ DeploymentOps ]
+      summary: Reject a change request
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                checkerComment: { type: [ "string", "null" ] }
+      responses:
+        "200":
+          description: Rejected request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyChangeRequest"
+        "404":
+          description: Not found
+
+  /policy-versions/{id}/rollback:
+    post:
+      operationId: rollbackPolicyVersion
+      tags: [ DeploymentOps ]
+      summary: Roll back to a previous policy version
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: [ "string", "null" ] }
+      responses:
+        "200":
+          description: New policy version created by the rollback
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyVersion"
+        "404":
+          description: Not found
+
+  # ─── Policy Localization ────────────────────────────────────
+  /numbering-schemes:
+    get:
+      operationId: listNumberingSchemes
+      tags: [ DeploymentOps ]
+      summary: List numbering schemes
+      parameters:
+        - { name: orgId, in: query, schema: { type: [ "integer", "null" ] } }
+      responses:
+        "200":
+          description: Schemes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NumberingScheme"
+    post:
+      operationId: createNumberingScheme
+      tags: [ DeploymentOps ]
+      summary: Create a numbering scheme
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "201":
+          description: Created scheme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NumberingScheme"
+
+  /numbering-schemes/{id}/increment:
+    post:
+      operationId: incrementNumberingScheme
+      tags: [ DeploymentOps ]
+      summary: Generate the next number from a scheme
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Next number
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nextNumber: { type: string }
+                  sequence: { type: number }
+                required: [ nextNumber, sequence ]
+        "404":
+          description: Not found
+
+  /employment-type-configs:
+    get:
+      operationId: listEmploymentTypeConfigs
+      tags: [ DeploymentOps ]
+      summary: List employment type configurations
+      parameters:
+        - { name: orgId, in: query, schema: { type: [ "integer", "null" ] } }
+      responses:
+        "200":
+          description: Employment types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmploymentTypeConfig"
+    post:
+      operationId: createEmploymentTypeConfig
+      tags: [ DeploymentOps ]
+      summary: Create an employment type configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [ orgId, employmentType, labelEn, labelAr ]
+              properties:
+                orgId: { type: integer }
+                employmentType: { type: string }
+                labelEn: { type: string }
+                labelAr: { type: string }
+                eligibleLeave: { type: boolean }
+                eligiblePayroll: { type: boolean }
+                eligibleBenefits: { type: boolean }
+                eligiblePension: { type: boolean }
+                probationEnabled: { type: boolean }
+                probationDays: { type: integer }
+                defaultContractMonths: { type: [ "integer", "null" ] }
+                maxRenewals: { type: [ "integer", "null" ] }
+                applicableOrgTypesJson: { type: string }
+                isActive: { type: boolean }
+                sortOrder: { type: integer }
+      responses:
+        "201":
+          description: Created employment type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmploymentTypeConfig"
+
+  /retention-rules:
+    get:
+      operationId: listRetentionRules
+      tags: [ DeploymentOps ]
+      summary: List data retention rules
+      parameters:
+        - { name: orgId, in: query, schema: { type: [ "integer", "null" ] } }
+      responses:
+        "200":
+          description: Retention rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RetentionRule"
+    post:
+      operationId: createRetentionRule
+      tags: [ DeploymentOps ]
+      summary: Create a retention rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "201":
+          description: Created rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionRule"
+
+  /policy-locales:
+    get:
+      operationId: listPolicyLocales
+      tags: [ DeploymentOps ]
+      summary: List policy locale settings
+      parameters:
+        - { name: orgId, in: query, schema: { type: [ "integer", "null" ] } }
+      responses:
+        "200":
+          description: Policy locales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyLocale"
+    post:
+      operationId: createPolicyLocale
+      tags: [ DeploymentOps ]
+      summary: Create a policy locale
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "201":
+          description: Created locale
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyLocale"
+
+  /policy-locales/{id}:
+    patch:
+      operationId: updatePolicyLocale
+      tags: [ DeploymentOps ]
+      summary: Update a policy locale
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Updated locale
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyLocale"
+        "404":
+          description: Not found
+
+  # ─── Org Branding & Report Templates ────────────────────────
+  /org-report-templates:
+    get:
+      operationId: listOrgReportTemplates
+      tags: [ Reports ]
+      summary: List organization report templates
+      parameters:
+        - { name: orgId, in: query, schema: { type: [ "integer", "null" ] } }
+        - { name: templateType, in: query, schema: { type: [ "string", "null" ] } }
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgReportTemplate"
+    post:
+      operationId: createOrgReportTemplate
+      tags: [ Reports ]
+      summary: Create an organization report template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "201":
+          description: Created template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgReportTemplate"
+
+  /organization-branding/{orgId}:
+    get:
+      operationId: getOrganizationBranding
+      tags: [ Reports ]
+      summary: Get branding for an organization
+      parameters:
+        - { name: orgId, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Branding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationBranding"
+        "404":
+          description: Not found
+    put:
+      operationId: upsertOrganizationBranding
+      tags: [ Reports ]
+      summary: Create or update branding for an organization
+      parameters:
+        - { name: orgId, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Upserted branding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationBranding"
+
 components:
   schemas:
+
+    # ── Enriched read views (non-table shapes) ──────────────────────────
+    DeviceMappingView:
+      type: object
+      description: Device-employee mapping enriched with employee and device display fields.
+      properties:
+        id: { type: integer }
+        deviceId: { type: integer }
+        employeeId: { type: integer }
+        accessLevel: { type: string }
+        biometricType: { type: string }
+        enrolledAt: { type: [ "string", "null" ] }
+        enrolledByUserId: { type: [ "integer", "null" ] }
+        notes: { type: [ "string", "null" ] }
+        employeeNameEn: { type: [ "string", "null" ] }
+        employeeNameAr: { type: [ "string", "null" ] }
+        employeeNumber: { type: [ "string", "null" ] }
+        jobTitleEn: { type: [ "string", "null" ] }
+        deviceName: { type: [ "string", "null" ] }
+        deviceLocation: { type: [ "string", "null" ] }
+        enrolledByName: { type: [ "string", "null" ] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [ id, deviceId, employeeId, accessLevel, biometricType, createdAt, updatedAt ]
+
+    AttendanceCorrectionView:
+      allOf:
+        - $ref: "#/components/schemas/AttendanceCorrection"
+        - type: object
+          properties:
+            employeeNameEn: { type: [ "string", "null" ] }
+            employeeNameAr: { type: [ "string", "null" ] }
+            employeeNumber: { type: [ "string", "null" ] }
+            recordDate: { type: [ "string", "null" ] }
+            requestedByName: { type: [ "string", "null" ] }
+            reviewedByName: { type: [ "string", "null" ] }
     # ── Attendance Gateway (device integration) ────────────────────────────
     GatewayRegistration:
       type: object

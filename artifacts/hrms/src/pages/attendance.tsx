@@ -1,4 +1,3 @@
-import { apiFetch } from '@/lib/api';
 import { useMemo, useState } from 'react';
 import { useSearch, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
@@ -18,37 +17,15 @@ import { Calendar, Download, Filter, Clock, Fingerprint, Cpu, CheckCircle, XCirc
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
-
-interface DeviceMapping {
-  deviceId: number;
-  employeeId: number;
-  employeeNameEn: string;
-  employeeNameAr: string;
-  employeeNumber: string;
-  biometricType: string;
-  accessLevel: string;
-  enrolledAt: string;
-  isActive: boolean;
-  notes: string | null;
-}
-
-interface Correction {
-  id: number;
-  attendanceId: number;
-  employeeId: number;
-  employeeNameEn: string;
-  employeeNameAr: string;
-  correctionType: string;
-  originalValue: string;
-  requestedValue: string;
-  reason: string;
-  status: string;
-  requestedAt: string;
-  reviewedAt: string | null;
-  reviewedByUserId: number | null;
-  reviewedByUsername: string | null;
-  reviewNote: string | null;
-}
+import {
+  useListAttendanceCorrections, getListAttendanceCorrectionsQueryKey,
+  useCreateAttendanceCorrection,
+  useDecideAttendanceCorrection,
+  useListDeviceMappings, getListDeviceMappingsQueryKey,
+  useCreateDeviceMapping,
+  useDeleteDeviceMapping,
+  getListAttendanceQueryKey,
+} from '@workspace/api-client-react';
 
 export default function Attendance() {
   const { t, lang } = useLanguage();
@@ -96,22 +73,40 @@ export default function Attendance() {
   const [correctionType, setCorrectionType] = useState('');
   const [requestedValue, setRequestedValue] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
-  const [submittingCorrection, setSubmittingCorrection] = useState(false);
 
   const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
-  const [deviceMappings, setDeviceMappings] = useState<DeviceMapping[]>([]);
-  const [loadingMappings, setLoadingMappings] = useState(false);
   const [enrollDialog, setEnrollDialog] = useState(false);
   const [enrollEmployeeId, setEnrollEmployeeId] = useState('');
   const [enrollAccessLevel, setEnrollAccessLevel] = useState('standard');
   const [enrollBiometricType, setEnrollBiometricType] = useState('fingerprint');
-  const [enrolling, setEnrolling] = useState(false);
 
-  const [corrections, setCorrections] = useState<Correction[]>([]);
-  const [loadingCorrections, setLoadingCorrections] = useState(false);
+  const [correctionsEnabled, setCorrectionsEnabled] = useState(false);
   const [decidingId, setDecidingId] = useState<number | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [rejectDialogId, setRejectDialogId] = useState<number | null>(null);
+
+  const deviceMappingsParams = { deviceId: selectedDevice ?? undefined };
+  const {
+    data: deviceMappings = [],
+    isLoading: loadingMappings,
+  } = useListDeviceMappings(
+    deviceMappingsParams,
+    { query: { enabled: selectedDevice != null, queryKey: getListDeviceMappingsQueryKey(deviceMappingsParams) } },
+  );
+
+  const {
+    data: corrections = [],
+    isLoading: loadingCorrections,
+  } = useListAttendanceCorrections(undefined, {
+    query: { enabled: correctionsEnabled, queryKey: getListAttendanceCorrectionsQueryKey() },
+  });
+
+  const createCorrection = useCreateAttendanceCorrection();
+  const submittingCorrection = createCorrection.isPending;
+  const createMapping = useCreateDeviceMapping();
+  const enrolling = createMapping.isPending;
+  const deleteMapping = useDeleteDeviceMapping();
+  const decideCorrectionMut = useDecideAttendanceCorrection();
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -153,135 +148,82 @@ export default function Attendance() {
 
   const submitCorrection = async () => {
     if (!selectedAttendance || !correctionType || !requestedValue || !correctionReason) return;
-    
-    setSubmittingCorrection(true);
+
     try {
-      const res = await apiFetch(`/api/attendance/${selectedAttendance.id}/correction`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+      await createCorrection.mutateAsync({
+        id: selectedAttendance.id,
+        data: {
           employeeId: selectedAttendance.employeeId,
           correctionType,
-          originalValue: correctionType === 'check_in' ? selectedAttendance.checkInTime : 
+          originalValue: correctionType === 'check_in' ? selectedAttendance.checkInTime :
                           correctionType === 'check_out' ? selectedAttendance.checkOutTime : selectedAttendance.status,
           requestedValue,
           reason: correctionReason,
-        }),
+        },
       });
 
-      if (!res.ok) throw new Error('Failed to submit correction');
-      
       toast({ title: t('Success', 'نجاح'), description: t('Correction request submitted', 'تم إرسال طلب التصحيح') });
       setCorrectionDialog(false);
-      queryClient.invalidateQueries({ queryKey: ['listAttendance'] });
+      queryClient.invalidateQueries({ queryKey: getListAttendanceQueryKey() });
     } catch (error: any) {
       toast({ title: t('Error', 'خطأ'), description: error.message, variant: 'destructive' });
-    } finally {
-      setSubmittingCorrection(false);
-    }
-  };
-
-  const fetchDeviceMappings = async (deviceId: number) => {
-    setLoadingMappings(true);
-    try {
-      const res = await apiFetch(`/api/device-mappings?deviceId=${deviceId}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch mappings');
-      const data = await res.json();
-      setDeviceMappings(data);
-    } catch (error) {
-      toast({ title: t('Error', 'خطأ'), description: 'Failed to load device mappings', variant: 'destructive' });
-    } finally {
-      setLoadingMappings(false);
     }
   };
 
   const handleDeviceSelect = (deviceId: number) => {
     setSelectedDevice(deviceId);
-    fetchDeviceMappings(deviceId);
   };
 
   const enrollEmployee = async () => {
     if (!selectedDevice || !enrollEmployeeId) return;
-    
-    setEnrolling(true);
+
     try {
-      const res = await apiFetch(`/api/devices/${selectedDevice}/mappings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+      await createMapping.mutateAsync({
+        id: selectedDevice,
+        data: {
           employeeId: Number(enrollEmployeeId),
           accessLevel: enrollAccessLevel,
           biometricType: enrollBiometricType,
           enrolledAt: new Date().toISOString(),
           notes: null,
-        }),
+        },
       });
 
-      if (!res.ok) throw new Error('Failed to enroll employee');
-      
       toast({ title: t('Success', 'نجاح'), description: t('Employee enrolled successfully', 'تم تسجيل الموظف بنجاح') });
       setEnrollDialog(false);
       setEnrollEmployeeId('');
-      fetchDeviceMappings(selectedDevice);
+      queryClient.invalidateQueries({ queryKey: getListDeviceMappingsQueryKey({ deviceId: selectedDevice }) });
     } catch (error: any) {
       toast({ title: t('Error', 'خطأ'), description: error.message, variant: 'destructive' });
-    } finally {
-      setEnrolling(false);
     }
   };
 
   const removeMapping = async (deviceId: number, employeeId: number) => {
     try {
-      const res = await apiFetch(`/api/devices/${deviceId}/mappings/${employeeId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+      await deleteMapping.mutateAsync({ deviceId, employeeId });
 
-      if (!res.ok) throw new Error('Failed to remove mapping');
-      
       toast({ title: t('Success', 'نجاح'), description: t('Employee removed from device', 'تم إزالة الموظف من الجهاز') });
-      fetchDeviceMappings(deviceId);
+      queryClient.invalidateQueries({ queryKey: getListDeviceMappingsQueryKey({ deviceId }) });
     } catch (error: any) {
       toast({ title: t('Error', 'خطأ'), description: error.message, variant: 'destructive' });
-    }
-  };
-
-  const fetchCorrections = async (status?: string) => {
-    setLoadingCorrections(true);
-    try {
-      const url = status ? `/api/attendance/corrections?status=${status}` : '/api/attendance/corrections';
-      const res = await apiFetch(url, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch corrections');
-      const data = await res.json();
-      setCorrections(data);
-    } catch (error) {
-      toast({ title: t('Error', 'خطأ'), description: 'Failed to load corrections', variant: 'destructive' });
-    } finally {
-      setLoadingCorrections(false);
     }
   };
 
   const decideCorrection = async (id: number, decision: 'approved' | 'rejected', note?: string) => {
     setDecidingId(id);
     try {
-      const res = await apiFetch(`/api/attendance/corrections/${id}/decision`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ decision, reviewNote: note }),
+      await decideCorrectionMut.mutateAsync({
+        id,
+        data: { decision, reviewNote: note },
       });
 
-      if (!res.ok) throw new Error('Failed to decide correction');
-      
-      toast({ 
-        title: t('Success', 'نجاح'), 
-        description: decision === 'approved' 
-          ? t('Correction approved', 'تمت الموافقة على التصحيح') 
+      toast({
+        title: t('Success', 'نجاح'),
+        description: decision === 'approved'
+          ? t('Correction approved', 'تمت الموافقة على التصحيح')
           : t('Correction rejected', 'تم رفض التصحيح')
       });
-      fetchCorrections();
+      queryClient.invalidateQueries({ queryKey: getListAttendanceCorrectionsQueryKey() });
       setRejectDialogId(null);
       setRejectNote('');
     } catch (error: any) {
@@ -330,7 +272,7 @@ export default function Attendance() {
       )}
 
       <Tabs defaultValue="daily" className="w-full" onValueChange={(val) => {
-        if (val === 'corrections') fetchCorrections();
+        if (val === 'corrections') setCorrectionsEnabled(true);
       }}>
         <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="daily">{t('Daily Log', 'السجل اليومي')}</TabsTrigger>
@@ -619,7 +561,7 @@ export default function Attendance() {
                           {lang === 'en' ? correction.employeeNameEn : correction.employeeNameAr}
                         </TableCell>
                         <TableCell className="text-xs">
-                          {new Date(correction.requestedAt).toLocaleDateString()}
+                          {new Date(correction.createdAt).toLocaleDateString()}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="capitalize text-xs">
@@ -672,8 +614,8 @@ export default function Attendance() {
                             </div>
                           ) : (
                             <div className="text-xs text-muted-foreground">
-                              {correction.reviewedByUsername && (
-                                <p>{t('By', 'بواسطة')}: {correction.reviewedByUsername}</p>
+                              {correction.reviewedByName && (
+                                <p>{t('By', 'بواسطة')}: {correction.reviewedByName}</p>
                               )}
                               {correction.reviewedAt && (
                                 <p>{new Date(correction.reviewedAt).toLocaleDateString()}</p>
@@ -780,7 +722,8 @@ export default function Attendance() {
                     </TableHeader>
                     <TableBody>
                       {deviceMappings.map((mapping) => {
-                        const initials = (lang === 'en' ? mapping.employeeNameEn : mapping.employeeNameAr)
+                        const mappingName = (lang === 'en' ? mapping.employeeNameEn : mapping.employeeNameAr) ?? '';
+                        const initials = mappingName
                           .split(' ')
                           .map(n => n[0])
                           .join('')
@@ -815,14 +758,10 @@ export default function Attendance() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
-                              {new Date(mapping.enrolledAt).toLocaleDateString()}
+                              {mapping.enrolledAt ? new Date(mapping.enrolledAt).toLocaleDateString() : '-'}
                             </TableCell>
                             <TableCell>
-                              {mapping.isActive ? (
-                                <CheckCircle className="w-4 h-4 text-emerald-500" />
-                              ) : (
-                                <XCircle className="w-4 h-4 text-muted-foreground" />
-                              )}
+                              <CheckCircle className="w-4 h-4 text-emerald-500" />
                             </TableCell>
                             <TableCell className="text-end">
                               <Button

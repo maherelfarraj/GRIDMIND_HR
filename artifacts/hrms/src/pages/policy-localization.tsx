@@ -1,9 +1,21 @@
-import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useListOrganizations,
+  useListNumberingSchemes, useCreateNumberingScheme, useIncrementNumberingScheme,
+  useListEmploymentTypeConfigs, useCreateEmploymentTypeConfig,
+  useListRetentionRules, useCreateRetentionRule,
+  useListPolicyLocales, useCreatePolicyLocale, useUpdatePolicyLocale,
+  getListNumberingSchemesQueryKey, getListEmploymentTypeConfigsQueryKey,
+  getListRetentionRulesQueryKey, getListPolicyLocalesQueryKey,
+} from '@workspace/api-client-react';
+import type {
+  NumberingScheme, EmploymentTypeConfig, RetentionRule, PolicyLocale,
+} from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,18 +34,15 @@ const DAY_AR = ['الأحد','الاثنين','الثلاثاء','الأربعا
 function AddSchemeDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const createMut = useCreateNumberingScheme();
   const [form, setForm] = useState({ entityType: '', template: '', prefix: '', currentSequence: '1', resetCycle: 'never' });
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
   async function handleSave() {
-    setSaving(true);
     try {
-      const res = await apiFetch('/api/numbering-schemes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      if (!res.ok) throw new Error();
+      await createMut.mutateAsync({ data: { ...form, currentSequence: Number(form.currentSequence) } });
       toast({ title: t('Scheme created', 'تم إنشاء المخطط') });
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setSaving(false); }
   }
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -57,43 +66,70 @@ function AddSchemeDialog({ open, onClose, onSaved }: { open: boolean; onClose: (
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">{saving ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
+          <Button onClick={handleSave} disabled={createMut.isPending} className="bg-blue-600 hover:bg-blue-700">{createMut.isPending ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function AddEmploymentTypeDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
+function AddEmploymentTypeDialog({ open, onClose, onSaved, orgs, defaultOrgId }: { open: boolean; onClose: () => void; onSaved: () => void; orgs: { id: number; nameEn: string }[]; defaultOrgId: string }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ labelEn: '', labelAr: '', probationDays: '90', defaultContractMonths: '12', eligibleLeave: true, eligiblePayroll: true, eligibleBonus: false });
+  const createMut = useCreateEmploymentTypeConfig();
+  const [form, setForm] = useState({ orgId: '', employmentType: '', labelEn: '', labelAr: '', probationDays: '90', defaultContractMonths: '12', eligibleLeave: true, eligiblePayroll: true, eligibleBenefits: false });
+
+  useEffect(() => {
+    if (open) setForm(f => ({ ...f, orgId: f.orgId || defaultOrgId }));
+  }, [open, defaultOrgId]);
+
   async function handleSave() {
-    setSaving(true);
+    if (!form.orgId || !form.employmentType.trim() || !form.labelEn.trim() || !form.labelAr.trim()) {
+      toast({ title: t('Organization, type key, and both labels are required', 'المؤسسة ومفتاح النوع وكلا التسميتين مطلوبة'), variant: 'destructive' });
+      return;
+    }
     try {
-      const res = await apiFetch('/api/employment-types', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      if (!res.ok) throw new Error();
+      await createMut.mutateAsync({
+        data: {
+          orgId: Number(form.orgId),
+          employmentType: form.employmentType.trim(),
+          labelEn: form.labelEn.trim(),
+          labelAr: form.labelAr.trim(),
+          probationDays: Number(form.probationDays),
+          defaultContractMonths: Number(form.defaultContractMonths),
+          eligibleLeave: form.eligibleLeave,
+          eligiblePayroll: form.eligiblePayroll,
+          eligibleBenefits: form.eligibleBenefits,
+        },
+      });
       toast({ title: t('Employment type created', 'تم إنشاء نوع التوظيف') });
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setSaving(false); }
   }
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-md">
         <DialogHeader><DialogTitle>{t('Add Employment Type', 'إضافة نوع توظيف')}</DialogTitle></DialogHeader>
         <div className="space-y-3 py-2">
+          <div><Label>{t('Organization', 'المؤسسة')}</Label>
+            <Select value={form.orgId} onValueChange={v => setForm(f => ({ ...f, orgId: v }))}>
+              <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue placeholder={t('Select organization', 'اختر المؤسسة')} /></SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700">
+                {orgs.map(o => <SelectItem key={o.id} value={String(o.id)}>{o.nameEn}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
+            <div><Label>{t('Type Key', 'مفتاح النوع')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={form.employmentType} onChange={e => setForm(f => ({ ...f, employmentType: e.target.value }))} placeholder="full_time" /></div>
             <div><Label>{t('Label (EN)', 'التسمية (إنجليزي)')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={form.labelEn} onChange={e => setForm(f => ({ ...f, labelEn: e.target.value }))} /></div>
             <div><Label>{t('Label (AR)', 'التسمية (عربي)')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" dir="rtl" value={form.labelAr} onChange={e => setForm(f => ({ ...f, labelAr: e.target.value }))} /></div>
             <div><Label>{t('Probation Days', 'أيام التجربة')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" type="number" value={form.probationDays} onChange={e => setForm(f => ({ ...f, probationDays: e.target.value }))} /></div>
             <div><Label>{t('Contract Months', 'أشهر العقد')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" type="number" value={form.defaultContractMonths} onChange={e => setForm(f => ({ ...f, defaultContractMonths: e.target.value }))} /></div>
           </div>
           <div className="flex gap-4 flex-wrap">
-            {[['eligibleLeave','Leave','إجازة'],['eligiblePayroll','Payroll','رواتب'],['eligibleBonus','Bonus','مكافأة']].map(([k, en, ar]) => (
+            {([['eligibleLeave','Leave','إجازة'],['eligiblePayroll','Payroll','رواتب'],['eligibleBenefits','Benefits','مزايا']] as const).map(([k, en, ar]) => (
               <label key={k} className="flex items-center gap-2 cursor-pointer text-sm text-slate-300">
-                <input type="checkbox" checked={!!form[k as keyof typeof form]} onChange={e => setForm(f => ({ ...f, [k]: e.target.checked }))} className="accent-blue-500" />
+                <input type="checkbox" checked={!!form[k]} onChange={e => setForm(f => ({ ...f, [k]: e.target.checked }))} className="accent-blue-500" />
                 {t(en, ar)}
               </label>
             ))}
@@ -101,7 +137,7 @@ function AddEmploymentTypeDialog({ open, onClose, onSaved }: { open: boolean; on
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">{saving ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
+          <Button onClick={handleSave} disabled={createMut.isPending} className="bg-blue-600 hover:bg-blue-700">{createMut.isPending ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -111,18 +147,20 @@ function AddEmploymentTypeDialog({ open, onClose, onSaved }: { open: boolean; on
 function AddRetentionRuleDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const createMut = useCreateRetentionRule();
   const [form, setForm] = useState({ dataCategory: '', retentionMonths: '', expiryAction: 'archive', legalBasisEn: '' });
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
   async function handleSave() {
-    setSaving(true);
     try {
-      const res = await apiFetch('/api/retention-rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      if (!res.ok) throw new Error();
+      await createMut.mutateAsync({
+        data: {
+          ...form,
+          retentionMonths: form.retentionMonths ? Number(form.retentionMonths) : null,
+        },
+      });
       toast({ title: t('Rule created', 'تم إنشاء القاعدة') });
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setSaving(false); }
   }
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -143,7 +181,7 @@ function AddRetentionRuleDialog({ open, onClose, onSaved }: { open: boolean; onC
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">{saving ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
+          <Button onClick={handleSave} disabled={createMut.isPending} className="bg-blue-600 hover:bg-blue-700">{createMut.isPending ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -163,58 +201,96 @@ function expiryBadge(action: string) {
   return 'bg-amber-900/40 text-amber-300 border-amber-700';
 }
 
+type LocaleForm = {
+  defaultLanguage: string; timezone: string; calendarType: string; showHijriDates: boolean;
+  currencyCode: string; dateFormat: string; timeFormat: string; numeralStyle: string;
+};
+
+const EMPTY_LOCALE: LocaleForm = {
+  defaultLanguage: '', timezone: '', calendarType: 'gregorian', showHijriDates: false,
+  currencyCode: '', dateFormat: '', timeFormat: '24h', numeralStyle: 'arabic',
+};
+
 export default function PolicyLocalization() {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
-  const [orgs, setOrgs] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   const [selectedOrg, setSelectedOrg] = useState('');
-  const [locale, setLocale] = useState<any>({});
-  const [schemes, setSchemes] = useState<any[]>([]);
-  const [empTypes, setEmpTypes] = useState<any[]>([]);
-  const [retention, setRetention] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [savingLocale, setSavingLocale] = useState(false);
+  const [locale, setLocale] = useState<LocaleForm>(EMPTY_LOCALE);
   const [addSchemeOpen, setAddSchemeOpen] = useState(false);
   const [addEmpTypeOpen, setAddEmpTypeOpen] = useState(false);
   const [addRetentionOpen, setAddRetentionOpen] = useState(false);
   const [weekends, setWeekends] = useState<number[]>([5, 6]);
   const [calForm, setCalForm] = useState({ standardHoursPerDay: '8', shiftStart: '08:00', shiftEnd: '16:00', summerSchedule: false });
 
-  useEffect(() => {
-    apiFetch('/api/organizations').then(r => r.json()).then(d => {
-      const list = Array.isArray(d) ? d : (d.organizations ?? []);
-      setOrgs(list);
-      if (list.length > 0) setSelectedOrg(String(list[0].id));
-    }).catch(() => {});
-    apiFetch('/api/numbering-schemes').then(r => r.json()).then(d => setSchemes(Array.isArray(d) ? d : [])).catch(() => {});
-    apiFetch('/api/employment-types').then(r => r.json()).then(d => setEmpTypes(Array.isArray(d) ? d : [])).catch(() => {});
-    apiFetch('/api/retention-rules').then(r => r.json()).then(d => setRetention(Array.isArray(d) ? d : [])).catch(() => {});
-  }, []);
+  const { data: orgsData } = useListOrganizations();
+  const orgs = Array.isArray(orgsData) ? orgsData : [];
 
   useEffect(() => {
-    if (!selectedOrg) return;
-    apiFetch(`/api/org-locale/${selectedOrg}`).then(r => r.json()).then(d => setLocale(d ?? {})).catch(() => {});
-  }, [selectedOrg]);
+    if (orgs.length > 0 && !selectedOrg) setSelectedOrg(String(orgs[0].id));
+  }, [orgs, selectedOrg]);
+
+  const orgIdNum = selectedOrg ? Number(selectedOrg) : 0;
+
+  const { data: schemesData } = useListNumberingSchemes();
+  const schemes: NumberingScheme[] = Array.isArray(schemesData) ? schemesData : [];
+
+  const { data: empTypesData } = useListEmploymentTypeConfigs();
+  const empTypes: EmploymentTypeConfig[] = Array.isArray(empTypesData) ? empTypesData : [];
+
+  const { data: retentionData } = useListRetentionRules();
+  const retention: RetentionRule[] = Array.isArray(retentionData) ? retentionData : [];
+
+  const { data: localesData } = useListPolicyLocales(
+    { orgId: orgIdNum },
+    { query: { enabled: !!selectedOrg, queryKey: getListPolicyLocalesQueryKey({ orgId: orgIdNum }) } },
+  );
+  const currentLocale: PolicyLocale | undefined = Array.isArray(localesData) ? localesData[0] : undefined;
+
+  useEffect(() => {
+    if (currentLocale) {
+      setLocale({
+        defaultLanguage: currentLocale.defaultLanguage ?? '',
+        timezone: currentLocale.timezone ?? '',
+        calendarType: currentLocale.calendarType ?? 'gregorian',
+        showHijriDates: !!currentLocale.showHijriDates,
+        currencyCode: currentLocale.currencyCode ?? '',
+        dateFormat: currentLocale.dateFormat ?? '',
+        timeFormat: currentLocale.timeFormat ?? '24h',
+        numeralStyle: currentLocale.numeralStyle ?? 'arabic',
+      });
+    } else {
+      setLocale(EMPTY_LOCALE);
+    }
+  }, [currentLocale]);
+
+  const createLocaleMut = useCreatePolicyLocale();
+  const updateLocaleMut = useUpdatePolicyLocale();
+  const incrementMut = useIncrementNumberingScheme();
 
   async function saveLocale() {
-    setSavingLocale(true);
     try {
-      await apiFetch(`/api/org-locale/${selectedOrg}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(locale) });
+      if (currentLocale) {
+        await updateLocaleMut.mutateAsync({ id: currentLocale.id, data: { ...locale } });
+      } else {
+        await createLocaleMut.mutateAsync({ data: { ...locale, orgId: orgIdNum } });
+      }
       toast({ title: t('Locale saved', 'تم حفظ الإعدادات المحلية') });
+      queryClient.invalidateQueries({ queryKey: getListPolicyLocalesQueryKey({ orgId: orgIdNum }) });
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setSavingLocale(false); }
   }
+
+  const savingLocale = createLocaleMut.isPending || updateLocaleMut.isPending;
 
   async function incrementScheme(id: number) {
     try {
-      const res = await apiFetch(`/api/numbering-schemes/${id}/increment`, { method: 'POST' });
-      const data = await res.json();
-      toast({ title: t('Incremented', 'تم الزيادة'), description: data?.nextValue ?? '' });
-      apiFetch('/api/numbering-schemes').then(r => r.json()).then(d => setSchemes(Array.isArray(d) ? d : [])).catch(() => {});
+      const data = await incrementMut.mutateAsync({ id });
+      toast({ title: t('Incremented', 'تم الزيادة'), description: data?.nextNumber ?? '' });
+      queryClient.invalidateQueries({ queryKey: getListNumberingSchemesQueryKey() });
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
-  function setL(k: string, v: any) { setLocale((l: any) => ({ ...l, [k]: v })); }
+  function setL<K extends keyof LocaleForm>(k: K, v: LocaleForm[K]) { setLocale(l => ({ ...l, [k]: v })); }
 
   return (
     <AnimatedPage>
@@ -247,20 +323,20 @@ export default function PolicyLocalization() {
             </div>
             <Card className="bg-slate-800 border-slate-700">
               <CardContent className="p-4 grid grid-cols-2 gap-4">
-                <div><Label>{t('Language', 'اللغة')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={locale.language ?? ''} onChange={e => setL('language', e.target.value)} placeholder="ar, en" /></div>
-                <div><Label>{t('Timezone', 'المنطقة الزمنية')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={locale.timezone ?? ''} onChange={e => setL('timezone', e.target.value)} placeholder="Asia/Riyadh" /></div>
+                <div><Label>{t('Language', 'اللغة')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={locale.defaultLanguage} onChange={e => setL('defaultLanguage', e.target.value)} placeholder="ar, en" /></div>
+                <div><Label>{t('Timezone', 'المنطقة الزمنية')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={locale.timezone} onChange={e => setL('timezone', e.target.value)} placeholder="Asia/Riyadh" /></div>
                 <div><Label>{t('Calendar Type', 'نوع التقويم')}</Label>
-                  <Select value={locale.calendarType ?? 'gregorian'} onValueChange={v => setL('calendarType', v)}>
+                  <Select value={locale.calendarType} onValueChange={v => setL('calendarType', v)}>
                     <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
                       {['gregorian','hijri','umm_al_qura'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>{t('Currency Code', 'رمز العملة')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={locale.currencyCode ?? ''} onChange={e => setL('currencyCode', e.target.value)} placeholder="SAR" /></div>
-                <div><Label>{t('Date Format', 'تنسيق التاريخ')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={locale.dateFormat ?? ''} onChange={e => setL('dateFormat', e.target.value)} placeholder="DD/MM/YYYY" /></div>
+                <div><Label>{t('Currency Code', 'رمز العملة')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={locale.currencyCode} onChange={e => setL('currencyCode', e.target.value)} placeholder="SAR" /></div>
+                <div><Label>{t('Date Format', 'تنسيق التاريخ')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={locale.dateFormat} onChange={e => setL('dateFormat', e.target.value)} placeholder="DD/MM/YYYY" /></div>
                 <div><Label>{t('Time Format', 'تنسيق الوقت')}</Label>
-                  <Select value={locale.timeFormat ?? '24h'} onValueChange={v => setL('timeFormat', v)}>
+                  <Select value={locale.timeFormat} onValueChange={v => setL('timeFormat', v)}>
                     <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
                       <SelectItem value="24h">24h</SelectItem>
@@ -269,7 +345,7 @@ export default function PolicyLocalization() {
                   </Select>
                 </div>
                 <div><Label>{t('Numeral Style', 'أسلوب الأرقام')}</Label>
-                  <Select value={locale.numeralStyle ?? 'arabic'} onValueChange={v => setL('numeralStyle', v)}>
+                  <Select value={locale.numeralStyle} onValueChange={v => setL('numeralStyle', v)}>
                     <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
                       <SelectItem value="arabic">Arabic (١٢٣)</SelectItem>
@@ -278,11 +354,11 @@ export default function PolicyLocalization() {
                   </Select>
                 </div>
                 <div className="flex items-center gap-3 mt-4">
-                  <Switch checked={!!locale.showHijriDates} onCheckedChange={v => setL('showHijriDates', v)} />
+                  <Switch checked={locale.showHijriDates} onCheckedChange={v => setL('showHijriDates', v)} />
                   <Label>{t('Show Hijri Dates', 'إظهار التواريخ الهجرية')}</Label>
                 </div>
                 <div className="col-span-2 flex justify-end">
-                  <Button onClick={saveLocale} disabled={savingLocale} className="bg-blue-600 hover:bg-blue-700">
+                  <Button onClick={saveLocale} disabled={savingLocale || !selectedOrg} className="bg-blue-600 hover:bg-blue-700">
                     {savingLocale ? t('Saving…', 'جاري الحفظ…') : t('Save Locale', 'حفظ الإعدادات')}
                   </Button>
                 </div>
@@ -322,7 +398,7 @@ export default function PolicyLocalization() {
                 </Table>
               </CardContent>
             </Card>
-            <AddSchemeDialog open={addSchemeOpen} onClose={() => setAddSchemeOpen(false)} onSaved={() => apiFetch('/api/numbering-schemes').then(r => r.json()).then(d => setSchemes(Array.isArray(d) ? d : []))} />
+            <AddSchemeDialog open={addSchemeOpen} onClose={() => setAddSchemeOpen(false)} onSaved={() => queryClient.invalidateQueries({ queryKey: getListNumberingSchemesQueryKey() })} />
           </TabsContent>
 
           {/* Employment Types Tab */}
@@ -352,7 +428,7 @@ export default function PolicyLocalization() {
                           <div className="flex gap-1 flex-wrap">
                             {et.eligibleLeave && <Badge variant="outline" className="text-xs bg-emerald-900/30 text-emerald-300 border-emerald-700">{t('Leave','إجازة')}</Badge>}
                             {et.eligiblePayroll && <Badge variant="outline" className="text-xs bg-blue-900/30 text-blue-300 border-blue-700">{t('Payroll','رواتب')}</Badge>}
-                            {et.eligibleBonus && <Badge variant="outline" className="text-xs bg-amber-900/30 text-amber-300 border-amber-700">{t('Bonus','مكافأة')}</Badge>}
+                            {et.eligibleBenefits && <Badge variant="outline" className="text-xs bg-amber-900/30 text-amber-300 border-amber-700">{t('Benefits','مزايا')}</Badge>}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -361,7 +437,7 @@ export default function PolicyLocalization() {
                 </Table>
               </CardContent>
             </Card>
-            <AddEmploymentTypeDialog open={addEmpTypeOpen} onClose={() => setAddEmpTypeOpen(false)} onSaved={() => apiFetch('/api/employment-types').then(r => r.json()).then(d => setEmpTypes(Array.isArray(d) ? d : []))} />
+            <AddEmploymentTypeDialog open={addEmpTypeOpen} onClose={() => setAddEmpTypeOpen(false)} onSaved={() => queryClient.invalidateQueries({ queryKey: getListEmploymentTypeConfigsQueryKey() })} orgs={orgs} defaultOrgId={selectedOrg} />
           </TabsContent>
 
           {/* Calendar Tab */}
@@ -434,7 +510,7 @@ export default function PolicyLocalization() {
                 </Table>
               </CardContent>
             </Card>
-            <AddRetentionRuleDialog open={addRetentionOpen} onClose={() => setAddRetentionOpen(false)} onSaved={() => apiFetch('/api/retention-rules').then(r => r.json()).then(d => setRetention(Array.isArray(d) ? d : []))} />
+            <AddRetentionRuleDialog open={addRetentionOpen} onClose={() => setAddRetentionOpen(false)} onSaved={() => queryClient.invalidateQueries({ queryKey: getListRetentionRulesQueryKey() })} />
           </TabsContent>
         </Tabs>
       </div>

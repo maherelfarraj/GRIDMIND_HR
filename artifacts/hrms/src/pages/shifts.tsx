@@ -1,7 +1,7 @@
-import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useListShifts, useCreateShift, getListShiftsQueryKey } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,20 +14,7 @@ import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Plus, Timer, Moon, Sun, GitFork, Zap, Clock, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-interface Shift {
-  id: number;
-  nameEn: string;
-  nameAr: string;
-  shiftCode: string;
-  shiftType: 'day' | 'night' | 'split' | 'flexible';
-  startTime: string;
-  endTime: string;
-  breakMinutes: number;
-  gracePeriodMinutes: number;
-  maxOvertimeMinutes: number;
-  color: string;
-  isActive: boolean;
-}
+type ShiftType = 'day' | 'night' | 'split' | 'flexible';
 
 const SHIFT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#6366F1', '#EF4444', '#8B5CF6'];
 
@@ -35,7 +22,7 @@ const defaultForm = {
   nameEn: '',
   nameAr: '',
   shiftCode: '',
-  shiftType: 'day' as Shift['shiftType'],
+  shiftType: 'day' as ShiftType,
   startTime: '08:00',
   endTime: '16:00',
   breakMinutes: 60,
@@ -52,30 +39,19 @@ export default function Shifts() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ ...defaultForm });
 
-  const { data: shifts, isLoading } = useQuery<Shift[]>({
-    queryKey: ['shifts'],
-    queryFn: () => apiFetch('/api/shifts', { credentials: 'include' }).then(r => r.json()),
-  });
+  const { data: shifts, isLoading } = useListShifts();
 
-  const createShift = useMutation({
-    mutationFn: (data: typeof defaultForm) =>
-      apiFetch('/api/shifts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data),
-      }).then(async r => {
-        if (!r.ok) throw new Error(await r.text());
-        return r.json();
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shifts'] });
-      toast({ title: t('Success', 'نجاح'), description: t('Shift created successfully.', 'تم إنشاء الوردية بنجاح.') });
-      setDialogOpen(false);
-      setForm({ ...defaultForm });
-    },
-    onError: (err: any) => {
-      toast({ title: t('Error', 'خطأ'), description: err.message, variant: 'destructive' });
+  const createShift = useCreateShift({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListShiftsQueryKey() });
+        toast({ title: t('Success', 'نجاح'), description: t('Shift created successfully.', 'تم إنشاء الوردية بنجاح.') });
+        setDialogOpen(false);
+        setForm({ ...defaultForm });
+      },
+      onError: (err: any) => {
+        toast({ title: t('Error', 'خطأ'), description: err.message, variant: 'destructive' });
+      },
     },
   });
 
@@ -84,7 +60,7 @@ export default function Shifts() {
   const nightShifts = shifts?.filter(s => s.shiftType === 'night').length ?? 0;
   const flexibleShifts = shifts?.filter(s => s.shiftType === 'flexible').length ?? 0;
 
-  const getShiftTypeIcon = (type: Shift['shiftType']) => {
+  const getShiftTypeIcon = (type: string) => {
     switch (type) {
       case 'night': return <Moon className="w-3 h-3" />;
       case 'split': return <GitFork className="w-3 h-3" />;
@@ -93,12 +69,13 @@ export default function Shifts() {
     }
   };
 
-  const getShiftTypeLabel = (type: Shift['shiftType']) => {
+  const getShiftTypeLabel = (type: string) => {
     switch (type) {
       case 'day': return t('Day', 'نهاري');
       case 'night': return t('Night', 'ليلي');
       case 'split': return t('Split', 'مقسم');
       case 'flexible': return t('Flexible', 'مرن');
+      default: return type;
     }
   };
 
@@ -312,7 +289,7 @@ export default function Shifts() {
                 <label className="text-sm font-medium">{t('Shift Type', 'نوع الوردية')}</label>
                 <Select
                   value={form.shiftType}
-                  onValueChange={v => setForm(f => ({ ...f, shiftType: v as Shift['shiftType'] }))}
+                  onValueChange={v => setForm(f => ({ ...f, shiftType: v as ShiftType }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -411,7 +388,7 @@ export default function Shifts() {
               {t('Cancel', 'إلغاء')}
             </Button>
             <Button
-              onClick={() => createShift.mutate(form)}
+              onClick={() => createShift.mutate({ data: form })}
               disabled={createShift.isPending || !form.nameEn || !form.shiftCode}
             >
               {createShift.isPending ? t('Creating...', 'جارٍ الإنشاء...') : t('Create Shift', 'إنشاء الوردية')}

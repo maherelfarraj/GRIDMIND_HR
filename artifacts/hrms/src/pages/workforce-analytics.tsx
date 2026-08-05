@@ -1,6 +1,17 @@
-import { apiFetch } from '@/lib/api';
-import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import {
+  useGetAnalyticsExecutiveSummary,
+  useGetAnalyticsHeadcount,
+  useGetAnalyticsPayrollVariance,
+  useGetAnalyticsAttendanceAnomalies,
+  useGetAnalyticsLeaveExposure,
+  useGetAnalyticsTrainingCompliance,
+  useGetAnalyticsDocumentExpiry,
+} from '@workspace/api-client-react';
+import type {
+  GetAnalyticsAttendanceAnomalies200AnomaliesItem,
+  GetAnalyticsDocumentExpiry200DocumentsItem,
+} from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,9 +30,11 @@ import {
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function fmtNum(n: number | undefined | null, decimals = 0) {
+function fmtNum(n: number | string | undefined | null, decimals = 0) {
   if (n == null) return '—';
-  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  const num = typeof n === 'string' ? Number(n) : n;
+  if (Number.isNaN(num)) return '—';
+  return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
 function fmtDate(s: string | undefined | null) {
@@ -81,68 +94,26 @@ function KpiCard({ icon: Icon, labelEn, labelAr, value, loading, color }: KpiCar
 export default function WorkforceAnalytics() {
   const { t } = useLanguage();
 
-  // executive summary
-  const [summary, setSummary] = useState<Record<string, any> | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(true);
+  const { data: summary, isLoading: summaryLoading } = useGetAnalyticsExecutiveSummary();
+  const { data: headcount = [], isLoading: headcountLoading } = useGetAnalyticsHeadcount({ months: 12 });
+  const { data: payrollVar = [], isLoading: payrollVarLoading } = useGetAnalyticsPayrollVariance({ periods: 6 });
+  const { data: anomaliesData, isLoading: anomaliesLoading } = useGetAnalyticsAttendanceAnomalies({ threshold: 15 });
+  const { data: leaveExposure = [], isLoading: leaveExposureLoading } = useGetAnalyticsLeaveExposure();
+  const { data: training = [], isLoading: trainingLoading } = useGetAnalyticsTrainingCompliance();
+  const { data: docExpiryData, isLoading: docExpiryLoading } = useGetAnalyticsDocumentExpiry({ days: 30 });
 
-  // headcount trend
-  const [headcount, setHeadcount] = useState<any[]>([]);
-  const [headcountLoading, setHeadcountLoading] = useState(true);
+  const anomalies: GetAnalyticsAttendanceAnomalies200AnomaliesItem[] = anomaliesData?.anomalies ?? [];
+  const docExpiry: GetAnalyticsDocumentExpiry200DocumentsItem[] = docExpiryData?.documents ?? [];
 
-  // payroll variance
-  const [payrollVar, setPayrollVar] = useState<any[]>([]);
-  const [payrollVarLoading, setPayrollVarLoading] = useState(true);
-
-  // attendance anomalies
-  const [anomalies, setAnomalies] = useState<any[]>([]);
-  const [anomaliesLoading, setAnomaliesLoading] = useState(true);
-
-  // leave exposure
-  const [leaveExposure, setLeaveExposure] = useState<any[]>([]);
-  const [leaveExposureLoading, setLeaveExposureLoading] = useState(true);
-
-  // training compliance
-  const [training, setTraining] = useState<any[]>([]);
-  const [trainingLoading, setTrainingLoading] = useState(true);
-
-  // document expiry
-  const [docExpiry, setDocExpiry] = useState<any[]>([]);
-  const [docExpiryLoading, setDocExpiryLoading] = useState(true);
-
-  useEffect(() => {
-    apiFetch('/api/analytics/executive-summary')
-      .then(r => r.json()).then(setSummary).catch(() => setSummary(null))
-      .finally(() => setSummaryLoading(false));
-
-    apiFetch('/api/analytics/headcount?months=12')
-      .then(r => r.json()).then(d => setHeadcount(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
-      .finally(() => setHeadcountLoading(false));
-
-    apiFetch('/api/analytics/payroll-variance?periods=6')
-      .then(r => r.json()).then(d => setPayrollVar(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
-      .finally(() => setPayrollVarLoading(false));
-
-    apiFetch('/api/analytics/attendance-anomalies?threshold=15')
-      .then(r => r.json()).then(d => setAnomalies(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
-      .finally(() => setAnomaliesLoading(false));
-
-    apiFetch('/api/analytics/leave-exposure')
-      .then(r => r.json()).then(d => setLeaveExposure(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
-      .finally(() => setLeaveExposureLoading(false));
-
-    apiFetch('/api/analytics/training-compliance')
-      .then(r => r.json()).then(d => setTraining(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
-      .finally(() => setTrainingLoading(false));
-
-    apiFetch('/api/analytics/document-expiry?days=30')
-      .then(r => r.json()).then(d => setDocExpiry(Array.isArray(d) ? d : d?.data ?? [])).catch(() => {})
-      .finally(() => setDocExpiryLoading(false));
-  }, []);
+  const trainingChartData = training.map(tr => ({
+    name: tr.departmentNameEn ?? String(tr.departmentId ?? ''),
+    value: tr.complianceRate ?? 0,
+  }));
 
   const kpis: KpiCardProps[] = [
     {
       icon: Users, labelEn: 'Total Headcount', labelAr: 'إجمالي القوى العاملة',
-      value: fmtNum(summary?.totalHeadcount), loading: summaryLoading,
+      value: fmtNum(summary?.headcount), loading: summaryLoading,
       color: 'bg-[#1e3a5f]',
     },
     {
@@ -157,19 +128,19 @@ export default function WorkforceAnalytics() {
     },
     {
       icon: Banknote, labelEn: 'Average Salary', labelAr: 'متوسط الراتب',
-      value: summary?.averageSalary != null ? `$${fmtNum(summary.averageSalary)}` : undefined,
+      value: summary?.avgSalary != null ? `$${fmtNum(summary.avgSalary)}` : undefined,
       loading: summaryLoading,
       color: 'bg-violet-600',
     },
     {
       icon: CalendarOff, labelEn: 'Absence Rate %', labelAr: 'معدل الغياب %',
-      value: summary?.absenceRate != null ? `${fmtNum(summary.absenceRate, 1)}%` : undefined,
+      value: summary?.absenceRateToday != null ? `${fmtNum(summary.absenceRateToday, 1)}%` : undefined,
       loading: summaryLoading,
       color: 'bg-rose-600',
     },
     {
       icon: Clock, labelEn: 'OT Hours This Month', labelAr: 'ساعات إضافية هذا الشهر',
-      value: fmtNum(summary?.otHoursThisMonth), loading: summaryLoading,
+      value: fmtNum(summary?.overtimeHoursThisMonth), loading: summaryLoading,
       color: 'bg-sky-600',
     },
   ];
@@ -220,7 +191,7 @@ export default function WorkforceAnalytics() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis dataKey="month" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                    <XAxis dataKey="period" tick={{ fill: '#94a3b8', fontSize: 11 }} />
                     <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
                     <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }} />
                     <Legend />
@@ -247,13 +218,13 @@ export default function WorkforceAnalytics() {
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={payrollVar} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis dataKey="period" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                    <XAxis dataKey="periodCode" tick={{ fill: '#94a3b8', fontSize: 11 }} />
                     <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
                     <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }} />
                     <Legend />
                     <Bar dataKey="totalGross" name={t('Total Gross', 'الراتب الإجمالي')} radius={[4, 4, 0, 0]}>
                       {payrollVar.map((entry, i) => (
-                        <Cell key={i} fill={(entry.variance ?? 0) >= 0 ? '#10b981' : '#ef4444'} />
+                        <Cell key={i} fill={Number(entry.variance ?? 0) >= 0 ? '#10b981' : '#ef4444'} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -280,9 +251,9 @@ export default function WorkforceAnalytics() {
                   <BarChart data={leaveExposure} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 60 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                     <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                    <YAxis dataKey="department" type="category" tick={{ fill: '#94a3b8', fontSize: 11 }} width={70} />
+                    <YAxis dataKey="departmentNameEn" type="category" tick={{ fill: '#94a3b8', fontSize: 11 }} width={70} />
                     <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }} />
-                    <Bar dataKey="exposureDays" fill="#f59e0b" name={t('Exposure Days', 'أيام المخاطر')} radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="totalPending" fill="#f59e0b" name={t('Exposure Days', 'أيام المخاطر')} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -303,7 +274,7 @@ export default function WorkforceAnalytics() {
                 <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
                     <Pie
-                      data={training.length > 0 ? training : [
+                      data={trainingChartData.length > 0 ? trainingChartData : [
                         { name: t('Compliant', 'ملتزم'), value: 0 },
                         { name: t('Non-Compliant', 'غير ملتزم'), value: 0 },
                       ]}
@@ -314,7 +285,7 @@ export default function WorkforceAnalytics() {
                       paddingAngle={3}
                       dataKey="value"
                     >
-                      {(training.length > 0 ? training : []).map((_: any, i: number) => (
+                      {(trainingChartData.length > 0 ? trainingChartData : []).map((_, i) => (
                         <Cell key={i} fill={['#10b981', '#ef4444', '#f59e0b', '#3b82f6'][i % 4]} />
                       ))}
                     </Pie>
@@ -362,10 +333,10 @@ export default function WorkforceAnalytics() {
                         </TableCell>
                       </TableRow>
                     )
-                    : anomalies.map((a: any, i: number) => (
+                    : anomalies.map((a, i) => (
                       <TableRow key={i} className="border-slate-700 hover:bg-slate-700/40">
-                        <TableCell className="text-white font-medium">{a.employeeName ?? a.employee ?? '—'}</TableCell>
-                        <TableCell className="text-slate-300">{a.department ?? '—'}</TableCell>
+                        <TableCell className="text-white font-medium">{a.employeeName ?? '—'}</TableCell>
+                        <TableCell className="text-slate-300">{a.departmentId ?? '—'}</TableCell>
                         <TableCell className="text-slate-300">{fmtNum(a.absentDays)}</TableCell>
                         <TableCell className="text-slate-300">{a.rate != null ? `${fmtNum(a.rate, 1)}%` : '—'}</TableCell>
                         <TableCell><RiskBadge rate={a.rate ?? 0} /></TableCell>
@@ -410,14 +381,18 @@ export default function WorkforceAnalytics() {
                         </TableCell>
                       </TableRow>
                     )
-                    : docExpiry.map((d: any, i: number) => (
-                      <TableRow key={i} className="border-slate-700 hover:bg-slate-700/40">
-                        <TableCell className="text-white font-medium">{d.documentName ?? d.name ?? '—'}</TableCell>
-                        <TableCell className="text-slate-300">{d.category ?? '—'}</TableCell>
-                        <TableCell className="text-slate-300">{fmtDate(d.expiryDate)}</TableCell>
-                        <TableCell><DaysChip days={d.daysRemaining ?? 0} /></TableCell>
-                      </TableRow>
-                    ))}
+                    : docExpiry.map((d, i) => {
+                      const doc = d as Record<string, unknown>;
+                      const daysRemaining = Number(doc.daysRemaining ?? 0);
+                      return (
+                        <TableRow key={i} className="border-slate-700 hover:bg-slate-700/40">
+                          <TableCell className="text-white font-medium">{String(doc.documentName ?? doc.name ?? '—')}</TableCell>
+                          <TableCell className="text-slate-300">{String(doc.category ?? '—')}</TableCell>
+                          <TableCell className="text-slate-300">{fmtDate(doc.expiryDate as string | undefined)}</TableCell>
+                          <TableCell><DaysChip days={Number.isNaN(daysRemaining) ? 0 : daysRemaining} /></TableCell>
+                        </TableRow>
+                      );
+                    })}
               </TableBody>
             </Table>
           </CardContent>

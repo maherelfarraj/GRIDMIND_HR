@@ -1,9 +1,8 @@
-import { apiFetch } from '@/lib/api';
 import { useMemo, useState } from 'react';
 import { useSearch, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
-import { useListAttendance } from '@workspace/api-client-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useListAttendance, useListOvertimeRules, useCreateOvertimeRule, getListOvertimeRulesQueryKey } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -19,22 +18,6 @@ import { useToast } from '@/hooks/use-toast';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer
 } from 'recharts';
-
-interface OvertimeRule {
-  id: number;
-  nameEn: string;
-  nameAr: string;
-  scope: 'global' | 'department';
-  departmentId: number | null;
-  departmentNameEn: string | null;
-  maxDailyMinutes: number;
-  maxWeeklyMinutes: number;
-  multiplierWeekday: number;
-  multiplierWeekend: number;
-  multiplierHoliday: number;
-  requiresApproval: boolean;
-  effectiveFrom: string;
-}
 
 const defaultRuleForm = {
   nameEn: '',
@@ -74,34 +57,23 @@ export default function Overtime() {
   })();
   const clearFilter = () => navigate('/overtime', { replace: true });
 
-  const { data: rules, isLoading: loadingRules } = useQuery<OvertimeRule[]>({
-    queryKey: ['overtime-rules'],
-    queryFn: () => apiFetch('/api/overtime-rules', { credentials: 'include' }).then(r => r.json()),
-  });
+  const { data: rules, isLoading: loadingRules } = useListOvertimeRules();
 
   const { data: attendanceData, isLoading: loadingAttendance } = useListAttendance({
     departmentId: filterDepartmentId ?? undefined,
   });
 
-  const createRule = useMutation({
-    mutationFn: (data: typeof defaultRuleForm) =>
-      apiFetch('/api/overtime-rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data),
-      }).then(async r => {
-        if (!r.ok) throw new Error(await r.text());
-        return r.json();
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['overtime-rules'] });
-      toast({ title: t('Success', 'نجاح'), description: t('OT rule created.', 'تم إنشاء قاعدة العمل الإضافي.') });
-      setDialogOpen(false);
-      setRuleForm({ ...defaultRuleForm });
-    },
-    onError: (err: any) => {
-      toast({ title: t('Error', 'خطأ'), description: err.message, variant: 'destructive' });
+  const createRule = useCreateOvertimeRule({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListOvertimeRulesQueryKey() });
+        toast({ title: t('Success', 'نجاح'), description: t('OT rule created.', 'تم إنشاء قاعدة العمل الإضافي.') });
+        setDialogOpen(false);
+        setRuleForm({ ...defaultRuleForm });
+      },
+      onError: (err: any) => {
+        toast({ title: t('Error', 'خطأ'), description: err.message, variant: 'destructive' });
+      },
     },
   });
 
@@ -112,7 +84,7 @@ export default function Overtime() {
     if (filterDepartmentId == null) return null;
     return (
       attendanceData?.find(r => r.departmentId === filterDepartmentId)?.departmentNameEn ??
-      rules?.find(r => r.departmentId === filterDepartmentId)?.departmentNameEn ??
+      rules?.find(r => r.departmentId === filterDepartmentId)?.deptNameEn ??
       `#${filterDepartmentId}`
     );
   }, [filterDepartmentId, attendanceData, rules]);
@@ -199,10 +171,10 @@ export default function Overtime() {
                         </CardTitle>
                         <div className="flex items-center gap-2 mt-1.5">
                           <Badge variant="outline" className="text-xs flex items-center gap-1">
-                            {rule.scope === 'global' ? (
+                            {rule.departmentId == null ? (
                               <><Globe className="w-3 h-3" /> {t('Global', 'عام')}</>
                             ) : (
-                              <><Building2 className="w-3 h-3" /> {rule.departmentNameEn || t('Department', 'القسم')}</>
+                              <><Building2 className="w-3 h-3" /> {rule.deptNameEn || t('Department', 'القسم')}</>
                             )}
                           </Badge>
                           <Badge
@@ -478,7 +450,7 @@ export default function Overtime() {
               {t('Cancel', 'إلغاء')}
             </Button>
             <Button
-              onClick={() => createRule.mutate(ruleForm)}
+              onClick={() => createRule.mutate({ data: ruleForm })}
               disabled={createRule.isPending || !ruleForm.nameEn}
             >
               {createRule.isPending ? t('Creating...', 'جارٍ الإنشاء...') : t('Create Rule', 'إنشاء القاعدة')}

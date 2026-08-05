@@ -20,6 +20,8 @@ export interface DeviceCommand {
   deliveredAt?: string | null;
   /** @nullable */
   acknowledgedAt?: string | null;
+  /** @nullable */
+  outcomeNotifiedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

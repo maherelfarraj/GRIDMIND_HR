@@ -1,5 +1,18 @@
-import { apiFetch } from '@/lib/api';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useListSecurityTestScenarios,
+  useListSecurityTestRuns,
+  useCreateSecurityTestRun,
+  useGetSecurityTestRun,
+  getListSecurityTestRunsQueryKey,
+  getGetSecurityTestRunQueryKey,
+} from '@workspace/api-client-react';
+import type {
+  SecurityTestScenario,
+  SecurityTestRun,
+  SecurityTestFinding,
+} from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -12,22 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ShieldAlert, RefreshCw, AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronRight, Info } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface SecurityScenario {
-  id: number; scenarioCode: string; titleEn: string; titleAr: string;
-  attackVector: string; severity: string; strideCategory: string;
-  targetEndpoint: string; executionType: string; lastResult?: string;
-}
-interface SecurityFinding {
-  id: number; result: string; scenarioCode: string;
-  actualStatusCode: number; expectedStatusCode: number;
-  auditLogFound: boolean; alertTriggered: boolean;
-  findingDescription: string; remediationHint?: string; isGoLiveBlocker?: boolean;
-}
-interface SecurityRun {
-  id: number; label: string; runType: string; status: string; startedAt: string;
-  passedCount: number; failedCount: number; warnedCount: number; skippedCount: number;
-  overallPosture: string; findings?: SecurityFinding[];
-}
+type RunWithFindings = SecurityTestRun & { findings?: SecurityTestFinding[] };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const VECTOR_COLORS: Record<string, string> = {
@@ -71,38 +69,44 @@ const DEMO_GAPS = [
 ];
 
 // ─── Findings Modal ───────────────────────────────────────────────────────────
-function FindingsModal({ run, open, onClose }: { run: SecurityRun | null; open: boolean; onClose: () => void }) {
+function FindingsModal({ run, open, onClose }: { run: RunWithFindings | null; open: boolean; onClose: () => void }) {
   const { t } = useLanguage();
+  const runId = run?.id ?? 0;
+  const enabled = !!run;
+  const { data } = useGetSecurityTestRun(runId, {
+    query: { enabled, queryKey: getGetSecurityTestRunQueryKey(runId) },
+  });
   if (!run) return null;
+  const findings = data?.findings ?? run.findings ?? [];
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-4xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{t('Findings', 'النتائج')}: {run.label}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t('Findings', 'النتائج')}: {run.runLabel}</DialogTitle></DialogHeader>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-slate-700">
                 <TableHead className="text-slate-400">{t('Result', 'النتيجة')}</TableHead>
                 <TableHead className="text-slate-400">{t('Scenario', 'السيناريو')}</TableHead>
-                <TableHead className="text-slate-400">{t('Actual/Expected', 'الفعلي/المتوقع')}</TableHead>
+                <TableHead className="text-slate-400">{t('Status Code', 'رمز الحالة')}</TableHead>
                 <TableHead className="text-slate-400">{t('Audit', 'تدقيق')}</TableHead>
                 <TableHead className="text-slate-400">{t('Alert', 'تنبيه')}</TableHead>
                 <TableHead className="text-slate-400">{t('Description', 'الوصف')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(run.findings ?? []).length === 0 ? (
+              {findings.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-8">{t('No findings', 'لا توجد نتائج')}</TableCell></TableRow>
-              ) : (run.findings ?? []).map(f => (
+              ) : findings.map(f => (
                 <TableRow key={f.id} className="border-slate-700">
                   <TableCell><ResultBadge result={f.result} /></TableCell>
-                  <TableCell><Badge className="bg-slate-700 text-slate-300 text-xs font-mono">{f.scenarioCode}</Badge></TableCell>
+                  <TableCell><Badge className="bg-slate-700 text-slate-300 text-xs font-mono">#{f.scenarioId}</Badge></TableCell>
                   <TableCell className="text-xs">
-                    <span className="text-red-400">{f.actualStatusCode}</span> / <span className="text-emerald-400">{f.expectedStatusCode}</span>
+                    <span className="text-red-400">{f.actualStatusCode ?? '—'}</span>
                   </TableCell>
                   <TableCell>{f.auditLogFound ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}</TableCell>
                   <TableCell>{f.alertTriggered ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}</TableCell>
-                  <TableCell className="text-slate-300 text-xs max-w-xs">{f.findingDescription}</TableCell>
+                  <TableCell className="text-slate-300 text-xs max-w-xs">{f.findingDescriptionEn}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -117,48 +121,35 @@ function FindingsModal({ run, open, onClose }: { run: SecurityRun | null; open: 
 export default function SecurityTests() {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
-  const [scenarios, setScenarios] = useState<SecurityScenario[]>([]);
-  const [runs, setRuns] = useState<SecurityRun[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [runningAll, setRunningAll] = useState(false);
-  const [viewRun, setViewRun] = useState<SecurityRun | null>(null);
+  const queryClient = useQueryClient();
+  const [viewRun, setViewRun] = useState<RunWithFindings | null>(null);
   const [expandedVectors, setExpandedVectors] = useState<Record<string, boolean>>({});
 
-  async function load() {
-    setLoading(true);
-    try {
-      const [sc, ru] = await Promise.allSettled([
-        apiFetch('/api/security-test-scenarios').then(r => r.json()),
-        apiFetch('/api/security-test-runs').then(r => r.json()),
-      ]);
-      if (sc.status === 'fulfilled') setScenarios(Array.isArray(sc.value) ? sc.value : sc.value.scenarios ?? []);
-      if (ru.status === 'fulfilled') setRuns(Array.isArray(ru.value) ? ru.value : ru.value.runs ?? []);
-    } finally { setLoading(false); }
-  }
+  const scenariosQuery = useListSecurityTestScenarios();
+  const runsQuery = useListSecurityTestRuns();
+  const createRunMut = useCreateSecurityTestRun();
 
-  useEffect(() => { load(); }, []);
+  const scenarios: SecurityTestScenario[] = scenariosQuery.data ?? [];
+  const runs: SecurityTestRun[] = runsQuery.data ?? [];
+  const loading = scenariosQuery.isLoading || runsQuery.isLoading;
+  const runningAll = createRunMut.isPending;
 
   async function handleRunAll() {
-    setRunningAll(true);
     try {
-      await apiFetch('/api/security-test-runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runType: 'automated' }) });
+      await createRunMut.mutateAsync({ data: { runType: 'automated' } });
       toast({ title: t('Security tests triggered', 'تم تشغيل اختبارات الأمان') });
-      load();
+      queryClient.invalidateQueries({ queryKey: getListSecurityTestRunsQueryKey() });
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setRunningAll(false); }
   }
 
-  async function loadFindings(run: SecurityRun) {
-    try {
-      const data = await apiFetch(`/api/security-test-runs/${run.id}`).then(r => r.json());
-      setViewRun({ ...run, findings: data.findings ?? data ?? [] });
-    } catch { setViewRun(run); }
+  function loadFindings(run: SecurityTestRun) {
+    setViewRun(run);
   }
 
   const latestRun = runs[0];
 
   // Group scenarios by attackVector for Findings Summary
-  const byVector = scenarios.reduce<Record<string, SecurityScenario[]>>((acc, s) => {
+  const byVector = scenarios.reduce<Record<string, SecurityTestScenario[]>>((acc, s) => {
     if (!acc[s.attackVector]) acc[s.attackVector] = [];
     acc[s.attackVector].push(s);
     return acc;
@@ -228,7 +219,7 @@ export default function SecurityTests() {
                     <TableCell className="text-slate-400 text-xs">{s.strideCategory}</TableCell>
                     <TableCell className="text-slate-400 text-xs font-mono max-w-xs truncate">{s.targetEndpoint}</TableCell>
                     <TableCell><Badge className={`text-xs ${s.executionType === 'automated' ? 'bg-blue-900 text-blue-300' : 'bg-slate-700 text-slate-300'}`}>{s.executionType}</Badge></TableCell>
-                    <TableCell>{s.lastResult ? <ResultBadge result={s.lastResult} /> : <span className="text-slate-600 text-xs">—</span>}</TableCell>
+                    <TableCell><span className="text-slate-600 text-xs">—</span></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -246,20 +237,19 @@ export default function SecurityTests() {
                   <CardContent className="p-4 flex items-center justify-between flex-wrap gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-white">{run.label}</span>
+                        <span className="font-semibold text-white">{run.runLabel}</span>
                         <Badge className={`text-xs ${run.runType === 'automated' ? 'bg-blue-900 text-blue-300' : 'bg-purple-900 text-purple-300'}`}>{run.runType}</Badge>
                         <Badge className={`text-xs ${run.status === 'complete' ? 'bg-emerald-900 text-emerald-300' : 'bg-amber-900 text-amber-300'}`}>{run.status}</Badge>
                       </div>
                       <div className="text-xs text-slate-400">{new Date(run.startedAt).toLocaleString()}</div>
                       <div className="flex gap-3 mt-1 text-xs">
-                        <span className="text-emerald-400">{run.passedCount} {t('passed', 'ناجح')}</span>
-                        <span className="text-red-400">{run.failedCount} {t('failed', 'فاشل')}</span>
-                        <span className="text-amber-400">{run.warnedCount} {t('warned', 'تحذير')}</span>
-                        <span className="text-slate-400">{run.skippedCount} {t('skipped', 'متخطى')}</span>
+                        <span className="text-emerald-400">{run.passedScenarios} {t('passed', 'ناجح')}</span>
+                        <span className="text-red-400">{run.failedScenarios} {t('failed', 'فاشل')}</span>
+                        <span className="text-slate-400">{run.skippedScenarios} {t('skipped', 'متخطى')}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <PostureBadge posture={run.overallPosture} />
+                      <PostureBadge posture={run.overallPosture ?? ''} />
                       <Button size="sm" variant="outline" className="border-slate-600 text-slate-300" onClick={() => loadFindings(run)}>
                         {t('View Findings', 'عرض النتائج')}
                       </Button>
@@ -279,9 +269,9 @@ export default function SecurityTests() {
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
                   <div className="text-white font-semibold">{t('Overall Security Posture (Latest Run)', 'الوضع الأمني العام (آخر تشغيل)')}</div>
-                  <div className="text-slate-400 text-sm mt-1">{latestRun.label} · {new Date(latestRun.startedAt).toLocaleDateString()}</div>
+                  <div className="text-slate-400 text-sm mt-1">{latestRun.runLabel} · {new Date(latestRun.startedAt).toLocaleDateString()}</div>
                 </div>
-                <PostureBadge posture={latestRun.overallPosture} />
+                <PostureBadge posture={latestRun.overallPosture ?? ''} />
               </CardContent>
             </Card>
           )}
@@ -292,9 +282,9 @@ export default function SecurityTests() {
             <CardContent className="space-y-2">
               {Object.entries(byVector).map(([vector, vecScenarios]) => {
                 const isExp = expandedVectors[vector] !== false;
-                const failCount = vecScenarios.filter(s => s.lastResult === 'fail').length;
-                const warnCount = vecScenarios.filter(s => s.lastResult === 'warn').length;
-                const passCount = vecScenarios.filter(s => s.lastResult === 'pass').length;
+                const failCount = 0;
+                const warnCount = 0;
+                const passCount = 0;
                 return (
                   <div key={vector} className="border border-slate-600 rounded-lg overflow-hidden">
                     <button
@@ -319,7 +309,6 @@ export default function SecurityTests() {
                             <Badge className="bg-slate-700 text-slate-300 text-xs font-mono w-28 shrink-0">{s.scenarioCode}</Badge>
                             <span className="text-white flex-1">{lang === 'ar' ? s.titleAr : s.titleEn}</span>
                             <SeverityBadge severity={s.severity} />
-                            {s.lastResult && <ResultBadge result={s.lastResult} />}
                           </div>
                         ))}
                       </div>

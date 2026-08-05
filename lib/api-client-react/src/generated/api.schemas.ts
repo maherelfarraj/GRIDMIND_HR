@@ -5,6 +5,75 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * Device-employee mapping enriched with employee and device display fields.
+ */
+export interface DeviceMappingView {
+  id: number;
+  deviceId: number;
+  employeeId: number;
+  accessLevel: string;
+  biometricType: string;
+  /** @nullable */
+  enrolledAt?: string | null;
+  /** @nullable */
+  enrolledByUserId?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  employeeNameEn?: string | null;
+  /** @nullable */
+  employeeNameAr?: string | null;
+  /** @nullable */
+  employeeNumber?: string | null;
+  /** @nullable */
+  jobTitleEn?: string | null;
+  /** @nullable */
+  deviceName?: string | null;
+  /** @nullable */
+  deviceLocation?: string | null;
+  /** @nullable */
+  enrolledByName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AttendanceCorrection {
+  id: number;
+  attendanceRecordId: number;
+  employeeId: number;
+  requestedByUserId: number;
+  /** @nullable */
+  reviewedByUserId?: number | null;
+  correctionType: string;
+  /** @nullable */
+  originalValue?: string | null;
+  requestedValue: string;
+  reason: string;
+  status: string;
+  /** @nullable */
+  reviewNote?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AttendanceCorrectionView = AttendanceCorrection & ({
+  /** @nullable */
+  employeeNameEn?: string | null;
+  /** @nullable */
+  employeeNameAr?: string | null;
+  /** @nullable */
+  employeeNumber?: string | null;
+  /** @nullable */
+  recordDate?: string | null;
+  /** @nullable */
+  requestedByName?: string | null;
+  /** @nullable */
+  reviewedByName?: string | null;
+});
+
 export type GatewayRegistrationAdapterType = typeof GatewayRegistrationAdapterType[keyof typeof GatewayRegistrationAdapterType];
 
 
@@ -39,6 +108,30 @@ export const GatewayRegistrationAdapterConnStatus = {
   NOT_CONFIGURED: 'NOT_CONFIGURED',
 } as const;
 
+export type GatewayRegistrationReconcileCommandStatus = typeof GatewayRegistrationReconcileCommandStatus[keyof typeof GatewayRegistrationReconcileCommandStatus];
+
+
+export const GatewayRegistrationReconcileCommandStatus = {
+  PENDING: 'PENDING',
+  DELIVERED: 'DELIVERED',
+  ACKNOWLEDGED: 'ACKNOWLEDGED',
+  EXPIRED: 'EXPIRED',
+  FAILED: 'FAILED',
+} as const;
+
+/**
+ * Server-computed. The most recent RECONCILE device command issued for this registration, or null if none has ever been issued. Used by the admin UI to show queued, delivered, or acknowledged feedback for the "reconcile now" action.
+ */
+export type GatewayRegistrationReconcileCommand = {
+  id: number;
+  status: GatewayRegistrationReconcileCommandStatus;
+  /** @nullable */
+  resultMessage: string | null;
+  createdAt: string;
+  /** @nullable */
+  acknowledgedAt: string | null;
+} | null;
+
 /**
  * A registered local Attendance Gateway (secretHash is intentionally never exposed through the API).
  */
@@ -68,6 +161,10 @@ export interface GatewayRegistration {
   /** @nullable */
   adapterConnTestedAt?: string | null;
   /** @nullable */
+  connTestRequestedAt?: string | null;
+  /** Server-computed. True when a test request has been pending (connTestRequestedAt set, no heartbeat with a result received) for longer than max(2 × effective silence threshold, 5 minutes). The UI should show a "gateway did not respond" state instead of a spinner and offer cancel/retry actions. */
+  connTestTimedOut?: boolean;
+  /** @nullable */
   deviceClockSkewMs?: number | null;
   deviceClockSkewAlert?: boolean;
   /** @nullable */
@@ -79,6 +176,12 @@ export interface GatewayRegistration {
      * @nullable
      */
   silenceThresholdMinutes?: number | null;
+  /** Server-computed. True when the registration is ACTIVE and the last contact (lastHeartbeatAt, falling back to lastSeenAt then createdAt) occurred more than silenceThresholdMs milliseconds ago. Mirrors the verdict used by the notification sweep. */
+  silent?: boolean;
+  /** Server-computed. Effective silence threshold in milliseconds after applying the per-registration override (silenceThresholdMinutes converted to ms) or, when that field is null, the global GATEWAY_SILENCE_THRESHOLD_MS default. */
+  silenceThresholdMs?: number;
+  /** Server-computed. The most recent RECONCILE device command issued for this registration, or null if none has ever been issued. Used by the admin UI to show queued, delivered, or acknowledged feedback for the "reconcile now" action. */
+  reconcileCommand?: GatewayRegistrationReconcileCommand;
   /** @nullable */
   notes?: string | null;
   createdAt?: string;
@@ -819,6 +922,8 @@ export interface DeviceCommand {
   deliveredAt?: string | null;
   /** @nullable */
   acknowledgedAt?: string | null;
+  /** @nullable */
+  outcomeNotifiedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -4555,6 +4660,7 @@ export interface ReportScheduleUpdate {
   notifyUserIdsJson?: string[];
   isActive?: boolean;
 }
+
 export interface ReportOutput {
   id: number;
   reportDefinitionId: number;
@@ -5129,27 +5235,6 @@ export interface DeviceEmployeeMapping {
   updatedAt: string;
 }
 
-export interface AttendanceCorrection {
-  id: number;
-  attendanceRecordId: number;
-  employeeId: number;
-  requestedByUserId: number;
-  /** @nullable */
-  reviewedByUserId?: number | null;
-  correctionType: string;
-  /** @nullable */
-  originalValue?: string | null;
-  requestedValue: string;
-  reason: string;
-  status: string;
-  /** @nullable */
-  reviewNote?: string | null;
-  /** @nullable */
-  reviewedAt?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface SetupWizardProgress {
   id: number;
   instanceId: string;
@@ -5678,6 +5763,8 @@ export interface IntegrationCredentialVaultRef {
   createdByUserId?: number | null;
   createdAt: string;
   updatedAt: string;
+  configured?: boolean;
+  warnings?: string[];
 }
 
 export interface IntegrationConnectionProfile {
@@ -5725,6 +5812,7 @@ export interface IntegrationConnectionProfile {
   createdByUserId?: number | null;
   createdAt: string;
   updatedAt: string;
+  warnings?: string[];
 }
 
 export interface IntegrationGovernanceRule {
@@ -7484,6 +7572,38 @@ export type PostScheduledExportsIdRunNow202 = {
   scheduledExportId?: number;
 };
 
+export type CreateGatewayRegistrationBodyAdapterType = typeof CreateGatewayRegistrationBodyAdapterType[keyof typeof CreateGatewayRegistrationBodyAdapterType];
+
+
+export const CreateGatewayRegistrationBodyAdapterType = {
+  ZKTECO: 'ZKTECO',
+  SUPREMA: 'SUPREMA',
+  ZKTECO_NATIVE: 'ZKTECO_NATIVE',
+  SUPREMA_NATIVE: 'SUPREMA_NATIVE',
+  GENERIC_REST: 'GENERIC_REST',
+  CSV: 'CSV',
+  SIMULATOR: 'SIMULATOR',
+} as const;
+
+export type CreateGatewayRegistrationBody = {
+  name: string;
+  nameAr?: string;
+  deviceId?: number;
+  adapterType: CreateGatewayRegistrationBodyAdapterType;
+  notes?: string;
+  silenceThresholdMinutes?: number;
+};
+
+export type CreateGatewayRegistration201 = GatewayRegistration & {
+  /** Plaintext secret; returned once only */
+  secret?: string;
+};
+
+export type CancelGatewayConnectionTest200 = GatewayRegistration & {
+  /** True if connTestRequestedAt was cleared; false if it was already null */
+  cancelled?: boolean;
+};
+
 export type ListIntegrationConnectorsParams = {
 connectorType?: string;
 status?: string;
@@ -7890,3 +8010,496 @@ export type CreateImportMappingTemplateBody = {
 export type DeleteImportMappingTemplate200 = {
   deleted: boolean;
 };
+
+export type GetDiagnostics200Summary = {
+  pass: number;
+  warn: number;
+  fail: number;
+  total: number;
+};
+
+export type GetDiagnostics200 = {
+  checks: SystemHealthCheck[];
+  summary: GetDiagnostics200Summary;
+  /** @nullable */
+  runId?: string | null;
+  /** @nullable */
+  runAt?: string | null;
+};
+
+export type RunDiagnostics201Summary = {
+  pass: number;
+  warn: number;
+  fail: number;
+  total: number;
+};
+
+export type RunDiagnostics201 = {
+  checks: SystemHealthCheck[];
+  summary: RunDiagnostics201Summary;
+  runId: string;
+  runAt: string;
+  simulated?: boolean;
+};
+
+export type ListGoLiveGates200Grouped = {[key: string]: GoLiveGate[]};
+
+export type ListGoLiveGates200 = {
+  gates: GoLiveGate[];
+  grouped: ListGoLiveGates200Grouped;
+};
+
+export type GetGoLiveGatesSummary200CriticalBlockersItem = {
+  id: number;
+  gateCode: string;
+  titleEn: string;
+  severity: string;
+  status: string;
+  /** @nullable */
+  blockerDescriptionEn?: string | null;
+};
+
+export type GetGoLiveGatesSummary200 = {
+  totalGates: number;
+  passed: number;
+  failed: number;
+  warnings: number;
+  blocked: number;
+  criticalBlockers: GetGoLiveGatesSummary200CriticalBlockersItem[];
+  isReadyForGoLive: boolean;
+};
+
+export type EvaluateGoLiveGates200 = {
+  evaluated: number;
+  passed: number;
+  failed: number;
+  gates: GoLiveGate[];
+};
+
+export type OverrideGoLiveGateBody = {
+  reason: string;
+};
+
+export type RecalculateReadinessScorecard200 = {
+  recalculated: number;
+  scorecards: ReadinessScorecard[];
+};
+
+export type ListPilotDefectsParams = {
+/**
+ * @nullable
+ */
+module?: string | null;
+/**
+ * @nullable
+ */
+severity?: string | null;
+/**
+ * @nullable
+ */
+status?: string | null;
+/**
+ * @nullable
+ */
+isBlocker?: string | null;
+};
+
+export type CreatePilotDefectBody = {
+  module: string;
+  titleEn: string;
+  /** @nullable */
+  titleAr?: string | null;
+  /** @nullable */
+  descriptionEn?: string | null;
+  /** @nullable */
+  stepsToReproduce?: string | null;
+  /** @nullable */
+  severity?: string | null;
+  /** @nullable */
+  isGoLiveBlocker?: boolean | null;
+  /** @nullable */
+  relatedGateCode?: string | null;
+  /** @nullable */
+  sourceTestCode?: string | null;
+  /** @nullable */
+  assignedToUserId?: number | null;
+};
+
+export type GetMigrationStatusSummary200ByStatus = {
+  not_started: number;
+  in_progress: number;
+  complete: number;
+  failed: number;
+  skipped: number;
+};
+
+export type GetMigrationStatusSummary200 = {
+  total: number;
+  complete: number;
+  incomplete: number;
+  blockers: number;
+  byStatus: GetMigrationStatusSummary200ByStatus;
+};
+
+export type RunRestoreTestBody = {
+  /** @nullable */
+  backupRecordId?: number | null;
+  /** @nullable */
+  notes?: string | null;
+};
+
+export type RunRestoreTest201 = RestoreTestResult & {
+  backupRecord?: BackupRecord;
+};
+
+export type GetLatestRestoreTests200 = {
+  latest: RestoreTestResult[];
+};
+
+export type GetLatestBackup200 = {
+  backup: BackupRecord | null;
+};
+
+export type ListUatScriptsParams = {
+/**
+ * @nullable
+ */
+role?: string | null;
+/**
+ * @nullable
+ */
+module?: string | null;
+};
+
+export type CreateUatTestRunBody = {
+  scriptId: number;
+  /** @nullable */
+  testerUserId?: number | null;
+  /** @nullable */
+  testerRole?: string | null;
+  /** @nullable */
+  testerNameEn?: string | null;
+  /** @nullable */
+  browserInfo?: string | null;
+  /** @nullable */
+  environment?: string | null;
+};
+
+export type GetUatTestRunsSummary200 = {
+  totalRuns: number;
+  passed: number;
+  failed: number;
+  rolesCovered: string[];
+};
+
+export type UpdateUatTestRunStepBody = {
+  result: string;
+  /** @nullable */
+  actualResultEn?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  defectId?: number | null;
+};
+
+export type CompleteUatTestRunBody = {
+  /** @nullable */
+  overallNotes?: string | null;
+};
+
+export type CreateSecurityTestRunBody = {
+  /** @nullable */
+  runLabel?: string | null;
+  /** @nullable */
+  runType?: string | null;
+};
+
+export type CreateSecurityTestRun201 = {
+  runId: number;
+  findings: SecurityTestFinding[];
+  overallPosture: string;
+  run: SecurityTestRun;
+};
+
+export type GetSecurityTestRun200 = SecurityTestRun & {
+  findings: SecurityTestFinding[];
+};
+
+export type ListGatewayBatchesParams = {
+/**
+ * @nullable
+ */
+registrationId?: number | null;
+/**
+ * @nullable
+ */
+limit?: number | null;
+};
+
+export type GetGatewayReconcileStatus200Item = {
+  /** @nullable */
+  registrationId?: number | null;
+  /** @nullable */
+  registrationName?: string | null;
+  /** @nullable */
+  reconciledAt?: string | null;
+  checked: number;
+  missing: string[];
+  mismatched: string[];
+};
+
+export type ListDeviceMappingsParams = {
+/**
+ * @nullable
+ */
+deviceId?: number | null;
+/**
+ * @nullable
+ */
+employeeId?: number | null;
+};
+
+export type CreateDeviceMappingBody = {
+  employeeId: number;
+  /** @nullable */
+  accessLevel?: string | null;
+  /** @nullable */
+  biometricType?: string | null;
+  /** @nullable */
+  enrolledAt?: string | null;
+  /** @nullable */
+  enrolledByUserId?: number | null;
+  /** @nullable */
+  notes?: string | null;
+};
+
+export type ListAttendanceCorrectionsParams = {
+/**
+ * @nullable
+ */
+status?: string | null;
+};
+
+export type CreateAttendanceCorrectionBody = {
+  /** @nullable */
+  employeeId?: number | null;
+  correctionType: string;
+  /** @nullable */
+  originalValue?: string | null;
+  requestedValue: string;
+  reason: string;
+  /** @nullable */
+  requestedByUserId?: number | null;
+};
+
+export type DecideAttendanceCorrectionBodyDecision = typeof DecideAttendanceCorrectionBodyDecision[keyof typeof DecideAttendanceCorrectionBodyDecision];
+
+
+export const DecideAttendanceCorrectionBodyDecision = {
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type DecideAttendanceCorrectionBody = {
+  decision: DecideAttendanceCorrectionBodyDecision;
+  /** @nullable */
+  reviewNote?: string | null;
+  /** @nullable */
+  reviewedByUserId?: number | null;
+};
+
+export type ListConnectionProfilesParams = {
+/**
+ * @nullable
+ */
+orgId?: number | null;
+/**
+ * @nullable
+ */
+governanceStatus?: string | null;
+/**
+ * @nullable
+ */
+integrationType?: string | null;
+};
+
+export type CreateConnectionProfileBody = { [key: string]: unknown };
+
+export type UpdateConnectionProfileBody = { [key: string]: unknown };
+
+export type DeleteConnectionProfile200 = {
+  success: boolean;
+};
+
+export type TestConnectionProfileBody = {
+  /** @nullable */
+  testRecipient?: string | null;
+};
+
+export type TestConnectionProfile200 = {
+  success: boolean;
+  message: string;
+  latencyMs: number;
+  simulated: boolean;
+  testedAt: string;
+};
+
+export type ApproveConnectionProfileBody = {
+  /** @nullable */
+  approvalNotes?: string | null;
+};
+
+export type SuspendConnectionProfileBody = {
+  /** @nullable */
+  reason?: string | null;
+};
+
+export type ListGovernanceRulesParams = {
+/**
+ * @nullable
+ */
+orgId?: number | null;
+/**
+ * @nullable
+ */
+integrationType?: string | null;
+};
+
+export type UpdateGovernanceRuleBody = { [key: string]: unknown };
+
+export type ListIntegrationAuditLogParams = {
+/**
+ * @nullable
+ */
+profileId?: number | null;
+/**
+ * @nullable
+ */
+page?: number | null;
+/**
+ * @nullable
+ */
+pageSize?: number | null;
+};
+
+export type ListIntegrationAuditLog200 = {
+  data: IntegrationAuditLog[];
+  page: number;
+  pageSize: number;
+};
+
+export type RunIntegrationHealthChecksBody = {
+  /** @nullable */
+  force?: boolean | null;
+};
+
+export type RunIntegrationHealthChecks200 = { [key: string]: unknown };
+
+export type ListPolicyChangeRequestsParams = {
+/**
+ * @nullable
+ */
+status?: string | null;
+/**
+ * @nullable
+ */
+policyArea?: string | null;
+/**
+ * @nullable
+ */
+orgId?: number | null;
+};
+
+export type CreatePolicyChangeRequestBody = { [key: string]: unknown };
+
+export type ApprovePolicyChangeRequestBody = {
+  /** @nullable */
+  checkerComment?: string | null;
+};
+
+export type RejectPolicyChangeRequestBody = {
+  /** @nullable */
+  checkerComment?: string | null;
+};
+
+export type RollbackPolicyVersionBody = {
+  /** @nullable */
+  reason?: string | null;
+};
+
+export type ListNumberingSchemesParams = {
+/**
+ * @nullable
+ */
+orgId?: number | null;
+};
+
+export type CreateNumberingSchemeBody = { [key: string]: unknown };
+
+export type IncrementNumberingScheme200 = {
+  nextNumber: string;
+  sequence: number;
+};
+
+export type ListEmploymentTypeConfigsParams = {
+/**
+ * @nullable
+ */
+orgId?: number | null;
+};
+
+export type CreateEmploymentTypeConfigBody = {
+  orgId: number;
+  employmentType: string;
+  labelEn: string;
+  labelAr: string;
+  eligibleLeave?: boolean;
+  eligiblePayroll?: boolean;
+  eligibleBenefits?: boolean;
+  eligiblePension?: boolean;
+  probationEnabled?: boolean;
+  probationDays?: number;
+  /** @nullable */
+  defaultContractMonths?: number | null;
+  /** @nullable */
+  maxRenewals?: number | null;
+  applicableOrgTypesJson?: string;
+  isActive?: boolean;
+  sortOrder?: number;
+};
+
+export type ListRetentionRulesParams = {
+/**
+ * @nullable
+ */
+orgId?: number | null;
+};
+
+export type CreateRetentionRuleBody = { [key: string]: unknown };
+
+export type ListPolicyLocalesParams = {
+/**
+ * @nullable
+ */
+orgId?: number | null;
+};
+
+export type CreatePolicyLocaleBody = { [key: string]: unknown };
+
+export type UpdatePolicyLocaleBody = { [key: string]: unknown };
+
+export type ListOrgReportTemplatesParams = {
+/**
+ * @nullable
+ */
+orgId?: number | null;
+/**
+ * @nullable
+ */
+templateType?: string | null;
+};
+
+export type CreateOrgReportTemplateBody = { [key: string]: unknown };
+
+export type UpsertOrganizationBrandingBody = { [key: string]: unknown };
+

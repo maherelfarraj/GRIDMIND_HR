@@ -1,5 +1,5 @@
-import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
+import { useRunDiagnostics } from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -85,17 +85,16 @@ function ResultBadge({ result }: { result: string }) {
 function HealthChecksTab() {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [running, setRunning] = useState(false);
   const [ran, setRan] = useState(false);
+  const runMut = useRunDiagnostics();
+  const running = runMut.isPending;
 
   async function runChecks() {
-    setRunning(true);
     try {
-      await apiFetch('/api/diagnostics/run', { method: 'POST' });
+      await runMut.mutateAsync();
     } catch {}
     await new Promise(r => setTimeout(r, 1000));
     setRan(true);
-    setRunning(false);
     toast({ title: t('✓ Simulated — not a production action', '✓ محاكاة — ليس إجراءً إنتاجيًا') });
   }
 

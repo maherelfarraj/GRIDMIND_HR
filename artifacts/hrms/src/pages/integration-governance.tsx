@@ -1,5 +1,3 @@
-import { apiFetch } from '@/lib/api';
-import { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -16,6 +14,33 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw, Pencil, Trash2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '@/lib/api';
+import {
+  useListConnectionProfiles, getListConnectionProfilesQueryKey,
+  useListCredentialVaultRefs, getListCredentialVaultRefsQueryKey,
+  useListGovernanceRules, getListGovernanceRulesQueryKey,
+  useListIntegrationAuditLog, getListIntegrationAuditLogQueryKey,
+  useGetConnectionProfile, getGetConnectionProfileQueryKey,
+  useCreateConnectionProfile,
+  useUpdateConnectionProfile,
+  useTestConnectionProfile,
+  useApproveConnectionProfile,
+  useSuspendConnectionProfile,
+  useUpdateGovernanceRule,
+  useRunIntegrationHealthChecks,
+} from '@workspace/api-client-react';
+import type {
+  IntegrationConnectionProfile,
+  IntegrationCredentialVaultRef,
+  IntegrationGovernanceRule,
+  IntegrationAuditLog,
+  TestConnectionProfile200,
+} from '@workspace/api-client-react';
+// The security-email-status and pepper-rotation-status endpoints, plus the
+// credential-vault-ref create/update/delete endpoints, are not described in the
+// OpenAPI spec, so no generated hooks exist. Those calls use apiFetch directly.
 
 function intTypeIcon(type: string): React.ComponentType<{ className?: string }> {
   const map: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -272,10 +297,11 @@ function EditVaultRefDialog({ vaultRef, onClose, onSaved }: { vaultRef: any; onC
 }
 
 
-function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean; onClose: () => void; onSaved: () => void; vaultRefs: any[] }) {
+function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean; onClose: () => void; onSaved: () => void; vaultRefs: IntegrationCredentialVaultRef[] }) {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const createMut = useCreateConnectionProfile();
+  const saving = createMut.isPending;
   const [form, setForm] = useState({ profileName: '', profileNameAr: '', integrationType: '', environment: 'development', baseUrl: '', description: '', credentialVaultRefId: '' });
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -283,29 +309,25 @@ function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean
   useEffect(() => { if (open) setForm({ profileName: '', profileNameAr: '', integrationType: '', environment: 'development', baseUrl: '', description: '', credentialVaultRefId: '' }); }, [open]);
 
   async function handleSave() {
-    setSaving(true);
     try {
       const trimmedProfileNameAr = form.profileNameAr.trim();
-      const payload: Record<string, any> = {
+      const data: Record<string, unknown> = {
         profileName: form.profileName,
         profileNameAr: trimmedProfileNameAr !== '' ? trimmedProfileNameAr : form.profileName,
         integrationType: form.integrationType,
         environment: form.environment,
         connectionParamsJson: JSON.stringify({ baseUrl: form.baseUrl, description: form.description }),
       };
-      if (form.credentialVaultRefId) payload.credentialVaultRefId = parseInt(form.credentialVaultRefId);
-      const res = await apiFetch('/api/integration-governance/connection-profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error();
-      const data = await res.json().catch(() => null);
+      if (form.credentialVaultRefId) data.credentialVaultRefId = parseInt(form.credentialVaultRefId);
+      const created = await createMut.mutateAsync({ data });
       toast({ title: t('Profile created', 'تم إنشاء الملف الشخصي') });
-      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
-        for (const w of data.warnings) {
+      if (Array.isArray(created?.warnings) && created.warnings.length > 0) {
+        for (const w of created.warnings) {
           toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
         }
       }
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setSaving(false); }
   }
 
   const selectedRef = vaultRefs.find(r => String(r.id) === form.credentialVaultRefId);
@@ -349,7 +371,7 @@ function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean
                   <SelectItem key={r.id} value={String(r.id)}>
                     <span className="flex items-center gap-2">
                       <span>{lang === 'ar' ? (r.labelAr || r.labelEn) : r.labelEn}</span>
-                      <VaultConfigBadge configured={r.configured} />
+                      <VaultConfigBadge configured={!!r.configured} />
                     </span>
                   </SelectItem>
                 ))}
@@ -376,7 +398,8 @@ function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean
 function LinkVaultRefDialog({ profile, vaultRefs, onClose, onSaved }: { profile: any; vaultRefs: any[]; onClose: () => void; onSaved: () => void }) {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const updateMut = useUpdateConnectionProfile();
+  const saving = updateMut.isPending;
   const [selectedId, setSelectedId] = useState<string>(profile?.credentialVaultRefId ? String(profile.credentialVaultRefId) : '__none__');
 
   useEffect(() => {
@@ -386,27 +409,19 @@ function LinkVaultRefDialog({ profile, vaultRefs, onClose, onSaved }: { profile:
   const selectedRef = vaultRefs.find(r => String(r.id) === selectedId);
 
   async function handleSave() {
-    setSaving(true);
     try {
-      const body: Record<string, any> = {
-        credentialVaultRefId: selectedId === '__none__' ? null : parseInt(selectedId),
-      };
-      const res = await apiFetch(`/api/integration-governance/connection-profiles/${profile.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      const updated = await updateMut.mutateAsync({
+        id: profile.id,
+        data: { credentialVaultRefId: selectedId === '__none__' ? null : parseInt(selectedId) },
       });
-      if (!res.ok) throw new Error();
-      const data = await res.json().catch(() => null);
       toast({ title: t('Credential vault ref updated', 'تم تحديث مرجع خزنة الاعتماد') });
-      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
-        for (const w of data.warnings) {
+      if (Array.isArray(updated?.warnings) && updated.warnings.length > 0) {
+        for (const w of updated.warnings) {
           toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
         }
       }
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setSaving(false); }
   }
 
   return (
@@ -432,7 +447,7 @@ function LinkVaultRefDialog({ profile, vaultRefs, onClose, onSaved }: { profile:
                   <SelectItem key={r.id} value={String(r.id)}>
                     <span className="flex items-center gap-2">
                       <span>{lang === 'ar' ? (r.labelAr || r.labelEn) : r.labelEn}</span>
-                      <VaultConfigBadge configured={r.configured} />
+                      <VaultConfigBadge configured={!!r.configured} />
                     </span>
                   </SelectItem>
                 ))}
@@ -469,10 +484,11 @@ const REAL_ADAPTER_TYPES = new Set(['ldap', 'active_directory', 'smtp', 'attenda
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function isValidEmail(v: string) { return EMAIL_RE.test(v.trim()); }
 
-function HealthSettingsDialog({ profile, onClose, onSaved }: { profile: any; onClose: () => void; onSaved: () => void }) {
+function HealthSettingsDialog({ profile, onClose, onSaved }: { profile: ConnectionProfile; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const updateMut = useUpdateConnectionProfile();
+  const saving = updateMut.isPending;
   const [enabled, setEnabled] = useState<boolean>(!!profile?.isHealthMonitoringEnabled);
   const [interval, setIntervalMin] = useState<string>(String(profile?.healthCheckIntervalMinutes ?? 15));
   const [threshold, setThreshold] = useState<string>(String(profile?.alertOnFailureCount ?? 3));
@@ -481,24 +497,19 @@ function HealthSettingsDialog({ profile, onClose, onSaved }: { profile: any; onC
   const intervalValid = Number.isInteger(intervalNum) && intervalNum >= 1 && intervalNum <= 1440;
   const thresholdValid = Number.isInteger(thresholdNum) && thresholdNum >= 1 && thresholdNum <= 100;
   async function handleSave() {
-    setSaving(true);
     try {
-      const res = await apiFetch(`/api/integration-governance/connection-profiles/${profile.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isHealthMonitoringEnabled: enabled, healthCheckIntervalMinutes: intervalNum, alertOnFailureCount: thresholdNum }),
+      const updated = await updateMut.mutateAsync({
+        id: profile.id,
+        data: { isHealthMonitoringEnabled: enabled, healthCheckIntervalMinutes: intervalNum, alertOnFailureCount: thresholdNum },
       });
-      if (!res.ok) throw new Error();
-      const data = await res.json().catch(() => null);
       toast({ title: t('Health monitoring settings saved', 'تم حفظ إعدادات مراقبة الصحة') });
-      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
-        for (const w of data.warnings) {
+      if (Array.isArray(updated?.warnings) && updated.warnings.length > 0) {
+        for (const w of updated.warnings) {
           toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
         }
       }
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setSaving(false); }
   }
   return (
     <Dialog open={!!profile} onOpenChange={v => !v && onClose()}>
@@ -539,26 +550,17 @@ function HealthSettingsDialog({ profile, onClose, onSaved }: { profile: any; onC
 
 function ProfileDetailDialog({ profileId, onClose }: { profileId: number | null; onClose: () => void }) {
   const { t, lang } = useLanguage();
-  const [detail, setDetail] = useState<any>(null);
-  const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    if (profileId == null) { setDetail(null); setEvents([]); setError(false); return; }
-    let cancelled = false;
-    setLoading(true); setError(false); setDetail(null); setEvents([]);
-    Promise.all([
-      apiFetch(`/api/integration-governance/connection-profiles/${profileId}`)
-        .then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-      apiFetch(`/api/integration-governance/audit-log?profileId=${profileId}&pageSize=25`)
-        .then(r => r.ok ? r.json() : { data: [] })
-        .catch(() => ({ data: [] })),
-    ])
-      .then(([d, a]) => { if (!cancelled) { setDetail(d); setEvents(Array.isArray(a?.data) ? a.data : []); } })
-      .catch(() => { if (!cancelled) setError(true); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [profileId]);
+  const { data: detailData, isLoading: detailLoading, error: detailError } = useGetConnectionProfile(profileId as number, {
+    query: { enabled: profileId != null, queryKey: getGetConnectionProfileQueryKey(profileId as number) },
+  });
+  const { data: auditData } = useListIntegrationAuditLog(
+    { profileId: profileId as number, pageSize: 25 },
+    { query: { enabled: profileId != null, queryKey: getListIntegrationAuditLogQueryKey({ profileId: profileId as number, pageSize: 25 }) } },
+  );
+  const detail = (profileId != null ? (detailData as ConnectionProfile | undefined) : undefined) ?? null;
+  const events: IntegrationAuditLog[] = profileId != null ? (auditData?.data ?? []) : [];
+  const loading = profileId != null && detailLoading;
+  const error = profileId != null && detailError != null;
   // Latest test event (test_passed/test_failed) carries the attempt count;
   // retry_triggered events show recovery in action.
   const lastTestEvent = events.find(e => e.eventType === 'test_passed' || e.eventType === 'test_failed') ?? null;
@@ -664,72 +666,86 @@ function ProfileDetailDialog({ profileId, onClose }: { profileId: number | null;
 export default function IntegrationGovernance() {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
-  const [profiles, setProfiles] = useState<any[]>([]);
+  const queryClient = useQueryClient();
+
+  const { data: profilesData, isLoading: profilesLoading } = useListConnectionProfiles();
+  const { data: vaultData, isLoading: vaultLoading } = useListCredentialVaultRefs();
+  const { data: rulesData, isLoading: rulesLoading } = useListGovernanceRules();
+  const { data: auditData, isLoading: auditLoading } = useListIntegrationAuditLog();
+
+  const profiles = (profilesData ?? []) as ConnectionProfile[];
+  const vault: IntegrationCredentialVaultRef[] = vaultData ?? [];
+  const rules: IntegrationGovernanceRule[] = rulesData ?? [];
+  const auditLog: IntegrationAuditLog[] = auditData?.data ?? [];
+  const loading = profilesLoading || vaultLoading || rulesLoading || auditLoading;
+
+  const testMut = useTestConnectionProfile();
+  const approveMut = useApproveConnectionProfile();
+  const suspendMut = useSuspendConnectionProfile();
+  const updateRuleMut = useUpdateGovernanceRule();
+  const healthChecksMut = useRunIntegrationHealthChecks();
+
+  // security-email-status and pepper-rotation-status have no OpenAPI spec entry,
+  // so they are fetched directly with apiFetch.
   const [emailStatus, setEmailStatus] = useState<any>(null);
   const [pepperStatus, setPepperStatus] = useState<any>(null);
-  const [vault, setVault] = useState<any[]>([]);
-  const [rules, setRules] = useState<any[]>([]);
-  const [auditLog, setAuditLog] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [testingIds, setTestingIds] = useState<Set<number>>(new Set());
-  const [suspendTarget, setSuspendTarget] = useState<any>(null);
-  const [addProfileOpen, setAddProfileOpen] = useState(false);
-  const [smtpTestTarget, setSmtpTestTarget] = useState<any>(null);
-  const [smtpRecipient, setSmtpRecipient] = useState('');
-  const [healthTarget, setHealthTarget] = useState<any>(null);
-  const [runningHealthChecks, setRunningHealthChecks] = useState(false);
-  const [detailProfileId, setDetailProfileId] = useState<number | null>(null);
-  const [linkVaultTarget, setLinkVaultTarget] = useState<any>(null);
-  const [addVaultRefOpen, setAddVaultRefOpen] = useState(false);
-  const [editVaultTarget, setEditVaultTarget] = useState<any>(null);
-  const [deleteVaultTarget, setDeleteVaultTarget] = useState<any>(null);
-  const [editProfile, setEditProfile] = useState<any>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const [testingIds, setTestingIds] = useState<Set<number>>(new Set());
+  const [suspendTarget, setSuspendTarget] = useState<ConnectionProfile | null>(null);
+  const [addProfileOpen, setAddProfileOpen] = useState(false);
+  const [smtpTestTarget, setSmtpTestTarget] = useState<ConnectionProfile | null>(null);
+  const [smtpRecipient, setSmtpRecipient] = useState('');
+  const [healthTarget, setHealthTarget] = useState<ConnectionProfile | null>(null);
+  const [detailProfileId, setDetailProfileId] = useState<number | null>(null);
+  const [linkVaultTarget, setLinkVaultTarget] = useState<ConnectionProfile | null>(null);
+  const [addVaultRefOpen, setAddVaultRefOpen] = useState(false);
+  const [editVaultTarget, setEditVaultTarget] = useState<IntegrationCredentialVaultRef | null>(null);
+  const [deleteVaultTarget, setDeleteVaultTarget] = useState<IntegrationCredentialVaultRef | null>(null);
+  const [editProfile, setEditProfile] = useState<ConnectionProfile | null>(null);
+  const runningHealthChecks = healthChecksMut.isPending;
+
+  function refreshProfiles() {
+    queryClient.invalidateQueries({ queryKey: getListConnectionProfilesQueryKey() });
+  }
+  function refreshVault() {
+    queryClient.invalidateQueries({ queryKey: getListCredentialVaultRefsQueryKey() });
+  }
+  function refreshAll() {
+    queryClient.invalidateQueries({ queryKey: getListConnectionProfilesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListCredentialVaultRefsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListGovernanceRulesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListIntegrationAuditLogQueryKey() });
+    loadStatuses();
+  }
+
+  const loadStatuses = useCallback(async () => {
     try {
-      const [p, v, r, a, e, pep] = await Promise.allSettled([
-        apiFetch('/api/integration-governance/connection-profiles').then(r => r.json()),
-        apiFetch('/api/integration-governance/credential-vault-refs').then(r => r.json()),
-        apiFetch('/api/integration-governance/governance-rules').then(r => r.json()),
-        apiFetch('/api/integration-governance/audit-log').then(r => r.json()),
+      const [e, pep] = await Promise.allSettled([
         apiFetch('/api/integration-governance/security-email-status').then(r => r.json()),
         apiFetch('/api/integration-governance/pepper-rotation-status').then(r => r.json()),
       ]);
-      setProfiles(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : []);
       setEmailStatus(e.status === 'fulfilled' && e.value && typeof e.value.outageActive === 'boolean' ? e.value : null);
       setPepperStatus(pep.status === 'fulfilled' && pep.value && typeof pep.value.windowOpen === 'boolean' ? pep.value : null);
-      setVault(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : []);
-      setRules(r.status === 'fulfilled' && Array.isArray(r.value) ? r.value : []);
-      setAuditLog(a.status === 'fulfilled' && Array.isArray(a.value?.data) ? a.value.data : []);
-    } finally { setLoading(false); }
+    } catch { /* status cards are best-effort */ }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadStatuses(); }, [loadStatuses]);
 
   async function testConnection(id: number, testRecipient?: string) {
     setTestingIds(prev => new Set(prev).add(id));
     try {
-      const res = await apiFetch(`/api/integration-governance/connection-profiles/${id}/test`, {
-        method: 'POST',
-        ...(testRecipient ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testRecipient }) } : {}),
+      const data: TestConnectionProfile200 = await testMut.mutateAsync({
+        id,
+        ...(testRecipient ? { data: { testRecipient } } : {}),
       });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data || typeof data.success !== 'boolean') {
-        toast({
-          title: t('Test failed', 'فشل الاختبار'),
-          description: data?.error || data?.message || t(`Server returned an unexpected response (HTTP ${res.status})`, `أعاد الخادم استجابة غير متوقعة (HTTP ${res.status})`),
-          variant: 'destructive',
-        });
-        return;
-      }
       const simulatedNote = data.simulated ? ` · ${t('⚠ Simulated', '⚠ محاكاة')}` : '';
       toast({
         title: data.success ? t('Test succeeded', 'نجح الاختبار') : t('Test failed', 'فشل الاختبار'),
         description: `${data.success ? '✅' : '❌'} ${data.latencyMs ?? '?'}ms — ${data.message ?? ''}${simulatedNote}`,
         ...(data.success ? {} : { variant: 'destructive' as const }),
       });
-      load();
+      refreshProfiles();
+      queryClient.invalidateQueries({ queryKey: getListIntegrationAuditLogQueryKey() });
     } catch {
       toast({
         title: t('Test failed', 'فشل الاختبار'),
@@ -742,58 +758,58 @@ export default function IntegrationGovernance() {
 
   async function approveProfile(id: number) {
     try {
-      await apiFetch(`/api/integration-governance/connection-profiles/${id}/approve`, { method: 'POST' });
+      await approveMut.mutateAsync({ id });
       toast({ title: t('Approved', 'تمت الموافقة') });
-      load();
+      refreshProfiles();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
   async function suspendProfile() {
     if (!suspendTarget) return;
     try {
-      await apiFetch(`/api/integration-governance/connection-profiles/${suspendTarget.id}/suspend`, { method: 'POST' });
+      await suspendMut.mutateAsync({ id: suspendTarget.id });
       toast({ title: t('Suspended', 'تم التعليق') });
       setSuspendTarget(null);
-      load();
+      refreshProfiles();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
   async function runHealthChecksNow() {
-    setRunningHealthChecks(true);
     try {
-      const res = await apiFetch('/api/integration-governance/health-checks/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force: true }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data || typeof data.checked !== 'number') {
-        toast({ title: t('Health checks failed', 'فشلت فحوصات الصحة'), description: data?.error, variant: 'destructive' });
+      const data = await healthChecksMut.mutateAsync({ data: { force: true } }) as Record<string, unknown>;
+      const checked = data.checked as number | undefined;
+      if (typeof checked !== 'number') {
+        toast({ title: t('Health checks failed', 'فشلت فحوصات الصحة'), description: data.error as string | undefined, variant: 'destructive' });
         return;
       }
+      const passed = data.passed as number | undefined;
+      const failed = (data.failed as number | undefined) ?? 0;
+      const alertsRaised = data.alertsRaised as number | undefined;
       toast({
         title: t('Health checks complete', 'اكتملت فحوصات الصحة'),
         description: t(
-          `Checked ${data.checked} · Passed ${data.passed} · Failed ${data.failed} · Alerts ${data.alertsRaised}`,
-          `تم الفحص ${data.checked} · نجح ${data.passed} · فشل ${data.failed} · تنبيهات ${data.alertsRaised}`,
+          `Checked ${checked} · Passed ${passed} · Failed ${failed} · Alerts ${alertsRaised}`,
+          `تم الفحص ${checked} · نجح ${passed} · فشل ${failed} · تنبيهات ${alertsRaised}`,
         ),
-        ...(data.failed > 0 ? { variant: 'destructive' as const } : {}),
+        ...(failed > 0 ? { variant: 'destructive' as const } : {}),
       });
-      load();
+      refreshProfiles();
+      queryClient.invalidateQueries({ queryKey: getListIntegrationAuditLogQueryKey() });
     } catch {
       toast({ title: t('Health checks failed', 'فشلت فحوصات الصحة'), description: t('Could not reach the server.', 'تعذر الوصول إلى الخادم.'), variant: 'destructive' });
-    } finally { setRunningHealthChecks(false); }
+    }
   }
 
   const healthAlerts = auditLog.filter(a => a.eventType === 'health_alert').slice(0, 5);
 
   async function toggleRule(id: number, active: boolean) {
     try {
-      await apiFetch(`/api/integration-governance/governance-rules/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: active }) });
-      load();
+      await updateRuleMut.mutateAsync({ id, data: { isActive: active } });
+      queryClient.invalidateQueries({ queryKey: getListGovernanceRulesQueryKey() });
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
+  // No OpenAPI spec entry for deleting a credential vault ref, so use apiFetch.
   async function deleteVaultRef() {
     if (!deleteVaultTarget) return;
     try {
@@ -801,7 +817,7 @@ export default function IntegrationGovernance() {
       if (!res.ok) throw new Error();
       toast({ title: t('Vault ref deleted', 'تم حذف مرجع الخزنة') });
       setDeleteVaultTarget(null);
-      load();
+      refreshVault();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
   }
 
@@ -828,7 +844,7 @@ export default function IntegrationGovernance() {
           <TabsContent value="profiles" className="mt-4 space-y-4">
             <div className="flex justify-between items-center">
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={load}><RefreshCw className="w-4 h-4 me-1" />{t('Refresh', 'تحديث')}</Button>
+                <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={refreshAll}><RefreshCw className="w-4 h-4 me-1" />{t('Refresh', 'تحديث')}</Button>
                 <Button variant="outline" size="sm" className="border-slate-600 text-emerald-300 hover:text-emerald-200" onClick={runHealthChecksNow} disabled={runningHealthChecks}>
                   {runningHealthChecks ? <Loader2 className="w-4 h-4 me-1 animate-spin" /> : <Activity className="w-4 h-4 me-1" />}
                   {t('Run health checks now', 'تشغيل فحوصات الصحة الآن')}
@@ -1042,7 +1058,7 @@ export default function IntegrationGovernance() {
           {/* Credential Vault */}
           <TabsContent value="vault" className="mt-4 space-y-4">
             <div className="flex justify-between items-center">
-              <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={load}><RefreshCw className="w-4 h-4 me-1" />{t('Refresh', 'تحديث')}</Button>
+              <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={refreshVault}><RefreshCw className="w-4 h-4 me-1" />{t('Refresh', 'تحديث')}</Button>
               <Button onClick={() => setAddVaultRefOpen(true)} className="bg-blue-600 hover:bg-blue-700 gap-2"><span>+</span>{t('Add Vault Ref', 'إضافة مرجع خزنة')}</Button>
             </div>
             <div className="rounded-md border border-amber-700/50 bg-amber-900/30 p-3 flex items-start gap-2">
@@ -1197,10 +1213,10 @@ export default function IntegrationGovernance() {
           </TabsContent>
         </Tabs>
 
-        <AddProfileDialog open={addProfileOpen} onClose={() => setAddProfileOpen(false)} onSaved={load} vaultRefs={vault} />
-        <AddVaultRefDialog open={addVaultRefOpen} onClose={() => setAddVaultRefOpen(false)} onSaved={load} />
-        {editVaultTarget && <EditVaultRefDialog vaultRef={editVaultTarget} onClose={() => setEditVaultTarget(null)} onSaved={load} />}
-        {editProfile && <EditProfileNameArDialog profile={editProfile} onClose={() => setEditProfile(null)} onSaved={load} />}
+        <AddProfileDialog open={addProfileOpen} onClose={() => setAddProfileOpen(false)} onSaved={refreshProfiles} vaultRefs={vault} />
+        <AddVaultRefDialog open={addVaultRefOpen} onClose={() => setAddVaultRefOpen(false)} onSaved={refreshVault} />
+        {editVaultTarget && <EditVaultRefDialog vaultRef={editVaultTarget} onClose={() => setEditVaultTarget(null)} onSaved={refreshVault} />}
+        {editProfile && <EditProfileNameArDialog profile={editProfile} onClose={() => setEditProfile(null)} onSaved={refreshProfiles} />}
 
         <AlertDialog open={!!deleteVaultTarget} onOpenChange={v => !v && setDeleteVaultTarget(null)}>
           <AlertDialogContent className="bg-slate-800 border-slate-700 text-white">
@@ -1219,8 +1235,8 @@ export default function IntegrationGovernance() {
                       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                       <span>
                         {t(
-                          `This ref is used by ${linked.length} connection profile${linked.length === 1 ? '' : 's'}: ${linked.map((p: any) => p.profileName).join(', ')}. Those profiles will lose their credential ref.`,
-                          `هذا المرجع مستخدم في ${linked.length} ملف اتصال: ${linked.map((p: any) => p.profileName).join(', ')}. ستفقد تلك الملفات مرجع بيانات الاعتماد.`,
+                          `This ref is used by ${linked.length} connection profile${linked.length === 1 ? '' : 's'}: ${linked.map(p => p.profileName).join(', ')}. Those profiles will lose their credential ref.`,
+                          `هذا المرجع مستخدم في ${linked.length} ملف اتصال: ${linked.map(p => p.profileName).join(', ')}. ستفقد تلك الملفات مرجع بيانات الاعتماد.`,
                         )}
                       </span>
                     </span>
@@ -1235,9 +1251,9 @@ export default function IntegrationGovernance() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {linkVaultTarget && <LinkVaultRefDialog profile={linkVaultTarget} vaultRefs={vault} onClose={() => setLinkVaultTarget(null)} onSaved={load} />}
+        {linkVaultTarget && <LinkVaultRefDialog profile={linkVaultTarget} vaultRefs={vault} onClose={() => setLinkVaultTarget(null)} onSaved={refreshProfiles} />}
 
-        {healthTarget && <HealthSettingsDialog profile={healthTarget} onClose={() => setHealthTarget(null)} onSaved={load} />}
+        {healthTarget && <HealthSettingsDialog profile={healthTarget} onClose={() => setHealthTarget(null)} onSaved={refreshProfiles} />}
 
         <ProfileDetailDialog profileId={detailProfileId} onClose={() => setDetailProfileId(null)} />
 
@@ -1260,7 +1276,7 @@ export default function IntegrationGovernance() {
                 value={smtpRecipient}
                 onChange={e => setSmtpRecipient(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && isValidEmail(smtpRecipient)) {
+                  if (e.key === 'Enter' && isValidEmail(smtpRecipient) && smtpTestTarget) {
                     testConnection(smtpTestTarget.id, smtpRecipient.trim());
                     setSmtpTestTarget(null);
                   }
@@ -1275,7 +1291,7 @@ export default function IntegrationGovernance() {
               <Button
                 className="bg-blue-600 hover:bg-blue-700"
                 disabled={!isValidEmail(smtpRecipient)}
-                onClick={() => { testConnection(smtpTestTarget.id, smtpRecipient.trim()); setSmtpTestTarget(null); }}
+                onClick={() => { if (smtpTestTarget) { testConnection(smtpTestTarget.id, smtpRecipient.trim()); setSmtpTestTarget(null); } }}
               >
                 {t('Send Test', 'إرسال الاختبار')}
               </Button>
@@ -1305,24 +1321,21 @@ export default function IntegrationGovernance() {
 function EditProfileNameArDialog({ profile, onClose, onSaved }: { profile: any; onClose: () => void; onSaved: () => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const updateMut = useUpdateConnectionProfile();
+  const saving = updateMut.isPending;
   const [profileNameAr, setProfileNameAr] = useState('');
 
   useEffect(() => { if (profile) setProfileNameAr(profile.profileNameAr ?? ''); }, [profile]);
 
   async function handleSave() {
-    setSaving(true);
     try {
-      const res = await apiFetch(`/api/integration-governance/connection-profiles/${profile.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileNameAr: profileNameAr.trim() || profile.profileName }),
+      await updateMut.mutateAsync({
+        id: profile.id,
+        data: { profileNameAr: profileNameAr.trim() || profile.profileName },
       });
-      if (!res.ok) throw new Error();
       toast({ title: t('Arabic name updated', 'تم تحديث الاسم بالعربية') });
       onSaved(); onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
-    finally { setSaving(false); }
   }
 
   return (
@@ -1362,3 +1375,8 @@ function EditProfileNameArDialog({ profile, onClose, onSaved }: { profile: any; 
     </Dialog>
   );
 }
+
+type ConnectionProfile = IntegrationConnectionProfile & {
+  lastTestedByNameEn?: string | null;
+  lastTestedByNameAr?: string | null;
+};

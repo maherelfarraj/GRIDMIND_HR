@@ -1,5 +1,16 @@
-import { apiFetch } from '@/lib/api';
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useListUatScripts,
+  useListUatTestRuns,
+  useCreateUatTestRun,
+  useUpdateUatTestRunStep,
+  useCompleteUatTestRun,
+  useGetUatTestRunsSummary,
+  getListUatTestRunsQueryKey,
+  getGetUatTestRunsSummaryQueryKey,
+} from '@workspace/api-client-react';
+import type { UatScript, UatTestRun } from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -15,9 +26,16 @@ import { ClipboardCheck, PlayCircle, ChevronDown, ChevronRight, CheckCircle, XCi
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface UATStep { stepNumber: number; actionEn: string; actionAr: string; expectedResultEn: string; expectedResultAr: string; inputData?: string; navigateTo?: string; }
-interface UATScript { id: number; scriptCode: string; titleEn: string; titleAr: string; targetRole: string; module: string; estimatedMinutes: number; steps: UATStep[]; lastRunResult?: string; }
 interface StepResult { stepNumber: number; result: 'pass' | 'fail' | 'skip'; notes: string; }
-interface TestRun { id: number; scriptCode: string; testerName: string; targetRole: string; result: string; stepsPassed: number; stepsFailed: number; stepsSkipped: number; startedAt: string; stepResults?: StepResult[]; }
+
+function parseSteps(script: UatScript): UATStep[] {
+  try {
+    const parsed = JSON.parse(script.stepsJson ?? '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function ResultBadge({ result }: { result: string }) {
@@ -29,7 +47,7 @@ const ROLES = ['HR Admin', 'Payroll Admin', 'Line Manager', 'Employee', 'Attenda
 const MODULES = ['Attendance', 'Leave', 'Payroll', 'Security', 'Recruitment', 'Training', 'Performance', 'Reports'];
 
 // ─── Step Execution Dialog ────────────────────────────────────────────────────
-function ScriptRunDialog({ script, open, onClose, onComplete }: { script: UATScript | null; open: boolean; onClose: () => void; onComplete: () => void }) {
+function ScriptRunDialog({ script, open, onClose, onComplete }: { script: UatScript | null; open: boolean; onClose: () => void; onComplete: () => void }) {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
   const [tester, setTester] = useState('');
@@ -39,11 +57,15 @@ function ScriptRunDialog({ script, open, onClose, onComplete }: { script: UATScr
   const [note, setNote] = useState('');
   const [finishing, setFinishing] = useState(false);
 
+  const createRunMut = useCreateUatTestRun();
+  const updateStepMut = useUpdateUatTestRunStep();
+  const completeRunMut = useCompleteUatTestRun();
+
   useEffect(() => { if (open) { setStep(0); setResults([]); setNote(''); } }, [open]);
 
   if (!script) return null;
   const scriptId = script.id;
-  const steps = script.steps ?? [];
+  const steps = parseSteps(script);
   const currentStep = steps[step];
   const progress = steps.length > 0 ? Math.round((step / steps.length) * 100) : 0;
 
@@ -61,11 +83,17 @@ function ScriptRunDialog({ script, open, onClose, onComplete }: { script: UATScr
   async function finishRun(finalResults: StepResult[]) {
     setFinishing(true);
     try {
-      await apiFetch(`/api/uat-test-runs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scriptId, testerName: tester, environment: env, stepResults: finalResults }),
+      const run = await createRunMut.mutateAsync({
+        data: { scriptId, testerNameEn: tester || null, environment: env },
       });
+      for (const sr of finalResults) {
+        await updateStepMut.mutateAsync({
+          id: run.id,
+          stepNumber: sr.stepNumber,
+          data: { result: sr.result, notes: sr.notes || null },
+        });
+      }
+      await completeRunMut.mutateAsync({ id: run.id });
       toast({ title: t('Test run completed', 'اكتمل تشغيل الاختبار') });
       onComplete();
       onClose();
@@ -126,20 +154,19 @@ function ScriptRunDialog({ script, open, onClose, onComplete }: { script: UATScr
 }
 
 // ─── Coverage Matrix ──────────────────────────────────────────────────────────
-function CoverageMatrix({ runs }: { runs: TestRun[] }) {
+function CoverageMatrix({ runs, scripts }: { runs: UatTestRun[]; scripts: UatScript[] }) {
   const { t } = useLanguage();
+  const scriptById = new Map(scripts.map(s => [s.id, s]));
   const matrix: Record<string, Record<string, { count: number; result: string }>> = {};
   ROLES.forEach(r => { matrix[r] = {}; MODULES.forEach(m => { matrix[r][m] = { count: 0, result: '' }; }); });
   runs.forEach(run => {
-    const role = run.targetRole;
-    MODULES.forEach(mod => {
-      if (run.scriptCode?.toLowerCase().includes(mod.toLowerCase())) {
-        if (!matrix[role]?.[mod]) return;
-        matrix[role][mod].count++;
-        if (run.result === 'fail') matrix[role][mod].result = 'fail';
-        else if (!matrix[role][mod].result) matrix[role][mod].result = run.result;
-      }
-    });
+    const script = scriptById.get(run.scriptId);
+    const role = run.testerRole ?? script?.targetRole ?? '';
+    const mod = script?.module;
+    if (!mod || !matrix[role]?.[mod]) return;
+    matrix[role][mod].count++;
+    if (run.result === 'fail') matrix[role][mod].result = 'fail';
+    else if (!matrix[role][mod].result) matrix[role][mod].result = run.result;
   });
   const completeRoles = ROLES.filter(r => MODULES.every(m => matrix[r][m].count > 0)).length;
 
@@ -181,28 +208,23 @@ function CoverageMatrix({ runs }: { runs: TestRun[] }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function UATScripts() {
   const { t, lang } = useLanguage();
-  const [scripts, setScripts] = useState<UATScript[]>([]);
-  const [runs, setRuns] = useState<TestRun[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [runScript, setRunScript] = useState<UATScript | null>(null);
+  const queryClient = useQueryClient();
+  const { data: scripts = [], isLoading: scriptsLoading } = useListUatScripts();
+  const { data: runs = [], isLoading: runsLoading } = useListUatTestRuns();
+  const { data: summary } = useGetUatTestRunsSummary();
+  const loading = scriptsLoading || runsLoading;
+  const [runScript, setRunScript] = useState<UatScript | null>(null);
   const [expandedRun, setExpandedRun] = useState<number | null>(null);
   const [roleFilter, setRoleFilter] = useState('');
   const [moduleFilter, setModuleFilter] = useState('');
   const [runFilters, setRunFilters] = useState({ result: '', role: '', module: '' });
 
-  async function load() {
-    setLoading(true);
-    try {
-      const [sc, ru] = await Promise.allSettled([
-        apiFetch('/api/uat-scripts').then(r => r.json()),
-        apiFetch('/api/uat-test-runs').then(r => r.json()),
-      ]);
-      if (sc.status === 'fulfilled') setScripts(Array.isArray(sc.value) ? sc.value : sc.value.scripts ?? []);
-      if (ru.status === 'fulfilled') setRuns(Array.isArray(ru.value) ? ru.value : ru.value.runs ?? []);
-    } finally { setLoading(false); }
-  }
+  const scriptById = new Map(scripts.map(s => [s.id, s]));
 
-  useEffect(() => { load(); }, []);
+  function refresh() {
+    queryClient.invalidateQueries({ queryKey: getListUatTestRunsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetUatTestRunsSummaryQueryKey() });
+  }
 
   const filteredScripts = scripts.filter(s => {
     if (roleFilter && s.targetRole !== roleFilter) return false;
@@ -211,8 +233,9 @@ export default function UATScripts() {
   });
 
   const filteredRuns = runs.filter(r => {
+    const role = r.testerRole ?? scriptById.get(r.scriptId)?.targetRole ?? '';
     if (runFilters.result && r.result !== runFilters.result) return false;
-    if (runFilters.role && r.targetRole !== runFilters.role) return false;
+    if (runFilters.role && role !== runFilters.role) return false;
     return true;
   });
 
@@ -258,7 +281,6 @@ export default function UATScripts() {
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-start justify-between">
                       <Badge className="bg-slate-700 text-slate-300 text-xs font-mono">{sc.scriptCode}</Badge>
-                      {sc.lastRunResult && <ResultBadge result={sc.lastRunResult} />}
                     </div>
                     <div className="font-semibold text-white text-sm">{lang === 'ar' ? sc.titleAr : sc.titleEn}</div>
                     <div className="flex gap-1 flex-wrap">
@@ -266,7 +288,7 @@ export default function UATScripts() {
                       <Badge className="bg-purple-900 text-purple-300 text-xs">{sc.module}</Badge>
                     </div>
                     <div className="text-xs text-slate-400">
-                      {sc.estimatedMinutes} {t('min', 'دقيقة')} · {sc.steps?.length ?? 0} {t('steps', 'خطوات')}
+                      {sc.estimatedMinutes} {t('min', 'دقيقة')} · {parseSteps(sc).length} {t('steps', 'خطوات')}
                     </div>
                     <Button size="sm" className="w-full bg-blue-700 hover:bg-blue-800 mt-2" onClick={() => setRunScript(sc)}>
                       <PlayCircle className="w-4 h-4 mr-1" />{t('Run Script', 'تشغيل البرنامج')}
@@ -308,15 +330,18 @@ export default function UATScripts() {
                   <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-8">{t('Loading…', 'جارٍ التحميل…')}</TableCell></TableRow>
                 ) : filteredRuns.length === 0 ? (
                   <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-8">{t('No test runs found', 'لا توجد تشغيلات')}</TableCell></TableRow>
-                ) : filteredRuns.map(run => (
+                ) : filteredRuns.map(run => {
+                  const script = scriptById.get(run.scriptId);
+                  const role = run.testerRole ?? script?.targetRole ?? '—';
+                  return (
                   <>
                     <TableRow key={run.id} className="border-slate-700">
-                      <TableCell><Badge className="bg-slate-700 text-slate-300 text-xs font-mono">{run.scriptCode}</Badge></TableCell>
-                      <TableCell className="text-white text-sm">{run.testerName}</TableCell>
-                      <TableCell><Badge className="bg-blue-900 text-blue-300 text-xs">{run.targetRole}</Badge></TableCell>
+                      <TableCell><Badge className="bg-slate-700 text-slate-300 text-xs font-mono">{script?.scriptCode ?? `#${run.scriptId}`}</Badge></TableCell>
+                      <TableCell className="text-white text-sm">{run.testerNameEn || '—'}</TableCell>
+                      <TableCell><Badge className="bg-blue-900 text-blue-300 text-xs">{role}</Badge></TableCell>
                       <TableCell><ResultBadge result={run.result} /></TableCell>
                       <TableCell className="text-slate-400 text-xs">
-                        <span className="text-emerald-400">{run.stepsPassed}P</span> / <span className="text-red-400">{run.stepsFailed}F</span> / <span className="text-slate-400">{run.stepsSkipped}S</span>
+                        <span className="text-emerald-400">{run.passedSteps}P</span> / <span className="text-red-400">{run.failedSteps}F</span> / <span className="text-slate-400">{run.skippedSteps}S</span>
                       </TableCell>
                       <TableCell className="text-slate-400 text-xs">{new Date(run.startedAt).toLocaleDateString()}</TableCell>
                       <TableCell>
@@ -328,37 +353,41 @@ export default function UATScripts() {
                     {expandedRun === run.id && (
                       <TableRow key={`${run.id}-detail`} className="border-slate-700">
                         <TableCell colSpan={7} className="bg-slate-900/50 p-4">
-                          {run.stepResults?.length ? (
-                            <div className="space-y-1">
-                              {run.stepResults.map(sr => (
-                                <div key={sr.stepNumber} className="flex items-center gap-3 text-xs">
-                                  <span className="text-slate-500">#{sr.stepNumber}</span>
-                                  <ResultBadge result={sr.result} />
-                                  {sr.notes && <span className="text-slate-400">{sr.notes}</span>}
-                                </div>
-                              ))}
-                            </div>
-                          ) : <span className="text-slate-500 text-xs">{t('No step details', 'لا توجد تفاصيل خطوات')}</span>}
+                          <div className="space-y-1 text-xs text-slate-400">
+                            <div>{t('Environment', 'البيئة')}: <span className="text-white">{run.environment}</span></div>
+                            <div>{t('Steps', 'الخطوات')}: <span className="text-white">{run.currentStep} / {run.totalSteps}</span></div>
+                            {run.overallNotes && <div>{t('Notes', 'ملاحظات')}: <span className="text-white">{run.overallNotes}</span></div>}
+                            {run.completedAt && <div>{t('Completed', 'اكتمل')}: <span className="text-white">{new Date(run.completedAt).toLocaleString()}</span></div>}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )}
                   </>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
         </TabsContent>
 
         {/* Coverage Report Tab */}
-        <TabsContent value="coverage" className="mt-4">
+        <TabsContent value="coverage" className="mt-4 space-y-4">
+          {summary && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card className="bg-slate-800 border-slate-700"><CardContent className="p-4"><div className="text-xs text-slate-400">{t('Total Runs', 'إجمالي التشغيلات')}</div><div className="text-2xl font-bold text-white">{summary.totalRuns}</div></CardContent></Card>
+              <Card className="bg-slate-800 border-slate-700"><CardContent className="p-4"><div className="text-xs text-slate-400">{t('Passed', 'ناجحة')}</div><div className="text-2xl font-bold text-emerald-400">{summary.passed}</div></CardContent></Card>
+              <Card className="bg-slate-800 border-slate-700"><CardContent className="p-4"><div className="text-xs text-slate-400">{t('Failed', 'فاشلة')}</div><div className="text-2xl font-bold text-red-400">{summary.failed}</div></CardContent></Card>
+              <Card className="bg-slate-800 border-slate-700"><CardContent className="p-4"><div className="text-xs text-slate-400">{t('Roles Covered', 'الأدوار المغطاة')}</div><div className="text-2xl font-bold text-white">{summary.rolesCovered.length}</div></CardContent></Card>
+            </div>
+          )}
           <Card className="bg-slate-800 border-slate-700">
             <CardHeader><CardTitle className="text-white flex items-center gap-2"><CheckCircle className="w-5 h-5 text-emerald-400" />{t('Coverage Matrix', 'مصفوفة التغطية')}</CardTitle></CardHeader>
-            <CardContent>{loading ? <div className="h-40 bg-slate-700/50 rounded animate-pulse" /> : <CoverageMatrix runs={runs} />}</CardContent>
+            <CardContent>{loading ? <div className="h-40 bg-slate-700/50 rounded animate-pulse" /> : <CoverageMatrix runs={runs} scripts={scripts} />}</CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      <ScriptRunDialog script={runScript} open={!!runScript} onClose={() => setRunScript(null)} onComplete={load} />
+      <ScriptRunDialog script={runScript} open={!!runScript} onClose={() => setRunScript(null)} onComplete={refresh} />
     </AnimatedPage>
   );
 }

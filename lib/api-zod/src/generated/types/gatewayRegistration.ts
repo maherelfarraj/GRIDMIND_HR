@@ -7,6 +7,7 @@
  */
 import type { GatewayRegistrationAdapterConnStatus } from './gatewayRegistrationAdapterConnStatus';
 import type { GatewayRegistrationAdapterType } from './gatewayRegistrationAdapterType';
+import type { GatewayRegistrationReconcileCommand } from './gatewayRegistrationReconcileCommand';
 import type { GatewayRegistrationStatus } from './gatewayRegistrationStatus';
 
 /**
@@ -38,6 +39,10 @@ export interface GatewayRegistration {
   /** @nullable */
   adapterConnTestedAt?: string | null;
   /** @nullable */
+  connTestRequestedAt?: string | null;
+  /** Server-computed. True when a test request has been pending (connTestRequestedAt set, no heartbeat with a result received) for longer than max(2 × effective silence threshold, 5 minutes). The UI should show a "gateway did not respond" state instead of a spinner and offer cancel/retry actions. */
+  connTestTimedOut?: boolean;
+  /** @nullable */
   deviceClockSkewMs?: number | null;
   deviceClockSkewAlert?: boolean;
   /** @nullable */
@@ -49,6 +54,12 @@ export interface GatewayRegistration {
      * @nullable
      */
   silenceThresholdMinutes?: number | null;
+  /** Server-computed. True when the registration is ACTIVE and the last contact (lastHeartbeatAt, falling back to lastSeenAt then createdAt) occurred more than silenceThresholdMs milliseconds ago. Mirrors the verdict used by the notification sweep. */
+  silent?: boolean;
+  /** Server-computed. Effective silence threshold in milliseconds after applying the per-registration override (silenceThresholdMinutes converted to ms) or, when that field is null, the global GATEWAY_SILENCE_THRESHOLD_MS default. */
+  silenceThresholdMs?: number;
+  /** Server-computed. The most recent RECONCILE device command issued for this registration, or null if none has ever been issued. Used by the admin UI to show queued, delivered, or acknowledged feedback for the "reconcile now" action. */
+  reconcileCommand?: GatewayRegistrationReconcileCommand;
   /** @nullable */
   notes?: string | null;
   createdAt?: string;

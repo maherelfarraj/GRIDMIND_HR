@@ -1201,6 +1201,7 @@ export const RestartDeviceResponse = zod.object({
   "resultMessage": zod.string().nullish(),
   "deliveredAt": zod.string().nullish(),
   "acknowledgedAt": zod.string().nullish(),
+  "outcomeNotifiedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -1223,6 +1224,7 @@ export const ListDeviceCommandsResponseItem = zod.object({
   "resultMessage": zod.string().nullish(),
   "deliveredAt": zod.string().nullish(),
   "acknowledgedAt": zod.string().nullish(),
+  "outcomeNotifiedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -1433,6 +1435,7 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
+
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1473,6 +1476,7 @@ export const UnlockUserResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
+
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -14341,6 +14345,193 @@ export const PostScheduledExportsIdRunNowResponse = zod.object({
 
 
 /**
+ * @summary List gateway registrations with server-computed health fields
+ */
+export const ListGatewayRegistrationsResponseItem = zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string().optional(),
+  "nameAr": zod.string().nullish(),
+  "deviceId": zod.number().nullish(),
+  "adapterType": zod.enum(['ZKTECO', 'SUPREMA', 'ZKTECO_NATIVE', 'SUPREMA_NATIVE', 'GENERIC_REST', 'CSV', 'SIMULATOR']).optional(),
+  "status": zod.enum(['ACTIVE', 'REVOKED']).optional(),
+  "registeredByUserId": zod.number().optional(),
+  "lastSeenAt": zod.string().nullish(),
+  "lastHeartbeatAt": zod.string().nullish(),
+  "clockDriftMs": zod.number().nullish(),
+  "driftAlert": zod.boolean().optional(),
+  "credentialUnusable": zod.boolean().optional().describe('Stored credential envelope cannot be decrypted (tampering or a lost pepper) — the gateway must be re-registered; clears automatically once the stored credential decrypts again.'),
+  "adapterConnStatus": zod.union([zod.literal('REACHABLE'),zod.literal('AUTH_FAILED'),zod.literal('UNREACHABLE'),zod.literal('NOT_CONFIGURED'),zod.literal(null)]).nullish(),
+  "adapterConnMessage": zod.string().nullish(),
+  "adapterConnTestedAt": zod.string().nullish(),
+  "connTestRequestedAt": zod.string().nullish(),
+  "connTestTimedOut": zod.boolean().optional().describe('Server-computed. True when a test request has been pending (connTestRequestedAt set, no heartbeat with a result received) for longer than max(2 × effective silence threshold, 5 minutes). The UI should show a \"gateway did not respond\" state instead of a spinner and offer cancel\/retry actions.\n'),
+  "deviceClockSkewMs": zod.number().nullish(),
+  "deviceClockSkewAlert": zod.boolean().optional(),
+  "sdkPresent": zod.boolean().nullish(),
+  "sdkVersion": zod.string().nullish(),
+  "silenceThresholdMinutes": zod.number().nullish().describe('Per-registration silent-gateway alarm window in minutes; null falls back to the global default.'),
+  "silent": zod.boolean().optional().describe('Server-computed. True when the registration is ACTIVE and the last contact (lastHeartbeatAt, falling back to lastSeenAt then createdAt) occurred more than silenceThresholdMs milliseconds ago. Mirrors the verdict used by the notification sweep.\n'),
+  "silenceThresholdMs": zod.number().optional().describe('Server-computed. Effective silence threshold in milliseconds after applying the per-registration override (silenceThresholdMinutes converted to ms) or, when that field is null, the global GATEWAY_SILENCE_THRESHOLD_MS default.\n'),
+  "reconcileCommand": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['PENDING', 'DELIVERED', 'ACKNOWLEDGED', 'EXPIRED', 'FAILED']),
+  "resultMessage": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "acknowledgedAt": zod.string().nullable()
+})]).optional().describe('Server-computed. The most recent RECONCILE device command issued for this registration, or null if none has ever been issued. Used by the admin UI to show queued, delivered, or acknowledged feedback for the \"reconcile now\" action.\n'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('A registered local Attendance Gateway (secretHash is intentionally never exposed through the API).\n')
+export const ListGatewayRegistrationsResponse = zod.array(ListGatewayRegistrationsResponseItem)
+
+
+/**
+ * @summary Create a gateway registration; returns the plaintext secret exactly once
+ */
+export const CreateGatewayRegistrationBody = zod.object({
+  "name": zod.string(),
+  "nameAr": zod.string().optional(),
+  "deviceId": zod.number().optional(),
+  "adapterType": zod.enum(['ZKTECO', 'SUPREMA', 'ZKTECO_NATIVE', 'SUPREMA_NATIVE', 'GENERIC_REST', 'CSV', 'SIMULATOR']),
+  "notes": zod.string().optional(),
+  "silenceThresholdMinutes": zod.number().optional()
+})
+
+export const CreateGatewayRegistrationResponse = zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string().optional(),
+  "nameAr": zod.string().nullish(),
+  "deviceId": zod.number().nullish(),
+  "adapterType": zod.enum(['ZKTECO', 'SUPREMA', 'ZKTECO_NATIVE', 'SUPREMA_NATIVE', 'GENERIC_REST', 'CSV', 'SIMULATOR']).optional(),
+  "status": zod.enum(['ACTIVE', 'REVOKED']).optional(),
+  "registeredByUserId": zod.number().optional(),
+  "lastSeenAt": zod.string().nullish(),
+  "lastHeartbeatAt": zod.string().nullish(),
+  "clockDriftMs": zod.number().nullish(),
+  "driftAlert": zod.boolean().optional(),
+  "credentialUnusable": zod.boolean().optional().describe('Stored credential envelope cannot be decrypted (tampering or a lost pepper) — the gateway must be re-registered; clears automatically once the stored credential decrypts again.'),
+  "adapterConnStatus": zod.union([zod.literal('REACHABLE'),zod.literal('AUTH_FAILED'),zod.literal('UNREACHABLE'),zod.literal('NOT_CONFIGURED'),zod.literal(null)]).nullish(),
+  "adapterConnMessage": zod.string().nullish(),
+  "adapterConnTestedAt": zod.string().nullish(),
+  "connTestRequestedAt": zod.string().nullish(),
+  "connTestTimedOut": zod.boolean().optional().describe('Server-computed. True when a test request has been pending (connTestRequestedAt set, no heartbeat with a result received) for longer than max(2 × effective silence threshold, 5 minutes). The UI should show a \"gateway did not respond\" state instead of a spinner and offer cancel\/retry actions.\n'),
+  "deviceClockSkewMs": zod.number().nullish(),
+  "deviceClockSkewAlert": zod.boolean().optional(),
+  "sdkPresent": zod.boolean().nullish(),
+  "sdkVersion": zod.string().nullish(),
+  "silenceThresholdMinutes": zod.number().nullish().describe('Per-registration silent-gateway alarm window in minutes; null falls back to the global default.'),
+  "silent": zod.boolean().optional().describe('Server-computed. True when the registration is ACTIVE and the last contact (lastHeartbeatAt, falling back to lastSeenAt then createdAt) occurred more than silenceThresholdMs milliseconds ago. Mirrors the verdict used by the notification sweep.\n'),
+  "silenceThresholdMs": zod.number().optional().describe('Server-computed. Effective silence threshold in milliseconds after applying the per-registration override (silenceThresholdMinutes converted to ms) or, when that field is null, the global GATEWAY_SILENCE_THRESHOLD_MS default.\n'),
+  "reconcileCommand": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['PENDING', 'DELIVERED', 'ACKNOWLEDGED', 'EXPIRED', 'FAILED']),
+  "resultMessage": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "acknowledgedAt": zod.string().nullable()
+})]).optional().describe('Server-computed. The most recent RECONCILE device command issued for this registration, or null if none has ever been issued. Used by the admin UI to show queued, delivered, or acknowledged feedback for the \"reconcile now\" action.\n'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('A registered local Attendance Gateway (secretHash is intentionally never exposed through the API).\n').and(zod.object({
+  "secret": zod.string().optional().describe('Plaintext secret; returned once only')
+}))
+
+
+/**
+ * @summary Request an on-demand connection test; gateway answers on next heartbeat
+ */
+export const RequestGatewayConnectionTestParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RequestGatewayConnectionTestResponse = zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string().optional(),
+  "nameAr": zod.string().nullish(),
+  "deviceId": zod.number().nullish(),
+  "adapterType": zod.enum(['ZKTECO', 'SUPREMA', 'ZKTECO_NATIVE', 'SUPREMA_NATIVE', 'GENERIC_REST', 'CSV', 'SIMULATOR']).optional(),
+  "status": zod.enum(['ACTIVE', 'REVOKED']).optional(),
+  "registeredByUserId": zod.number().optional(),
+  "lastSeenAt": zod.string().nullish(),
+  "lastHeartbeatAt": zod.string().nullish(),
+  "clockDriftMs": zod.number().nullish(),
+  "driftAlert": zod.boolean().optional(),
+  "credentialUnusable": zod.boolean().optional().describe('Stored credential envelope cannot be decrypted (tampering or a lost pepper) — the gateway must be re-registered; clears automatically once the stored credential decrypts again.'),
+  "adapterConnStatus": zod.union([zod.literal('REACHABLE'),zod.literal('AUTH_FAILED'),zod.literal('UNREACHABLE'),zod.literal('NOT_CONFIGURED'),zod.literal(null)]).nullish(),
+  "adapterConnMessage": zod.string().nullish(),
+  "adapterConnTestedAt": zod.string().nullish(),
+  "connTestRequestedAt": zod.string().nullish(),
+  "connTestTimedOut": zod.boolean().optional().describe('Server-computed. True when a test request has been pending (connTestRequestedAt set, no heartbeat with a result received) for longer than max(2 × effective silence threshold, 5 minutes). The UI should show a \"gateway did not respond\" state instead of a spinner and offer cancel\/retry actions.\n'),
+  "deviceClockSkewMs": zod.number().nullish(),
+  "deviceClockSkewAlert": zod.boolean().optional(),
+  "sdkPresent": zod.boolean().nullish(),
+  "sdkVersion": zod.string().nullish(),
+  "silenceThresholdMinutes": zod.number().nullish().describe('Per-registration silent-gateway alarm window in minutes; null falls back to the global default.'),
+  "silent": zod.boolean().optional().describe('Server-computed. True when the registration is ACTIVE and the last contact (lastHeartbeatAt, falling back to lastSeenAt then createdAt) occurred more than silenceThresholdMs milliseconds ago. Mirrors the verdict used by the notification sweep.\n'),
+  "silenceThresholdMs": zod.number().optional().describe('Server-computed. Effective silence threshold in milliseconds after applying the per-registration override (silenceThresholdMinutes converted to ms) or, when that field is null, the global GATEWAY_SILENCE_THRESHOLD_MS default.\n'),
+  "reconcileCommand": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['PENDING', 'DELIVERED', 'ACKNOWLEDGED', 'EXPIRED', 'FAILED']),
+  "resultMessage": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "acknowledgedAt": zod.string().nullable()
+})]).optional().describe('Server-computed. The most recent RECONCILE device command issued for this registration, or null if none has ever been issued. Used by the admin UI to show queued, delivered, or acknowledged feedback for the \"reconcile now\" action.\n'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('A registered local Attendance Gateway (secretHash is intentionally never exposed through the API).\n')
+
+
+/**
+ * @summary Cancel a pending connection-test request. Idempotent: if connTestRequestedAt is already clear, returns cancelled:false without error. When it was set, clears it and writes a gateway_conn_test_cancelled audit row.
+
+ */
+export const CancelGatewayConnectionTestParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const CancelGatewayConnectionTestResponse = zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string().optional(),
+  "nameAr": zod.string().nullish(),
+  "deviceId": zod.number().nullish(),
+  "adapterType": zod.enum(['ZKTECO', 'SUPREMA', 'ZKTECO_NATIVE', 'SUPREMA_NATIVE', 'GENERIC_REST', 'CSV', 'SIMULATOR']).optional(),
+  "status": zod.enum(['ACTIVE', 'REVOKED']).optional(),
+  "registeredByUserId": zod.number().optional(),
+  "lastSeenAt": zod.string().nullish(),
+  "lastHeartbeatAt": zod.string().nullish(),
+  "clockDriftMs": zod.number().nullish(),
+  "driftAlert": zod.boolean().optional(),
+  "credentialUnusable": zod.boolean().optional().describe('Stored credential envelope cannot be decrypted (tampering or a lost pepper) — the gateway must be re-registered; clears automatically once the stored credential decrypts again.'),
+  "adapterConnStatus": zod.union([zod.literal('REACHABLE'),zod.literal('AUTH_FAILED'),zod.literal('UNREACHABLE'),zod.literal('NOT_CONFIGURED'),zod.literal(null)]).nullish(),
+  "adapterConnMessage": zod.string().nullish(),
+  "adapterConnTestedAt": zod.string().nullish(),
+  "connTestRequestedAt": zod.string().nullish(),
+  "connTestTimedOut": zod.boolean().optional().describe('Server-computed. True when a test request has been pending (connTestRequestedAt set, no heartbeat with a result received) for longer than max(2 × effective silence threshold, 5 minutes). The UI should show a \"gateway did not respond\" state instead of a spinner and offer cancel\/retry actions.\n'),
+  "deviceClockSkewMs": zod.number().nullish(),
+  "deviceClockSkewAlert": zod.boolean().optional(),
+  "sdkPresent": zod.boolean().nullish(),
+  "sdkVersion": zod.string().nullish(),
+  "silenceThresholdMinutes": zod.number().nullish().describe('Per-registration silent-gateway alarm window in minutes; null falls back to the global default.'),
+  "silent": zod.boolean().optional().describe('Server-computed. True when the registration is ACTIVE and the last contact (lastHeartbeatAt, falling back to lastSeenAt then createdAt) occurred more than silenceThresholdMs milliseconds ago. Mirrors the verdict used by the notification sweep.\n'),
+  "silenceThresholdMs": zod.number().optional().describe('Server-computed. Effective silence threshold in milliseconds after applying the per-registration override (silenceThresholdMinutes converted to ms) or, when that field is null, the global GATEWAY_SILENCE_THRESHOLD_MS default.\n'),
+  "reconcileCommand": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['PENDING', 'DELIVERED', 'ACKNOWLEDGED', 'EXPIRED', 'FAILED']),
+  "resultMessage": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "acknowledgedAt": zod.string().nullable()
+})]).optional().describe('Server-computed. The most recent RECONCILE device command issued for this registration, or null if none has ever been issued. Used by the admin UI to show queued, delivered, or acknowledged feedback for the \"reconcile now\" action.\n'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('A registered local Attendance Gateway (secretHash is intentionally never exposed through the API).\n').and(zod.object({
+  "cancelled": zod.boolean().optional().describe('True if connTestRequestedAt was cleared; false if it was already null')
+}))
+
+
+/**
  * @summary List integration connectors
  */
 export const ListIntegrationConnectorsQueryParams = zod.object({
@@ -16075,3 +16266,2184 @@ export const DeleteImportMappingTemplateParams = zod.object({
 export const DeleteImportMappingTemplateResponse = zod.object({
   "deleted": zod.boolean()
 })
+
+
+/**
+ * @summary Latest system health check run
+ */
+export const GetDiagnosticsResponse = zod.object({
+  "checks": zod.array(zod.object({
+  "id": zod.number(),
+  "checkName": zod.string(),
+  "checkCategory": zod.string(),
+  "result": zod.string(),
+  "message": zod.string().nullish(),
+  "metricValue": zod.string().nullish(),
+  "metricUnit": zod.string().nullish(),
+  "thresholdWarn": zod.string().nullish(),
+  "thresholdFail": zod.string().nullish(),
+  "durationMs": zod.number().nullish(),
+  "isCritical": zod.boolean(),
+  "runId": zod.string().nullish(),
+  "runAt": zod.string(),
+  "triggeredByUserId": zod.number().nullish()
+})),
+  "summary": zod.object({
+  "pass": zod.number(),
+  "warn": zod.number(),
+  "fail": zod.number(),
+  "total": zod.number()
+}),
+  "runId": zod.string().nullish(),
+  "runAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Run a new batch of system health checks
+ */
+export const RunDiagnosticsResponse = zod.object({
+  "checks": zod.array(zod.object({
+  "id": zod.number(),
+  "checkName": zod.string(),
+  "checkCategory": zod.string(),
+  "result": zod.string(),
+  "message": zod.string().nullish(),
+  "metricValue": zod.string().nullish(),
+  "metricUnit": zod.string().nullish(),
+  "thresholdWarn": zod.string().nullish(),
+  "thresholdFail": zod.string().nullish(),
+  "durationMs": zod.number().nullish(),
+  "isCritical": zod.boolean(),
+  "runId": zod.string().nullish(),
+  "runAt": zod.string(),
+  "triggeredByUserId": zod.number().nullish()
+})),
+  "summary": zod.object({
+  "pass": zod.number(),
+  "warn": zod.number(),
+  "fail": zod.number(),
+  "total": zod.number()
+}),
+  "runId": zod.string(),
+  "runAt": zod.string(),
+  "simulated": zod.boolean().optional()
+})
+
+
+/**
+ * @summary List all go-live gates grouped by category
+ */
+export const ListGoLiveGatesResponse = zod.object({
+  "gates": zod.array(zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "gateCode": zod.string(),
+  "category": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "descriptionEn": zod.string().nullish(),
+  "severity": zod.string(),
+  "status": zod.string(),
+  "evaluationType": zod.string(),
+  "evidenceJson": zod.string().nullish(),
+  "blockerDescriptionEn": zod.string().nullish(),
+  "blockerDescriptionAr": zod.string().nullish(),
+  "remediationEn": zod.string().nullish(),
+  "remediationAr": zod.string().nullish(),
+  "evaluatedByUserId": zod.number().nullish(),
+  "lastEvaluatedAt": zod.string().nullish(),
+  "isOverridden": zod.boolean(),
+  "overriddenByUserId": zod.number().nullish(),
+  "overrideReason": zod.string().nullish(),
+  "overriddenAt": zod.string().nullish(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "grouped": zod.record(zod.string(), zod.array(zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "gateCode": zod.string(),
+  "category": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "descriptionEn": zod.string().nullish(),
+  "severity": zod.string(),
+  "status": zod.string(),
+  "evaluationType": zod.string(),
+  "evidenceJson": zod.string().nullish(),
+  "blockerDescriptionEn": zod.string().nullish(),
+  "blockerDescriptionAr": zod.string().nullish(),
+  "remediationEn": zod.string().nullish(),
+  "remediationAr": zod.string().nullish(),
+  "evaluatedByUserId": zod.number().nullish(),
+  "lastEvaluatedAt": zod.string().nullish(),
+  "isOverridden": zod.boolean(),
+  "overriddenByUserId": zod.number().nullish(),
+  "overrideReason": zod.string().nullish(),
+  "overriddenAt": zod.string().nullish(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})))
+})
+
+
+/**
+ * @summary Go-live gate rollup summary
+ */
+export const GetGoLiveGatesSummaryResponse = zod.object({
+  "totalGates": zod.number(),
+  "passed": zod.number(),
+  "failed": zod.number(),
+  "warnings": zod.number(),
+  "blocked": zod.number(),
+  "criticalBlockers": zod.array(zod.object({
+  "id": zod.number(),
+  "gateCode": zod.string(),
+  "titleEn": zod.string(),
+  "severity": zod.string(),
+  "status": zod.string(),
+  "blockerDescriptionEn": zod.string().nullish()
+})),
+  "isReadyForGoLive": zod.boolean()
+})
+
+
+/**
+ * @summary Re-evaluate all automated go-live gates
+ */
+export const EvaluateGoLiveGatesResponse = zod.object({
+  "evaluated": zod.number(),
+  "passed": zod.number(),
+  "failed": zod.number(),
+  "gates": zod.array(zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "gateCode": zod.string(),
+  "category": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "descriptionEn": zod.string().nullish(),
+  "severity": zod.string(),
+  "status": zod.string(),
+  "evaluationType": zod.string(),
+  "evidenceJson": zod.string().nullish(),
+  "blockerDescriptionEn": zod.string().nullish(),
+  "blockerDescriptionAr": zod.string().nullish(),
+  "remediationEn": zod.string().nullish(),
+  "remediationAr": zod.string().nullish(),
+  "evaluatedByUserId": zod.number().nullish(),
+  "lastEvaluatedAt": zod.string().nullish(),
+  "isOverridden": zod.boolean(),
+  "overriddenByUserId": zod.number().nullish(),
+  "overrideReason": zod.string().nullish(),
+  "overriddenAt": zod.string().nullish(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Manually override a go-live gate
+ */
+export const OverrideGoLiveGateParams = zod.object({
+  "gateCode": zod.coerce.string()
+})
+
+export const OverrideGoLiveGateBody = zod.object({
+  "reason": zod.string()
+})
+
+export const OverrideGoLiveGateResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "gateCode": zod.string(),
+  "category": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "descriptionEn": zod.string().nullish(),
+  "severity": zod.string(),
+  "status": zod.string(),
+  "evaluationType": zod.string(),
+  "evidenceJson": zod.string().nullish(),
+  "blockerDescriptionEn": zod.string().nullish(),
+  "blockerDescriptionAr": zod.string().nullish(),
+  "remediationEn": zod.string().nullish(),
+  "remediationAr": zod.string().nullish(),
+  "evaluatedByUserId": zod.number().nullish(),
+  "lastEvaluatedAt": zod.string().nullish(),
+  "isOverridden": zod.boolean(),
+  "overriddenByUserId": zod.number().nullish(),
+  "overrideReason": zod.string().nullish(),
+  "overriddenAt": zod.string().nullish(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List readiness scorecards per module
+ */
+export const ListReadinessScorecardResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "module": zod.string(),
+  "moduleDisplayEn": zod.string(),
+  "moduleDisplayAr": zod.string(),
+  "readinessStatus": zod.string(),
+  "totalGates": zod.number(),
+  "passingGates": zod.number(),
+  "failingGates": zod.number(),
+  "overriddenGates": zod.number(),
+  "readinessScore": zod.string(),
+  "coveredRolesJson": zod.string(),
+  "lastRecalculatedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListReadinessScorecardResponse = zod.array(ListReadinessScorecardResponseItem)
+
+
+/**
+ * @summary Recalculate all module scorecards
+ */
+export const RecalculateReadinessScorecardResponse = zod.object({
+  "recalculated": zod.number(),
+  "scorecards": zod.array(zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "module": zod.string(),
+  "moduleDisplayEn": zod.string(),
+  "moduleDisplayAr": zod.string(),
+  "readinessStatus": zod.string(),
+  "totalGates": zod.number(),
+  "passingGates": zod.number(),
+  "failingGates": zod.number(),
+  "overriddenGates": zod.number(),
+  "readinessScore": zod.string(),
+  "coveredRolesJson": zod.string(),
+  "lastRecalculatedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary List pilot defects
+ */
+export const ListPilotDefectsQueryParams = zod.object({
+  "module": zod.coerce.string().nullish(),
+  "severity": zod.coerce.string().nullish(),
+  "status": zod.coerce.string().nullish(),
+  "isBlocker": zod.coerce.string().nullish()
+})
+
+export const ListPilotDefectsResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "defectCode": zod.string(),
+  "module": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "stepsToReproduce": zod.string().nullish(),
+  "severity": zod.string(),
+  "status": zod.string(),
+  "isGoLiveBlocker": zod.boolean(),
+  "relatedGateCode": zod.string().nullish(),
+  "sourceTestCode": zod.string().nullish(),
+  "assignedToUserId": zod.number().nullish(),
+  "reportedByUserId": zod.number().nullish(),
+  "reportedAt": zod.string(),
+  "resolvedAt": zod.string().nullish(),
+  "resolvedByUserId": zod.number().nullish(),
+  "resolutionNotes": zod.string().nullish(),
+  "verifiedAt": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListPilotDefectsResponse = zod.array(ListPilotDefectsResponseItem)
+
+
+/**
+ * @summary Report a pilot defect
+ */
+export const CreatePilotDefectBody = zod.object({
+  "module": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "stepsToReproduce": zod.string().nullish(),
+  "severity": zod.string().nullish(),
+  "isGoLiveBlocker": zod.boolean().nullish(),
+  "relatedGateCode": zod.string().nullish(),
+  "sourceTestCode": zod.string().nullish(),
+  "assignedToUserId": zod.number().nullish()
+})
+
+export const CreatePilotDefectResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "defectCode": zod.string(),
+  "module": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "stepsToReproduce": zod.string().nullish(),
+  "severity": zod.string(),
+  "status": zod.string(),
+  "isGoLiveBlocker": zod.boolean(),
+  "relatedGateCode": zod.string().nullish(),
+  "sourceTestCode": zod.string().nullish(),
+  "assignedToUserId": zod.number().nullish(),
+  "reportedByUserId": zod.number().nullish(),
+  "reportedAt": zod.string(),
+  "resolvedAt": zod.string().nullish(),
+  "resolvedByUserId": zod.number().nullish(),
+  "resolutionNotes": zod.string().nullish(),
+  "verifiedAt": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List data migration items
+ */
+export const ListMigrationStatusResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "migrationCode": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "descriptionEn": zod.string().nullish(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "totalRecords": zod.number().nullish(),
+  "migratedRecords": zod.number(),
+  "failedRecords": zod.number(),
+  "progressPercent": zod.string(),
+  "startedAt": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "runByUserId": zod.number().nullish(),
+  "errorSummary": zod.string().nullish(),
+  "sourceSystem": zod.string().nullish(),
+  "isGoLiveBlocker": zod.boolean(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListMigrationStatusResponse = zod.array(ListMigrationStatusResponseItem)
+
+
+/**
+ * @summary Migration progress rollup
+ */
+export const GetMigrationStatusSummaryResponse = zod.object({
+  "total": zod.number(),
+  "complete": zod.number(),
+  "incomplete": zod.number(),
+  "blockers": zod.number(),
+  "byStatus": zod.object({
+  "not_started": zod.number(),
+  "in_progress": zod.number(),
+  "complete": zod.number(),
+  "failed": zod.number(),
+  "skipped": zod.number()
+})
+})
+
+
+/**
+ * @summary Run a backup restore test
+ */
+export const RunRestoreTestBody = zod.object({
+  "backupRecordId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const RunRestoreTestResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "backupRecordId": zod.number().nullish(),
+  "restoreType": zod.string(),
+  "result": zod.string(),
+  "restoreDurationSeconds": zod.number().nullish(),
+  "verificationChecksJson": zod.string().nullish(),
+  "rowCountsJson": zod.string().nullish(),
+  "failureReason": zod.string().nullish(),
+  "testedByUserId": zod.number().nullish(),
+  "testedAt": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "backupRecord": zod.object({
+  "id": zod.number(),
+  "backupType": zod.string(),
+  "status": zod.string(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "fileSizeBytes": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "storageLocation": zod.string().nullish(),
+  "offsiteLocation": zod.string().nullish(),
+  "offsiteStatus": zod.string().nullish(),
+  "offsiteError": zod.string().nullish(),
+  "offsiteUploadedAt": zod.coerce.date().nullish(),
+  "retentionDays": zod.number(),
+  "isVerified": zod.boolean(),
+  "verifiedAt": zod.string().nullish(),
+  "restoreTestResult": zod.string(),
+  "serverCode": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "verificationNotes": zod.string().nullish(),
+  "restoreTestedAt": zod.coerce.date().nullish(),
+  "initiatedByUserId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).optional()
+}))
+
+
+/**
+ * @summary Latest restore test per restore type
+ */
+export const GetLatestRestoreTestsResponse = zod.object({
+  "latest": zod.array(zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "backupRecordId": zod.number().nullish(),
+  "restoreType": zod.string(),
+  "result": zod.string(),
+  "restoreDurationSeconds": zod.number().nullish(),
+  "verificationChecksJson": zod.string().nullish(),
+  "rowCountsJson": zod.string().nullish(),
+  "failureReason": zod.string().nullish(),
+  "testedByUserId": zod.number().nullish(),
+  "testedAt": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Most recent backup record
+ */
+export const GetLatestBackupResponse = zod.object({
+  "backup": zod.union([zod.object({
+  "id": zod.number(),
+  "backupType": zod.string(),
+  "status": zod.string(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "fileSizeBytes": zod.number().nullish(),
+  "checksum": zod.string().nullish(),
+  "storageLocation": zod.string().nullish(),
+  "offsiteLocation": zod.string().nullish(),
+  "offsiteStatus": zod.string().nullish(),
+  "offsiteError": zod.string().nullish(),
+  "offsiteUploadedAt": zod.coerce.date().nullish(),
+  "retentionDays": zod.number(),
+  "isVerified": zod.boolean(),
+  "verifiedAt": zod.string().nullish(),
+  "restoreTestResult": zod.string(),
+  "serverCode": zod.string(),
+  "errorMessage": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "verificationNotes": zod.string().nullish(),
+  "restoreTestedAt": zod.coerce.date().nullish(),
+  "initiatedByUserId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}),zod.null()])
+})
+
+
+/**
+ * @summary List active UAT scripts
+ */
+export const ListUatScriptsQueryParams = zod.object({
+  "role": zod.coerce.string().nullish(),
+  "module": zod.coerce.string().nullish()
+})
+
+export const ListUatScriptsResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "scriptCode": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "targetRole": zod.string(),
+  "module": zod.string(),
+  "orgTypeApplicability": zod.string(),
+  "estimatedMinutes": zod.number(),
+  "prerequisitesEn": zod.string().nullish(),
+  "prerequisitesAr": zod.string().nullish(),
+  "stepsJson": zod.string(),
+  "acceptanceCriteriaJson": zod.string(),
+  "relatedGateCodes": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "version": zod.string(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListUatScriptsResponse = zod.array(ListUatScriptsResponseItem)
+
+
+/**
+ * @summary List UAT test runs
+ */
+export const ListUatTestRunsResponseItem = zod.object({
+  "id": zod.number(),
+  "scriptId": zod.number(),
+  "orgId": zod.number().nullish(),
+  "testerUserId": zod.number(),
+  "testerRole": zod.string().nullish(),
+  "testerNameEn": zod.string().nullish(),
+  "result": zod.string(),
+  "currentStep": zod.number(),
+  "totalSteps": zod.number(),
+  "passedSteps": zod.number(),
+  "failedSteps": zod.number(),
+  "skippedSteps": zod.number(),
+  "raisedDefectIds": zod.string().nullish(),
+  "overallNotes": zod.string().nullish(),
+  "browserInfo": zod.string().nullish(),
+  "environment": zod.string(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListUatTestRunsResponse = zod.array(ListUatTestRunsResponseItem)
+
+
+/**
+ * @summary Start a UAT test run
+ */
+export const CreateUatTestRunBody = zod.object({
+  "scriptId": zod.number(),
+  "testerUserId": zod.number().nullish(),
+  "testerRole": zod.string().nullish(),
+  "testerNameEn": zod.string().nullish(),
+  "browserInfo": zod.string().nullish(),
+  "environment": zod.string().nullish()
+})
+
+export const CreateUatTestRunResponse = zod.object({
+  "id": zod.number(),
+  "scriptId": zod.number(),
+  "orgId": zod.number().nullish(),
+  "testerUserId": zod.number(),
+  "testerRole": zod.string().nullish(),
+  "testerNameEn": zod.string().nullish(),
+  "result": zod.string(),
+  "currentStep": zod.number(),
+  "totalSteps": zod.number(),
+  "passedSteps": zod.number(),
+  "failedSteps": zod.number(),
+  "skippedSteps": zod.number(),
+  "raisedDefectIds": zod.string().nullish(),
+  "overallNotes": zod.string().nullish(),
+  "browserInfo": zod.string().nullish(),
+  "environment": zod.string(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary UAT run rollup
+ */
+export const GetUatTestRunsSummaryResponse = zod.object({
+  "totalRuns": zod.number(),
+  "passed": zod.number(),
+  "failed": zod.number(),
+  "rolesCovered": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Record a step result within a UAT run
+ */
+export const UpdateUatTestRunStepParams = zod.object({
+  "id": zod.coerce.number(),
+  "stepNumber": zod.coerce.number()
+})
+
+export const UpdateUatTestRunStepBody = zod.object({
+  "result": zod.string(),
+  "actualResultEn": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "defectId": zod.number().nullish()
+})
+
+export const UpdateUatTestRunStepResponse = zod.object({
+  "id": zod.number(),
+  "runId": zod.number(),
+  "stepNumber": zod.number(),
+  "result": zod.string(),
+  "actualResultEn": zod.string().nullish(),
+  "defectId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "executedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Complete a UAT run and compute overall result
+ */
+export const CompleteUatTestRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CompleteUatTestRunBody = zod.object({
+  "overallNotes": zod.string().nullish()
+})
+
+export const CompleteUatTestRunResponse = zod.object({
+  "id": zod.number(),
+  "scriptId": zod.number(),
+  "orgId": zod.number().nullish(),
+  "testerUserId": zod.number(),
+  "testerRole": zod.string().nullish(),
+  "testerNameEn": zod.string().nullish(),
+  "result": zod.string(),
+  "currentStep": zod.number(),
+  "totalSteps": zod.number(),
+  "passedSteps": zod.number(),
+  "failedSteps": zod.number(),
+  "skippedSteps": zod.number(),
+  "raisedDefectIds": zod.string().nullish(),
+  "overallNotes": zod.string().nullish(),
+  "browserInfo": zod.string().nullish(),
+  "environment": zod.string(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary List security test scenarios
+ */
+export const ListSecurityTestScenariosResponseItem = zod.object({
+  "id": zod.number(),
+  "scenarioCode": zod.string(),
+  "attackVector": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "descriptionEn": zod.string().nullish(),
+  "severity": zod.string(),
+  "strideCategory": zod.string().nullish(),
+  "targetEndpoint": zod.string().nullish(),
+  "targetMethod": zod.string().nullish(),
+  "requestTemplateJson": zod.string().nullish(),
+  "expectedBehaviorEn": zod.string().nullish(),
+  "expectedBehaviorAr": zod.string().nullish(),
+  "expectedStatusCode": zod.number(),
+  "requiresAuditLog": zod.boolean(),
+  "requiresSecurityAlert": zod.boolean(),
+  "executionType": zod.string(),
+  "relatedGateCode": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string()
+})
+export const ListSecurityTestScenariosResponse = zod.array(ListSecurityTestScenariosResponseItem)
+
+
+/**
+ * @summary List security test runs
+ */
+export const ListSecurityTestRunsResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "runLabel": zod.string().nullish(),
+  "runType": zod.string(),
+  "status": zod.string(),
+  "totalScenarios": zod.number(),
+  "passedScenarios": zod.number(),
+  "failedScenarios": zod.number(),
+  "skippedScenarios": zod.number(),
+  "overallPosture": zod.string().nullish(),
+  "triggeredByUserId": zod.number().nullish(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "summaryJson": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListSecurityTestRunsResponse = zod.array(ListSecurityTestRunsResponseItem)
+
+
+/**
+ * @summary Trigger an automated security test run
+ */
+export const CreateSecurityTestRunBody = zod.object({
+  "runLabel": zod.string().nullish(),
+  "runType": zod.string().nullish()
+})
+
+export const CreateSecurityTestRunResponse = zod.object({
+  "runId": zod.number(),
+  "findings": zod.array(zod.object({
+  "id": zod.number(),
+  "runId": zod.number(),
+  "scenarioId": zod.number(),
+  "result": zod.string(),
+  "actualStatusCode": zod.number().nullish(),
+  "auditLogFound": zod.boolean().nullish(),
+  "alertTriggered": zod.boolean().nullish(),
+  "actualResponseSnippet": zod.string().nullish(),
+  "findingDescriptionEn": zod.string().nullish(),
+  "remediationEn": zod.string().nullish(),
+  "riskScore": zod.string().nullish(),
+  "isGoLiveBlocker": zod.boolean(),
+  "executedAt": zod.string(),
+  "createdAt": zod.string()
+})),
+  "overallPosture": zod.string(),
+  "run": zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "runLabel": zod.string().nullish(),
+  "runType": zod.string(),
+  "status": zod.string(),
+  "totalScenarios": zod.number(),
+  "passedScenarios": zod.number(),
+  "failedScenarios": zod.number(),
+  "skippedScenarios": zod.number(),
+  "overallPosture": zod.string().nullish(),
+  "triggeredByUserId": zod.number().nullish(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "summaryJson": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Get a security test run with findings
+ */
+export const GetSecurityTestRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSecurityTestRunResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "runLabel": zod.string().nullish(),
+  "runType": zod.string(),
+  "status": zod.string(),
+  "totalScenarios": zod.number(),
+  "passedScenarios": zod.number(),
+  "failedScenarios": zod.number(),
+  "skippedScenarios": zod.number(),
+  "overallPosture": zod.string().nullish(),
+  "triggeredByUserId": zod.number().nullish(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullish(),
+  "summaryJson": zod.string().nullish(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "findings": zod.array(zod.object({
+  "id": zod.number(),
+  "runId": zod.number(),
+  "scenarioId": zod.number(),
+  "result": zod.string(),
+  "actualStatusCode": zod.number().nullish(),
+  "auditLogFound": zod.boolean().nullish(),
+  "alertTriggered": zod.boolean().nullish(),
+  "actualResponseSnippet": zod.string().nullish(),
+  "findingDescriptionEn": zod.string().nullish(),
+  "remediationEn": zod.string().nullish(),
+  "riskScore": zod.string().nullish(),
+  "isGoLiveBlocker": zod.boolean(),
+  "executedAt": zod.string(),
+  "createdAt": zod.string()
+}))
+}))
+
+
+/**
+ * @summary Revoke a gateway registration
+ */
+export const RevokeGatewayRegistrationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RevokeGatewayRegistrationResponse = zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string().optional(),
+  "nameAr": zod.string().nullish(),
+  "deviceId": zod.number().nullish(),
+  "adapterType": zod.enum(['ZKTECO', 'SUPREMA', 'ZKTECO_NATIVE', 'SUPREMA_NATIVE', 'GENERIC_REST', 'CSV', 'SIMULATOR']).optional(),
+  "status": zod.enum(['ACTIVE', 'REVOKED']).optional(),
+  "registeredByUserId": zod.number().optional(),
+  "lastSeenAt": zod.string().nullish(),
+  "lastHeartbeatAt": zod.string().nullish(),
+  "clockDriftMs": zod.number().nullish(),
+  "driftAlert": zod.boolean().optional(),
+  "credentialUnusable": zod.boolean().optional().describe('Stored credential envelope cannot be decrypted (tampering or a lost pepper) — the gateway must be re-registered; clears automatically once the stored credential decrypts again.'),
+  "adapterConnStatus": zod.union([zod.literal('REACHABLE'),zod.literal('AUTH_FAILED'),zod.literal('UNREACHABLE'),zod.literal('NOT_CONFIGURED'),zod.literal(null)]).nullish(),
+  "adapterConnMessage": zod.string().nullish(),
+  "adapterConnTestedAt": zod.string().nullish(),
+  "connTestRequestedAt": zod.string().nullish(),
+  "connTestTimedOut": zod.boolean().optional().describe('Server-computed. True when a test request has been pending (connTestRequestedAt set, no heartbeat with a result received) for longer than max(2 × effective silence threshold, 5 minutes). The UI should show a \"gateway did not respond\" state instead of a spinner and offer cancel\/retry actions.\n'),
+  "deviceClockSkewMs": zod.number().nullish(),
+  "deviceClockSkewAlert": zod.boolean().optional(),
+  "sdkPresent": zod.boolean().nullish(),
+  "sdkVersion": zod.string().nullish(),
+  "silenceThresholdMinutes": zod.number().nullish().describe('Per-registration silent-gateway alarm window in minutes; null falls back to the global default.'),
+  "silent": zod.boolean().optional().describe('Server-computed. True when the registration is ACTIVE and the last contact (lastHeartbeatAt, falling back to lastSeenAt then createdAt) occurred more than silenceThresholdMs milliseconds ago. Mirrors the verdict used by the notification sweep.\n'),
+  "silenceThresholdMs": zod.number().optional().describe('Server-computed. Effective silence threshold in milliseconds after applying the per-registration override (silenceThresholdMinutes converted to ms) or, when that field is null, the global GATEWAY_SILENCE_THRESHOLD_MS default.\n'),
+  "reconcileCommand": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['PENDING', 'DELIVERED', 'ACKNOWLEDGED', 'EXPIRED', 'FAILED']),
+  "resultMessage": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "acknowledgedAt": zod.string().nullable()
+})]).optional().describe('Server-computed. The most recent RECONCILE device command issued for this registration, or null if none has ever been issued. Used by the admin UI to show queued, delivered, or acknowledged feedback for the \"reconcile now\" action.\n'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('A registered local Attendance Gateway (secretHash is intentionally never exposed through the API).\n')
+
+
+/**
+ * @summary List punch import batches
+ */
+export const ListGatewayBatchesQueryParams = zod.object({
+  "registrationId": zod.coerce.number().int().nullish(),
+  "limit": zod.coerce.number().int().nullish()
+})
+
+export const ListGatewayBatchesResponseItem = zod.object({
+  "id": zod.number().optional(),
+  "batchUuid": zod.string().optional(),
+  "registrationId": zod.number().nullish(),
+  "source": zod.enum(['GATEWAY', 'CSV', 'SIMULATOR']).optional(),
+  "receivedAt": zod.string().optional(),
+  "eventCount": zod.number().optional(),
+  "insertedCount": zod.number().optional(),
+  "duplicateCount": zod.number().optional(),
+  "errorCount": zod.number().optional(),
+  "unmappedCount": zod.number().optional(),
+  "rawPayloadSha256": zod.string().nullish(),
+  "signatureValid": zod.boolean().optional(),
+  "clockDriftMs": zod.number().nullish(),
+  "status": zod.enum(['COMPLETED', 'PARTIAL', 'FAILED']).optional(),
+  "errorSummary": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+export const ListGatewayBatchesResponse = zod.array(ListGatewayBatchesResponseItem)
+
+
+/**
+ * @summary Latest reconciliation status per registration
+ */
+export const GetGatewayReconcileStatusResponseItem = zod.object({
+  "registrationId": zod.number().nullish(),
+  "registrationName": zod.string().nullish(),
+  "reconciledAt": zod.string().nullish(),
+  "checked": zod.number(),
+  "missing": zod.array(zod.string()),
+  "mismatched": zod.array(zod.string())
+})
+export const GetGatewayReconcileStatusResponse = zod.array(GetGatewayReconcileStatusResponseItem)
+
+
+/**
+ * @summary List device-employee biometric mappings
+ */
+export const ListDeviceMappingsQueryParams = zod.object({
+  "deviceId": zod.coerce.number().int().nullish(),
+  "employeeId": zod.coerce.number().int().nullish()
+})
+
+export const ListDeviceMappingsResponseItem = zod.object({
+  "id": zod.number(),
+  "deviceId": zod.number(),
+  "employeeId": zod.number(),
+  "accessLevel": zod.string(),
+  "biometricType": zod.string(),
+  "enrolledAt": zod.string().nullish(),
+  "enrolledByUserId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "jobTitleEn": zod.string().nullish(),
+  "deviceName": zod.string().nullish(),
+  "deviceLocation": zod.string().nullish(),
+  "enrolledByName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).describe('Device-employee mapping enriched with employee and device display fields.')
+export const ListDeviceMappingsResponse = zod.array(ListDeviceMappingsResponseItem)
+
+
+/**
+ * @summary List mappings for a device
+ */
+export const GetDeviceMappingsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetDeviceMappingsResponseItem = zod.object({
+  "id": zod.number(),
+  "deviceId": zod.number(),
+  "employeeId": zod.number(),
+  "accessLevel": zod.string(),
+  "biometricType": zod.string(),
+  "enrolledAt": zod.string().nullish(),
+  "enrolledByUserId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "jobTitleEn": zod.string().nullish(),
+  "deviceName": zod.string().nullish(),
+  "deviceLocation": zod.string().nullish(),
+  "enrolledByName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).describe('Device-employee mapping enriched with employee and device display fields.')
+export const GetDeviceMappingsResponse = zod.array(GetDeviceMappingsResponseItem)
+
+
+/**
+ * @summary Enroll an employee on a device
+ */
+export const CreateDeviceMappingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateDeviceMappingBody = zod.object({
+  "employeeId": zod.number(),
+  "accessLevel": zod.string().nullish(),
+  "biometricType": zod.string().nullish(),
+  "enrolledAt": zod.string().nullish(),
+  "enrolledByUserId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateDeviceMappingResponse = zod.object({
+  "id": zod.number(),
+  "deviceId": zod.number(),
+  "employeeId": zod.number(),
+  "accessLevel": zod.string(),
+  "biometricType": zod.string(),
+  "enrolledAt": zod.string().nullish(),
+  "enrolledByUserId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "jobTitleEn": zod.string().nullish(),
+  "deviceName": zod.string().nullish(),
+  "deviceLocation": zod.string().nullish(),
+  "enrolledByName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).describe('Device-employee mapping enriched with employee and device display fields.')
+
+
+/**
+ * @summary Remove an employee mapping from a device
+ */
+export const DeleteDeviceMappingParams = zod.object({
+  "deviceId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const DeleteDeviceMappingResponse = zod.void()
+
+
+/**
+ * @summary List attendance correction requests
+ */
+export const ListAttendanceCorrectionsQueryParams = zod.object({
+  "status": zod.coerce.string().nullish()
+})
+
+export const ListAttendanceCorrectionsResponseItem = zod.object({
+  "id": zod.number(),
+  "attendanceRecordId": zod.number(),
+  "employeeId": zod.number(),
+  "requestedByUserId": zod.number(),
+  "reviewedByUserId": zod.number().nullish(),
+  "correctionType": zod.string(),
+  "originalValue": zod.string().nullish(),
+  "requestedValue": zod.string(),
+  "reason": zod.string(),
+  "status": zod.string(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "recordDate": zod.string().nullish(),
+  "requestedByName": zod.string().nullish(),
+  "reviewedByName": zod.string().nullish()
+}))
+export const ListAttendanceCorrectionsResponse = zod.array(ListAttendanceCorrectionsResponseItem)
+
+
+/**
+ * @summary Request a correction for an attendance record
+ */
+export const CreateAttendanceCorrectionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateAttendanceCorrectionBody = zod.object({
+  "employeeId": zod.number().nullish(),
+  "correctionType": zod.string(),
+  "originalValue": zod.string().nullish(),
+  "requestedValue": zod.string(),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number().nullish()
+})
+
+export const CreateAttendanceCorrectionResponse = zod.object({
+  "id": zod.number(),
+  "attendanceRecordId": zod.number(),
+  "employeeId": zod.number(),
+  "requestedByUserId": zod.number(),
+  "reviewedByUserId": zod.number().nullish(),
+  "correctionType": zod.string(),
+  "originalValue": zod.string().nullish(),
+  "requestedValue": zod.string(),
+  "reason": zod.string(),
+  "status": zod.string(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "recordDate": zod.string().nullish(),
+  "requestedByName": zod.string().nullish(),
+  "reviewedByName": zod.string().nullish()
+}))
+
+
+/**
+ * @summary Approve or reject a correction request
+ */
+export const DecideAttendanceCorrectionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DecideAttendanceCorrectionBody = zod.object({
+  "decision": zod.enum(['approved', 'rejected']),
+  "reviewNote": zod.string().nullish(),
+  "reviewedByUserId": zod.number().nullish()
+})
+
+export const DecideAttendanceCorrectionResponse = zod.object({
+  "id": zod.number(),
+  "attendanceRecordId": zod.number(),
+  "employeeId": zod.number(),
+  "requestedByUserId": zod.number(),
+  "reviewedByUserId": zod.number().nullish(),
+  "correctionType": zod.string(),
+  "originalValue": zod.string().nullish(),
+  "requestedValue": zod.string(),
+  "reason": zod.string(),
+  "status": zod.string(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "employeeNameEn": zod.string().nullish(),
+  "employeeNameAr": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "recordDate": zod.string().nullish(),
+  "requestedByName": zod.string().nullish(),
+  "reviewedByName": zod.string().nullish()
+}))
+
+
+/**
+ * @summary List integration connection profiles
+ */
+export const ListConnectionProfilesQueryParams = zod.object({
+  "orgId": zod.coerce.number().int().nullish(),
+  "governanceStatus": zod.coerce.string().nullish(),
+  "integrationType": zod.coerce.string().nullish()
+})
+
+export const ListConnectionProfilesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+})
+export const ListConnectionProfilesResponse = zod.array(ListConnectionProfilesResponseItem)
+
+
+/**
+ * @summary Create a connection profile
+ */
+export const CreateConnectionProfileBody = zod.record(zod.string(), zod.unknown())
+
+export const CreateConnectionProfileResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Get a connection profile
+ */
+export const GetConnectionProfileParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetConnectionProfileResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Update a connection profile
+ */
+export const UpdateConnectionProfileParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateConnectionProfileBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdateConnectionProfileResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Delete a connection profile
+ */
+export const DeleteConnectionProfileParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteConnectionProfileResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Test a connection profile
+ */
+export const TestConnectionProfileParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const TestConnectionProfileBody = zod.object({
+  "testRecipient": zod.string().nullish()
+})
+
+export const TestConnectionProfileResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string(),
+  "latencyMs": zod.number(),
+  "simulated": zod.boolean(),
+  "testedAt": zod.string()
+})
+
+
+/**
+ * @summary Approve a connection profile
+ */
+export const ApproveConnectionProfileParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveConnectionProfileBody = zod.object({
+  "approvalNotes": zod.string().nullish()
+})
+
+export const ApproveConnectionProfileResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Suspend a connection profile
+ */
+export const SuspendConnectionProfileParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SuspendConnectionProfileBody = zod.object({
+  "reason": zod.string().nullish()
+})
+
+export const SuspendConnectionProfileResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary List credential vault references
+ */
+export const ListCredentialVaultRefsResponseItem = zod.object({
+  "id": zod.number(),
+  "labelEn": zod.string(),
+  "labelAr": zod.string(),
+  "credentialType": zod.string(),
+  "vaultKeyRef": zod.string(),
+  "vaultSecretRef": zod.string().nullish(),
+  "descriptionEn": zod.string().nullish(),
+  "descriptionAr": zod.string().nullish(),
+  "status": zod.string(),
+  "lastRotatedAt": zod.string().nullish(),
+  "rotationDueAt": zod.string().nullish(),
+  "ownerUserId": zod.number().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "configured": zod.boolean().optional(),
+  "warnings": zod.array(zod.string()).optional()
+})
+export const ListCredentialVaultRefsResponse = zod.array(ListCredentialVaultRefsResponseItem)
+
+
+/**
+ * @summary List integration governance rules
+ */
+export const ListGovernanceRulesQueryParams = zod.object({
+  "orgId": zod.coerce.number().int().nullish(),
+  "integrationType": zod.coerce.string().nullish()
+})
+
+export const ListGovernanceRulesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "integrationType": zod.string(),
+  "ruleCode": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "permissionLevel": zod.string(),
+  "requiresDualAuth": zod.boolean(),
+  "requiresMakerChecker": zod.boolean(),
+  "maxActiveProfiles": zod.number(),
+  "allowExternalNetwork": zod.boolean(),
+  "notesEn": zod.string().nullish(),
+  "notesAr": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListGovernanceRulesResponse = zod.array(ListGovernanceRulesResponseItem)
+
+
+/**
+ * @summary Update a governance rule
+ */
+export const UpdateGovernanceRuleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateGovernanceRuleBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdateGovernanceRuleResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "integrationType": zod.string(),
+  "ruleCode": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "permissionLevel": zod.string(),
+  "requiresDualAuth": zod.boolean(),
+  "requiresMakerChecker": zod.boolean(),
+  "maxActiveProfiles": zod.number(),
+  "allowExternalNetwork": zod.boolean(),
+  "notesEn": zod.string().nullish(),
+  "notesAr": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List integration governance audit log entries
+ */
+export const ListIntegrationAuditLogQueryParams = zod.object({
+  "profileId": zod.coerce.number().int().nullish(),
+  "page": zod.coerce.number().int().nullish(),
+  "pageSize": zod.coerce.number().int().nullish()
+})
+
+export const ListIntegrationAuditLogResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "profileId": zod.number().nullish(),
+  "integrationType": zod.string().nullish(),
+  "eventType": zod.string(),
+  "outcome": zod.string(),
+  "message": zod.string().nullish(),
+  "metadataJson": zod.string().nullish(),
+  "actorUserId": zod.number().nullish(),
+  "sourceIp": zod.string().nullish(),
+  "occurredAt": zod.string()
+})),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * @summary Run integration health checks now
+ */
+export const RunIntegrationHealthChecksBody = zod.object({
+  "force": zod.boolean().nullish()
+})
+
+export const RunIntegrationHealthChecksResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary List policy change requests
+ */
+export const ListPolicyChangeRequestsQueryParams = zod.object({
+  "status": zod.coerce.string().nullish(),
+  "policyArea": zod.coerce.string().nullish(),
+  "orgId": zod.coerce.number().int().nullish()
+})
+
+export const ListPolicyChangeRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "policyArea": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "status": zod.string(),
+  "makerUserId": zod.number(),
+  "checkerUserId": zod.number().nullish(),
+  "checkerComment": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "changeBeforeJson": zod.string().nullish(),
+  "changeAfterJson": zod.string(),
+  "changeSummaryEn": zod.string().nullish(),
+  "changeSummaryAr": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "appliedVersion": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListPolicyChangeRequestsResponse = zod.array(ListPolicyChangeRequestsResponseItem)
+
+
+/**
+ * @summary Create a policy change request
+ */
+export const CreatePolicyChangeRequestBody = zod.record(zod.string(), zod.unknown())
+
+export const CreatePolicyChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "policyArea": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "status": zod.string(),
+  "makerUserId": zod.number(),
+  "checkerUserId": zod.number().nullish(),
+  "checkerComment": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "changeBeforeJson": zod.string().nullish(),
+  "changeAfterJson": zod.string(),
+  "changeSummaryEn": zod.string().nullish(),
+  "changeSummaryAr": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "appliedVersion": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Submit a draft change request for review
+ */
+export const SubmitPolicyChangeRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SubmitPolicyChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "policyArea": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "status": zod.string(),
+  "makerUserId": zod.number(),
+  "checkerUserId": zod.number().nullish(),
+  "checkerComment": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "changeBeforeJson": zod.string().nullish(),
+  "changeAfterJson": zod.string(),
+  "changeSummaryEn": zod.string().nullish(),
+  "changeSummaryAr": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "appliedVersion": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Withdraw a change request
+ */
+export const WithdrawPolicyChangeRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const WithdrawPolicyChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "policyArea": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "status": zod.string(),
+  "makerUserId": zod.number(),
+  "checkerUserId": zod.number().nullish(),
+  "checkerComment": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "changeBeforeJson": zod.string().nullish(),
+  "changeAfterJson": zod.string(),
+  "changeSummaryEn": zod.string().nullish(),
+  "changeSummaryAr": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "appliedVersion": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Approve a change request
+ */
+export const ApprovePolicyChangeRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApprovePolicyChangeRequestBody = zod.object({
+  "checkerComment": zod.string().nullish()
+})
+
+export const ApprovePolicyChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "policyArea": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "status": zod.string(),
+  "makerUserId": zod.number(),
+  "checkerUserId": zod.number().nullish(),
+  "checkerComment": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "changeBeforeJson": zod.string().nullish(),
+  "changeAfterJson": zod.string(),
+  "changeSummaryEn": zod.string().nullish(),
+  "changeSummaryAr": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "appliedVersion": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Reject a change request
+ */
+export const RejectPolicyChangeRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectPolicyChangeRequestBody = zod.object({
+  "checkerComment": zod.string().nullish()
+})
+
+export const RejectPolicyChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "policyArea": zod.string(),
+  "titleEn": zod.string(),
+  "titleAr": zod.string(),
+  "status": zod.string(),
+  "makerUserId": zod.number(),
+  "checkerUserId": zod.number().nullish(),
+  "checkerComment": zod.string().nullish(),
+  "decidedAt": zod.string().nullish(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "changeBeforeJson": zod.string().nullish(),
+  "changeAfterJson": zod.string(),
+  "changeSummaryEn": zod.string().nullish(),
+  "changeSummaryAr": zod.string().nullish(),
+  "impactPreviewJson": zod.string().nullish(),
+  "appliedVersion": zod.number().nullish(),
+  "appliedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Roll back to a previous policy version
+ */
+export const RollbackPolicyVersionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RollbackPolicyVersionBody = zod.object({
+  "reason": zod.string().nullish()
+})
+
+export const RollbackPolicyVersionResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "policyArea": zod.string(),
+  "targetEntityType": zod.string().nullish(),
+  "targetEntityId": zod.number().nullish(),
+  "targetEntityLabel": zod.string().nullish(),
+  "version": zod.number(),
+  "snapshotJson": zod.string(),
+  "checksum": zod.string().nullish(),
+  "changeRequestId": zod.number().nullish(),
+  "appliedByUserId": zod.number(),
+  "appliedAt": zod.string(),
+  "isCurrent": zod.boolean(),
+  "rollbackReason": zod.string().nullish(),
+  "rolledBackFromVersion": zod.number().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary List numbering schemes
+ */
+export const ListNumberingSchemesQueryParams = zod.object({
+  "orgId": zod.coerce.number().int().nullish()
+})
+
+export const ListNumberingSchemesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "entityType": zod.string(),
+  "template": zod.string(),
+  "prefix": zod.string().nullish(),
+  "suffix": zod.string().nullish(),
+  "currentSequence": zod.number(),
+  "sequencePadding": zod.number(),
+  "resetCycle": zod.string(),
+  "lastResetAt": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListNumberingSchemesResponse = zod.array(ListNumberingSchemesResponseItem)
+
+
+/**
+ * @summary Create a numbering scheme
+ */
+export const CreateNumberingSchemeBody = zod.record(zod.string(), zod.unknown())
+
+export const CreateNumberingSchemeResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "entityType": zod.string(),
+  "template": zod.string(),
+  "prefix": zod.string().nullish(),
+  "suffix": zod.string().nullish(),
+  "currentSequence": zod.number(),
+  "sequencePadding": zod.number(),
+  "resetCycle": zod.string(),
+  "lastResetAt": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Generate the next number from a scheme
+ */
+export const IncrementNumberingSchemeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const IncrementNumberingSchemeResponse = zod.object({
+  "nextNumber": zod.string(),
+  "sequence": zod.number()
+})
+
+
+/**
+ * @summary List employment type configurations
+ */
+export const ListEmploymentTypeConfigsQueryParams = zod.object({
+  "orgId": zod.coerce.number().int().nullish()
+})
+
+export const ListEmploymentTypeConfigsResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "employmentType": zod.string(),
+  "labelEn": zod.string(),
+  "labelAr": zod.string(),
+  "eligibleLeave": zod.boolean(),
+  "eligiblePayroll": zod.boolean(),
+  "eligibleBenefits": zod.boolean(),
+  "eligiblePension": zod.boolean(),
+  "probationEnabled": zod.boolean(),
+  "probationDays": zod.number(),
+  "defaultContractMonths": zod.number().nullish(),
+  "maxRenewals": zod.number().nullish(),
+  "applicableOrgTypesJson": zod.string(),
+  "isActive": zod.boolean(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListEmploymentTypeConfigsResponse = zod.array(ListEmploymentTypeConfigsResponseItem)
+
+
+/**
+ * @summary Create an employment type configuration
+ */
+export const CreateEmploymentTypeConfigBody = zod.object({
+  "orgId": zod.number(),
+  "employmentType": zod.string(),
+  "labelEn": zod.string(),
+  "labelAr": zod.string(),
+  "eligibleLeave": zod.boolean().optional(),
+  "eligiblePayroll": zod.boolean().optional(),
+  "eligibleBenefits": zod.boolean().optional(),
+  "eligiblePension": zod.boolean().optional(),
+  "probationEnabled": zod.boolean().optional(),
+  "probationDays": zod.number().optional(),
+  "defaultContractMonths": zod.number().nullish(),
+  "maxRenewals": zod.number().nullish(),
+  "applicableOrgTypesJson": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "sortOrder": zod.number().optional()
+})
+
+export const CreateEmploymentTypeConfigResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "employmentType": zod.string(),
+  "labelEn": zod.string(),
+  "labelAr": zod.string(),
+  "eligibleLeave": zod.boolean(),
+  "eligiblePayroll": zod.boolean(),
+  "eligibleBenefits": zod.boolean(),
+  "eligiblePension": zod.boolean(),
+  "probationEnabled": zod.boolean(),
+  "probationDays": zod.number(),
+  "defaultContractMonths": zod.number().nullish(),
+  "maxRenewals": zod.number().nullish(),
+  "applicableOrgTypesJson": zod.string(),
+  "isActive": zod.boolean(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List data retention rules
+ */
+export const ListRetentionRulesQueryParams = zod.object({
+  "orgId": zod.coerce.number().int().nullish()
+})
+
+export const ListRetentionRulesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "dataCategory": zod.string(),
+  "labelEn": zod.string(),
+  "labelAr": zod.string(),
+  "retentionMonths": zod.number(),
+  "expiryAction": zod.string(),
+  "legalBasisEn": zod.string().nullish(),
+  "legalBasisAr": zod.string().nullish(),
+  "requiresApprovalToDelete": zod.boolean(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListRetentionRulesResponse = zod.array(ListRetentionRulesResponseItem)
+
+
+/**
+ * @summary Create a retention rule
+ */
+export const CreateRetentionRuleBody = zod.record(zod.string(), zod.unknown())
+
+export const CreateRetentionRuleResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "dataCategory": zod.string(),
+  "labelEn": zod.string(),
+  "labelAr": zod.string(),
+  "retentionMonths": zod.number(),
+  "expiryAction": zod.string(),
+  "legalBasisEn": zod.string().nullish(),
+  "legalBasisAr": zod.string().nullish(),
+  "requiresApprovalToDelete": zod.boolean(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List policy locale settings
+ */
+export const ListPolicyLocalesQueryParams = zod.object({
+  "orgId": zod.coerce.number().int().nullish()
+})
+
+export const ListPolicyLocalesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "defaultLanguage": zod.string(),
+  "timezone": zod.string(),
+  "calendarType": zod.string(),
+  "showHijriDates": zod.boolean(),
+  "currencyCode": zod.string(),
+  "currencySymbolEn": zod.string().nullish(),
+  "currencySymbolAr": zod.string().nullish(),
+  "dateFormat": zod.string(),
+  "timeFormat": zod.string(),
+  "numeralStyle": zod.string(),
+  "thousandsSeparator": zod.string().nullish(),
+  "decimalSeparator": zod.string().nullish(),
+  "updatedByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListPolicyLocalesResponse = zod.array(ListPolicyLocalesResponseItem)
+
+
+/**
+ * @summary Create a policy locale
+ */
+export const CreatePolicyLocaleBody = zod.record(zod.string(), zod.unknown())
+
+export const CreatePolicyLocaleResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "defaultLanguage": zod.string(),
+  "timezone": zod.string(),
+  "calendarType": zod.string(),
+  "showHijriDates": zod.boolean(),
+  "currencyCode": zod.string(),
+  "currencySymbolEn": zod.string().nullish(),
+  "currencySymbolAr": zod.string().nullish(),
+  "dateFormat": zod.string(),
+  "timeFormat": zod.string(),
+  "numeralStyle": zod.string(),
+  "thousandsSeparator": zod.string().nullish(),
+  "decimalSeparator": zod.string().nullish(),
+  "updatedByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update a policy locale
+ */
+export const UpdatePolicyLocaleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdatePolicyLocaleBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdatePolicyLocaleResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "defaultLanguage": zod.string(),
+  "timezone": zod.string(),
+  "calendarType": zod.string(),
+  "showHijriDates": zod.boolean(),
+  "currencyCode": zod.string(),
+  "currencySymbolEn": zod.string().nullish(),
+  "currencySymbolAr": zod.string().nullish(),
+  "dateFormat": zod.string(),
+  "timeFormat": zod.string(),
+  "numeralStyle": zod.string(),
+  "thousandsSeparator": zod.string().nullish(),
+  "decimalSeparator": zod.string().nullish(),
+  "updatedByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List organization report templates
+ */
+export const ListOrgReportTemplatesQueryParams = zod.object({
+  "orgId": zod.coerce.number().int().nullish(),
+  "templateType": zod.coerce.string().nullish()
+})
+
+export const ListOrgReportTemplatesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "templateType": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "paperOrientation": zod.string(),
+  "paperSize": zod.string(),
+  "includeOrgLogo": zod.boolean(),
+  "includeBranding": zod.boolean(),
+  "headerHtmlEn": zod.string().nullish(),
+  "headerHtmlAr": zod.string().nullish(),
+  "footerHtmlEn": zod.string().nullish(),
+  "footerHtmlAr": zod.string().nullish(),
+  "columnsJson": zod.string().nullish(),
+  "groupingJson": zod.string().nullish(),
+  "defaultFiltersJson": zod.string().nullish(),
+  "defaultExportFormat": zod.string(),
+  "isDefault": zod.boolean(),
+  "isActive": zod.boolean(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListOrgReportTemplatesResponse = zod.array(ListOrgReportTemplatesResponseItem)
+
+
+/**
+ * @summary Create an organization report template
+ */
+export const CreateOrgReportTemplateBody = zod.record(zod.string(), zod.unknown())
+
+export const CreateOrgReportTemplateResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "templateType": zod.string(),
+  "nameEn": zod.string(),
+  "nameAr": zod.string(),
+  "paperOrientation": zod.string(),
+  "paperSize": zod.string(),
+  "includeOrgLogo": zod.boolean(),
+  "includeBranding": zod.boolean(),
+  "headerHtmlEn": zod.string().nullish(),
+  "headerHtmlAr": zod.string().nullish(),
+  "footerHtmlEn": zod.string().nullish(),
+  "footerHtmlAr": zod.string().nullish(),
+  "columnsJson": zod.string().nullish(),
+  "groupingJson": zod.string().nullish(),
+  "defaultFiltersJson": zod.string().nullish(),
+  "defaultExportFormat": zod.string(),
+  "isDefault": zod.boolean(),
+  "isActive": zod.boolean(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get branding for an organization
+ */
+export const GetOrganizationBrandingParams = zod.object({
+  "orgId": zod.coerce.number()
+})
+
+export const GetOrganizationBrandingResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "displayNameEn": zod.string().nullish(),
+  "displayNameAr": zod.string().nullish(),
+  "taglineEn": zod.string().nullish(),
+  "taglineAr": zod.string().nullish(),
+  "primaryColor": zod.string(),
+  "accentColor": zod.string().nullish(),
+  "defaultTheme": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "faviconUrl": zod.string().nullish(),
+  "footerTextEn": zod.string().nullish(),
+  "footerTextAr": zod.string().nullish(),
+  "loginMessageEn": zod.string().nullish(),
+  "loginMessageAr": zod.string().nullish(),
+  "customCssSnippet": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "updatedByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Create or update branding for an organization
+ */
+export const UpsertOrganizationBrandingParams = zod.object({
+  "orgId": zod.coerce.number()
+})
+
+export const UpsertOrganizationBrandingBody = zod.record(zod.string(), zod.unknown())
+
+export const UpsertOrganizationBrandingResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number(),
+  "displayNameEn": zod.string().nullish(),
+  "displayNameAr": zod.string().nullish(),
+  "taglineEn": zod.string().nullish(),
+  "taglineAr": zod.string().nullish(),
+  "primaryColor": zod.string(),
+  "accentColor": zod.string().nullish(),
+  "defaultTheme": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "faviconUrl": zod.string().nullish(),
+  "footerTextEn": zod.string().nullish(),
+  "footerTextAr": zod.string().nullish(),
+  "loginMessageEn": zod.string().nullish(),
+  "loginMessageAr": zod.string().nullish(),
+  "customCssSnippet": zod.string().nullish(),
+  "isActive": zod.boolean(),
+  "updatedByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+

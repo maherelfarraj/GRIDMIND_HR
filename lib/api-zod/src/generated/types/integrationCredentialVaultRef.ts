@@ -29,4 +29,6 @@ export interface IntegrationCredentialVaultRef {
   createdByUserId?: number | null;
   createdAt: string;
   updatedAt: string;
+  configured?: boolean;
+  warnings?: string[];
 }
