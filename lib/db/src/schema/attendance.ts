@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 export const attendanceRecordsTable = pgTable("attendance_records", {
   id: serial("id").primaryKey(),
   employeeId: integer("employee_id").notNull(),
+  orgId: integer("org_id").notNull().default(1),
   departmentId: integer("department_id").notNull(),
   date: text("date").notNull(),
   checkInTime: text("check_in_time"),

@@ -7,6 +7,8 @@
  */
 
 export interface PayrollPeriod {
+  /** Owning organization (tenant); null on legacy/global rows. */
+  orgId?: number | null;
   id: number;
   periodCode: string;
   nameEn: string;

@@ -9,6 +9,7 @@ import { logger } from "./lib/logger";
 import { pool as pgPool } from "@workspace/db";
 import { assertAuthModeSafe, isAuthEnforced } from "./lib/authMode";
 import { UnauthenticatedActorError } from "./middleware/requireAuth";
+import { InvalidOrgContextError, orgContextValidator } from "./lib/orgContext.js";
 
 // Refuses to start in production with auth disabled; loud warning elsewhere.
 assertAuthModeSafe();
@@ -122,12 +123,19 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
+// Validate any X-Org-Id tenant-context header before routing.
+app.use(orgContextValidator());
+
 app.use("/api", router);
 
 // Global error handler: map unauthenticated-actor errors to 401, others to 500.
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof UnauthenticatedActorError) {
     res.status(401).json({ error: err.message, code: err.code });
+    return;
+  }
+  if (err instanceof InvalidOrgContextError) {
+    res.status(err.status).json({ error: err.message, code: err.code });
     return;
   }
   console.error("Unhandled error:", err);

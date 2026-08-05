@@ -2,6 +2,8 @@ import { pgTable, serial, varchar, integer, boolean, text, timestamp } from "dri
 
 export const publicHolidaysTable = pgTable("public_holidays", {
   id: serial("id").primaryKey(),
+  // null = global holiday visible to every organization
+  orgId: integer("org_id"),
   nameEn: varchar("name_en", { length: 120 }).notNull(),
   nameAr: varchar("name_ar", { length: 120 }).notNull(),
   date: text("date").notNull(),

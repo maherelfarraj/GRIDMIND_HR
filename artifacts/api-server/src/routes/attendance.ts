@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, attendanceRecordsTable, employeesTable, departmentsTable, attendanceDevicesTable } from "@workspace/db";
 import { eq, and, gte, lte, sql, count } from "drizzle-orm";
 import { ListAttendanceQueryParams } from "@workspace/api-zod";
+import { resolveOrgId } from "../lib/orgContext";
 
 const router = Router();
 
@@ -9,7 +10,8 @@ router.get("/attendance", async (req, res): Promise<void> => {
   const parsed = ListAttendanceQueryParams.safeParse(req.query);
   const q = parsed.success ? parsed.data : {};
 
-  const conditions = [];
+  const orgId = await resolveOrgId(req);
+  const conditions = [eq(attendanceRecordsTable.orgId, orgId)];
   if (q.employeeId) conditions.push(eq(attendanceRecordsTable.employeeId, q.employeeId));
   if (q.departmentId) conditions.push(eq(attendanceRecordsTable.departmentId, q.departmentId));
   if (q.date) conditions.push(eq(attendanceRecordsTable.date, q.date));
@@ -20,14 +22,10 @@ router.get("/attendance", async (req, res): Promise<void> => {
   const limit = q.limit ?? 50;
   const offset = (page - 1) * limit;
 
-  const records = conditions.length > 0
-    ? await db.select().from(attendanceRecordsTable)
-        .where(and(...conditions))
-        .orderBy(sql`${attendanceRecordsTable.date} desc, ${attendanceRecordsTable.id} desc`)
-        .limit(limit).offset(offset)
-    : await db.select().from(attendanceRecordsTable)
-        .orderBy(sql`${attendanceRecordsTable.date} desc, ${attendanceRecordsTable.id} desc`)
-        .limit(limit).offset(offset);
+  const records = await db.select().from(attendanceRecordsTable)
+    .where(and(...conditions))
+    .orderBy(sql`${attendanceRecordsTable.date} desc, ${attendanceRecordsTable.id} desc`)
+    .limit(limit).offset(offset);
 
   const emps = await db.select().from(employeesTable);
   const depts = await db.select().from(departmentsTable);
@@ -62,12 +60,14 @@ router.get("/attendance", async (req, res): Promise<void> => {
 
 router.get("/attendance/daily-summary", async (req, res): Promise<void> => {
   const today = new Date().toISOString().slice(0, 10);
+  const orgId = await resolveOrgId(req);
   const depts = await db.select().from(departmentsTable);
-  const records = await db.select().from(attendanceRecordsTable).where(eq(attendanceRecordsTable.date, today));
+  const records = await db.select().from(attendanceRecordsTable)
+    .where(and(eq(attendanceRecordsTable.date, today), eq(attendanceRecordsTable.orgId, orgId)));
   const empCounts = await db
     .select({ deptId: employeesTable.departmentId, c: count() })
     .from(employeesTable)
-    .where(eq(employeesTable.status, "active"))
+    .where(and(eq(employeesTable.status, "active"), eq(employeesTable.orgId, orgId)))
     .groupBy(employeesTable.departmentId);
   const empCountMap = Object.fromEntries(empCounts.map((e) => [e.deptId, e.c]));
 

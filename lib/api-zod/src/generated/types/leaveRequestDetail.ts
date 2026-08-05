@@ -10,6 +10,8 @@ import type { LeaveAttachment } from './leaveAttachment';
 import type { LeaveRequestSummary } from './leaveRequestSummary';
 
 export type LeaveRequestDetail = LeaveRequestSummary & ({
+  /** Owning organization (tenant); null on legacy/global rows. */
+  orgId?: number | null;
   /** @nullable */
   reasonEn?: string | null;
   /** @nullable */

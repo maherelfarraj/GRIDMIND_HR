@@ -9,7 +9,25 @@ import { ensureLeaveBalance } from "../lib/leaveBalance.js";
 import { decideLeaveStep, syncLinkedApprovalStatus } from "../lib/leaveDecision.js";
 import { getActorUserId } from "../middleware/requireAuth.js";
 
+import { resolveOrgId } from "../lib/orgContext";
+
 const router = Router();
+
+// Org-ownership guard: every /leave-requests/:id route 404s when the request
+// belongs to a different organization than the active org context.
+router.param("id", async (req, res, next, rawId) => {
+  try {
+    const id = parseInt(rawId, 10);
+    if (!Number.isInteger(id)) { res.status(404).json({ error: "Not found" }); return; }
+    const [row] = await db.select({ orgId: leaveRequestsTable.orgId })
+      .from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
+    if (!row || row.orgId !== (await resolveOrgId(req))) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    next();
+  } catch (err) { next(err); }
+});
 
 function datesInRange(startDate: string, endDate: string): string[] {
   const dates: string[] = [];
@@ -74,7 +92,9 @@ async function enrichRequest(r: typeof leaveRequestsTable.$inferSelect) {
 router.get("/leave-requests", async (req, res): Promise<void> => {
   const { employeeId, status, leaveTypeId, startDate, endDate } = req.query as Record<string, string>;
 
-  const conditions: ReturnType<typeof eq>[] = [];
+  const orgId = await resolveOrgId(req);
+
+  const conditions: any[] = [eq(leaveRequestsTable.orgId, orgId)];
   if (employeeId) conditions.push(eq(leaveRequestsTable.employeeId, parseInt(employeeId, 10)));
   if (status) {
     // Support comma-separated status list
@@ -93,7 +113,7 @@ router.get("/leave-requests", async (req, res): Promise<void> => {
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(leaveRequestsTable.createdAt);
 
-  const emps = await db.select().from(employeesTable);
+  const emps = await db.select().from(employeesTable).where(eq(employeesTable.orgId, orgId));
   const types = await db.select().from(leaveTypesTable);
   const empMap = Object.fromEntries(emps.map(e => [e.id, e]));
   const typeMap = Object.fromEntries(types.map(t => [t.id, t]));
@@ -135,8 +155,17 @@ router.post("/leave-requests", async (req, res): Promise<void> => {
   }
 
   const requestNumber = genRequestNumber();
+  // Requests inherit the employee's org; the employee must belong to the
+  // active org context (no cross-org creation by supplying a foreign id).
+  const ctxOrgId = await resolveOrgId(req);
+  const [reqEmp] = await db.select().from(employeesTable).where(eq(employeesTable.id, employeeId));
+  if (!reqEmp || reqEmp.orgId !== ctxOrgId) {
+    res.status(404).json({ error: "Employee not found" });
+    return;
+  }
   const [request] = await db.insert(leaveRequestsTable).values({
     requestNumber,
+    orgId: reqEmp.orgId,
     employeeId, leaveTypeId, startDate, endDate,
     totalDays: String(totalDays),
     halfDay: halfDay ?? false,
@@ -541,9 +570,11 @@ router.post("/leave-requests/:id/attachments", async (req, res): Promise<void> =
 
 // GET /leave-calendar?startDate=&endDate=&departmentId= — calendar overlay data
 router.get("/leave-calendar", async (req, res): Promise<void> => {
+  const orgId = await resolveOrgId(req);
   const { startDate, endDate, departmentId } = req.query as Record<string, string>;
 
-  const conditions: ReturnType<typeof eq>[] = [
+  const conditions: any[] = [
+    eq(leaveRequestsTable.orgId, orgId),
     or(eq(leaveRequestsTable.status, "approved"), eq(leaveRequestsTable.status, "under_review")) as any,
   ];
   if (startDate) conditions.push(gte(leaveRequestsTable.startDate, startDate));
@@ -551,7 +582,7 @@ router.get("/leave-calendar", async (req, res): Promise<void> => {
 
   const requests = await db.select().from(leaveRequestsTable).where(and(...conditions));
 
-  const emps = await db.select().from(employeesTable);
+  const emps = await db.select().from(employeesTable).where(eq(employeesTable.orgId, orgId));
   const types = await db.select().from(leaveTypesTable);
   const empMap = Object.fromEntries(emps.map(e => [e.id, e]));
   const typeMap = Object.fromEntries(types.map(t => [t.id, t]));

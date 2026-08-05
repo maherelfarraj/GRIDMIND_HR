@@ -1,8 +1,27 @@
 import { Router } from "express";
 import { db, payrollRunsTable, payrollRunLinesTable, payrollPeriodsTable, employeesTable, departmentsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
+import { resolveOrgId } from "../lib/orgContext";
 
 const router = Router();
+
+// Org-ownership guard: every /payroll-runs/:id route 404s when the run's
+// payroll period belongs to a different organization than the active context.
+router.param("id", async (req, res, next, rawId) => {
+  try {
+    const id = parseInt(rawId, 10);
+    if (!Number.isInteger(id)) { res.status(404).json({ error: "Not found" }); return; }
+    const [row] = await db.select({ orgId: payrollPeriodsTable.orgId })
+      .from(payrollRunsTable)
+      .innerJoin(payrollPeriodsTable, eq(payrollRunsTable.payrollPeriodId, payrollPeriodsTable.id))
+      .where(eq(payrollRunsTable.id, id));
+    if (!row || row.orgId !== (await resolveOrgId(req))) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    next();
+  } catch (err) { next(err); }
+});
 
 // GET /payroll-runs?periodId=&employeeId=&status=&hasException=
 router.get("/payroll-runs", async (req, res): Promise<void> => {
@@ -14,9 +33,26 @@ router.get("/payroll-runs", async (req, res): Promise<void> => {
   if (status) conditions.push(eq(payrollRunsTable.status, status));
   if (hasException === "true") conditions.push(eq(payrollRunsTable.hasException, true));
 
-  const runs = conditions.length > 0
-    ? await db.select().from(payrollRunsTable).where(and(...conditions))
-    : await db.select().from(payrollRunsTable);
+  // Scope runs to the active organization via their payroll period.
+  const orgId = await resolveOrgId(req);
+  if (periodId) {
+    // Explicit parent: the period itself must belong to the active org.
+    const [period] = await db.select({ orgId: payrollPeriodsTable.orgId })
+      .from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, parseInt(periodId as string, 10)));
+    if (!period || period.orgId !== orgId) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+  } else {
+    const orgPeriods = await db.select({ id: payrollPeriodsTable.id }).from(payrollPeriodsTable)
+      .where(eq(payrollPeriodsTable.orgId, orgId));
+    const periodIds = orgPeriods.map(p => p.id);
+    conditions.push(periodIds.length > 0
+      ? inArray(payrollRunsTable.payrollPeriodId, periodIds)
+      : eq(payrollRunsTable.payrollPeriodId, -1));
+  }
+
+  const runs = await db.select().from(payrollRunsTable).where(and(...conditions));
 
   const emps = await db.select().from(employeesTable);
   const depts = await db.select().from(departmentsTable);

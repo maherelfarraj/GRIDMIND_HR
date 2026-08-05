@@ -1,6 +1,7 @@
 import { Router, type Request } from "express";
 import { db, publicHolidaysTable, systemUsersTable, employeesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, or, isNull } from "drizzle-orm";
+import { resolveOrgId } from "../lib/orgContext";
 import { resolveHolidaysForDisplay } from "../lib/holidays";
 import { getActorUserId } from "../middleware/requireAuth.js";
 
@@ -35,7 +36,11 @@ async function resolveCallerSector(req: Request): Promise<string | undefined> {
 router.get("/public-holidays", async (req, res): Promise<void> => {
   const { year, applicableTo, scope } = req.query as Record<string, string>;
 
-  let rows = await db.select().from(publicHolidaysTable).orderBy(publicHolidaysTable.date);
+  // Org scoping: global holidays (NULL orgId) plus the active org's own
+  const orgId = await resolveOrgId(req);
+  let rows = await db.select().from(publicHolidaysTable)
+    .where(or(isNull(publicHolidaysTable.orgId), eq(publicHolidaysTable.orgId, orgId)))
+    .orderBy(publicHolidaysTable.date);
   if (applicableTo) rows = rows.filter(h => (h.applicableTo ?? "all") === applicableTo);
 
   const sector = scope === "mine" ? await resolveCallerSector(req) : undefined;
@@ -54,6 +59,7 @@ router.post("/public-holidays", async (req, res): Promise<void> => {
     return;
   }
   const [h] = await db.insert(publicHolidaysTable).values({
+    orgId: await resolveOrgId(req),
     nameEn, nameAr, date, year,
     isRecurring: isRecurring ?? false,
     applicableTo: applicableTo ?? "all",
@@ -64,6 +70,8 @@ router.post("/public-holidays", async (req, res): Promise<void> => {
 
 router.patch("/public-holidays/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
+  const [own] = await db.select({ orgId: publicHolidaysTable.orgId }).from(publicHolidaysTable).where(eq(publicHolidaysTable.id, id));
+  if (!own || (own.orgId !== null && own.orgId !== (await resolveOrgId(req)))) { res.status(404).json({ error: "Not found" }); return; }
   const { nameEn, nameAr, date, year, isRecurring, applicableTo, notes } = req.body;
   const [h] = await db.update(publicHolidaysTable)
     .set({ nameEn, nameAr, date, year, isRecurring, applicableTo, notes })
@@ -75,6 +83,8 @@ router.patch("/public-holidays/:id", async (req, res): Promise<void> => {
 
 router.delete("/public-holidays/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
+  const [own] = await db.select({ orgId: publicHolidaysTable.orgId }).from(publicHolidaysTable).where(eq(publicHolidaysTable.id, id));
+  if (!own || (own.orgId !== null && own.orgId !== (await resolveOrgId(req)))) { res.status(404).json({ error: "Not found" }); return; }
   await db.delete(publicHolidaysTable).where(eq(publicHolidaysTable.id, id));
   res.status(204).end();
 });

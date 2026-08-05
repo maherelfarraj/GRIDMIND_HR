@@ -5,6 +5,7 @@ import {
   integrationGovernanceRulesTable, integrationAuditLogTable, systemUsersTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
+import { resolveOrgId, orgOwnershipGuard } from "../lib/orgContext";
 import { testLdapConnection, type AdapterResult } from "../lib/ldap-adapter.js";
 import { testSmtpConnection } from "../lib/smtp-adapter.js";
 import { testDeviceConnection } from "../lib/device-adapter.js";
@@ -14,6 +15,10 @@ import { getSecurityEmailDeliveryStatus } from "../lib/email-alert-status.js";
 import { getPepperRotationStatus } from "./attendanceGateway.js";
 
 const router = Router();
+
+// Org-ownership guards: cross-org access to another org's rows 404s.
+router.use("/integration-governance/connection-profiles/:id", orgOwnershipGuard(integrationConnectionProfilesTable, integrationConnectionProfilesTable.orgId, integrationConnectionProfilesTable.id));
+router.use("/integration-governance/governance-rules/:id", orgOwnershipGuard(integrationGovernanceRulesTable, integrationGovernanceRulesTable.orgId, integrationGovernanceRulesTable.id));
 
 // ─── Vault-ref helpers ────────────────────────────────────────────────────────
 
@@ -113,9 +118,9 @@ router.delete("/integration-governance/credential-vault-refs/:id", async (req, r
 
 router.get("/integration-governance/connection-profiles", async (req, res): Promise<void> => {
   try {
-    const { orgId, governanceStatus, integrationType } = req.query as Record<string, string>;
+    const { governanceStatus, integrationType } = req.query as Record<string, string>;
     const conditions: any[] = [];
-    if (orgId) conditions.push(eq(integrationConnectionProfilesTable.orgId, parseInt(orgId)));
+    conditions.push(eq(integrationConnectionProfilesTable.orgId, await resolveOrgId(req)));
     if (governanceStatus) conditions.push(eq(integrationConnectionProfilesTable.governanceStatus, governanceStatus));
     if (integrationType) conditions.push(eq(integrationConnectionProfilesTable.integrationType, integrationType));
     const baseQuery = db
@@ -137,7 +142,8 @@ router.post("/integration-governance/connection-profiles", async (req, res): Pro
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
     const [row] = await db.insert(integrationConnectionProfilesTable).values({
-      ...req.body, createdByUserId: req.body.createdByUserId ?? actorUserId,
+      ...req.body,
+      orgId: await resolveOrgId(req), createdByUserId: req.body.createdByUserId ?? actorUserId,
     }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "connection_profile", entityId: row.id, entityLabel: row.profileName, actorUserId, changesJson: JSON.stringify({ after: row }) });
     const warnings: string[] = [];
@@ -351,9 +357,9 @@ router.delete("/integration-governance/connection-profiles/:id", async (req, res
 
 router.get("/integration-governance/governance-rules", async (req, res): Promise<void> => {
   try {
-    const { orgId, integrationType } = req.query as Record<string, string>;
+    const { integrationType } = req.query as Record<string, string>;
     const conditions: any[] = [];
-    if (orgId) conditions.push(eq(integrationGovernanceRulesTable.orgId, parseInt(orgId)));
+    conditions.push(eq(integrationGovernanceRulesTable.orgId, await resolveOrgId(req)));
     if (integrationType) conditions.push(eq(integrationGovernanceRulesTable.integrationType, integrationType));
     const rows = conditions.length
       ? await db.select().from(integrationGovernanceRulesTable).where(and(...conditions))
@@ -365,7 +371,7 @@ router.get("/integration-governance/governance-rules", async (req, res): Promise
 router.post("/integration-governance/governance-rules", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
-    const [row] = await db.insert(integrationGovernanceRulesTable).values({ ...req.body }).returning();
+    const [row] = await db.insert(integrationGovernanceRulesTable).values({ ...req.body, orgId: await resolveOrgId(req) }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "governance_rule", entityId: row.id, entityLabel: row.titleEn, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
   } catch (err: any) { res.status(500).json({ error: err.message }); }

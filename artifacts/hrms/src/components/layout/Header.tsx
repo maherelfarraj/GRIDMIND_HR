@@ -3,7 +3,6 @@ import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/components/theme-provider';
 import { useAuth } from '@/hooks/use-auth';
 import { useListAlerts, useChangeMyPassword } from '@workspace/api-client-react';
-import { Moon, Sun, Languages, Bell, Search, Menu, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,6 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useOrg } from '@/hooks/use-org';
+import { Moon, Sun, Languages, Bell, Search, Menu, KeyRound, Building2, Check, ChevronsUpDown } from 'lucide-react';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -24,6 +25,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const { lang, setLang, t } = useLanguage();
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
+  const { orgs, activeOrg, switchOrg } = useOrg();
   const { data: alerts } = useListAlerts();
   const { toast } = useToast();
   const changeMyPassword = useChangeMyPassword();
@@ -93,6 +95,39 @@ export function Header({ onMenuClick }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        {orgs.length > 1 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-2 max-w-[220px]" data-testid="button-org-switcher">
+                <Building2 className="w-4 h-4 shrink-0 text-primary" />
+                <span className="truncate text-sm">
+                  {activeOrg
+                    ? (lang === 'en' ? (activeOrg.shortNameEn ?? activeOrg.nameEn) : (activeOrg.shortNameAr ?? activeOrg.nameAr))
+                    : t('Select org', 'اختر المنظمة')}
+                </span>
+                <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              {orgs.map((org) => (
+                <DropdownMenuItem
+                  key={org.id}
+                  onClick={() => switchOrg(org.id)}
+                  className="flex items-center gap-2"
+                  data-testid={`org-option-${org.id}`}
+                >
+                  <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm truncate">{lang === 'en' ? org.nameEn : org.nameAr}</div>
+                    <div className="text-xs text-muted-foreground">{org.orgCode}</div>
+                  </div>
+                  {activeOrg?.id === org.id && <Check className="w-4 h-4 text-primary shrink-0" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="w-9 h-9">

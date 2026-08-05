@@ -79,6 +79,7 @@ import UATScripts from '@/pages/uat-scripts';
 import SecurityTests from '@/pages/security-tests';
 import ReadinessPage from '@/pages/readiness';
 import AttendanceGateway from '@/pages/attendance-gateway';
+import { OrgProvider } from '@/hooks/use-org';
 
 const queryClient = new QueryClient();
 
@@ -201,6 +202,7 @@ function App() {
     <ThemeProvider defaultTheme="dark" storageKey="hrms-theme">
       <LanguageProvider>
         <AuthProvider>
+          <OrgProvider>
           <QueryClientProvider client={queryClient}>
             <TooltipProvider>
               <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
@@ -209,6 +211,7 @@ function App() {
               <Toaster />
             </TooltipProvider>
           </QueryClientProvider>
+          </OrgProvider>
         </AuthProvider>
       </LanguageProvider>
     </ThemeProvider>

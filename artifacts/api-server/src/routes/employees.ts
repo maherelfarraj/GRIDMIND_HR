@@ -5,6 +5,7 @@ import {
   CreateEmployeeBody, UpdateEmployeeBody, ListEmployeesQueryParams,
 } from "@workspace/api-zod";
 import { reconcileTerminationStatuses } from "../lib/terminationReconciler.js";
+import { resolveOrgId } from "../lib/orgContext";
 
 const router = Router();
 
@@ -40,18 +41,19 @@ router.get("/employees", async (req, res): Promise<void> => {
 
   let query = db.select().from(employeesTable).$dynamic();
 
-  const conditions = [];
+  const orgId = await resolveOrgId(req);
+  const conditions: any[] = [eq(employeesTable.orgId, orgId)];
   if (q.departmentId) conditions.push(eq(employeesTable.departmentId, q.departmentId));
   if (q.status) conditions.push(eq(employeesTable.status, q.status));
   if (q.search) conditions.push(ilike(employeesTable.firstNameEn, `%${q.search}%`));
-  if (conditions.length > 0) query = query.where(and(...conditions));
+  query = query.where(and(...conditions));
 
   const page = q.page ?? 1;
   const limit = q.limit ?? 20;
   const offset = (page - 1) * limit;
 
   const employees = await query.limit(limit).offset(offset);
-  const [{ total }] = await db.select({ total: count() }).from(employeesTable);
+  const [{ total }] = await db.select({ total: count() }).from(employeesTable).where(and(...conditions));
 
   const depts = await db.select().from(departmentsTable);
   const roles = await db.select().from(rolesTable);
@@ -82,7 +84,8 @@ router.post("/employees", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [emp] = await db.insert(employeesTable).values(parsed.data).returning();
+  const orgId = await resolveOrgId(req);
+  const [emp] = await db.insert(employeesTable).values({ ...parsed.data, orgId }).returning();
   await db.insert(auditLogsTable).values({
     action: "create",
     entityType: "employee",
@@ -95,10 +98,18 @@ router.post("/employees", async (req, res): Promise<void> => {
   res.status(201).json(result);
 });
 
+/** Load an employee only if it belongs to the request's org context. */
+async function loadScopedEmployee(req: Parameters<typeof resolveOrgId>[0], id: number) {
+  const orgId = await resolveOrgId(req);
+  const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, id));
+  if (!emp || emp.orgId !== orgId) return null;
+  return emp;
+}
+
 router.get("/employees/:id", async (req, res): Promise<void> => {
   await reconcileTerminationStatuses();
   const id = parseId(req.params.id);
-  const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, id));
+  const emp = await loadScopedEmployee(req, id);
   if (!emp) { res.status(404).json({ error: "Not found" }); return; }
   res.json(await buildEmployeeResponse(emp));
 });
@@ -110,7 +121,7 @@ router.patch("/employees/:id", async (req, res): Promise<void> => {
   const id = parseId(req.params.id);
   const parsed = UpdateEmployeeBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const [before] = await db.select().from(employeesTable).where(eq(employeesTable.id, id));
+  const before = await loadScopedEmployee(req, id);
   if (!before) { res.status(404).json({ error: "Not found" }); return; }
 
   // Offboarding state machine: status transitions are tied to the last
@@ -162,16 +173,17 @@ router.delete("/employees/:id", async (req, res): Promise<void> => {
   // Demo mode: default to admin (userId=1) when no session is present.
   // In production, enforce real session middleware before this guard.
   const id = parseId(req.params.id);
+  if (!(await loadScopedEmployee(req, id))) { res.status(404).json({ error: "Not found" }); return; }
   await db.delete(employeesTable).where(eq(employeesTable.id, id));
   res.status(204).end();
 });
 
 router.get("/employees/:id/documents", async (req, res): Promise<void> => {
   const id = parseId(req.params.id);
+  const emp = await loadScopedEmployee(req, id);
+  if (!emp) { res.status(404).json({ error: "Not found" }); return; }
   const docs = await db.select().from(documentsTable).where(eq(documentsTable.employeeId, id));
   const users = await db.select().from(systemUsersTable);
-  const empRow = await db.select().from(employeesTable).where(eq(employeesTable.id, id));
-  const emp = empRow[0];
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
 
   const result = docs.map((d) => ({
@@ -187,12 +199,13 @@ router.get("/employees/:id/documents", async (req, res): Promise<void> => {
 
 router.get("/employees/:id/attendance", async (req, res): Promise<void> => {
   const id = parseId(req.params.id);
+  const emp = await loadScopedEmployee(req, id);
+  if (!emp) { res.status(404).json({ error: "Not found" }); return; }
   const records = await db.select().from(attendanceRecordsTable)
     .where(eq(attendanceRecordsTable.employeeId, id))
     .orderBy(sql`${attendanceRecordsTable.date} desc`)
     .limit(60);
 
-  const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, id));
   const depts = await db.select().from(departmentsTable);
   const deptMap = Object.fromEntries(depts.map((d) => [d.id, d]));
 

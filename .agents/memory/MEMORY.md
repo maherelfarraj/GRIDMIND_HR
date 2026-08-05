@@ -1,6 +1,7 @@
 - [HRMS architecture decisions](hrms-arch.md) — key constraints and conventions for the HRMS monorepo build.
 - [API integration testing conventions](api-testing.md) — vitest suite runs against the live seeded DB; fixtures must be self-cleaning, files run sequentially.
 - [DB package staleness & schema drift](db-dist-staleness.md) — after schema edits, rebuild lib/db dist and drizzle-push, or typechecks/queries fail confusingly.
+- [drizzle-kit push needs a pty](drizzle-push-tty.md) — drive prompts via python pty; push can drop seeded config rows, re-insert with ON CONFLICT DO NOTHING.
 - [Auto-merge corruption in hot files](merge-corruption.md) — rebases silently corrupt contended files (main may be broken too); typecheck after every merge, rewrite wholesale from intent + tests to recover.
 - [Persisting in-memory security state](persistent-throttle.md) — write-through needs per-key serialized writes + awaited hydration gate; fire-and-forget races fail review.
 - [OpenAPI ↔ drizzle drift guard](openapi-drift-guard.md) — convention matching + shrink-only baseline; never grow the baseline, fix the spec.
@@ -14,4 +15,5 @@
 - [Publish build env detection](publish-build-env.md) — REPLIT_DEPLOYMENT is unset during publish builds; gate pre-build hooks with an explicit `[deployment.build].env` flag.
 - [Input-schema drift guard](input-schema-drift.md) — *Input/*Update spec fields must match drizzle columns; handlers insert body wholesale, so stale fields silently drop user input.
 - [Playwright on Nix](playwright-nix.md) — use nix-store chromium via executablePath, pin @playwright/test to match its revision; smoke suites must never silently rotate credentials.
+- [Tenant org scoping boundary](org-scoping-boundary.md) — org header must be full authz (membership + home-org fallback + derived/bulk paths), proven by negative tests.
 - [Alert/recovery transition dedupe](alert-recovery-dedupe.md) — derive alerted state from the audit trail, claim transitions under a row-lock transaction; check-then-insert races fail review.

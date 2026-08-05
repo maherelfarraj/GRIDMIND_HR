@@ -6,17 +6,24 @@ import {
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { CreateEmploymentTypeConfigBody } from "@workspace/api-zod";
+import { resolveOrgId, orgOwnershipGuard } from "../lib/orgContext";
 
 const router = Router();
+
+// Org-ownership guards: cross-org access to another org's config rows 404s.
+router.use("/policy-locales/:id", orgOwnershipGuard(policyLocalesTable, policyLocalesTable.orgId, policyLocalesTable.id));
+router.use("/numbering-schemes/:id", orgOwnershipGuard(numberingSchemesTable, numberingSchemesTable.orgId, numberingSchemesTable.id));
+router.use("/employment-type-configs/:id", orgOwnershipGuard(employmentTypeConfigsTable, employmentTypeConfigsTable.orgId, employmentTypeConfigsTable.id));
+router.use("/calendar-configs/:id", orgOwnershipGuard(calendarConfigsTable, calendarConfigsTable.orgId, calendarConfigsTable.id));
+router.use("/retention-rules/:id", orgOwnershipGuard(retentionRulesTable, retentionRulesTable.orgId, retentionRulesTable.id));
 
 // ─── Policy Locales ──────────────────────────────────────────────────────────
 
 router.get("/policy-locales", async (req, res): Promise<void> => {
   try {
-    const { orgId } = req.query as Record<string, string>;
-    const rows = orgId
-      ? await db.select().from(policyLocalesTable).where(eq(policyLocalesTable.orgId, parseInt(orgId)))
-      : await db.select().from(policyLocalesTable);
+    // Tenant-scoped: always the active org context
+    const effectiveOrgId = await resolveOrgId(req);
+    const rows = await db.select().from(policyLocalesTable).where(eq(policyLocalesTable.orgId, effectiveOrgId));
     res.json(rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -24,7 +31,7 @@ router.get("/policy-locales", async (req, res): Promise<void> => {
 router.post("/policy-locales", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
-    const [row] = await db.insert(policyLocalesTable).values({ ...req.body, updatedByUserId: actorUserId }).returning();
+    const [row] = await db.insert(policyLocalesTable).values({ ...req.body, orgId: await resolveOrgId(req), updatedByUserId: actorUserId }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "policy_locale", entityId: row.id, entityLabel: `Org ${row.orgId} locale`, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -65,10 +72,9 @@ router.delete("/policy-locales/:id", async (req, res): Promise<void> => {
 
 router.get("/numbering-schemes", async (req, res): Promise<void> => {
   try {
-    const { orgId } = req.query as Record<string, string>;
-    const rows = orgId
-      ? await db.select().from(numberingSchemesTable).where(eq(numberingSchemesTable.orgId, parseInt(orgId)))
-      : await db.select().from(numberingSchemesTable);
+    // Tenant-scoped: always the active org context
+    const effectiveOrgId = await resolveOrgId(req);
+    const rows = await db.select().from(numberingSchemesTable).where(eq(numberingSchemesTable.orgId, effectiveOrgId));
     res.json(rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -76,7 +82,7 @@ router.get("/numbering-schemes", async (req, res): Promise<void> => {
 router.post("/numbering-schemes", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
-    const [row] = await db.insert(numberingSchemesTable).values({ ...req.body }).returning();
+    const [row] = await db.insert(numberingSchemesTable).values({ ...req.body, orgId: await resolveOrgId(req) }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "numbering_scheme", entityId: row.id, entityLabel: row.entityType, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -144,10 +150,9 @@ router.delete("/numbering-schemes/:id", async (req, res): Promise<void> => {
 
 router.get("/employment-type-configs", async (req, res): Promise<void> => {
   try {
-    const { orgId } = req.query as Record<string, string>;
-    const rows = orgId
-      ? await db.select().from(employmentTypeConfigsTable).where(eq(employmentTypeConfigsTable.orgId, parseInt(orgId)))
-      : await db.select().from(employmentTypeConfigsTable);
+    // Tenant-scoped: always the active org context
+    const effectiveOrgId = await resolveOrgId(req);
+    const rows = await db.select().from(employmentTypeConfigsTable).where(eq(employmentTypeConfigsTable.orgId, effectiveOrgId));
     res.json(rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -157,7 +162,7 @@ router.post("/employment-type-configs", async (req, res): Promise<void> => {
     const parsed = CreateEmploymentTypeConfigBody.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
     const actorUserId: number = (req as any).session?.userId ?? 1;
-    const [row] = await db.insert(employmentTypeConfigsTable).values({ ...parsed.data }).returning();
+    const [row] = await db.insert(employmentTypeConfigsTable).values({ ...parsed.data, orgId: parsed.data.orgId ?? await resolveOrgId(req) }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "employment_type_config", entityId: row.id, entityLabel: row.labelEn, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -198,10 +203,9 @@ router.delete("/employment-type-configs/:id", async (req, res): Promise<void> =>
 
 router.get("/calendar-configs", async (req, res): Promise<void> => {
   try {
-    const { orgId } = req.query as Record<string, string>;
-    const rows = orgId
-      ? await db.select().from(calendarConfigsTable).where(eq(calendarConfigsTable.orgId, parseInt(orgId)))
-      : await db.select().from(calendarConfigsTable);
+    // Tenant-scoped: always the active org context
+    const effectiveOrgId = await resolveOrgId(req);
+    const rows = await db.select().from(calendarConfigsTable).where(eq(calendarConfigsTable.orgId, effectiveOrgId));
     res.json(rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -209,7 +213,7 @@ router.get("/calendar-configs", async (req, res): Promise<void> => {
 router.post("/calendar-configs", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
-    const [row] = await db.insert(calendarConfigsTable).values({ ...req.body, updatedByUserId: actorUserId }).returning();
+    const [row] = await db.insert(calendarConfigsTable).values({ ...req.body, orgId: await resolveOrgId(req), updatedByUserId: actorUserId }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "calendar_config", entityId: row.id, entityLabel: `Org ${row.orgId} calendar`, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -250,10 +254,9 @@ router.delete("/calendar-configs/:id", async (req, res): Promise<void> => {
 
 router.get("/retention-rules", async (req, res): Promise<void> => {
   try {
-    const { orgId } = req.query as Record<string, string>;
-    const rows = orgId
-      ? await db.select().from(retentionRulesTable).where(eq(retentionRulesTable.orgId, parseInt(orgId)))
-      : await db.select().from(retentionRulesTable);
+    // Tenant-scoped: always the active org context
+    const effectiveOrgId = await resolveOrgId(req);
+    const rows = await db.select().from(retentionRulesTable).where(eq(retentionRulesTable.orgId, effectiveOrgId));
     res.json(rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -261,7 +264,7 @@ router.get("/retention-rules", async (req, res): Promise<void> => {
 router.post("/retention-rules", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
-    const [row] = await db.insert(retentionRulesTable).values({ ...req.body }).returning();
+    const [row] = await db.insert(retentionRulesTable).values({ ...req.body, orgId: await resolveOrgId(req) }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "retention_rule", entityId: row.id, entityLabel: row.labelEn, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
   } catch (err: any) { res.status(500).json({ error: err.message }); }

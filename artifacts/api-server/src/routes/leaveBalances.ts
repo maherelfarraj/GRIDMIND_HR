@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, leaveBalancesTable, leaveTypesTable, employeesTable, auditLogsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { ensureLeaveBalance } from "../lib/leaveBalance";
+import { resolveOrgId } from "../lib/orgContext";
 
 const router = Router();
 
@@ -9,14 +10,13 @@ const router = Router();
 router.get("/leave-balances", async (req, res): Promise<void> => {
   const { employeeId, year, leaveTypeId } = req.query as Record<string, string>;
 
-  const conditions = [];
+  const orgId = await resolveOrgId(req);
+  const conditions: any[] = [eq(leaveBalancesTable.orgId, orgId)];
   if (employeeId) conditions.push(eq(leaveBalancesTable.employeeId, parseInt(employeeId, 10)));
   if (year) conditions.push(eq(leaveBalancesTable.year, parseInt(year, 10)));
   if (leaveTypeId) conditions.push(eq(leaveBalancesTable.leaveTypeId, parseInt(leaveTypeId, 10)));
 
-  const balances = conditions.length > 0
-    ? await db.select().from(leaveBalancesTable).where(and(...conditions))
-    : await db.select().from(leaveBalancesTable);
+  const balances = await db.select().from(leaveBalancesTable).where(and(...conditions));
 
   // Enrich with employee + type names
   const emps = await db.select().from(employeesTable);
@@ -52,6 +52,12 @@ router.post("/leave-balances", async (req, res): Promise<void> => {
     res.status(400).json({ error: "employeeId, leaveTypeId, year required" });
     return;
   }
+  // The employee must belong to the active org context
+  const [balEmp] = await db.select().from(employeesTable).where(eq(employeesTable.id, employeeId));
+  if (!balEmp || balEmp.orgId !== (await resolveOrgId(req))) {
+    res.status(404).json({ error: "Employee not found" });
+    return;
+  }
   const [existing] = await db.select().from(leaveBalancesTable)
     .where(and(
       eq(leaveBalancesTable.employeeId, employeeId),
@@ -67,6 +73,7 @@ router.post("/leave-balances", async (req, res): Promise<void> => {
   } else {
     const [created] = await db.insert(leaveBalancesTable).values({
       employeeId, leaveTypeId, year,
+      orgId: balEmp.orgId,
       openingBalance: openingBalance ?? "0",
       accrued: accrued ?? "0",
       used: "0",
@@ -83,6 +90,8 @@ router.patch("/leave-balances/:id", async (req, res): Promise<void> => {
   // Demo mode: default to admin (userId=1) when no session is present.
   // In production, enforce real session middleware before this guard.
   const id = parseInt(req.params.id, 10);
+  const [own] = await db.select({ orgId: leaveBalancesTable.orgId }).from(leaveBalancesTable).where(eq(leaveBalancesTable.id, id));
+  if (!own || own.orgId !== (await resolveOrgId(req))) { res.status(404).json({ error: "Not found" }); return; }
   const { openingBalance, accrued, used, pending, adjustment, carriedOver } = req.body;
   const [b] = await db.update(leaveBalancesTable)
     .set({ openingBalance, accrued, used, pending, adjustment, carriedOver, updatedAt: new Date() })
@@ -105,7 +114,10 @@ router.post("/leave-balances/annual-reset", async (req, res): Promise<void> => {
     const newYear = parseInt(year, 10);
     const prevYear = newYear - 1;
 
-    const employees = await db.select().from(employeesTable);
+    // Tenant-scoped: only the active org context's employees are reset.
+    const ctxOrgId = await resolveOrgId(req);
+    const employees = await db.select().from(employeesTable)
+      .where(eq(employeesTable.orgId, ctxOrgId));
     const leaveTypes = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.isActive, true));
 
     let created = 0;
@@ -141,6 +153,7 @@ router.post("/leave-balances/annual-reset", async (req, res): Promise<void> => {
 
         await db.insert(leaveBalancesTable).values({
           employeeId: emp.id,
+          orgId: emp.orgId,
           leaveTypeId: lt.id,
           year: newYear,
           openingBalance: String(lt.defaultDaysPerYear),
@@ -183,14 +196,16 @@ router.post("/leave-balances/provision-year", async (req, res): Promise<void> =>
       return;
     }
 
+    // Tenant-scoped: only the active org context's employees are provisioned.
+    const ctxOrgId = await resolveOrgId(req);
     const employees = await db.select().from(employeesTable)
-      .where(eq(employeesTable.status, "active"));
+      .where(and(eq(employeesTable.status, "active"), eq(employeesTable.orgId, ctxOrgId)));
     const leaveTypes = await db.select().from(leaveTypesTable)
       .where(eq(leaveTypesTable.isActive, true));
 
     // Snapshot existing rows for the year so we can count newly created ones.
     const existingRows = await db.select().from(leaveBalancesTable)
-      .where(eq(leaveBalancesTable.year, targetYear));
+      .where(and(eq(leaveBalancesTable.year, targetYear), eq(leaveBalancesTable.orgId, ctxOrgId)));
     const existingKeys = new Set(existingRows.map(r => `${r.employeeId}:${r.leaveTypeId}`));
 
     let created = 0;

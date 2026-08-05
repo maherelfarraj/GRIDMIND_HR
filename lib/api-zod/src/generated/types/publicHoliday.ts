@@ -7,6 +7,8 @@
  */
 
 export interface PublicHoliday {
+  /** Owning organization (tenant); null on legacy/global rows. */
+  orgId?: number | null;
   id: number;
   nameEn: string;
   nameAr: string;

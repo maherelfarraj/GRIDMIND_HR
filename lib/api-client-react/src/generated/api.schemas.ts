@@ -442,6 +442,8 @@ export interface AttendanceOverview {
 }
 
 export interface Employee {
+  /** Owning organization (tenant); null on legacy/global rows. */
+  orgId?: number | null;
   id: number;
   employeeNumber: string;
   firstNameEn: string;
@@ -785,6 +787,8 @@ export interface AuditLogList {
 }
 
 export interface AttendanceRecord {
+  /** Owning organization (tenant); null on legacy/global rows. */
+  orgId?: number | null;
   id: number;
   employeeId: number;
   employeeNameEn: string;
@@ -1287,6 +1291,8 @@ export interface LeaveTypeInput {
 }
 
 export interface LeaveBalance {
+  /** Owning organization (tenant); null on legacy/global rows. */
+  orgId?: number | null;
   id: number;
   employeeId: number;
   leaveTypeId: number;
@@ -1394,6 +1400,8 @@ export interface LeaveRequestSummary {
 }
 
 export type LeaveRequestDetail = LeaveRequestSummary & ({
+  /** Owning organization (tenant); null on legacy/global rows. */
+  orgId?: number | null;
   /** @nullable */
   reasonEn?: string | null;
   /** @nullable */
@@ -1495,6 +1503,8 @@ export interface LeaveDelegationInput {
 }
 
 export interface PublicHoliday {
+  /** Owning organization (tenant); null on legacy/global rows. */
+  orgId?: number | null;
   id: number;
   nameEn: string;
   nameAr: string;
@@ -1589,6 +1599,8 @@ export interface PayComponentInput {
 }
 
 export interface PayrollPeriod {
+  /** Owning organization (tenant); null on legacy/global rows. */
+  orgId?: number | null;
   id: number;
   periodCode: string;
   nameEn: string;

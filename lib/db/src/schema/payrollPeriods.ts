@@ -3,6 +3,7 @@ import { pgTable, serial, varchar, integer, boolean, timestamp, numeric, text } 
 export const payrollPeriodsTable = pgTable("payroll_periods", {
   id: serial("id").primaryKey(),
   periodCode: varchar("period_code", { length: 20 }).notNull().unique(),
+  orgId: integer("org_id").notNull().default(1),
   nameEn: varchar("name_en", { length: 120 }).notNull(),
   nameAr: varchar("name_ar", { length: 120 }).notNull(),
   // monthly | biweekly | weekly

@@ -11675,6 +11675,10 @@ components:
     Employee:
       type: object
       properties:
+        orgId:
+          type: integer
+          nullable: true
+          description: Owning organization (tenant); null on legacy/global rows.
         id: { type: number }
         employeeNumber: { type: string }
         firstNameEn: { type: string }
@@ -12063,6 +12067,10 @@ components:
     AttendanceRecord:
       type: object
       properties:
+        orgId:
+          type: integer
+          nullable: true
+          description: Owning organization (tenant); null on legacy/global rows.
         id: { type: number }
         employeeId: { type: number }
         employeeNameEn: { type: string }
@@ -12597,6 +12605,10 @@ components:
     LeaveBalance:
       type: object
       properties:
+        orgId:
+          type: integer
+          nullable: true
+          description: Owning organization (tenant); null on legacy/global rows.
         id: { type: number }
         employeeId: { type: number }
         leaveTypeId: { type: number }
@@ -12712,6 +12724,10 @@ components:
         - $ref: "#/components/schemas/LeaveRequestSummary"
         - type: object
           properties:
+            orgId:
+              type: integer
+              nullable: true
+              description: Owning organization (tenant); null on legacy/global rows.
             reasonEn: { type: [ "string", "null" ] }
             reasonAr: { type: [ "string", "null" ] }
             coveringEmployeeId: { type: [ "number", "null" ] }
@@ -12819,6 +12835,10 @@ components:
     PublicHoliday:
       type: object
       properties:
+        orgId:
+          type: integer
+          nullable: true
+          description: Owning organization (tenant); null on legacy/global rows.
         id: { type: number }
         nameEn: { type: string }
         nameAr: { type: string }
@@ -12926,6 +12946,10 @@ components:
     PayrollPeriod:
       type: object
       properties:
+        orgId:
+          type: integer
+          nullable: true
+          description: Owning organization (tenant); null on legacy/global rows.
         id: { type: number }
         periodCode: { type: string }
         nameEn: { type: string }

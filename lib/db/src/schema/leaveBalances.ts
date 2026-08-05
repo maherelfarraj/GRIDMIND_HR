@@ -5,6 +5,7 @@ import { leaveTypesTable } from "./leaveTypes";
 export const leaveBalancesTable = pgTable("leave_balances", {
   id: serial("id").primaryKey(),
   employeeId: integer("employee_id").notNull().references(() => employeesTable.id),
+  orgId: integer("org_id").notNull().default(1),
   leaveTypeId: integer("leave_type_id").notNull().references(() => leaveTypesTable.id),
   year: integer("year").notNull(),
   openingBalance: numeric("opening_balance", { precision: 6, scale: 2 }).notNull().default("0"),

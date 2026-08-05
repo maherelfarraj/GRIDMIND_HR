@@ -1,4 +1,4 @@
-import { db, leaveBalancesTable, leaveTypesTable } from "@workspace/db";
+import { db, leaveBalancesTable, leaveTypesTable, employeesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
 type LeaveBalanceRow = typeof leaveBalancesTable.$inferSelect;
@@ -52,8 +52,10 @@ export async function ensureLeaveBalance(
 
   // Conflict-safe insert: a unique index on (employee_id, leave_type_id, year)
   // guards against concurrent callers racing past the existence check above.
+  const [balEmp] = await db.select().from(employeesTable).where(eq(employeesTable.id, employeeId));
   const [created] = await db.insert(leaveBalancesTable).values({
     employeeId,
+    orgId: balEmp?.orgId ?? 1,
     leaveTypeId,
     year,
     openingBalance: "0",

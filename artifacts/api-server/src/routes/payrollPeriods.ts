@@ -8,9 +8,10 @@ import {
   departmentsTable,
 } from "@workspace/db";
 import type { PayrollPeriod, Employee } from "@workspace/db";
-import { eq, and, gte, lte, sql, ilike } from "drizzle-orm";
+import { eq, and, gte, lte, sql, ilike, or, isNull } from "drizzle-orm";
 import { getWeekendDays, WEEKEND_CONFIG_KEY } from "../lib/weekend";
 import { getMaxOtSessionHours } from "../lib/otCap";
+import { resolveOrgId } from "../lib/orgContext";
 import { getActorUserId } from "../middleware/requireAuth.js";
 import { reconcileTerminationStatuses } from "../lib/terminationReconciler.js";
 
@@ -105,13 +106,19 @@ type HolidayRow = { date: string; isRecurring: boolean | null; applicableTo: str
 
 /** Load the punch/attendance/leave data needed for no-show detection in a period. */
 async function loadNoShowInputs(period: PayrollPeriod) {
-  const punchEvents = await db.select().from(punchEventsTable)
+  const periodOrgId = period.orgId ?? 1;
+  // Tenant scoping: punch events carry no orgId, so restrict them to the
+  // period org's employees; attendance and leave rows are scoped directly.
+  const orgEmployeeIds = (await db.select({ id: employeesTable.id }).from(employeesTable)
+    .where(eq(employeesTable.orgId, periodOrgId))).map((e) => e.id);
+  const punchEvents = (await db.select().from(punchEventsTable)
     .where(and(
       gte(punchEventsTable.eventTime, new Date(period.startDate)),
       lte(punchEventsTable.eventTime, new Date(period.endDate + "T23:59:59Z")),
-    ));
+    ))).filter((ev) => orgEmployeeIds.includes(ev.employeeId));
   const attendanceRecords = await db.select().from(attendanceRecordsTable)
     .where(and(
+      eq(attendanceRecordsTable.orgId, periodOrgId),
       gte(attendanceRecordsTable.date, period.startDate),
       lte(attendanceRecordsTable.date, period.endDate),
     ));
@@ -125,6 +132,7 @@ async function loadNoShowInputs(period: PayrollPeriod) {
     .from(leaveRequestsTable)
     .innerJoin(leaveTypesTable, eq(leaveRequestsTable.leaveTypeId, leaveTypesTable.id))
     .where(and(
+      eq(leaveRequestsTable.orgId, periodOrgId),
       eq(leaveRequestsTable.status, "approved"),
       lte(leaveRequestsTable.startDate, period.endDate),
       gte(leaveRequestsTable.endDate, period.startDate),
@@ -177,12 +185,13 @@ function computeNoShowDates(
 }
 
 /** Fetch all holiday rows once for use with buildHolidaySet. */
-async function loadHolidayRows(): Promise<HolidayRow[]> {
+async function loadHolidayRows(orgId: number): Promise<HolidayRow[]> {
   return db.select({
     date: publicHolidaysTable.date,
     isRecurring: publicHolidaysTable.isRecurring,
     applicableTo: publicHolidaysTable.applicableTo,
-  }).from(publicHolidaysTable);
+  }).from(publicHolidaysTable)
+    .where(or(isNull(publicHolidaysTable.orgId), eq(publicHolidaysTable.orgId, orgId)));
 }
 
 // Notification type used to warn employees/managers about detected unexcused
@@ -380,10 +389,29 @@ const DEFAULT_OT_SESSION_HOURS = 2;
 
 const router = Router();
 
+// Org-ownership guard: every /payroll-periods/:id route 404s when the period
+// belongs to a different organization than the active org context.
+router.param("id", async (req, res, next, rawId) => {
+  try {
+    const id = parseInt(rawId, 10);
+    if (!Number.isInteger(id)) { res.status(404).json({ error: "Not found" }); return; }
+    const [row] = await db.select({ orgId: payrollPeriodsTable.orgId })
+      .from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
+    if (!row || row.orgId !== (await resolveOrgId(req))) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    next();
+  } catch (err) { next(err); }
+});
+
 // GET /payroll-periods?status=&year=
 router.get("/payroll-periods", async (req, res): Promise<void> => {
   const { status, year } = req.query as Record<string, string>;
-  let rows = await db.select().from(payrollPeriodsTable).orderBy(payrollPeriodsTable.startDate);
+  const orgId = await resolveOrgId(req);
+  let rows = await db.select().from(payrollPeriodsTable)
+    .where(eq(payrollPeriodsTable.orgId, orgId))
+    .orderBy(payrollPeriodsTable.startDate);
   if (status) rows = rows.filter(r => r.status === status);
   if (year) rows = rows.filter(r => r.startDate.startsWith(year));
   res.json(rows);
@@ -398,6 +426,7 @@ router.post("/payroll-periods", async (req, res): Promise<void> => {
     return;
   }
   const [p] = await db.insert(payrollPeriodsTable).values({
+    orgId: await resolveOrgId(req),
     periodCode, nameEn, nameAr,
     periodType: periodType ?? "monthly",
     startDate, endDate, payDate,
@@ -557,7 +586,8 @@ async function recalculatePeriodRuns(
   // Active employees, plus leavers whose explicit last working day falls on or
   // after the period start — a terminated employee must still be paid for the
   // days they worked in this period instead of silently dropping out.
-  const allEmployees = await db.select().from(employeesTable);
+  const allEmployees = await db.select().from(employeesTable)
+    .where(eq(employeesTable.orgId, period.orgId ?? 1));
   const employees = allEmployees.filter(emp =>
     emp.status === "active" ||
     (emp.terminationDate && emp.terminationDate >= period.startDate && emp.hireDate <= period.endDate)
@@ -574,16 +604,19 @@ async function recalculatePeriodRuns(
   }
   await db.delete(payrollRunsTable).where(eq(payrollRunsTable.payrollPeriodId, periodId));
 
-  // Punch events for this period (for overtime calculation)
-  const punchEvents = await db.select().from(punchEventsTable)
+  // Punch events for this period (for overtime calculation) — punch events
+  // carry no orgId, so restrict them to this period org's employees.
+  const orgEmployeeIdSet = new Set(allEmployees.map((e) => e.id));
+  const punchEvents = (await db.select().from(punchEventsTable)
     .where(and(
       gte(punchEventsTable.eventTime, new Date(period.startDate)),
       lte(punchEventsTable.eventTime, new Date(period.endDate + "T23:59:59Z")),
-    ));
+    ))).filter((ev) => orgEmployeeIdSet.has(ev.employeeId));
 
-  // Attendance records for this period (for no-show detection)
+  // Attendance records for this period (for no-show detection), tenant-scoped.
   const attendanceRecords = await db.select().from(attendanceRecordsTable)
     .where(and(
+      eq(attendanceRecordsTable.orgId, period.orgId ?? 1),
       gte(attendanceRecordsTable.date, period.startDate),
       lte(attendanceRecordsTable.date, period.endDate),
     ));
@@ -595,11 +628,8 @@ async function recalculatePeriodRuns(
   // Public holidays — fetched once, filtered per-employee inside the loop
   const startYear = parseInt(period.startDate.slice(0, 4), 10);
   const endYear = parseInt(period.endDate.slice(0, 4), 10);
-  const holidayRows = await db.select({
-    date: publicHolidaysTable.date,
-    isRecurring: publicHolidaysTable.isRecurring,
-    applicableTo: publicHolidaysTable.applicableTo,
-  }).from(publicHolidaysTable);
+  // Global (NULL orgId) plus this period org's holidays only.
+  const holidayRows = await loadHolidayRows(period.orgId ?? 1);
 
   // Approved leave requests overlapping this period
   const approvedLeaves = await db.select({
@@ -612,6 +642,7 @@ async function recalculatePeriodRuns(
     .from(leaveRequestsTable)
     .innerJoin(leaveTypesTable, eq(leaveRequestsTable.leaveTypeId, leaveTypesTable.id))
     .where(and(
+      eq(leaveRequestsTable.orgId, period.orgId ?? 1),
       eq(leaveRequestsTable.status, "approved"),
       lte(leaveRequestsTable.startDate, period.endDate),
       gte(leaveRequestsTable.endDate, period.startDate),
@@ -981,10 +1012,11 @@ router.get("/payroll-periods/:id/no-shows", async (req, res): Promise<void> => {
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }
 
-  const employees = await db.select().from(employeesTable).where(eq(employeesTable.status, "active"));
+  const employees = await db.select().from(employeesTable)
+    .where(and(eq(employeesTable.status, "active"), eq(employeesTable.orgId, period.orgId ?? await resolveOrgId(req))));
   const { punchEvents, attendanceRecords, approvedLeaves } = await loadNoShowInputs(period);
   const weekendDays = await getWeekendDays();
-  const holidayRows = await loadHolidayRows();
+  const holidayRows = await loadHolidayRows(period.orgId ?? await resolveOrgId(req));
   const startYear = parseInt(period.startDate.slice(0, 4), 10);
   const endYear = parseInt(period.endDate.slice(0, 4), 10);
   const excusedRows = await db.select().from(payrollExcusedAbsencesTable)
@@ -1040,12 +1072,12 @@ router.post("/payroll-periods/:id/excused-absences", async (req, res): Promise<v
   }
 
   const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, Number(employeeId)));
-  if (!emp) { res.status(404).json({ error: "Employee not found" }); return; }
+  if (!emp || emp.orgId !== (period.orgId ?? await resolveOrgId(req))) { res.status(404).json({ error: "Employee not found" }); return; }
 
   // Only genuinely detected no-show days can be excused.
   const { punchEvents, attendanceRecords, approvedLeaves } = await loadNoShowInputs(period);
   const weekendDays = await getWeekendDays();
-  const holidayRows = await loadHolidayRows();
+  const holidayRows = await loadHolidayRows(period.orgId ?? await resolveOrgId(req));
   const empHolidaySet = buildHolidaySet(
     holidayRows,
     parseInt(period.startDate.slice(0, 4), 10),

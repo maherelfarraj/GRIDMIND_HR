@@ -136,6 +136,7 @@ export const ListEmployeesQueryParams = zod.object({
 
 export const ListEmployeesResponse = zod.object({
   "data": zod.array(zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeNumber": zod.string(),
   "firstNameEn": zod.string(),
@@ -205,6 +206,7 @@ export const CreateEmployeeBody = zod.object({
 })
 
 export const CreateEmployeeResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeNumber": zod.string(),
   "firstNameEn": zod.string(),
@@ -247,6 +249,7 @@ export const GetEmployeeParams = zod.object({
 })
 
 export const GetEmployeeResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeNumber": zod.string(),
   "firstNameEn": zod.string(),
@@ -311,6 +314,7 @@ export const UpdateEmployeeBody = zod.object({
 })
 
 export const UpdateEmployeeResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeNumber": zod.string(),
   "firstNameEn": zod.string(),
@@ -397,6 +401,7 @@ export const GetEmployeeAttendanceQueryParams = zod.object({
 })
 
 export const GetEmployeeAttendanceResponseItem = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeId": zod.number(),
   "employeeNameEn": zod.string(),
@@ -972,6 +977,7 @@ export const ListAttendanceQueryParams = zod.object({
 })
 
 export const ListAttendanceResponseItem = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeId": zod.number(),
   "employeeNameEn": zod.string(),
@@ -2402,6 +2408,7 @@ export const ListLeaveBalancesQueryParams = zod.object({
 })
 
 export const ListLeaveBalancesResponseItem = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeId": zod.number(),
   "leaveTypeId": zod.number(),
@@ -2437,6 +2444,7 @@ export const CreateLeaveBalanceBody = zod.object({
 })
 
 export const CreateLeaveBalanceResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeId": zod.number(),
   "leaveTypeId": zod.number(),
@@ -2475,6 +2483,7 @@ export const UpdateLeaveBalanceBody = zod.object({
 })
 
 export const UpdateLeaveBalanceResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeId": zod.number(),
   "leaveTypeId": zod.number(),
@@ -2596,6 +2605,7 @@ export const CreateLeaveRequestResponse = zod.object({
   "decidedAt": zod.string().nullish(),
   "createdAt": zod.string()
 }).and(zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
   "reasonAr": zod.string().nullish(),
   "coveringEmployeeId": zod.number().nullish(),
@@ -2660,6 +2670,7 @@ export const GetLeaveRequestResponse = zod.object({
   "decidedAt": zod.string().nullish(),
   "createdAt": zod.string()
 }).and(zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
   "reasonAr": zod.string().nullish(),
   "coveringEmployeeId": zod.number().nullish(),
@@ -2724,6 +2735,7 @@ export const SubmitLeaveRequestResponse = zod.object({
   "decidedAt": zod.string().nullish(),
   "createdAt": zod.string()
 }).and(zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
   "reasonAr": zod.string().nullish(),
   "coveringEmployeeId": zod.number().nullish(),
@@ -2795,6 +2807,7 @@ export const DecideLeaveRequestResponse = zod.object({
   "decidedAt": zod.string().nullish(),
   "createdAt": zod.string()
 }).and(zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
   "reasonAr": zod.string().nullish(),
   "coveringEmployeeId": zod.number().nullish(),
@@ -2859,6 +2872,7 @@ export const CancelLeaveRequestResponse = zod.object({
   "decidedAt": zod.string().nullish(),
   "createdAt": zod.string()
 }).and(zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
   "reasonAr": zod.string().nullish(),
   "coveringEmployeeId": zod.number().nullish(),
@@ -2929,6 +2943,7 @@ export const RevokeLeaveRequestResponse = zod.object({
   "decidedAt": zod.string().nullish(),
   "createdAt": zod.string()
 }).and(zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
   "reasonAr": zod.string().nullish(),
   "coveringEmployeeId": zod.number().nullish(),
@@ -2998,6 +3013,7 @@ export const ReturnToDutyResponse = zod.object({
   "decidedAt": zod.string().nullish(),
   "createdAt": zod.string()
 }).and(zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
   "reasonAr": zod.string().nullish(),
   "coveringEmployeeId": zod.number().nullish(),
@@ -3182,6 +3198,7 @@ export const ListPublicHolidaysQueryParams = zod.object({
 })
 
 export const ListPublicHolidaysResponseItem = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "nameEn": zod.string(),
   "nameAr": zod.string(),
@@ -3209,6 +3226,7 @@ export const CreatePublicHolidayBody = zod.object({
 })
 
 export const CreatePublicHolidayResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "nameEn": zod.string(),
   "nameAr": zod.string(),
@@ -3239,6 +3257,7 @@ export const UpdatePublicHolidayBody = zod.object({
 })
 
 export const UpdatePublicHolidayResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "nameEn": zod.string(),
   "nameAr": zod.string(),
@@ -3553,6 +3572,7 @@ export const ListPayrollPeriodsQueryParams = zod.object({
 })
 
 export const ListPayrollPeriodsResponseItem = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "periodCode": zod.string(),
   "nameEn": zod.string(),
@@ -3599,6 +3619,7 @@ export const CreatePayrollPeriodBody = zod.object({
 })
 
 export const CreatePayrollPeriodResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "periodCode": zod.string(),
   "nameEn": zod.string(),
@@ -3636,6 +3657,7 @@ export const GetPayrollPeriodParams = zod.object({
 })
 
 export const GetPayrollPeriodResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "periodCode": zod.string(),
   "nameEn": zod.string(),
@@ -3685,6 +3707,7 @@ export const UpdatePayrollPeriodBody = zod.object({
 })
 
 export const UpdatePayrollPeriodResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "periodCode": zod.string(),
   "nameEn": zod.string(),
@@ -3723,6 +3746,7 @@ export const CalculatePayrollPeriodParams = zod.object({
 
 export const CalculatePayrollPeriodResponse = zod.object({
   "period": zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "periodCode": zod.string(),
   "nameEn": zod.string(),
@@ -3861,6 +3885,7 @@ export const ApprovePayrollPeriodBody = zod.object({
 })
 
 export const ApprovePayrollPeriodResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "periodCode": zod.string(),
   "nameEn": zod.string(),
@@ -3898,6 +3923,7 @@ export const ClosePayrollPeriodParams = zod.object({
 })
 
 export const ClosePayrollPeriodResponse = zod.object({
+  "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "periodCode": zod.string(),
   "nameEn": zod.string(),

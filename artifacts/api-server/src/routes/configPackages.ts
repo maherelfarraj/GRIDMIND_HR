@@ -4,11 +4,18 @@ import {
   configPackagesTable, configPackageItemsTable,
   environmentSnapshotsTable, orgReportTemplatesTable,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or, isNull } from "drizzle-orm";
+import { resolveOrgId, orgOwnershipGuard } from "../lib/orgContext";
 import { createHash, createHmac } from "crypto";
 import { getActorUserId } from "../middleware/requireAuth.js";
 
 const router = Router();
+
+// Org-ownership guards: config packages, environment snapshots, and report
+// templates are org-scoped (NULL orgId = legacy/global rows stay visible).
+router.use("/config-packages/:id", orgOwnershipGuard(configPackagesTable, configPackagesTable.orgId, configPackagesTable.id));
+router.use("/environment-snapshots/:id", orgOwnershipGuard(environmentSnapshotsTable, environmentSnapshotsTable.orgId, environmentSnapshotsTable.id));
+router.use("/org-report-templates/:id", orgOwnershipGuard(orgReportTemplatesTable, orgReportTemplatesTable.orgId, orgReportTemplatesTable.id));
 
 function computeChecksum(data: string): string {
   return createHash("sha256").update(data).digest("hex");
@@ -48,6 +55,9 @@ router.get("/config-packages", async (req, res): Promise<void> => {
   try {
     const { status, packageType } = req.query as Record<string, string>;
     const conditions: any[] = [];
+    // Scope to the active org (NULL orgId = legacy/global packages stay visible)
+    const ctxOrgId = await resolveOrgId(req);
+    conditions.push(or(isNull(configPackagesTable.orgId), eq(configPackagesTable.orgId, ctxOrgId)) as any);
     if (status) conditions.push(eq(configPackagesTable.status, status));
     if (packageType) conditions.push(eq(configPackagesTable.packageType, packageType));
     const rows = conditions.length
@@ -84,7 +94,7 @@ router.post("/config-packages/import", async (req, res): Promise<void> => {
       version: pkg.version ?? "1.0.0",
       sourceEnvironment: pkg.sourceEnvironment ?? "unknown",
       targetEnvironment: pkg.targetEnvironment ?? "production",
-      orgId: pkg.orgId,
+      orgId: await resolveOrgId(req), // imported packages land in the active org
       status: "imported",
       payloadJson: payloadJson ?? JSON.stringify(rest),
       payloadChecksum: checksum,
@@ -124,6 +134,7 @@ router.post("/config-packages", async (req, res): Promise<void> => {
     const checksum = computeChecksum(typeof payload === "string" ? payload : JSON.stringify(payload));
     const [row] = await db.insert(configPackagesTable).values({
       ...req.body,
+      orgId: await resolveOrgId(req),
       payloadJson: typeof payload === "string" ? payload : JSON.stringify(payload),
       payloadChecksum: checksum,
       createdByUserId: req.body.createdByUserId ?? actorUserId,
@@ -249,9 +260,10 @@ router.get("/config-packages/:id", async (req, res): Promise<void> => {
 router.get("/environment-snapshots", async (req, res): Promise<void> => {
   try {
     const { environment, orgId } = req.query as Record<string, string>;
+    const ctxOrgId = await resolveOrgId(req); // tenant-scoped: no ?orgId override
     const conditions: any[] = [];
     if (environment) conditions.push(eq(environmentSnapshotsTable.environment, environment));
-    if (orgId) conditions.push(eq(environmentSnapshotsTable.orgId, parseInt(orgId)));
+    conditions.push(eq(environmentSnapshotsTable.orgId, ctxOrgId));
     const rows = conditions.length
       ? await db.select().from(environmentSnapshotsTable).where(and(...conditions)).orderBy(desc(environmentSnapshotsTable.capturedAt))
       : await db.select().from(environmentSnapshotsTable).orderBy(desc(environmentSnapshotsTable.capturedAt));
@@ -304,6 +316,7 @@ router.post("/environment-snapshots", async (req, res): Promise<void> => {
     const checksum = computeChecksum(snapshotStr);
     const [row] = await db.insert(environmentSnapshotsTable).values({
       ...req.body,
+      orgId: await resolveOrgId(req),
       snapshotJson: snapshotStr,
       checksum,
       capturedByUserId: req.body.capturedByUserId ?? actorUserId,
@@ -350,8 +363,9 @@ router.get("/environment-snapshots/:id", async (req, res): Promise<void> => {
 router.get("/org-report-templates", async (req, res): Promise<void> => {
   try {
     const { orgId, templateType } = req.query as Record<string, string>;
+    const ctxOrgId = await resolveOrgId(req); // tenant-scoped: no ?orgId override
     const conditions: any[] = [];
-    if (orgId) conditions.push(eq(orgReportTemplatesTable.orgId, parseInt(orgId)));
+    conditions.push(eq(orgReportTemplatesTable.orgId, ctxOrgId));
     if (templateType) conditions.push(eq(orgReportTemplatesTable.templateType, templateType));
     const rows = conditions.length
       ? await db.select().from(orgReportTemplatesTable).where(and(...conditions)).orderBy(orgReportTemplatesTable.id)
@@ -364,7 +378,8 @@ router.post("/org-report-templates", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = getActorUserId(req);
     const [row] = await db.insert(orgReportTemplatesTable).values({
-      ...req.body, createdByUserId: req.body.createdByUserId ?? actorUserId,
+      ...req.body, orgId: await resolveOrgId(req),
+      createdByUserId: req.body.createdByUserId ?? actorUserId,
     }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "org_report_template", entityId: row.id, entityLabel: row.nameEn, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);

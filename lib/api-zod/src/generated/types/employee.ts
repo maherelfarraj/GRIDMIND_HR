@@ -7,6 +7,8 @@
  */
 
 export interface Employee {
+  /** Owning organization (tenant); null on legacy/global rows. */
+  orgId?: number | null;
   id: number;
   employeeNumber: string;
   firstNameEn: string;
