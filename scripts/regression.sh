@@ -5,6 +5,8 @@
 #
 # Suites:
 #   1. API schema/OpenAPI drift tests (artifacts/api-server)
+#      includes codegen-drift: verifies lib/api-client-react and lib/api-zod
+#      generated sources are in sync with lib/api-spec/openapi.yaml
 #   2. Mobile unit tests (artifacts/mobile)
 #   3. Monorepo-wide TypeScript typecheck (libs + all packages)
 set -u
@@ -33,10 +35,10 @@ if [ -n "${REPLIT_DEPLOYMENT:-}" ] || [ -n "${PUBLISH_BUILD:-}" ]; then
   # runs in the dev regression workflow.
   echo "==> Publish build detected: skipping live-DB schema-drift test"
   run_suite "api-openapi-drift" \
-    bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/openapi-drift.test.ts"
+    bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/openapi-drift.test.ts src/__tests__/codegen-drift.test.ts"
 else
   run_suite "api-schema-drift" \
-    bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/schema-drift.test.ts src/__tests__/openapi-drift.test.ts"
+    bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/schema-drift.test.ts src/__tests__/openapi-drift.test.ts src/__tests__/codegen-drift.test.ts"
 fi
 
 run_suite "mobile-tests" \

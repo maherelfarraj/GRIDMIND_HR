@@ -47,7 +47,7 @@ isValidation = true
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd artifacts/api-server && npx vitest run src/__tests__/schema-drift.test.ts src/__tests__/openapi-drift.test.ts"
+args = "pnpm run typecheck:libs && cd artifacts/api-server && npx vitest run src/__tests__/schema-drift.test.ts src/__tests__/openapi-drift.test.ts src/__tests__/codegen-drift.test.ts"
 
 [[workflows.workflow]]
 name = "mobile-tests"
@@ -78,12 +78,3 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 120000
-
-[nix]
-channel = "stable-25_05"
-
-[userenv]
-
-[userenv.development]
-
-[userenv.shared]

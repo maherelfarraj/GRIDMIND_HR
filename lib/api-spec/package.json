@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "codegen": "orval --config ./orval.config.ts && node -e \"const fs=require('fs');const f='../api-zod/src/generated/api.ts';fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/zod\\.int\\(\\)/g,'zod.number()').replace(/zod\\.looseObject\\(/g,'zod.object('));fs.writeFileSync('../api-zod/src/index.ts','export * from \\\"./generated/api\\\";\\nexport * from \\\"./password\\\";\\n');\" && pnpm -w run typecheck:libs"
+    "codegen": "orval --config ./orval.config.ts && node -e \"const fs=require('fs');const f='../api-zod/src/generated/api.ts';fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/zod\\.int\\(\\)/g,'zod.number()').replace(/zod\\.looseObject\\(/g,'zod.object('));fs.writeFileSync('../api-zod/src/index.ts','export * from \\\"./generated/api\\\";\\nexport * from \\\"./password\\\";\\n');\" && node -e \"const crypto=require('crypto'),fs=require('fs');const h=crypto.createHash('sha256').update(fs.readFileSync('./openapi.yaml')).digest('hex');fs.writeFileSync('../api-client-react/src/generated/.spec-hash',h+'\\n');fs.writeFileSync('../api-zod/src/generated/.spec-hash',h+'\\n');\" && pnpm -w run typecheck:libs"
   },
   "devDependencies": {
     "orval": "^8.23.0"
