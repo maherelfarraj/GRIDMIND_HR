@@ -8354,6 +8354,94 @@ paths:
                   status: { type: string }
                   scheduledExportId: { type: number }
 
+  # ── Attendance Gateway Admin ───────────────────────────────────────────────
+
+  /gateway/registrations:
+    get:
+      operationId: listGatewayRegistrations
+      tags: [ AttendanceGateway ]
+      summary: List gateway registrations with server-computed health fields
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/GatewayRegistration' }
+        '401': { description: Authentication required }
+    post:
+      operationId: createGatewayRegistration
+      tags: [ AttendanceGateway ]
+      summary: Create a gateway registration; returns the plaintext secret exactly once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ name, adapterType ]
+              properties:
+                name: { type: string }
+                nameAr: { type: string }
+                deviceId: { type: number }
+                adapterType: { type: string, enum: [ ZKTECO, SUPREMA, ZKTECO_NATIVE, SUPREMA_NATIVE, GENERIC_REST, CSV, SIMULATOR ] }
+                notes: { type: string }
+                silenceThresholdMinutes: { type: number }
+      responses:
+        '201':
+          description: Created — copy the secret, it is not stored
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/GatewayRegistration' }
+                  - type: object
+                    properties:
+                      secret: { type: string, description: Plaintext secret; returned once only }
+        '401': { description: Authentication required }
+
+  /gateway/registrations/{id}/test:
+    post:
+      operationId: requestGatewayConnectionTest
+      tags: [ AttendanceGateway ]
+      summary: Request an on-demand connection test; gateway answers on next heartbeat
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Test request recorded; connTestRequestedAt is now set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GatewayRegistration' }
+        '401': { description: Authentication required }
+        '404': { description: Registration not found }
+        '409': { description: Gateway is revoked }
+
+  /gateway/registrations/{id}/test/cancel:
+    post:
+      operationId: cancelGatewayConnectionTest
+      tags: [ AttendanceGateway ]
+      summary: >
+        Cancel a pending connection-test request. Idempotent: if connTestRequestedAt is
+        already clear, returns cancelled:false without error. When it was set, clears it
+        and writes a gateway_conn_test_cancelled audit row.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK — cancelled field indicates whether the flag was actually cleared
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/GatewayRegistration' }
+                  - type: object
+                    properties:
+                      cancelled: { type: boolean, description: True if connTestRequestedAt was cleared; false if it was already null }
+        '401': { description: Authentication required }
+        '404': { description: Registration not found }
+
   # ── PHASE 7B — INTEGRATION ADMINISTRATION CENTER ──────────────────────────────
 
   /integration-connectors:
@@ -9607,6 +9695,13 @@ components:
         adapterConnMessage: { type: [ "string", "null" ] }
         adapterConnTestedAt: { type: [ "string", "null" ] }
         connTestRequestedAt: { type: [ "string", "null" ] }
+        connTestTimedOut:
+          type: boolean
+          description: >
+            Server-computed. True when a test request has been pending (connTestRequestedAt set,
+            no heartbeat with a result received) for longer than max(2 × effective silence threshold,
+            5 minutes). The UI should show a "gateway did not respond" state instead of a spinner
+            and offer cancel/retry actions.
         deviceClockSkewMs: { type: [ "number", "null" ] }
         deviceClockSkewAlert: { type: boolean }
         sdkPresent: { type: [ "boolean", "null" ] }

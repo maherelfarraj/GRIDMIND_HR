@@ -253,6 +253,120 @@ describe("admin: on-demand connection test", () => {
       connectionTest: { ok: true, status: "REACHABLE", message: "cleanup" },
     });
   });
+
+  it("connTestTimedOut is false when a test request is recently pending", async () => {
+    // Set the flag now (fresh timestamp).
+    await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    const list = await admin.get("/api/gateway/registrations");
+    expect(list.status).toBe(200);
+    const mine = (list.body as Array<Record<string, unknown>>).find((r) => r.id === registrationId);
+    expect(mine).toBeTruthy();
+    expect(mine!.connTestTimedOut).toBe(false);
+    // Cleanup.
+    await admin.post(`/api/gateway/registrations/${registrationId}/test/cancel`);
+  });
+
+  it("connTestTimedOut is true when connTestRequestedAt is backdated past the timeout window", async () => {
+    // Set the flag, then manually backdate it well past max(2×threshold, 5 min).
+    // Also clear adapterConnTestedAt so it cannot be interpreted as "already answered".
+    await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    const staleTs = new Date(Date.now() - 30 * 60_000); // 30 minutes ago
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ connTestRequestedAt: staleTs, adapterConnTestedAt: null })
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+    const list = await admin.get("/api/gateway/registrations");
+    expect(list.status).toBe(200);
+    const mine = (list.body as Array<Record<string, unknown>>).find((r) => r.id === registrationId);
+    expect(mine).toBeTruthy();
+    expect(mine!.connTestTimedOut).toBe(true);
+    // Cleanup.
+    await admin.post(`/api/gateway/registrations/${registrationId}/test/cancel`);
+  });
+});
+
+describe("admin: cancel connection test request", () => {
+  it("rejects anonymous cancel with 401", async () => {
+    const res = await request(app).post(`/api/gateway/registrations/${registrationId}/test/cancel`);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 for an unknown registration id", async () => {
+    const res = await admin.post("/api/gateway/registrations/99999999/test/cancel");
+    expect(res.status).toBe(404);
+  });
+
+  it("cancels a pending test request, returns cancelled:true, and writes audit row", async () => {
+    // Set the flag first.
+    const setRes = await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    expect(setRes.status).toBe(200);
+    expect(setRes.body.connTestRequestedAt).toBeTruthy();
+
+    // Cancel it.
+    const cancelRes = await admin.post(`/api/gateway/registrations/${registrationId}/test/cancel`);
+    expect(cancelRes.status).toBe(200);
+    expect(cancelRes.body.cancelled).toBe(true);
+    expect(cancelRes.body.secretHash).toBeUndefined();
+
+    // DB flag is cleared.
+    const [reg] = await db
+      .select({ connTestRequestedAt: gatewayRegistrationsTable.connTestRequestedAt })
+      .from(gatewayRegistrationsTable)
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(reg.connTestRequestedAt).toBeNull();
+
+    // Audit row was written.
+    const logs = await db
+      .select()
+      .from(auditLogsTable)
+      .where(and(eq(auditLogsTable.action, "gateway_conn_test_cancelled"), eq(auditLogsTable.entityId, registrationId)));
+    expect(logs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("is graceful when connTestRequestedAt is already null — returns cancelled:false, no error", async () => {
+    // Ensure the flag is clear (previous test already cleared it).
+    const [reg] = await db
+      .select({ connTestRequestedAt: gatewayRegistrationsTable.connTestRequestedAt })
+      .from(gatewayRegistrationsTable)
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+    expect(reg.connTestRequestedAt).toBeNull();
+
+    const res = await admin.post(`/api/gateway/registrations/${registrationId}/test/cancel`);
+    expect(res.status).toBe(200);
+    expect(res.body.cancelled).toBe(false);
+    expect(res.body.secretHash).toBeUndefined();
+  });
+
+  it("re-requesting after cancel starts a fresh pending cycle (connTestTimedOut becomes false)", async () => {
+    // Cancel to clear any stale flag first.
+    await admin.post(`/api/gateway/registrations/${registrationId}/test/cancel`);
+
+    // Backdate a stale test request to simulate a timed-out state.
+    // Also clear adapterConnTestedAt so the row is "unanswered" from the server's perspective.
+    await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ connTestRequestedAt: new Date(Date.now() - 30 * 60_000), adapterConnTestedAt: null })
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+
+    // Confirm it shows as timed out.
+    const timedOut = await admin.get("/api/gateway/registrations");
+    const timedOutRow = (timedOut.body as Array<Record<string, unknown>>).find((r) => r.id === registrationId);
+    expect(timedOutRow!.connTestTimedOut).toBe(true);
+
+    // Re-request via POST /test (refreshes the timestamp).
+    const reRes = await admin.post(`/api/gateway/registrations/${registrationId}/test`);
+    expect(reRes.status).toBe(200);
+
+    // Now should be pending (fresh timestamp), not timed out.
+    const freshList = await admin.get("/api/gateway/registrations");
+    const freshRow = (freshList.body as Array<Record<string, unknown>>).find((r) => r.id === registrationId);
+    expect(freshRow!.connTestTimedOut).toBe(false);
+    expect(freshRow!.connTestRequestedAt).toBeTruthy();
+
+    // Cleanup.
+    await admin.post(`/api/gateway/registrations/${registrationId}/test/cancel`);
+  });
 });
 
 describe("unauthorized requests", () => {

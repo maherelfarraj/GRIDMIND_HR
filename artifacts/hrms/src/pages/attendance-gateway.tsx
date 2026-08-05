@@ -16,7 +16,7 @@ import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { useToast } from '@/hooks/use-toast';
 import {
   Server, Plus, AlertCircle, CheckCircle, XCircle, Activity, Copy, Clock, ShieldAlert, AlertTriangle, Info, Pencil,
-  Loader2, FlaskConical,
+  Loader2, FlaskConical, WifiOff, RefreshCw, X,
 } from 'lucide-react';
 
 interface GatewayRegistration {
@@ -39,6 +39,8 @@ interface GatewayRegistration {
   adapterConnTestedAt: string | null;
   /** Set when an admin requested an on-demand connection test; cleared by the next heartbeat that carries a result. */
   connTestRequestedAt: string | null;
+  /** Server-computed: test request has been pending longer than max(2×silence threshold, 5 min) with no answer. */
+  connTestTimedOut?: boolean;
   sdkPresent: boolean | null;
   sdkVersion: string | null;
   notes: string | null;
@@ -123,24 +125,31 @@ export default function AttendanceGateway() {
   // ack land without refreshing the page.
   const [reconcileInFlight, setReconcileInFlight] = useState(false);
 
-  /** A row is "test pending" when connTestRequestedAt is set and either no
-   *  test result exists yet, or the latest result pre-dates the request. */
+  /** A row is "test pending" (spinner) when connTestRequestedAt is set, no
+   *  result exists yet (or it pre-dates the request), AND it has not yet
+   *  timed out.  Timed-out rows are shown in the "no response" state instead. */
   const isTestPending = (reg: GatewayRegistration): boolean => {
+    if (reg.connTestTimedOut) return false;
     if (!reg.connTestRequestedAt) return false;
     if (!reg.adapterConnTestedAt) return true;
     return new Date(reg.adapterConnTestedAt) < new Date(reg.connTestRequestedAt);
   };
 
+  /** True when the test request was sent but the gateway hasn't answered
+   *  within the server-computed timeout window. */
+  const isTestTimedOut = (reg: GatewayRegistration): boolean => !!reg.connTestTimedOut;
+
   const { data: registrations, isLoading: loadingRegistrations } = useQuery<GatewayRegistration[]>({
     queryKey: ['gateway-registrations'],
     queryFn: () => apiFetch('/api/gateway/registrations', { credentials: 'include' }).then(r => r.json()),
-    // Poll at 5s while a reconcile is in-flight OR any row has an unanswered
-    // connection-test request. Both cases need fast feedback without a manual
-    // refresh; fall back to 60s when everything is quiet.
+    // Poll at 5s while a reconcile is in-flight, any row has an unanswered
+    // connection-test request (pending or timed-out). Timed-out rows still
+    // need fast polling so a late-arriving heartbeat can clear the state.
+    // Falls back to 60s when everything is quiet.
     refetchInterval: (query) => {
       if (reconcileInFlight) return 5_000;
       const data = query.state.data;
-      if (data && data.some(isTestPending)) return 5_000;
+      if (data && data.some(r => isTestPending(r) || isTestTimedOut(r))) return 5_000;
       return 60_000;
     },
   });
@@ -217,6 +226,37 @@ export default function AttendanceGateway() {
         description: t(
           'Test requested — the gateway will answer on its next heartbeat.',
           'تم طلب الاختبار — ستُجيب البوابة في نبضة القلب التالية.',
+        ),
+      });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: t('Error', 'خطأ'),
+        description: err.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const cancelTestMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiFetch(`/api/gateway/registrations/${id}/test/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Failed to cancel test request');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gateway-registrations'] });
+      toast({
+        title: t('Test request cleared', 'تم مسح طلب الاختبار'),
+        description: t(
+          'The pending test request has been cancelled.',
+          'تم إلغاء طلب الاختبار المعلق.',
         ),
       });
     },
@@ -456,7 +496,51 @@ export default function AttendanceGateway() {
   };
 
   const getConnectionBadge = (reg: GatewayRegistration) => {
-    // Show a pending spinner while an on-demand test is in-flight.
+    // Timed-out state: test request sent but gateway never answered within
+    // the timeout window. Show a clear "no response" badge with Cancel and
+    // Retry actions so the admin can act without a page refresh.
+    if (isTestTimedOut(reg)) {
+      return (
+        <div className="space-y-1.5">
+          <Badge variant="outline" className="text-xs gap-1 bg-rose-500/10 text-rose-500 border-rose-500/20">
+            <WifiOff className="w-3 h-3" />
+            {t('Gateway did not respond', 'البوابة لم تستجب')}
+          </Badge>
+          {reg.adapterConnTestedAt && (
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Clock className="w-3 h-3" />
+              {t('Last result:', 'آخر نتيجة:')} {formatDateTime(reg.adapterConnTestedAt)}
+            </div>
+          )}
+          <div className="flex gap-1 pt-0.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-[11px] px-2 gap-1"
+              disabled={cancelTestMutation.isPending}
+              onClick={(e) => { e.stopPropagation(); cancelTestMutation.mutate(reg.id); }}
+              title={t('Cancel the pending test request', 'إلغاء طلب الاختبار المعلق')}
+            >
+              <X className="w-3 h-3" />
+              {t('Cancel', 'إلغاء')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-[11px] px-2 gap-1"
+              disabled={testMutation.isPending}
+              onClick={(e) => { e.stopPropagation(); testMutation.mutate(reg.id); }}
+              title={t('Re-issue the test request', 'إعادة إصدار طلب الاختبار')}
+            >
+              <RefreshCw className="w-3 h-3" />
+              {t('Retry', 'إعادة محاولة')}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    // Show a pending spinner while an on-demand test is in-flight (not yet timed out).
     const pending = isTestPending(reg);
     if (pending) {
       return (
@@ -925,7 +1009,7 @@ export default function AttendanceGateway() {
                             variant="outline"
                             size="sm"
                             className="h-8 text-xs gap-1"
-                            disabled={isTestPending(reg) || testMutation.isPending}
+                            disabled={(isTestPending(reg) && !isTestTimedOut(reg)) || testMutation.isPending}
                             onClick={(e) => {
                               e.stopPropagation();
                               testMutation.mutate(reg.id);

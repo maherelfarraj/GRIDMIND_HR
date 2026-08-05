@@ -237,6 +237,12 @@ const ALLOWED_EXTRA_PROPERTIES: Record<string, string[]> = {
     "periodCode",
     "periodNameEn",
     "startDate"
+  ],
+  "GatewayRegistration": [
+    "connTestTimedOut",  // server-computed from connTestRequestedAt + silence threshold
+    "silent",            // server-computed: ACTIVE but no heartbeat within threshold
+    "silenceThresholdMs", // server-computed: effective threshold after per-reg override
+    "reconcileCommand"   // joined: latest RECONCILE device command for this gateway
   ]
 };
 

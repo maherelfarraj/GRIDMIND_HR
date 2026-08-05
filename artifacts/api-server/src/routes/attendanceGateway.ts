@@ -832,7 +832,18 @@ gatewayAdminRouter.get("/gateway/registrations", async (_req, res): Promise<void
       const thresholdMs = effectiveSilenceThresholdMs(r.silenceThresholdMinutes);
       const silent =
         r.status === "ACTIVE" && (!lastContact || now - new Date(lastContact).getTime() > thresholdMs);
-      return { ...r, secretHash: undefined, silent, silenceThresholdMs: thresholdMs, reconcileCommand };
+      // A pending test request is "timed out" when it has waited longer than
+      // max(2 × effective silence threshold, 5 minutes) with no heartbeat
+      // carrying a result. The 5-minute floor prevents a very short per-
+      // registration threshold from triggering the state too aggressively.
+      const connTestTimeoutMs = Math.max(2 * thresholdMs, 5 * 60_000);
+      const pendingAndUnanswered =
+        !!r.connTestRequestedAt &&
+        (!r.adapterConnTestedAt || new Date(r.adapterConnTestedAt) < new Date(r.connTestRequestedAt));
+      const connTestTimedOut =
+        pendingAndUnanswered &&
+        now - new Date(r.connTestRequestedAt!).getTime() > connTestTimeoutMs;
+      return { ...r, secretHash: undefined, silent, silenceThresholdMs: thresholdMs, reconcileCommand, connTestTimedOut };
     }),
   );
 });
@@ -922,6 +933,45 @@ gatewayAdminRouter.post("/gateway/registrations/:id/test", async (req, res): Pro
     changesJson: JSON.stringify({ requestedAt: updated.connTestRequestedAt }),
   });
   res.json({ ...updated, secretHash: undefined });
+});
+
+// POST /gateway/registrations/:id/test/cancel — admin clears a pending test
+// request. Idempotent: if connTestRequestedAt is already null (or the
+// registration doesn't exist) a 404 is returned for unknown ids; an already-
+// clear flag returns cancelled:false (no error). Writes a
+// gateway_conn_test_cancelled audit row only when the flag was actually set.
+gatewayAdminRouter.post("/gateway/registrations/:id/test/cancel", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid registration id" });
+    return;
+  }
+  const session = req.session as { userId?: number };
+  const actorUserId = session.userId!;
+  const [existing] = await db.select().from(gatewayRegistrationsTable).where(eq(gatewayRegistrationsTable.id, id));
+  if (!existing) {
+    res.status(404).json({ error: "Gateway registration not found", errorAr: "تسجيل البوابة غير موجود" });
+    return;
+  }
+  // Already clear — nothing to cancel; not an error.
+  if (!existing.connTestRequestedAt) {
+    res.json({ ...existing, secretHash: undefined, cancelled: false });
+    return;
+  }
+  const [updated] = await db
+    .update(gatewayRegistrationsTable)
+    .set({ connTestRequestedAt: null, updatedAt: new Date() })
+    .where(eq(gatewayRegistrationsTable.id, id))
+    .returning();
+  await db.insert(auditLogsTable).values({
+    action: "gateway_conn_test_cancelled",
+    entityType: "gateway_registration",
+    entityId: id,
+    entityLabel: existing.name,
+    actorUserId,
+    changesJson: JSON.stringify({ cancelledAt: new Date().toISOString(), wasRequestedAt: existing.connTestRequestedAt }),
+  });
+  res.json({ ...updated, secretHash: undefined, cancelled: true });
 });
 
 // POST /gateway/registrations/:id/revoke
