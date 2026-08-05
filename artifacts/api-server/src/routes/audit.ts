@@ -22,10 +22,23 @@ router.get("/audit-logs", async (req, res): Promise<void> => {
   if (q.ipAddress) conditions.push(ilike(auditLogsTable.ipAddress, `%${q.ipAddress}%`));
   if (q.actorUserId) conditions.push(eq(auditLogsTable.actorUserId, q.actorUserId));
   if (q.from) conditions.push(gte(auditLogsTable.createdAt, new Date(q.from)));
-  if (q.to) conditions.push(lte(auditLogsTable.createdAt, new Date(q.to)));
+  if (q.to) {
+    // When `to` is a date-only string (YYYY-MM-DD), treat it as end-of-day
+    // so the range is inclusive of all records on that day.
+    const toDate = /^\d{4}-\d{2}-\d{2}$/.test(q.to)
+      ? new Date(`${q.to}T23:59:59.999Z`)
+      : new Date(q.to);
+    conditions.push(lte(auditLogsTable.createdAt, toDate));
+  }
 
   const page = q.page ?? 1;
-  const limit = q.limit ?? 50;
+  const VALID_LIMITS = [50, 100, 200] as const;
+  const rawLimit = q.limit ?? 50;
+  if (rawLimit !== null && !VALID_LIMITS.includes(rawLimit as (typeof VALID_LIMITS)[number])) {
+    res.status(400).json({ error: `Invalid limit "${rawLimit}". Allowed values: 50, 100, 200.` });
+    return;
+  }
+  const limit = (VALID_LIMITS as readonly number[]).includes(rawLimit) ? rawLimit : 50;
   const offset = (page - 1) * limit;
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;

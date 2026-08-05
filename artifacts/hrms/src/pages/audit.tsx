@@ -3,7 +3,8 @@ import { useListAuditLogs } from '@workspace/api-client-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Shield, Search, Lock, KeyRound, FileKey, Network } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Shield, Search, Lock, KeyRound, FileKey, Network, X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -18,7 +19,8 @@ import {
 } from '@/components/ui/pagination';
 
 const SECURITY_ACTIONS = 'login.failed,login.lockout';
-const PAGE_SIZE = 50;
+const PAGE_SIZES = [50, 100, 200] as const;
+type PageSize = (typeof PAGE_SIZES)[number];
 
 const RECOVERY_METHOD_LABELS: Record<string, { en: string; ar: string; icon: React.ReactNode }> = {
   ADMIN_RESET_PASSWORD: {
@@ -66,20 +68,27 @@ export default function Audit() {
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [labelSearch, setLabelSearch] = useState('');
   const [ipSearch, setIpSearch] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [pageSize, setPageSize] = useState<PageSize>(50);
   const [page, setPage] = useState(1);
   const debouncedLabel = useDebounce(labelSearch, 300);
   const debouncedIp = useDebounce(ipSearch, 300);
+
+  const hasDateFilter = fromDate || toDate;
 
   const { data: auditData, isLoading } = useListAuditLogs({
     action: actionFilter === 'all' ? undefined : actionFilter === 'security' ? SECURITY_ACTIONS : actionFilter,
     entityLabel: debouncedLabel || undefined,
     ipAddress: debouncedIp || undefined,
+    from: fromDate || undefined,
+    to: toDate || undefined,
     page,
-    limit: PAGE_SIZE,
+    limit: pageSize,
   });
 
   const total = auditData?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   function handleActionChange(value: string) {
     setActionFilter(value);
@@ -93,6 +102,27 @@ export default function Audit() {
 
   function handleIpChange(e: React.ChangeEvent<HTMLInputElement>) {
     setIpSearch(e.target.value);
+    setPage(1);
+  }
+
+  function handleFromChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setFromDate(e.target.value);
+    setPage(1);
+  }
+
+  function handleToChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setToDate(e.target.value);
+    setPage(1);
+  }
+
+  function handleClearDates() {
+    setFromDate('');
+    setToDate('');
+    setPage(1);
+  }
+
+  function handlePageSizeChange(value: string) {
+    setPageSize(Number(value) as PageSize);
     setPage(1);
   }
 
@@ -115,40 +145,81 @@ export default function Audit() {
 
       <Card>
         <CardHeader className="py-4 border-b">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Select value={actionFilter} onValueChange={handleActionChange}>
-              <SelectTrigger className="w-full sm:w-56" data-testid="select-action-filter">
-                <SelectValue placeholder={t('All actions', 'جميع الإجراءات')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t('All actions', 'جميع الإجراءات')}</SelectItem>
-                <SelectItem value="security">{t('Security events', 'أحداث الأمان')}</SelectItem>
-                <SelectItem value="login.failed">{t('Failed logins', 'محاولات دخول فاشلة')}</SelectItem>
-                <SelectItem value="login.lockout">{t('Lockouts', 'حالات القفل')}</SelectItem>
-                <SelectItem value="CREATE">{t('Create', 'إنشاء')}</SelectItem>
-                <SelectItem value="UPDATE">{t('Update', 'تحديث')}</SelectItem>
-                <SelectItem value="DELETE">{t('Delete', 'حذف')}</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={labelSearch}
-                onChange={handleLabelChange}
-                placeholder={t('Filter by username / entity...', 'تصفية حسب اسم المستخدم / الكيان...')}
-                className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
-                data-testid="input-entity-label"
-              />
+          <div className="flex flex-col gap-3">
+            {/* Row 1: action, entity label, IP */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Select value={actionFilter} onValueChange={handleActionChange}>
+                <SelectTrigger className="w-full sm:w-56" data-testid="select-action-filter">
+                  <SelectValue placeholder={t('All actions', 'جميع الإجراءات')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('All actions', 'جميع الإجراءات')}</SelectItem>
+                  <SelectItem value="security">{t('Security events', 'أحداث الأمان')}</SelectItem>
+                  <SelectItem value="login.failed">{t('Failed logins', 'محاولات دخول فاشلة')}</SelectItem>
+                  <SelectItem value="login.lockout">{t('Lockouts', 'حالات القفل')}</SelectItem>
+                  <SelectItem value="CREATE">{t('Create', 'إنشاء')}</SelectItem>
+                  <SelectItem value="UPDATE">{t('Update', 'تحديث')}</SelectItem>
+                  <SelectItem value="DELETE">{t('Delete', 'حذف')}</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={labelSearch}
+                  onChange={handleLabelChange}
+                  placeholder={t('Filter by username / entity...', 'تصفية حسب اسم المستخدم / الكيان...')}
+                  className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
+                  data-testid="input-entity-label"
+                />
+              </div>
+              <div className="relative w-full sm:max-w-[200px]">
+                <Network className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={ipSearch}
+                  onChange={handleIpChange}
+                  placeholder={t('Filter by IP...', 'تصفية حسب IP...')}
+                  className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
+                  data-testid="input-ip-address"
+                />
+              </div>
             </div>
-            <div className="relative w-full sm:max-w-[200px]">
-              <Network className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={ipSearch}
-                onChange={handleIpChange}
-                placeholder={t('Filter by IP...', 'تصفية حسب IP...')}
-                className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
-                data-testid="input-ip-address"
-              />
+
+            {/* Row 2: date range */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <span className="text-sm text-muted-foreground whitespace-nowrap shrink-0">
+                {t('Date range:', 'نطاق التاريخ:')}
+              </span>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-1">
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={handleFromChange}
+                  className="w-full sm:w-44 bg-muted/50 border-transparent focus-visible:bg-background text-sm"
+                  data-testid="input-date-from"
+                  aria-label={t('From date', 'من تاريخ')}
+                />
+                <span className="text-muted-foreground text-sm hidden sm:inline">–</span>
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={handleToChange}
+                  className="w-full sm:w-44 bg-muted/50 border-transparent focus-visible:bg-background text-sm"
+                  data-testid="input-date-to"
+                  aria-label={t('To date', 'إلى تاريخ')}
+                />
+                {hasDateFilter && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearDates}
+                    className="text-muted-foreground hover:text-foreground h-8 px-2"
+                    data-testid="btn-clear-dates"
+                  >
+                    <X className="w-3.5 h-3.5 me-1" />
+                    {t('Clear', 'مسح')}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -227,16 +298,31 @@ export default function Audit() {
 
         {/* Pagination footer */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t text-sm text-muted-foreground">
-          <span>
-            {isLoading ? (
-              <Skeleton className="h-4 w-40" />
-            ) : (
-              t(
-                `${total.toLocaleString()} record${total !== 1 ? 's' : ''} total`,
-                `${total.toLocaleString()} سجل إجمالاً`,
-              )
-            )}
-          </span>
+          <div className="flex items-center gap-3">
+            <span>
+              {isLoading ? (
+                <Skeleton className="h-4 w-40" />
+              ) : (
+                t(
+                  `${total.toLocaleString()} record${total !== 1 ? 's' : ''} total`,
+                  `${total.toLocaleString()} سجل إجمالاً`,
+                )
+              )}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs">{t('Show:', 'عرض:')}</span>
+              <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
+                <SelectTrigger className="h-7 w-[70px] text-xs" data-testid="select-page-size">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZES.map((s) => (
+                    <SelectItem key={s} value={String(s)} className="text-xs">{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <Pagination className="w-auto mx-0">
             <PaginationContent>
               <PaginationItem>
