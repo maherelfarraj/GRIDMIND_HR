@@ -10,8 +10,13 @@ import { db, rostersTable } from "@workspace/db";
 import app from "../app";
 import {
   createFixtures, cleanupFixtures, cleanupTestRosters, setBalance, getBalance,
-  findAuditEntries, TEST_EMPLOYEE_ID, TEST_YEAR, type TestFixtures,
+  findAuditEntries, TEST_EMPLOYEE_ID, TEST_ORG_ID, TEST_YEAR, type TestFixtures,
 } from "./helpers";
+
+// All API calls include the org context header so resolveOrgId returns org 1
+// (the org that test employee 1 belongs to). Without it the default org (16)
+// is returned and org-ownership guards / employee checks fail.
+const ORG = { "X-Org-Id": String(TEST_ORG_ID) };
 
 let f: TestFixtures;
 const testRosterIds: number[] = [];
@@ -46,7 +51,7 @@ describe("leave request lifecycle", () => {
   it("creates a draft request and writes an audit entry", async () => {
     await setBalance(TEST_EMPLOYEE_ID, f.annualTypeId, TEST_YEAR, "10");
 
-    const res = await request(app).post("/api/leave-requests").send({
+    const res = await request(app).post("/api/leave-requests").set(ORG).send({
       employeeId: TEST_EMPLOYEE_ID,
       leaveTypeId: f.annualTypeId,
       startDate: `${TEST_YEAR}-09-07`,
@@ -65,12 +70,12 @@ describe("leave request lifecycle", () => {
   });
 
   it("rejects required fields missing", async () => {
-    const res = await request(app).post("/api/leave-requests").send({ employeeId: TEST_EMPLOYEE_ID });
+    const res = await request(app).post("/api/leave-requests").set(ORG).send({ employeeId: TEST_EMPLOYEE_ID });
     expect(res.status).toBe(400);
   });
 
   it("submit reserves days as pending and audits", async () => {
-    const res = await request(app).post(`/api/leave-requests/${requestId}/submit`).send({});
+    const res = await request(app).post(`/api/leave-requests/${requestId}/submit`).set(ORG).send({});
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("submitted");
 
@@ -83,13 +88,13 @@ describe("leave request lifecycle", () => {
   });
 
   it("cannot submit a non-draft request", async () => {
-    const res = await request(app).post(`/api/leave-requests/${requestId}/submit`).send({});
+    const res = await request(app).post(`/api/leave-requests/${requestId}/submit`).set(ORG).send({});
     expect(res.status).toBe(400);
   });
 
   it("first approval moves request to under_review without touching used", async () => {
     const step1 = steps.find(s => s.stepNumber === 1)!;
-    const res = await request(app).post(`/api/leave-requests/${requestId}/decide`).send({
+    const res = await request(app).post(`/api/leave-requests/${requestId}/decide`).set(ORG).send({
       stepId: step1.id, decision: "approved",
     });
     expect(res.status).toBe(200);
@@ -102,7 +107,7 @@ describe("leave request lifecycle", () => {
 
   it("final approval deducts balance: pending → used", async () => {
     const step2 = steps.find(s => s.stepNumber === 2)!;
-    const res = await request(app).post(`/api/leave-requests/${requestId}/decide`).send({
+    const res = await request(app).post(`/api/leave-requests/${requestId}/decide`).set(ORG).send({
       stepId: step2.id, decision: "approved",
     });
     expect(res.status).toBe(200);
@@ -115,7 +120,7 @@ describe("leave request lifecycle", () => {
 
   it("deciding an already-decided request returns 400 and does not double-deduct", async () => {
     const step2 = steps.find(s => s.stepNumber === 2)!;
-    const res = await request(app).post(`/api/leave-requests/${requestId}/decide`).send({
+    const res = await request(app).post(`/api/leave-requests/${requestId}/decide`).set(ORG).send({
       stepId: step2.id, decision: "approved",
     });
     expect(res.status).toBe(400);
@@ -132,7 +137,7 @@ describe("leave request lifecycle", () => {
     ]).returning();
     testRosterIds.push(...inserted.map(r => r.id));
 
-    const res = await request(app).post(`/api/leave-requests/${requestId}/revoke`).send({ reason: "test revoke" });
+    const res = await request(app).post(`/api/leave-requests/${requestId}/revoke`).set(ORG).send({ reason: "test revoke" });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("revoked");
 
@@ -153,7 +158,7 @@ describe("leave request lifecycle", () => {
   });
 
   it("revoke on a non-approved request returns 400", async () => {
-    const res = await request(app).post(`/api/leave-requests/${requestId}/revoke`).send({});
+    const res = await request(app).post(`/api/leave-requests/${requestId}/revoke`).set(ORG).send({});
     expect(res.status).toBe(400);
   });
 });
@@ -161,15 +166,15 @@ describe("leave request lifecycle", () => {
 describe("rejection and cancellation release pending balance", () => {
   it("rejection releases reserved days", async () => {
     await setBalance(TEST_EMPLOYEE_ID, f.annualTypeId, TEST_YEAR, "10");
-    const created = await request(app).post("/api/leave-requests").send({
+    const created = await request(app).post("/api/leave-requests").set(ORG).send({
       employeeId: TEST_EMPLOYEE_ID, leaveTypeId: f.annualTypeId,
       startDate: `${TEST_YEAR}-10-05`, endDate: `${TEST_YEAR}-10-06`, totalDays: 2,
     });
     f.createdRequestIds.push(created.body.id);
-    await request(app).post(`/api/leave-requests/${created.body.id}/submit`).send({});
+    await request(app).post(`/api/leave-requests/${created.body.id}/submit`).set(ORG).send({});
 
     const step1 = created.body.steps.find((s: any) => s.stepNumber === 1);
-    const res = await request(app).post(`/api/leave-requests/${created.body.id}/decide`).send({
+    const res = await request(app).post(`/api/leave-requests/${created.body.id}/decide`).set(ORG).send({
       stepId: step1.id, decision: "rejected", notes: "test",
     });
     expect(res.status).toBe(200);
@@ -182,14 +187,14 @@ describe("rejection and cancellation release pending balance", () => {
 
   it("cancelling a submitted request releases reserved days", async () => {
     await setBalance(TEST_EMPLOYEE_ID, f.annualTypeId, TEST_YEAR, "10");
-    const created = await request(app).post("/api/leave-requests").send({
+    const created = await request(app).post("/api/leave-requests").set(ORG).send({
       employeeId: TEST_EMPLOYEE_ID, leaveTypeId: f.annualTypeId,
       startDate: `${TEST_YEAR}-10-12`, endDate: `${TEST_YEAR}-10-13`, totalDays: 2,
     });
     f.createdRequestIds.push(created.body.id);
-    await request(app).post(`/api/leave-requests/${created.body.id}/submit`).send({});
+    await request(app).post(`/api/leave-requests/${created.body.id}/submit`).set(ORG).send({});
 
-    const res = await request(app).post(`/api/leave-requests/${created.body.id}/cancel`).send({});
+    const res = await request(app).post(`/api/leave-requests/${created.body.id}/cancel`).set(ORG).send({});
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("cancelled");
 
@@ -199,16 +204,16 @@ describe("rejection and cancellation release pending balance", () => {
 
   it("cannot cancel an already-decided request", async () => {
     await setBalance(TEST_EMPLOYEE_ID, f.annualTypeId, TEST_YEAR, "10");
-    const created = await request(app).post("/api/leave-requests").send({
+    const created = await request(app).post("/api/leave-requests").set(ORG).send({
       employeeId: TEST_EMPLOYEE_ID, leaveTypeId: f.annualTypeId,
       startDate: `${TEST_YEAR}-10-19`, endDate: `${TEST_YEAR}-10-19`, totalDays: 1,
     });
     f.createdRequestIds.push(created.body.id);
-    await request(app).post(`/api/leave-requests/${created.body.id}/submit`).send({});
+    await request(app).post(`/api/leave-requests/${created.body.id}/submit`).set(ORG).send({});
     const step1 = created.body.steps.find((s: any) => s.stepNumber === 1);
-    await request(app).post(`/api/leave-requests/${created.body.id}/decide`).send({ stepId: step1.id, decision: "rejected" });
+    await request(app).post(`/api/leave-requests/${created.body.id}/decide`).set(ORG).send({ stepId: step1.id, decision: "rejected" });
 
-    const res = await request(app).post(`/api/leave-requests/${created.body.id}/cancel`).send({});
+    const res = await request(app).post(`/api/leave-requests/${created.body.id}/cancel`).set(ORG).send({});
     expect(res.status).toBe(400);
   });
 });

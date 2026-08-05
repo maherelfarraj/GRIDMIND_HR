@@ -332,6 +332,8 @@ function RequestsTab() {
   const [revokeReason, setRevokeReason] = useState('');
   const [revokeNewEnd, setRevokeNewEnd] = useState('');
   const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
+  const [attachTargetId, setAttachTargetId] = useState<number | null>(null);
+  const attachInputRef = useRef<HTMLInputElement>(null);
 
   const params = statusFilter !== 'all' ? { status: statusFilter } : undefined;
   const { data: requests, isLoading } = useListLeaveRequests(params);
@@ -341,6 +343,7 @@ function RequestsTab() {
   const submitMut = useSubmitLeaveRequest();
   const returnMut = useReturnToDuty();
   const revokeMut = useRevokeLeaveRequest();
+  const addAttachmentMut = useAddLeaveAttachment();
 
   const filtered = useMemo(() => {
     const list = requests ?? [];
@@ -431,6 +434,44 @@ function RequestsTab() {
       toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
     } finally {
       setActioning(null);
+    }
+  }
+
+  function startAttach(id: number) {
+    setAttachTargetId(id);
+    if (attachInputRef.current) {
+      attachInputRef.current.value = '';
+      attachInputRef.current.click();
+    }
+  }
+
+  async function handleAttachFile(file: File | null) {
+    if (!file || attachTargetId === null) return;
+    const id = attachTargetId;
+    setActioning(id);
+    try {
+      const reader = new FileReader();
+      const fileUrl = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      await addAttachmentMut.mutateAsync({
+        id,
+        data: {
+          fileName: file.name,
+          fileType: file.type || null,
+          fileSize: file.size,
+          fileUrl,
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/leave-requests'] });
+      toast({ title: t('File attached', 'تم إرفاق الملف'), description: file.name });
+    } catch (e: any) {
+      toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
+    } finally {
+      setActioning(null);
+      setAttachTargetId(null);
     }
   }
 
@@ -571,9 +612,15 @@ function RequestsTab() {
                           <TableCell>
                             <div className="flex gap-1 flex-wrap">
                               {req.status === 'draft' && (
-                                <Button size="sm" variant="outline" disabled={busy} onClick={() => handleSubmit(req.id)}>
-                                  {t('Submit', 'إرسال')}
-                                </Button>
+                                <>
+                                  <Button size="sm" variant="outline" disabled={busy} onClick={() => handleSubmit(req.id)}>
+                                    {t('Submit', 'إرسال')}
+                                  </Button>
+                                  <Button size="sm" variant="outline" disabled={busy} onClick={() => startAttach(req.id)}>
+                                    <Paperclip className="w-3 h-3 me-1" />
+                                    {t('Attach file', 'إرفاق ملف')}
+                                  </Button>
+                                </>
                               )}
                               {['submitted', 'under_review'].includes(req.status) && canDecide && (
                                 <>
@@ -616,6 +663,7 @@ function RequestsTab() {
                           <TableRow className="bg-muted/20">
                             <TableCell colSpan={9}>
                               <ApprovalStepsInline requestId={req.id} />
+                              <AttachmentsInline attachments={(req as any).attachments ?? []} />
                             </TableCell>
                           </TableRow>
                         )}
@@ -635,6 +683,15 @@ function RequestsTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Hidden file input for attaching a certificate to an existing draft */}
+      <input
+        ref={attachInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={e => handleAttachFile(e.target.files?.[0] ?? null)}
+      />
 
       <NewRequestDialog open={newDialog} onClose={() => setNewDialog(false)} />
 
@@ -748,8 +805,35 @@ function ApprovalStepsInline({ requestId }: { requestId: number }) {
   );
 }
 
-// ─── Team Queue Tab ────────────────────────────────────────────────────────────
-
+function AttachmentsInline({ attachments }: { attachments: any[] }) {
+  const { t } = useLanguage();
+  if (!attachments.length) return null;
+  return (
+    <div className="flex gap-2 py-2 flex-wrap items-center">
+      <span className="text-xs font-medium text-muted-foreground">{t('Attachments', 'المرفقات')}:</span>
+      {attachments.map((a: any) => (
+        <a
+          key={a.id}
+          href={a.fileUrl ?? undefined}
+          download={a.fileUrl?.startsWith('data:') ? a.fileName : undefined}
+          target={a.fileUrl && !a.fileUrl.startsWith('data:') ? '_blank' : undefined}
+          rel="noreferrer"
+          className={cn(
+            'flex items-center gap-1.5 text-xs bg-background border rounded px-2.5 py-1.5',
+            a.fileUrl ? 'hover:bg-muted text-blue-600' : 'text-muted-foreground cursor-default'
+          )}
+          onClick={e => { if (!a.fileUrl) e.preventDefault(); }}
+        >
+          <Paperclip className="w-3 h-3" />
+          <span>{a.fileName}</span>
+          {a.fileSize != null && (
+            <span className="text-muted-foreground">({(a.fileSize / 1024).toFixed(0)} KB)</span>
+          )}
+        </a>
+      ))}
+    </div>
+  );
+}
 function TeamQueueTab() {
   const { t, lang } = useLanguage();
   const { toast } = useToast();

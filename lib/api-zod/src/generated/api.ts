@@ -2562,7 +2562,16 @@ export const ListLeaveRequestsResponseItem = zod.object({
   "returnedToWork": zod.boolean(),
   "submittedAt": zod.string().nullish(),
   "decidedAt": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "leaveRequestId": zod.number(),
+  "fileName": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "uploadedAt": zod.string()
+})).optional()
 })
 export const ListLeaveRequestsResponse = zod.array(ListLeaveRequestsResponseItem)
 
@@ -2603,7 +2612,16 @@ export const CreateLeaveRequestResponse = zod.object({
   "returnedToWork": zod.boolean(),
   "submittedAt": zod.string().nullish(),
   "decidedAt": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "leaveRequestId": zod.number(),
+  "fileName": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "uploadedAt": zod.string()
+})).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -2668,7 +2686,16 @@ export const GetLeaveRequestResponse = zod.object({
   "returnedToWork": zod.boolean(),
   "submittedAt": zod.string().nullish(),
   "decidedAt": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "leaveRequestId": zod.number(),
+  "fileName": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "uploadedAt": zod.string()
+})).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -2733,7 +2760,16 @@ export const SubmitLeaveRequestResponse = zod.object({
   "returnedToWork": zod.boolean(),
   "submittedAt": zod.string().nullish(),
   "decidedAt": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "leaveRequestId": zod.number(),
+  "fileName": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "uploadedAt": zod.string()
+})).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -2805,7 +2841,16 @@ export const DecideLeaveRequestResponse = zod.object({
   "returnedToWork": zod.boolean(),
   "submittedAt": zod.string().nullish(),
   "decidedAt": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "leaveRequestId": zod.number(),
+  "fileName": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "uploadedAt": zod.string()
+})).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -2870,7 +2915,16 @@ export const CancelLeaveRequestResponse = zod.object({
   "returnedToWork": zod.boolean(),
   "submittedAt": zod.string().nullish(),
   "decidedAt": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "leaveRequestId": zod.number(),
+  "fileName": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "uploadedAt": zod.string()
+})).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -2941,7 +2995,16 @@ export const RevokeLeaveRequestResponse = zod.object({
   "returnedToWork": zod.boolean(),
   "submittedAt": zod.string().nullish(),
   "decidedAt": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "leaveRequestId": zod.number(),
+  "fileName": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "uploadedAt": zod.string()
+})).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -3011,7 +3074,16 @@ export const ReturnToDutyResponse = zod.object({
   "returnedToWork": zod.boolean(),
   "submittedAt": zod.string().nullish(),
   "decidedAt": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "leaveRequestId": zod.number(),
+  "fileName": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "uploadedAt": zod.string()
+})).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),

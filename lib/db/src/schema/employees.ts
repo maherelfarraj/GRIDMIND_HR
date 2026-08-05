@@ -30,7 +30,7 @@ export const employeesTable = pgTable("employees", {
   nationality: text("nationality").notNull(),
   photoUrl: text("photo_url"),
   organizationType: text("organization_type").notNull().default("commercial"),
-  orgId: integer("org_id").notNull().default(1),
+  orgId: integer("org_id").notNull().default(16),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

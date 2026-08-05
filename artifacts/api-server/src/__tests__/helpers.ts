@@ -17,6 +17,9 @@ import {
 export const TEST_YEAR = 2026;
 export const TEST_EMPLOYEE_ID = 1;
 export const TEST_EMPLOYEE_ID_2 = 2;
+/** Org that test employees belong to. Pass as X-Org-Id header on all API calls.
+ *  Employees were migrated from stale org_id=1 to org_id=16 (Ministry of Interior, the default org). */
+export const TEST_ORG_ID = 16;
 
 export interface TestFixtures {
   annualTypeId: number;

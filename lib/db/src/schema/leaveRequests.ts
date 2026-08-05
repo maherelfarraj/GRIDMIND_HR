@@ -5,7 +5,7 @@ import { leaveTypesTable } from "./leaveTypes";
 export const leaveRequestsTable = pgTable("leave_requests", {
   id: serial("id").primaryKey(),
   requestNumber: varchar("request_number", { length: 20 }).notNull().unique(),
-  orgId: integer("org_id").notNull().default(1),
+  orgId: integer("org_id").notNull().default(16),
   employeeId: integer("employee_id").notNull().references(() => employeesTable.id),
   leaveTypeId: integer("leave_type_id").notNull().references(() => leaveTypesTable.id),
   startDate: text("start_date").notNull(),

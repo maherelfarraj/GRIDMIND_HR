@@ -1397,6 +1397,7 @@ export interface LeaveRequestSummary {
   /** @nullable */
   decidedAt?: string | null;
   createdAt: string;
+  attachments?: LeaveAttachment[];
 }
 
 export type LeaveRequestDetail = LeaveRequestSummary & ({

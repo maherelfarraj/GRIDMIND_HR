@@ -121,6 +121,17 @@ router.get("/leave-requests", async (req, res): Promise<void> => {
   const empMap = Object.fromEntries(emps.map(e => [e.id, e]));
   const typeMap = Object.fromEntries(types.map(t => [t.id, t]));
 
+  // Fetch all attachments for the listed requests in one query
+  const requestIds = requests.map(r => r.id);
+  const allAttachments = requestIds.length > 0
+    ? await db.select().from(leaveAttachmentsTable).where(inArray(leaveAttachmentsTable.leaveRequestId, requestIds))
+    : [];
+  const attachmentsByRequest: Record<number, typeof allAttachments> = {};
+  for (const a of allAttachments) {
+    if (!attachmentsByRequest[a.leaveRequestId]) attachmentsByRequest[a.leaveRequestId] = [];
+    attachmentsByRequest[a.leaveRequestId].push(a);
+  }
+
   const enriched = requests.map(r => {
     const emp = empMap[r.employeeId];
     const lt = typeMap[r.leaveTypeId];
@@ -137,6 +148,7 @@ router.get("/leave-requests", async (req, res): Promise<void> => {
       submittedAt: r.submittedAt ? r.submittedAt.toISOString() : null,
       decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
       createdAt: r.createdAt.toISOString(),
+      attachments: attachmentsByRequest[r.id] ?? [],
     };
   });
 
@@ -582,6 +594,18 @@ router.post("/leave-requests/:id/return", async (req, res): Promise<void> => {
 // POST /leave-requests/:id/attachments — upload a supporting document (medical cert etc.)
 router.post("/leave-requests/:id/attachments", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
+
+  // 404 if request doesn't exist (also enforces org ownership via router.param guard above)
+  const [existing] = await db.select({ id: leaveRequestsTable.id, status: leaveRequestsTable.status })
+    .from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Leave request not found" }); return; }
+
+  // 409 if not a draft — attachments can only be added before submission
+  if (existing.status !== "draft") {
+    res.status(409).json({ error: "Attachments can only be added to draft leave requests", code: "NOT_DRAFT" });
+    return;
+  }
+
   const { fileName, fileType, fileSize, fileUrl } = req.body;
   if (!fileName) { res.status(400).json({ error: "fileName required" }); return; }
   // Only allow safe URL schemes: https, or data: URLs with whitelisted document/image MIME types.

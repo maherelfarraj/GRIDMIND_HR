@@ -12717,6 +12717,9 @@ components:
         submittedAt: { type: [ "string", "null" ] }
         decidedAt: { type: [ "string", "null" ] }
         createdAt: { type: string }
+        attachments:
+          type: array
+          items: { $ref: "#/components/schemas/LeaveAttachment" }
       required: [ id, requestNumber, employeeId, employeeNameEn, leaveTypeId, leaveTypeNameEn, startDate, endDate, totalDays, status, returnedToWork, createdAt ]
 
     LeaveRequestDetail:
