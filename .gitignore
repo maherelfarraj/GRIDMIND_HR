@@ -51,3 +51,8 @@ Thumbs.db
 # generated one-time password handoff files (operator-only, never commit)
 .credentials/
 one-time-passwords-*.json
+
+# smoke suite — runtime-only, never commit
+scripts/smoke/auth.json
+scripts/smoke/test-results/
+scripts/smoke/playwright-report/
