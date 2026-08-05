@@ -106,6 +106,8 @@ export default function ManagerPortal() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const employeeId = user?.employeeId ?? 0;
+  // Server enforces the same check; this only hides buttons the user can't use.
+  const canDecide = user?.permissions?.includes('approvals.decide') ?? false;
 
   const [showNewDelegation, setShowNewDelegation] = useState(false);
 
@@ -235,6 +237,7 @@ export default function ManagerPortal() {
                       <TableCell>{fmtDate(r.endDate)}</TableCell>
                       <TableCell>{r.totalDays}</TableCell>
                       <TableCell>
+                        {canDecide && (
                         <div className="flex gap-1">
                           <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-400" onClick={() => handleLeaveDecision(r.id, 'approved')}>
                             <CheckCircle className="w-3 h-3" />
@@ -243,6 +246,7 @@ export default function ManagerPortal() {
                             <XCircle className="w-3 h-3" />
                           </Button>
                         </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -272,6 +276,7 @@ export default function ManagerPortal() {
                         <Badge variant="outline" className="capitalize text-xs">{a.status}</Badge>
                       </TableCell>
                       <TableCell>
+                        {canDecide && (
                         <div className="flex gap-1">
                           <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-400" onClick={() => handleApprovalDecision(a.id, 'approved')}>
                             <CheckCircle className="w-3 h-3" />
@@ -280,6 +285,7 @@ export default function ManagerPortal() {
                             <XCircle className="w-3 h-3" />
                           </Button>
                         </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

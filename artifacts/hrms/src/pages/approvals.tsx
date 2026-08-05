@@ -1,5 +1,6 @@
 import { useState, Fragment } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { useAuth } from '@/hooks/use-auth';
 import { localName } from '@/lib/localise';
 import { useListApprovals, useDecideApproval, useGetLeaveRequest } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -105,6 +106,9 @@ export default function Approvals() {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  // Server enforces the same check; this only hides buttons the user can't use.
+  const canDecide = user?.permissions?.includes('approvals.decide') ?? false;
   const { data: approvalsData, isLoading } = useListApprovals();
   const decideApproval = useDecideApproval();
   
@@ -238,7 +242,7 @@ export default function Approvals() {
               <TableHead>{t('Type', 'النوع')}</TableHead>
               <TableHead>{t('Priority', 'الأولوية')}</TableHead>
               <TableHead>{t('Date', 'التاريخ')}</TableHead>
-              {filterStatus === 'pending' && <TableHead className="text-end">{t('Action', 'الإجراء')}</TableHead>}
+              {filterStatus === 'pending' && canDecide && <TableHead className="text-end">{t('Action', 'الإجراء')}</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -294,7 +298,7 @@ export default function Approvals() {
                         )}
                       </div>
                     </TableCell>
-                    {filterStatus === 'pending' && (
+                    {filterStatus === 'pending' && canDecide && (
                       <TableCell className="text-end" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-end gap-2">
                           <Button 

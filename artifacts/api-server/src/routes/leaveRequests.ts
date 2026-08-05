@@ -8,6 +8,9 @@ import { eq, and, gte, lte, or, sql, inArray } from "drizzle-orm";
 import { ensureLeaveBalance } from "../lib/leaveBalance.js";
 import { decideLeaveStep, syncLinkedApprovalStatus } from "../lib/leaveDecision.js";
 import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorInfo, requireActorPermission, ForbiddenError } from "../lib/permissions.js";
+
+const DECIDE_PERMISSION = "approvals.decide";
 
 import { resolveOrgId } from "../lib/orgContext";
 
@@ -317,7 +320,17 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
 // POST /leave-requests/:id/decide — approve or reject an approval step (Task #18: row-locked)
 // Core logic lives in lib/leaveDecision.ts so the /approvals route can share it (Task #13).
 router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
-  const actorUserId: number = getActorUserId(req);
+  // Only supervisors/HR with the "approvals.decide" permission may decide.
+  let actorUserId: number;
+  try {
+    ({ userId: actorUserId } = await requireActorPermission(req, DECIDE_PERMISSION));
+  } catch (err) {
+    if (err instanceof ForbiddenError) {
+      res.status(403).json({ error: err.message, code: err.code });
+      return;
+    }
+    throw err;
+  }
   const id = parseInt(req.params.id, 10);
   const { stepId, stepNumber, decision, notes } = req.body;
 
@@ -337,10 +350,17 @@ router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
 
 // POST /leave-requests/:id/cancel — cancel a draft or pending request, release pending balance
 router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
-  const actorUserId: number = getActorUserId(req);
+  const actor = await getActorInfo(req);
+  const actorUserId: number = actor.userId;
   const id = parseInt(req.params.id, 10);
   const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
   if (!r) { res.status(404).json({ error: "Not found" }); return; }
+  // Employees may cancel their own request; anyone else needs approvals.decide.
+  const isOwnRequest = actor.employeeId != null && actor.employeeId === r.employeeId;
+  if (!isOwnRequest && !actor.permissions.includes(DECIDE_PERMISSION)) {
+    res.status(403).json({ error: "You do not have permission to cancel this request", code: "FORBIDDEN" });
+    return;
+  }
   if (!["draft", "submitted", "under_review"].includes(r.status)) {
     res.status(400).json({ error: "Only draft or pending requests can be cancelled. Use /revoke for approved leaves." });
     return;
@@ -410,9 +430,20 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
 
 // POST /leave-requests/:id/revoke — undo an approved leave (fully or shorten the range)
 router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
-  const actorUserId: number = getActorUserId(req);
+  // Only supervisors/HR with the "approvals.decide" permission may revoke.
+  let actor: Awaited<ReturnType<typeof requireActorPermission>>;
+  try {
+    actor = await requireActorPermission(req, DECIDE_PERMISSION);
+  } catch (err) {
+    if (err instanceof ForbiddenError) {
+      res.status(403).json({ error: err.message, code: err.code });
+      return;
+    }
+    throw err;
+  }
+  const actorUserId: number = actor.userId;
   const id = parseInt(req.params.id, 10);
-  const { reason, newEndDate, revokedByEmployeeId } = req.body;
+  const { reason, newEndDate } = req.body;
 
   if (!reason || typeof reason !== "string" || !reason.trim()) {
     res.status(400).json({ error: "reason is required" });
@@ -507,7 +538,8 @@ router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
       actorUserId,
       changesJson: JSON.stringify({
         reason,
-        revokedByEmployeeId: revokedByEmployeeId ?? null,
+        // Attributed to the authenticated actor, never a client-supplied id.
+        revokedByEmployeeId: actor.employeeId ?? null,
         revokedFrom: revokedStart,
         revokedTo: revokedEnd,
         creditedDays,

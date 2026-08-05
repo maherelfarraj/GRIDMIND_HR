@@ -318,9 +318,10 @@ function RequestsTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  // TODO: replace with proper role-name lookup once role names are exposed by useAuth
-  // Role IDs: 1=super_admin, 2=hr_manager, 4=supervisor can revoke
-  const canRevoke = user ? (user.roleId <= 2 || user.roleId === 4) : false;
+  // Server-verified permission keys from the user's role; the API enforces
+  // the same check, this only hides buttons the user can't use.
+  const canDecide = user?.permissions?.includes('approvals.decide') ?? false;
+  const canRevoke = canDecide;
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -574,7 +575,7 @@ function RequestsTab() {
                                   {t('Submit', 'إرسال')}
                                 </Button>
                               )}
-                              {['submitted', 'under_review'].includes(req.status) && (
+                              {['submitted', 'under_review'].includes(req.status) && canDecide && (
                                 <>
                                   <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy}
                                     onClick={() => handleDecide(req.id, currentStep, 'approve')}>

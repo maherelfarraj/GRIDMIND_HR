@@ -3,6 +3,7 @@ import { db, approvalsTable, employeesTable, systemUsersTable, auditLogsTable } 
 import { eq, and } from "drizzle-orm";
 import { CreateApprovalBody, DecideApprovalBody, ListApprovalsQueryParams } from "@workspace/api-zod";
 import { decideLeaveStep } from "../lib/leaveDecision.js";
+import { requireActorPermission, ForbiddenError } from "../lib/permissions.js";
 
 const router = Router();
 
@@ -73,6 +74,18 @@ router.get("/approvals/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/approvals/:id/decision", async (req, res): Promise<void> => {
+  // Deciding any queue item is a supervisory action: require approvals.decide
+  // and attribute everything to the authenticated actor.
+  let actor: Awaited<ReturnType<typeof requireActorPermission>>;
+  try {
+    actor = await requireActorPermission(req, "approvals.decide");
+  } catch (err) {
+    if (err instanceof ForbiddenError) {
+      res.status(403).json({ error: err.message, code: err.code });
+      return;
+    }
+    throw err;
+  }
   const id = parseId(req.params.id);
   const parsed = DecideApprovalBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -91,7 +104,7 @@ router.patch("/approvals/:id/decision", async (req, res): Promise<void> => {
             leaveRequestId,
             decision: parsed.data.status,
             notes: parsed.data.decisionNote ?? null,
-            actorUserId: (req as any).session?.userId ?? 0,
+            actorUserId: actor.userId,
           });
           if (!["approved", "rejected"].includes(leaveReq.status)) {
             // Intermediate step decided (request still under_review): keep the
@@ -120,7 +133,7 @@ router.patch("/approvals/:id/decision", async (req, res): Promise<void> => {
     .returning();
   if (!approval) { res.status(404).json({ error: "Not found" }); return; }
   await db.insert(auditLogsTable).values({
-    actorUserId: (req as any).session?.userId ?? null,
+    actorUserId: actor.userId,
     action: `approval.${parsed.data.status}`,
     entityType: "approval",
     entityId: id,

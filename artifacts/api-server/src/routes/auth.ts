@@ -99,7 +99,17 @@ async function notifyAdminsOfLockout(username: string, ip: string, scope: string
   }
 }
 
-function userResponse(user: typeof systemUsersTable.$inferSelect) {
+function parseRolePermissions(permissionsJson: string | null | undefined): string[] {
+  if (!permissionsJson) return [];
+  try {
+    const parsed = JSON.parse(permissionsJson);
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
+  } catch {
+    return [];
+  }
+}
+async function userResponse(user: typeof systemUsersTable.$inferSelect) {
+  const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, user.roleId));
   return {
     id: user.id,
     username: user.username,
@@ -113,6 +123,7 @@ function userResponse(user: typeof systemUsersTable.$inferSelect) {
     preferredLanguage: user.preferredLanguage,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     mustChangePassword: user.mustChangePassword,
+    permissions: parseRolePermissions(role?.permissionsJson),
   };
 }
 
@@ -221,7 +232,6 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   // Look up role name for session
   const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, user.roleId));
   const userRole = role?.nameEn ?? "User";
-
   // Update last login
   await db.update(systemUsersTable).set({ lastLoginAt: new Date() }).where(eq(systemUsersTable.id, user.id));
 
@@ -240,11 +250,11 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     await new Promise<void>((resolve, reject) => {
       req.session.save((err) => (err ? reject(err) : resolve()));
     });
-    res.json({ ...userResponse(user), sessionToken: req.session.id });
+    res.json({ ...(await userResponse(user)), sessionToken: req.session.id });
     return;
   }
 
-  res.json(userResponse(user));
+  res.json(await userResponse(user));
 });
 
 // POST /auth/change-password — authenticated user changes their own password.
@@ -317,7 +327,7 @@ router.post("/auth/change-password", async (req, res): Promise<void> => {
 
   const [updated] = await db.select().from(systemUsersTable)
     .where(eq(systemUsersTable.id, user.id));
-  res.json({ ...userResponse(updated), success: true });
+  res.json({ ...(await userResponse(updated)), success: true });
 });
 
 // POST /auth/logout — destroys session, clears cookie
@@ -338,7 +348,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     const [user] = await db.select().from(systemUsersTable)
       .where(eq(systemUsersTable.id, req.session.userId));
     if (user && user.isActive) {
-      res.json(userResponse(user));
+      res.json(await userResponse(user));
       return;
     }
     // Session user not found or inactive — destroy session
@@ -350,7 +360,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     const [user] = await db.select().from(systemUsersTable)
       .where(eq(systemUsersTable.isActive, true));
     if (!user) { res.status(401).json({ error: "Not authenticated", code: "UNAUTHENTICATED" }); return; }
-    res.json(userResponse(user));
+    res.json(await userResponse(user));
     return;
   }
 

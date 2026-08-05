@@ -14,6 +14,7 @@ interface User {
   preferredLanguage: string;
   lastLoginAt: string | null;
   mustChangePassword?: boolean;
+  permissions?: string[];
 }
 
 interface AuthContextType {
