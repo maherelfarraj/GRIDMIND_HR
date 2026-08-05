@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';
 import { useListApprovals, useDecideApproval, useGetLeaveRequest } from '@workspace/api-client-react';
@@ -248,9 +248,8 @@ export default function Approvals() {
               const isSoon = item.dueDate && isDueDateSoon(item.dueDate);
 
               return (
-                <>
+                <Fragment key={item.id}>
                   <TableRow 
-                    key={item.id}
                     className={cn(
                       "cursor-pointer hover:bg-muted/50 transition-colors",
                       isOverdue && "bg-destructive/5 border-s-2 border-destructive"
@@ -284,14 +283,14 @@ export default function Approvals() {
                           {new Date(item.createdAt).toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-US')}
                         </p>
                         {item.dueDate && (
-                          <p className={cn(
+                          <span className={cn(
                             "text-xs flex items-center gap-1",
                             isOverdue ? "text-destructive font-semibold" : isSoon ? "text-amber-500" : "text-muted-foreground"
                           )}>
                             <Clock className="w-3 h-3" />
                             {t('Due', 'مستحق')}: {new Date(item.dueDate).toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-US')}
                             {isOverdue && <Badge variant="destructive" className="text-xs ms-1">{t('Overdue', 'متأخر')}</Badge>}
-                          </p>
+                          </span>
                         )}
                       </div>
                     </TableCell>
@@ -392,7 +391,7 @@ export default function Approvals() {
                       </TableRow>
                     )}
                   </AnimatePresence>
-                </>
+                </Fragment>
               );
             })}
           </TableBody>

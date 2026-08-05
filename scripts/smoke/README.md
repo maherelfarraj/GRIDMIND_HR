@@ -46,14 +46,16 @@ The env var is forwarded into `playwright.config.ts`, `global-setup.ts`, and
 
 ## Credentials
 
-The suite tries these env vars in order; the first that authenticates cleanly
-(HTTP 200, `mustChangePassword=false`) wins.  No value is ever hard-coded.
+The suite tries these sources in order; the first that authenticates cleanly
+(HTTP 200, `mustChangePassword=false`) wins.  No value is ever hard-coded or
+logged.
 
-| Order | Env var | Purpose |
+| Order | Source | Purpose |
 |---|---|---|
-| 1 | `SMOKE_ADMIN_PASSWORD` | Dedicated smoke credential — **preferred for prod** |
-| 2 | `ADMIN_RESET_PASSWORD` | Operator-supplied reset/temporary password |
-| 3 | `DEMO_PILOT_PASSWORD` | Dev seeding password (dev only) |
+| 1 | `SMOKE_ADMIN_PASSWORD` env var | Dedicated smoke credential — **preferred for CI / prod** |
+| 2 | `.credentials/smoke-rotation-pw.txt` | Operator file (mode 0600, gitignored) — enables unattended dev runs without a Replit Secret |
+| 3 | `ADMIN_RESET_PASSWORD` env var | Operator-supplied reset/temporary password |
+| 4 | `DEMO_PILOT_PASSWORD` env var | Dev seeding password (dev only) |
 
 ### Dev credential setup
 
@@ -153,17 +155,31 @@ SMOKE_BASE_URL=https://enterprise-hr-suite.replit.app \
 Each test also fails on any console error or 4xx/5xx API response, and
 checks that skeleton loaders resolve after network idle.
 
-### Mutations are self-cleaning
+### Mutations are self-cleaning — true deletes only
 
-Every write operation is paired with a matching delete/revoke/withdraw in the
-same test or in `afterAll`.  `beforeAll` also revokes any stale `smoke-test-*`
-gateway registrations left by prior crashed runs.  No permanent state
-accumulates across runs.
+The suites follow a strict policy: **self-cleaning means hard-delete, nothing
+less**.  Status changes (e.g. `status=terminated`) and soft-cancellations are
+not self-cleaning because they leave permanent rows in the DB.
 
-**It is safe to run this suite against the live production app**, provided the
-admin account exists and `SMOKE_ADMIN_PASSWORD` is set correctly.  Operators
-should be aware that transient records (gateway registrations, PCR drafts,
-numbering schemes) are created and immediately removed during the run.
+| Suite | Mutating test(s) | Teardown |
+|---|---|---|
+| `admin-smoke.spec.ts` | Gateway registrations, PCR drafts, numbering schemes | Revoke / hard-delete in `afterAll` |
+| `hr-smoke.spec.ts` | Employees only (create + hard-delete) | Hard-delete in `afterAll` (throws on failure — no PATCH fallback) |
+
+`beforeAll` in each spec hard-deletes any stale suite-owned fixtures left by
+prior crashed runs, matching on unambiguous prefixes (`smoke-test-*` for admin,
+`smoke-hr:` for HR).  If a stale record cannot be deleted, a warning is logged
+and the record is left untouched — its status is never mutated.
+
+**Why Leave is read-only:** the only available "undo" for a leave request is
+cancellation, which retains the record forever.  A cancel-only teardown is not
+self-cleaning.  The Leave test therefore only navigates and asserts rendering.
+
+**No permanent state accumulates across runs.**  It is safe to run either suite
+against the live production app, provided the admin account exists and
+`SMOKE_ADMIN_PASSWORD` is set correctly.  Operators should be aware that
+transient records (gateway registrations, PCR drafts, numbering schemes, smoke
+employees) are created and immediately removed during each run.
 
 ---
 

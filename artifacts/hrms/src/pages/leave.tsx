@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, Fragment } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { localName, localFullName } from '@/lib/localise';
 import { useAuth } from '@/hooks/use-auth';
@@ -537,9 +537,8 @@ function RequestsTab() {
                     const busy = actioning === req.id;
                     const currentStep = (req as any).currentStepNumber ?? 1;
                     return (
-                      <>
+                      <Fragment key={req.id}>
                         <TableRow
-                          key={req.id}
                           className={cn('cursor-pointer hover:bg-muted/50', expanded && 'bg-muted/30')}
                         >
                           <TableCell>
@@ -613,13 +612,13 @@ function RequestsTab() {
                           </TableCell>
                         </TableRow>
                         {expanded && (
-                          <TableRow key={`${req.id}-expand`} className="bg-muted/20">
+                          <TableRow className="bg-muted/20">
                             <TableCell colSpan={9}>
                               <ApprovalStepsInline requestId={req.id} />
                             </TableCell>
                           </TableRow>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })
               }

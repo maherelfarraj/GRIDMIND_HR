@@ -112,9 +112,65 @@ export default async function globalSetup(): Promise<void> {
   const ctx = await request.newContext({ baseURL: BASE_URL });
 
   try {
+    // File-based fallback: read from the 0600 operator credential file when
+    // the SMOKE_ADMIN_PASSWORD env var is absent (e.g. unattended workflow
+    // runs where Replit Secrets are unavailable).  The value is never logged.
+    //
+    // Security checks (all must pass before the file is read):
+    //   1. Not a symlink  — prevents symlink-redirect attacks.
+    //   2. Owned by the current process user  — prevents another user planting
+    //      a credential file that this process would accept.
+    //   3. Mode exactly 0600  — rejects group/world-readable files; if the
+    //      file was accidentally chmod'd wider, fail loudly rather than read it.
+    const CREDENTIAL_FILE = path.resolve(__dirname, '../../.credentials/smoke-rotation-pw.txt');
+    let filePassword: string | undefined;
+    (() => {
+      let stat: fs.Stats;
+      try {
+        stat = fs.lstatSync(CREDENTIAL_FILE);
+      } catch {
+        // File absent — silently skip; fall through to env vars.
+        return;
+      }
+
+      if (stat.isSymbolicLink()) {
+        throw new Error(
+          `[smoke/global-setup] Credential file is a symlink, which is not permitted: ${CREDENTIAL_FILE}\n` +
+            '  Replace with a regular file (mode 0600) containing the admin password.',
+        );
+      }
+
+      const currentUid = process.getuid?.();
+      if (currentUid !== undefined && stat.uid !== currentUid) {
+        throw new Error(
+          `[smoke/global-setup] Credential file is owned by uid ${stat.uid} but the current process ` +
+            `is uid ${currentUid}: ${CREDENTIAL_FILE}\n` +
+            '  The file must be owned by the user running the smoke suite.',
+        );
+      }
+
+      const mode = stat.mode & 0o777;
+      if (mode !== 0o600) {
+        throw new Error(
+          `[smoke/global-setup] Credential file has permissions ${mode.toString(8).padStart(4, '0')} ` +
+            `but must be exactly 0600: ${CREDENTIAL_FILE}\n` +
+            '  Run: chmod 600 .credentials/smoke-rotation-pw.txt',
+        );
+      }
+
+      const raw = fs.readFileSync(CREDENTIAL_FILE, 'utf8').trim();
+      if (raw.length > 0) filePassword = raw;
+    })();
+
     // Build ordered, deduplicated candidate list — no hard-coded values.
+    // Resolution order:
+    //   1. SMOKE_ADMIN_PASSWORD env var  (explicit override / CI secret)
+    //   2. .credentials/smoke-rotation-pw.txt  (operator file, 0600, untracked)
+    //   3. ADMIN_RESET_PASSWORD env var  (operator-supplied temporary password)
+    //   4. DEMO_PILOT_PASSWORD env var   (dev seeding password)
     const candidates = [
       process.env.SMOKE_ADMIN_PASSWORD,
+      filePassword,
       process.env.ADMIN_RESET_PASSWORD,
       process.env.DEMO_PILOT_PASSWORD,
     ].filter((p): p is string => typeof p === 'string' && p.length > 0);
@@ -124,9 +180,10 @@ export default async function globalSetup(): Promise<void> {
       throw new Error(
         '[smoke/global-setup] No admin password available.\n\n' +
           'Set at least one of:\n' +
-          '  SMOKE_ADMIN_PASSWORD  — dedicated smoke credential (preferred)\n' +
-          '  ADMIN_RESET_PASSWORD  — operator-supplied reset password\n' +
-          '  DEMO_PILOT_PASSWORD   — dev seeding password',
+          '  SMOKE_ADMIN_PASSWORD env var      — dedicated smoke credential (preferred)\n' +
+          '  .credentials/smoke-rotation-pw.txt — operator file (0600, untracked)\n' +
+          '  ADMIN_RESET_PASSWORD env var      — operator-supplied reset password\n' +
+          '  DEMO_PILOT_PASSWORD  env var      — dev seeding password',
       );
     }
 
@@ -139,7 +196,7 @@ export default async function globalSetup(): Promise<void> {
       });
 
       if (!res.ok()) {
-        attemptLog.push(`  • "${pw.slice(0, 4)}…" → HTTP ${res.status()} (wrong password or locked)`);
+        attemptLog.push(`  • candidate (length: ${pw.length}) → HTTP ${res.status()} (wrong password or locked)`);
         continue;
       }
 
@@ -150,7 +207,7 @@ export default async function globalSetup(): Promise<void> {
         break;
       }
 
-      attemptLog.push(`  • "${pw.slice(0, 4)}…" → authenticated but mustChangePassword=true`);
+      attemptLog.push(`  • candidate (length: ${pw.length}) → authenticated but mustChangePassword=true`);
 
       if (!allowRotation) {
         continue; // fail-safe: do not rotate without explicit opt-in
@@ -161,7 +218,7 @@ export default async function globalSetup(): Promise<void> {
 
       console.warn(
         '\n⚠️  [smoke/global-setup] SMOKE_ALLOW_PASSWORD_ROTATION=true:\n' +
-          `    Calling change-password (current: "${pw.slice(0, 4)}…" → new: SMOKE_ROTATION_PASSWORD).\n` +
+          `    Calling change-password (current candidate length: ${pw.length} → new: SMOKE_ROTATION_PASSWORD).\n` +
           '    This modifies the admin account. Use only in isolated dev/CI environments.\n' +
           '    Set SMOKE_ADMIN_PASSWORD=<SMOKE_ROTATION_PASSWORD value> for subsequent runs.\n',
       );
@@ -206,8 +263,9 @@ export default async function globalSetup(): Promise<void> {
           mcpHint +
           '\n\nPassword sources checked (in order):\n' +
           '  1. SMOKE_ADMIN_PASSWORD env var\n' +
-          '  2. ADMIN_RESET_PASSWORD  env var\n' +
-          '  3. DEMO_PILOT_PASSWORD   env var',
+          '  2. .credentials/smoke-rotation-pw.txt (0600 operator file)\n' +
+          '  3. ADMIN_RESET_PASSWORD  env var\n' +
+          '  4. DEMO_PILOT_PASSWORD   env var',
       );
     }
 
