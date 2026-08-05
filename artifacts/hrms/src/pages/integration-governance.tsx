@@ -93,17 +93,18 @@ function AddVaultRefDialog({ open, onClose, onSaved }: { open: boolean; onClose:
   const { t } = useLanguage();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ labelEn: '', credentialType: '', vaultKeyRef: '' });
+  const [form, setForm] = useState({ labelEn: '', labelAr: '', credentialType: '', vaultKeyRef: '' });
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
-  useEffect(() => { if (open) setForm({ labelEn: '', credentialType: '', vaultKeyRef: '' }); }, [open]);
+  useEffect(() => { if (open) setForm({ labelEn: '', labelAr: '', credentialType: '', vaultKeyRef: '' }); }, [open]);
 
   async function handleSave() {
     setSaving(true);
     try {
+      const trimmedLabelAr = form.labelAr.trim();
       const payload = {
         labelEn: form.labelEn,
-        labelAr: form.labelEn,
+        labelAr: trimmedLabelAr !== '' ? trimmedLabelAr : form.labelEn,
         credentialType: form.credentialType,
         vaultKeyRef: form.vaultKeyRef,
       };
@@ -146,6 +147,10 @@ function AddVaultRefDialog({ open, onClose, onSaved }: { open: boolean; onClose:
             <Input className="mt-1 bg-slate-700 border-slate-600" value={form.labelEn} onChange={e => set('labelEn', e.target.value)} placeholder={t('e.g. LDAP bind credentials', 'مثال: بيانات اعتماد ربط LDAP')} />
           </div>
           <div>
+            <Label>{t('Arabic label (optional)', 'الاسم بالعربية (اختياري)')}</Label>
+            <Input dir="rtl" className="mt-1 bg-slate-700 border-slate-600" value={form.labelAr} onChange={e => set('labelAr', e.target.value)} placeholder={t('e.g. بيانات اعتماد ربط LDAP', 'مثال: بيانات اعتماد ربط LDAP')} />
+          </div>
+          <div>
             <Label>{t('Credential Type', 'نوع الاعتماد')}</Label>
             <Select value={form.credentialType} onValueChange={v => set('credentialType', v)}>
               <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue placeholder={t('Select type', 'اختر النوع')} /></SelectTrigger>
@@ -177,18 +182,19 @@ function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean
   const { t } = useLanguage();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ profileName: '', integrationType: '', environment: 'development', baseUrl: '', description: '', credentialVaultRefId: '' });
+  const [form, setForm] = useState({ profileName: '', profileNameAr: '', integrationType: '', environment: 'development', baseUrl: '', description: '', credentialVaultRefId: '' });
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
   // Reset form when dialog opens
-  useEffect(() => { if (open) setForm({ profileName: '', integrationType: '', environment: 'development', baseUrl: '', description: '', credentialVaultRefId: '' }); }, [open]);
+  useEffect(() => { if (open) setForm({ profileName: '', profileNameAr: '', integrationType: '', environment: 'development', baseUrl: '', description: '', credentialVaultRefId: '' }); }, [open]);
 
   async function handleSave() {
     setSaving(true);
     try {
+      const trimmedProfileNameAr = form.profileNameAr.trim();
       const payload: Record<string, any> = {
         profileName: form.profileName,
-        profileNameAr: form.profileName,
+        profileNameAr: trimmedProfileNameAr !== '' ? trimmedProfileNameAr : form.profileName,
         integrationType: form.integrationType,
         environment: form.environment,
         connectionParamsJson: JSON.stringify({ baseUrl: form.baseUrl, description: form.description }),
@@ -216,6 +222,7 @@ function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean
         <DialogHeader><DialogTitle>{t('Add Connection Profile', 'إضافة ملف اتصال')}</DialogTitle></DialogHeader>
         <div className="space-y-3 py-2">
           <div><Label>{t('Profile Name', 'اسم الملف')}</Label><Input className="mt-1 bg-slate-700 border-slate-600" value={form.profileName} onChange={e => set('profileName', e.target.value)} /></div>
+          <div><Label>{t('Arabic name (optional)', 'الاسم بالعربية (اختياري)')}</Label><Input dir="rtl" className="mt-1 bg-slate-700 border-slate-600" value={form.profileNameAr} onChange={e => set('profileNameAr', e.target.value)} /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>{t('Integration Type', 'نوع التكامل')}</Label>
               <Select value={form.integrationType} onValueChange={v => set('integrationType', v)}>
