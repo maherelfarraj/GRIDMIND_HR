@@ -25,7 +25,7 @@ import { test, expect, request as playwrightRequest } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 
-const BASE_URL = 'http://localhost:80';
+const BASE_URL = process.env.SMOKE_BASE_URL ?? 'http://localhost:80';
 const AUTH_FILE = path.join(__dirname, '../auth.json');
 
 // IDs of records created during this run — cleaned up in afterAll.

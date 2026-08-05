@@ -28,7 +28,7 @@ export default defineConfig({
   globalSetup: require.resolve('./global-setup'),
 
   use: {
-    baseURL: 'http://localhost:80',
+    baseURL: process.env.SMOKE_BASE_URL ?? 'http://localhost:80',
     storageState: 'auth.json',
     headless: true,
     launchOptions: {

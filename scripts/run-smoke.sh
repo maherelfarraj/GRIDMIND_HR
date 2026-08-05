@@ -27,8 +27,14 @@
 #   global-setup writes scripts/smoke/auth.json (session cookie + localStorage).
 #   This file is in .gitignore and must never be committed.
 #
+# Target URL:
+#   SMOKE_BASE_URL — base URL of the HRMS app under test.
+#   Defaults to http://localhost:80 (dev).
+#   Set to the published URL for post-publish runs:
+#     SMOKE_BASE_URL=https://enterprise-hr-suite.replit.app bash scripts/run-smoke.sh
+#
 # Usage:
-#   bash scripts/run-smoke.sh             # run full suite
+#   bash scripts/run-smoke.sh             # run full suite (dev)
 #   bash scripts/run-smoke.sh --headed    # show browser window (debug)
 #   bash scripts/run-smoke.sh --grep "Pilot"  # run one test by name
 #
@@ -38,6 +44,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SMOKE_DIR="$ROOT/scripts/smoke"
+
+# ── 0. Target URL ─────────────────────────────────────────────────────────────
+export SMOKE_BASE_URL="${SMOKE_BASE_URL:-http://localhost:80}"
+echo "==> Target: $SMOKE_BASE_URL"
 
 # ── 1. Locate Chromium in the nix store ──────────────────────────────────────
 # @playwright/test is pinned to 1.44.0 which expects chromium revision 1080,
