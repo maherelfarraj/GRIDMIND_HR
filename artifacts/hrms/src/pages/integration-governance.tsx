@@ -89,6 +89,90 @@ function VaultConfigBadge({ configured }: { configured: boolean }) {
   return <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-300"><AlertTriangle className="w-2.5 h-2.5" />Missing</span>;
 }
 
+function AddVaultRefDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ labelEn: '', credentialType: '', vaultKeyRef: '' });
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  useEffect(() => { if (open) setForm({ labelEn: '', credentialType: '', vaultKeyRef: '' }); }, [open]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const payload = {
+        labelEn: form.labelEn,
+        labelAr: form.labelEn,
+        credentialType: form.credentialType,
+        vaultKeyRef: form.vaultKeyRef,
+      };
+      const res = await apiFetch('/api/integration-governance/credential-vault-refs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => null);
+      toast({ title: t('Vault ref created', 'تم إنشاء مرجع الخزنة') });
+      if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
+        for (const w of data.warnings) {
+          toast({ title: t('Missing secret', 'سر مفقود'), description: String(w) });
+        }
+      }
+      onSaved(); onClose();
+    } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+    finally { setSaving(false); }
+  }
+
+  const canSave = form.labelEn.trim() !== '' && form.credentialType !== '' && form.vaultKeyRef.trim() !== '';
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            {t('Add Vault Ref', 'إضافة مرجع خزنة')}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="rounded-md border border-amber-700/50 bg-amber-900/20 p-2 flex items-start gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-amber-300 text-xs">{t('Only the env var name is stored — never a secret value.', 'يُخزَّن اسم متغير البيئة فقط — لا قيمة السر أبدًا.')}</p>
+          </div>
+          <div>
+            <Label>{t('Name', 'الاسم')}</Label>
+            <Input className="mt-1 bg-slate-700 border-slate-600" value={form.labelEn} onChange={e => set('labelEn', e.target.value)} placeholder={t('e.g. LDAP bind credentials', 'مثال: بيانات اعتماد ربط LDAP')} />
+          </div>
+          <div>
+            <Label>{t('Credential Type', 'نوع الاعتماد')}</Label>
+            <Select value={form.credentialType} onValueChange={v => set('credentialType', v)}>
+              <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue placeholder={t('Select type', 'اختر النوع')} /></SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700">
+                {['ldap','active_directory','smtp','sms_gateway','attendance_device','finance_api','document_signing','sso_saml','sso_oidc','internal_api'].map(ct => (
+                  <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>{t('Env Var Key', 'اسم متغير البيئة')}</Label>
+            <Input className="mt-1 bg-slate-700 border-slate-600 font-mono" value={form.vaultKeyRef} onChange={e => set('vaultKeyRef', e.target.value)} placeholder="MY_SERVICE_API_KEY" />
+            <p className="mt-1 text-xs text-slate-500">{t('The environment variable name that holds this credential.', 'اسم متغير البيئة الذي يحتوي على بيانات الاعتماد هذه.')}</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" className="border-slate-600" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
+          <Button onClick={handleSave} disabled={saving || !canSave} className="bg-blue-600 hover:bg-blue-700">
+            {saving ? t('Saving…', 'جاري الحفظ…') : t('Create', 'إنشاء')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AddProfileDialog({ open, onClose, onSaved, vaultRefs }: { open: boolean; onClose: () => void; onSaved: () => void; vaultRefs: any[] }) {
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -495,6 +579,7 @@ export default function IntegrationGovernance() {
   const [runningHealthChecks, setRunningHealthChecks] = useState(false);
   const [detailProfileId, setDetailProfileId] = useState<number | null>(null);
   const [linkVaultTarget, setLinkVaultTarget] = useState<any>(null);
+  const [addVaultRefOpen, setAddVaultRefOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -838,6 +923,10 @@ export default function IntegrationGovernance() {
 
           {/* Credential Vault */}
           <TabsContent value="vault" className="mt-4 space-y-4">
+            <div className="flex justify-between items-center">
+              <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={load}><RefreshCw className="w-4 h-4 me-1" />{t('Refresh', 'تحديث')}</Button>
+              <Button onClick={() => setAddVaultRefOpen(true)} className="bg-blue-600 hover:bg-blue-700 gap-2"><span>+</span>{t('Add Vault Ref', 'إضافة مرجع خزنة')}</Button>
+            </div>
             <div className="rounded-md border border-amber-700/50 bg-amber-900/30 p-3 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
               <p className="text-amber-400 text-sm">{t('Vault stores key REFERENCES only — never actual credentials. Rotate credentials in your vault system, then update the rotation timestamp here.', 'تخزن الخزنة مراجع المفاتيح فقط — وليس بيانات الاعتماد الفعلية. قم بتدوير بيانات الاعتماد في نظام الخزنة الخاص بك، ثم قم بتحديث طابع التدوير الزمني هنا.')}</p>
@@ -970,6 +1059,7 @@ export default function IntegrationGovernance() {
         </Tabs>
 
         <AddProfileDialog open={addProfileOpen} onClose={() => setAddProfileOpen(false)} onSaved={load} vaultRefs={vault} />
+        <AddVaultRefDialog open={addVaultRefOpen} onClose={() => setAddVaultRefOpen(false)} onSaved={load} />
 
         {linkVaultTarget && <LinkVaultRefDialog profile={linkVaultTarget} vaultRefs={vault} onClose={() => setLinkVaultTarget(null)} onSaved={load} />}
 
