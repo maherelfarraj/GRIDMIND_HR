@@ -7,13 +7,9 @@
  */
 
 export interface DocumentTemplateInput {
-  name: string;
-  /** @nullable */
-  description?: string | null;
+  nameEn: string;
   templateType: string;
-  contentBody: string;
-  variables?: string[];
-  language: string;
+  bodyHtml: string;
+  mergeFieldsJson?: string[];
   isActive?: boolean;
-  createdBy: number;
 }

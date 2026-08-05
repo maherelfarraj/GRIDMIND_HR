@@ -11,12 +11,12 @@ export interface IdCardRecordInput {
   /** @nullable */
   cardNumber?: string | null;
   /** @nullable */
-  issuedDate?: string | null;
+  issuedAt?: string | null;
   /** @nullable */
   expiryDate?: string | null;
   status?: string;
   /** @nullable */
-  issuedBy?: number | null;
+  issuedByUserId?: number | null;
   /** @nullable */
   notes?: string | null;
 }

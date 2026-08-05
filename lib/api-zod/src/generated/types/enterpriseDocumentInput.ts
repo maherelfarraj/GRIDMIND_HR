@@ -7,9 +7,9 @@
  */
 
 export interface EnterpriseDocumentInput {
-  title: string;
+  titleEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   /** @nullable */
   categoryId?: number | null;
   /** @nullable */
@@ -17,16 +17,9 @@ export interface EnterpriseDocumentInput {
   classificationLevel: string;
   status: string;
   scope: string;
-  /** @nullable */
-  storagePath?: string | null;
-  /** @nullable */
-  fileSize?: number | null;
-  /** @nullable */
-  mimeType?: string | null;
   isOnLegalHold?: boolean;
   /** @nullable */
   legalHoldReason?: string | null;
   /** @nullable */
   expiresAt?: string | null;
-  createdBy: number;
 }

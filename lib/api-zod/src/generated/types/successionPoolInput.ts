@@ -7,10 +7,8 @@
  */
 
 export interface SuccessionPoolInput {
-  name: string;
+  nameEn: string;
   /** @nullable */
-  targetPositionId?: number | null;
-  /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   isActive?: boolean;
 }

@@ -10,11 +10,7 @@ export interface AppraisalCompetencyRatingInput {
   appraisalId: number;
   competencyId: number;
   /** @nullable */
-  selfScore?: number | null;
+  score?: number | null;
   /** @nullable */
-  managerScore?: number | null;
-  /** @nullable */
-  finalScore?: number | null;
-  /** @nullable */
-  comments?: string | null;
+  notes?: string | null;
 }

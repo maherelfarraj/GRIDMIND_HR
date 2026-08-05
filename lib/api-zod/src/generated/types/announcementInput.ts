@@ -7,8 +7,8 @@
  */
 
 export interface AnnouncementInput {
-  title: string;
-  content: string;
+  titleEn: string;
+  bodyEn: string;
   /** @nullable */
   category?: string | null;
   status?: string;
@@ -16,5 +16,5 @@ export interface AnnouncementInput {
   publishedAt?: string | null;
   /** @nullable */
   expiresAt?: string | null;
-  createdBy: number;
+  authorUserId: number;
 }

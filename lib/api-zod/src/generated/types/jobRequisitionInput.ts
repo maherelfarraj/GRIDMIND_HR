@@ -7,20 +7,13 @@
  */
 
 export interface JobRequisitionInput {
-  title: string;
+  jobTitleEn: string;
   departmentId: number;
-  /** @nullable */
-  positionId?: number | null;
-  requestedBy: number;
-  numberOfPositions: number;
+  requestedByEmployeeId: number;
+  headcount: number;
   /** @nullable */
   justification?: string | null;
   /** @nullable */
-  requiredBy?: string | null;
+  targetStartDate?: string | null;
   status?: string;
-  /** @nullable */
-  priority?: string | null;
-  budgetApproved?: boolean;
-  /** @nullable */
-  notes?: string | null;
 }

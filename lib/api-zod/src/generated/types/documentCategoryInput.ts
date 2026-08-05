@@ -7,10 +7,8 @@
  */
 
 export interface DocumentCategoryInput {
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
-  /** @nullable */
-  parentCategoryId?: number | null;
+  descriptionEn?: string | null;
   isActive?: boolean;
 }

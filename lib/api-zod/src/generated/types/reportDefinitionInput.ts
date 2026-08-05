@@ -7,16 +7,15 @@
  */
 
 export interface ReportDefinitionInput {
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   reportType: string;
   /** @nullable */
-  queryTemplate?: string | null;
+  querySpecJson?: string | null;
   /** @nullable */
   defaultFiltersJson?: string | null;
-  availableColumns?: string[];
   isSystemReport?: boolean;
   isActive?: boolean;
-  createdBy: number;
+  createdByUserId: number;
 }

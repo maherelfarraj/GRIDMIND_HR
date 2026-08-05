@@ -45,7 +45,7 @@ function NewDisciplinaryDialog({ open, onClose }: { open: boolean; onClose: () =
   const { data: empData } = useListEmployees({ limit: 500 } as any);
   const { mutate, isPending } = useCreateDisciplinaryRecord();
   const [form, setForm] = useState({
-    employeeId: '', incidentDate: '', severity: 'minor', incidentType: '', description: '', actionTaken: '',
+    employeeId: '', incidentDate: '', incidentType: '', description: '', actionTaken: '',
   });
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -58,10 +58,9 @@ function NewDisciplinaryDialog({ open, onClose }: { open: boolean; onClose: () =
       data: {
         employeeId: parseInt(form.employeeId),
         incidentDate: form.incidentDate,
-        severity: form.severity,
-        incidentType: form.incidentType,
-        description: form.description || '',
-        actionTaken: form.actionTaken || null,
+        category: form.incidentType,
+        descriptionEn: form.description || '',
+        actionType: form.actionTaken || null,
         status: 'active',
       },
     }, {
@@ -69,7 +68,7 @@ function NewDisciplinaryDialog({ open, onClose }: { open: boolean; onClose: () =
         qc.invalidateQueries({ queryKey: ['/api/disciplinary-records'] });
         toast({ title: t('Record created', 'تم إنشاء السجل') });
         onClose();
-        setForm({ employeeId: '', incidentDate: '', severity: 'minor', incidentType: '', description: '', actionTaken: '' });
+        setForm({ employeeId: '', incidentDate: '', incidentType: '', description: '', actionTaken: '' });
       },
       onError: (e: any) => toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' }),
     });
@@ -90,15 +89,6 @@ function NewDisciplinaryDialog({ open, onClose }: { open: boolean; onClose: () =
           </Select>
           <Input type="date" value={form.incidentDate} onChange={e => set('incidentDate', e.target.value)} />
           <Input placeholder={t('Incident Type', 'نوع الحادثة')} value={form.incidentType} onChange={e => set('incidentType', e.target.value)} />
-          <Select value={form.severity} onValueChange={v => set('severity', v)}>
-            <SelectTrigger><SelectValue placeholder={t('Severity', 'الخطورة')} /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="minor">{t('Minor', 'خفيف')}</SelectItem>
-              <SelectItem value="moderate">{t('Moderate', 'متوسط')}</SelectItem>
-              <SelectItem value="major">{t('Major', 'خطير')}</SelectItem>
-              <SelectItem value="gross_misconduct">{t('Gross Misconduct', 'سلوك مخالف جسيم')}</SelectItem>
-            </SelectContent>
-          </Select>
           <Textarea placeholder={t('Description', 'الوصف')} value={form.description} onChange={e => set('description', e.target.value)} rows={3} />
           <Textarea placeholder={t('Action Taken', 'الإجراء المتخذ')} value={form.actionTaken} onChange={e => set('actionTaken', e.target.value)} rows={2} />
         </div>
@@ -130,8 +120,8 @@ function PromotionDialog({ open, onClose }: { open: boolean; onClose: () => void
     mutate({
       data: {
         employeeId: parseInt(form.employeeId),
-        recommendedBy: parseInt(form.recommendedBy),
-        justification: form.justification || null,
+        reviewedByEmployeeId: parseInt(form.recommendedBy),
+        justificationEn: form.justification || null,
         effectiveDate: form.effectiveDate || null,
         status: 'pending',
       },

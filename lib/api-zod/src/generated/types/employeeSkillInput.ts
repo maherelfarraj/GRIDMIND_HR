@@ -14,10 +14,6 @@ export interface EmployeeSkillInput {
   /** @nullable */
   proficiencyLevel?: string | null;
   /** @nullable */
-  yearsExperience?: number | null;
-  /** @nullable */
-  lastUsedDate?: string | null;
-  /** @nullable */
   certificationId?: number | null;
   /** @nullable */
   notes?: string | null;

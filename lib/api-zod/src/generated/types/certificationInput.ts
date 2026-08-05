@@ -8,7 +8,7 @@
 
 export interface CertificationInput {
   employeeId: number;
-  certName: string;
+  certificationName: string;
   /** @nullable */
   certType?: string | null;
   /** @nullable */
@@ -18,10 +18,8 @@ export interface CertificationInput {
   /** @nullable */
   expiryDate?: string | null;
   /** @nullable */
-  certNumber?: string | null;
+  certificationNumber?: string | null;
   status?: string;
   /** @nullable */
-  documentUrl?: string | null;
-  /** @nullable */
-  notes?: string | null;
+  verificationUrl?: string | null;
 }

@@ -67,7 +67,7 @@ function NewRequisitionDialog({ open, onClose }: { open: boolean; onClose: () =>
 
   const [form, setForm] = useState({
     title: '', departmentId: '', requestedBy: '', numberOfPositions: '1',
-    justification: '', priority: 'medium',
+    justification: '',
   });
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
@@ -79,21 +79,19 @@ function NewRequisitionDialog({ open, onClose }: { open: boolean; onClose: () =>
     }
     mutate({
       data: {
-        title: form.title,
+        jobTitleEn: form.title,
         departmentId: parseInt(form.departmentId),
-        requestedBy: parseInt(form.requestedBy),
-        numberOfPositions: parseInt(form.numberOfPositions) || 1,
+        requestedByEmployeeId: parseInt(form.requestedBy),
+        headcount: parseInt(form.numberOfPositions) || 1,
         justification: form.justification || null,
-        priority: form.priority,
         status: 'draft',
-        budgetApproved: false,
       },
     }, {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: ['/api/job-requisitions'] });
         toast({ title: t('Requisition created', 'تم إنشاء الطلب') });
         onClose();
-        setForm({ title: '', departmentId: '', requestedBy: '', numberOfPositions: '1', justification: '', priority: 'medium' });
+        setForm({ title: '', departmentId: '', requestedBy: '', numberOfPositions: '1', justification: '' });
       },
       onError: (e: any) => toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' }),
     });
@@ -121,15 +119,6 @@ function NewRequisitionDialog({ open, onClose }: { open: boolean; onClose: () =>
             <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>)}</SelectContent>
           </Select>
           <Input type="number" min="1" placeholder={t('No. of Positions', 'عدد المناصب')} value={form.numberOfPositions} onChange={e => set('numberOfPositions', e.target.value)} />
-          <Select value={form.priority} onValueChange={v => set('priority', v)}>
-            <SelectTrigger><SelectValue placeholder={t('Priority', 'الأولوية')} /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="low">{t('Low', 'منخفض')}</SelectItem>
-              <SelectItem value="medium">{t('Medium', 'متوسط')}</SelectItem>
-              <SelectItem value="high">{t('High', 'عالي')}</SelectItem>
-              <SelectItem value="urgent">{t('Urgent', 'عاجل')}</SelectItem>
-            </SelectContent>
-          </Select>
           <Textarea placeholder={t('Justification', 'المبرر')} value={form.justification} onChange={e => set('justification', e.target.value)} rows={3} />
         </div>
         <DialogFooter>

@@ -7,10 +7,8 @@
  */
 
 export interface GoalCycleInput {
-  name: string;
+  nameEn: string;
   startDate: string;
   endDate: string;
   status?: string;
-  /** @nullable */
-  description?: string | null;
 }

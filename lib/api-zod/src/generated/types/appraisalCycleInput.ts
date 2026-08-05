@@ -7,12 +7,6 @@
  */
 
 export interface AppraisalCycleInput {
-  name: string;
-  startDate: string;
-  endDate: string;
-  reviewPeriodStart: string;
-  reviewPeriodEnd: string;
+  nameEn: string;
   status?: string;
-  /** @nullable */
-  description?: string | null;
 }

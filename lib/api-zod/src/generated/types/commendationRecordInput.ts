@@ -8,11 +8,9 @@
 
 export interface CommendationRecordInput {
   employeeId: number;
-  commendationDate: string;
-  commendationType: string;
-  description: string;
+  awardDate: string;
+  awardType: string;
+  descriptionEn: string;
   /** @nullable */
-  issuedBy?: number | null;
-  /** @nullable */
-  notes?: string | null;
+  nominatedByEmployeeId?: number | null;
 }

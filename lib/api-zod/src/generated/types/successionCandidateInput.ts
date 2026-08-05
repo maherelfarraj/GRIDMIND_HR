@@ -11,10 +11,7 @@ export interface SuccessionCandidateInput {
   employeeId: number;
   readinessLevel: string;
   /** @nullable */
-  assessmentScore?: number | null;
+  talentScore?: number | null;
   /** @nullable */
-  targetDate?: string | null;
-  status?: string;
-  /** @nullable */
-  notes?: string | null;
+  reviewNotes?: string | null;
 }

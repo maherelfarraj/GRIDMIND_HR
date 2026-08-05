@@ -57,12 +57,12 @@ function AddScoreDialog({ open, onClose, applicationId }: { open: boolean; onClo
       id: applicationId,
       data: {
         applicationId,
-        interviewerId: parseInt(form.interviewerId),
-        interviewDate: form.interviewDate,
+        interviewerEmployeeId: parseInt(form.interviewerId),
+        scheduledAt: form.interviewDate,
         overallScore: form.overallScore ? parseFloat(form.overallScore) : null,
         technicalScore: form.technicalScore ? parseFloat(form.technicalScore) : null,
         communicationScore: form.communicationScore ? parseFloat(form.communicationScore) : null,
-        notes: form.notes || null,
+        generalNotes: form.notes || null,
       },
     }, {
       onSuccess: () => {

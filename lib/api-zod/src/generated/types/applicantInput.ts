@@ -7,20 +7,18 @@
  */
 
 export interface ApplicantInput {
-  firstName: string;
-  lastName: string;
+  firstNameEn: string;
+  lastNameEn: string;
   email: string;
   /** @nullable */
   phone?: string | null;
   applicantType: string;
   /** @nullable */
-  currentEmployeeId?: number | null;
+  employeeId?: number | null;
   /** @nullable */
-  resumeUrl?: string | null;
+  resumeDocumentId?: number | null;
   /** @nullable */
   linkedinUrl?: string | null;
   /** @nullable */
   source?: string | null;
-  /** @nullable */
-  notes?: string | null;
 }

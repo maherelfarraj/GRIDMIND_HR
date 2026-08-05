@@ -11,14 +11,14 @@ export interface ProbationRecordInput {
   startDate: string;
   endDate: string;
   /** @nullable */
-  extensionDate?: string | null;
+  extendedEndDate?: string | null;
   status?: string;
   /** @nullable */
-  reviewDate?: string | null;
+  midReviewDate?: string | null;
   /** @nullable */
   outcome?: string | null;
   /** @nullable */
-  reviewedBy?: number | null;
+  midReviewByEmployeeId?: number | null;
   /** @nullable */
-  notes?: string | null;
+  midReviewNotes?: string | null;
 }

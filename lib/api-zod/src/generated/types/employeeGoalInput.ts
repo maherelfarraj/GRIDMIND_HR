@@ -9,9 +9,9 @@
 export interface EmployeeGoalInput {
   cycleId: number;
   employeeId: number;
-  title: string;
+  titleEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   /** @nullable */
   weight?: number | null;
   /** @nullable */

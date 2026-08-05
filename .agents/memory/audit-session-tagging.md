@@ -2,7 +2,7 @@
 name: Privileged-session audit tagging
 description: How audit rows get attributed to break-glass sessions — DB trigger, not app middleware.
 ---
-**Rule:** audit_logs.privileged_session_id is filled by a BEFORE INSERT trigger (migration 006) matching the actor's session window on the row's created_at — never re-implement tagging in app code or add per-write-site tagging.
+**Rule:** the audit table's privileged-session reference is filled by a DB BEFORE-INSERT trigger matching the actor's session window — never re-implement tagging in app code or add per-write-site tagging.
 
 **Why:** there are 250+ direct `insert(auditLogsTable)` call sites with no shared helper; app-level middleware could not cover jobs/transactions, and the trigger keeps tagging atomic with the write.
 

@@ -7230,7 +7230,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/ReportScheduleInput' }
+            schema: { $ref: '#/components/schemas/ReportScheduleUpdate' }
       responses:
         '200':
           description: OK
@@ -12461,18 +12461,14 @@ components:
     JobRequisitionInput:
       type: object
       properties:
-        title: { type: string }
+        jobTitleEn: { type: string }
         departmentId: { type: number }
-        positionId: { type: [ "number", "null" ] }
-        requestedBy: { type: number }
-        numberOfPositions: { type: number }
+        requestedByEmployeeId: { type: number }
+        headcount: { type: number }
         justification: { type: [ "string", "null" ] }
-        requiredBy: { type: [ "string", "null" ] }
+        targetStartDate: { type: [ "string", "null" ] }
         status: { type: string }
-        priority: { type: [ "string", "null" ] }
-        budgetApproved: { type: boolean }
-        notes: { type: [ "string", "null" ] }
-      required: [ title, departmentId, requestedBy, numberOfPositions ]
+      required: [ jobTitleEn, departmentId, requestedByEmployeeId, headcount ]
 
     JobPosting:
       type: object
@@ -12531,18 +12527,13 @@ components:
       type: object
       properties:
         requisitionId: { type: [ "number", "null" ] }
-        title: { type: string }
+        titleEn: { type: string }
         departmentId: { type: number }
-        description: { type: [ "string", "null" ] }
-        requirements: { type: [ "string", "null" ] }
-        location: { type: [ "string", "null" ] }
-        employmentType: { type: [ "string", "null" ] }
-        salaryMin: { type: [ "number", "null" ] }
-        salaryMax: { type: [ "number", "null" ] }
-        currency: { type: [ "string", "null" ] }
+        descriptionEn: { type: [ "string", "null" ] }
+        requirementsEn: { type: [ "string", "null" ] }
         status: { type: string }
         closingDate: { type: [ "string", "null" ] }
-      required: [ title, departmentId ]
+      required: [ titleEn, departmentId ]
 
     Applicant:
       type: object
@@ -12618,17 +12609,16 @@ components:
     ApplicantInput:
       type: object
       properties:
-        firstName: { type: string }
-        lastName: { type: string }
+        firstNameEn: { type: string }
+        lastNameEn: { type: string }
         email: { type: string }
         phone: { type: [ "string", "null" ] }
         applicantType: { type: string }
-        currentEmployeeId: { type: [ "number", "null" ] }
-        resumeUrl: { type: [ "string", "null" ] }
+        employeeId: { type: [ "number", "null" ] }
+        resumeDocumentId: { type: [ "number", "null" ] }
         linkedinUrl: { type: [ "string", "null" ] }
         source: { type: [ "string", "null" ] }
-        notes: { type: [ "string", "null" ] }
-      required: [ firstName, lastName, email, applicantType ]
+      required: [ firstNameEn, lastNameEn, email, applicantType ]
 
     Application:
       type: object
@@ -12699,7 +12689,7 @@ components:
         applicantId: { type: number }
         status: { type: string }
         appliedAt: { type: string }
-        coverLetter: { type: [ "string", "null" ] }
+        coverLetterText: { type: [ "string", "null" ] }
         notes: { type: [ "string", "null" ] }
       required: [ jobPostingId, applicantId ]
 
@@ -12772,15 +12762,15 @@ components:
       type: object
       properties:
         applicationId: { type: number }
-        interviewerId: { type: number }
-        interviewDate: { type: string }
+        interviewerEmployeeId: { type: number }
+        scheduledAt: { type: string }
         overallScore: { type: [ "number", "null" ] }
         technicalScore: { type: [ "number", "null" ] }
         communicationScore: { type: [ "number", "null" ] }
         cultureFitScore: { type: [ "number", "null" ] }
         recommendation: { type: [ "string", "null" ] }
-        notes: { type: [ "string", "null" ] }
-      required: [ applicationId, interviewerId, interviewDate ]
+        generalNotes: { type: [ "string", "null" ] }
+      required: [ applicationId, interviewerEmployeeId, scheduledAt ]
 
     BackgroundCheck:
       type: object
@@ -12849,9 +12839,9 @@ components:
         status: { type: string }
         initiatedAt: { type: [ "string", "null" ] }
         completedAt: { type: [ "string", "null" ] }
-        result: { type: [ "string", "null" ] }
+        resultSummary: { type: [ "string", "null" ] }
         provider: { type: [ "string", "null" ] }
-        notes: { type: [ "string", "null" ] }
+        reviewNotes: { type: [ "string", "null" ] }
       required: [ applicationId, checkType ]
 
     JobOffer:
@@ -12938,14 +12928,13 @@ components:
       type: object
       properties:
         applicationId: { type: number }
-        offerDate: { type: string }
-        expiryDate: { type: [ "string", "null" ] }
-        salary: { type: number }
+        offerValidUntil: { type: [ "string", "null" ] }
+        baseSalary: { type: number }
         currency: { type: string }
-        startDate: { type: [ "string", "null" ] }
+        proposedStartDate: { type: [ "string", "null" ] }
         status: { type: string }
-        notes: { type: [ "string", "null" ] }
-      required: [ applicationId, offerDate, salary, currency ]
+        specialConditions: { type: [ "string", "null" ] }
+      required: [ applicationId, baseSalary, currency ]
 
     EmploymentContract:
       type: object
@@ -13010,13 +12999,11 @@ components:
         contractType: { type: string }
         startDate: { type: string }
         endDate: { type: [ "string", "null" ] }
-        salary: { type: number }
-        currency: { type: string }
         status: { type: string }
-        documentUrl: { type: [ "string", "null" ] }
+        documentId: { type: [ "number", "null" ] }
         signedAt: { type: [ "string", "null" ] }
         notes: { type: [ "string", "null" ] }
-      required: [ employeeId, contractType, startDate, salary, currency ]
+      required: [ employeeId, contractType, startDate ]
 
     # ── Onboarding Schemas ──────────────────────────────────────────
     OnboardingTemplate:
@@ -13053,10 +13040,10 @@ components:
     OnboardingTemplateInput:
       type: object
       properties:
-        name: { type: string }
-        description: { type: [ "string", "null" ] }
+        nameEn: { type: string }
+        descriptionEn: { type: [ "string", "null" ] }
         isActive: { type: boolean }
-      required: [ name ]
+      required: [ nameEn ]
 
     OnboardingTemplateItem:
       type: object
@@ -13124,9 +13111,9 @@ components:
         employeeId: { type: number }
         templateId: { type: [ "number", "null" ] }
         startDate: { type: string }
-        expectedEndDate: { type: [ "string", "null" ] }
+        targetCompletionDate: { type: [ "string", "null" ] }
         status: { type: string }
-        assignedToId: { type: [ "number", "null" ] }
+        hrOwnerUserId: { type: [ "number", "null" ] }
         notes: { type: [ "string", "null" ] }
       required: [ employeeId, startDate ]
 
@@ -13166,14 +13153,13 @@ components:
     OnboardingTaskInput:
       type: object
       properties:
-        taskName: { type: string }
-        taskDescription: { type: [ "string", "null" ] }
-        category: { type: [ "string", "null" ] }
+        titleEn: { type: string }
+        notes: { type: [ "string", "null" ] }
+        taskType: { type: [ "string", "null" ] }
         dueDate: { type: [ "string", "null" ] }
         status: { type: string }
         completedAt: { type: [ "string", "null" ] }
-        notes: { type: [ "string", "null" ] }
-      required: [ taskName ]
+      required: [ titleEn ]
 
     ProbationRecord:
       type: object
@@ -13255,12 +13241,12 @@ components:
         employeeId: { type: number }
         startDate: { type: string }
         endDate: { type: string }
-        extensionDate: { type: [ "string", "null" ] }
+        extendedEndDate: { type: [ "string", "null" ] }
         status: { type: string }
-        reviewDate: { type: [ "string", "null" ] }
+        midReviewDate: { type: [ "string", "null" ] }
         outcome: { type: [ "string", "null" ] }
-        reviewedBy: { type: [ "number", "null" ] }
-        notes: { type: [ "string", "null" ] }
+        midReviewByEmployeeId: { type: [ "number", "null" ] }
+        midReviewNotes: { type: [ "string", "null" ] }
       required: [ employeeId, startDate, endDate ]
 
     EquipmentIssuance:
@@ -13315,15 +13301,15 @@ components:
       properties:
         employeeId: { type: number }
         itemType: { type: string }
-        itemName: { type: string }
+        itemDescription: { type: string }
         serialNumber: { type: [ "string", "null" ] }
-        issuedDate: { type: string }
+        issuedAt: { type: string }
         returnDueDate: { type: [ "string", "null" ] }
         status: { type: string }
         condition: { type: [ "string", "null" ] }
-        issuedBy: { type: [ "number", "null" ] }
+        issuedByUserId: { type: [ "number", "null" ] }
         notes: { type: [ "string", "null" ] }
-      required: [ employeeId, itemType, itemName, issuedDate ]
+      required: [ employeeId, itemType, itemDescription, issuedAt ]
 
     IdCardRecord:
       type: object
@@ -13364,10 +13350,10 @@ components:
       properties:
         employeeId: { type: number }
         cardNumber: { type: [ "string", "null" ] }
-        issuedDate: { type: [ "string", "null" ] }
+        issuedAt: { type: [ "string", "null" ] }
         expiryDate: { type: [ "string", "null" ] }
         status: { type: string }
-        issuedBy: { type: [ "number", "null" ] }
+        issuedByUserId: { type: [ "number", "null" ] }
         notes: { type: [ "string", "null" ] }
       required: [ employeeId ]
 
@@ -13400,10 +13386,10 @@ components:
     CompetencyFrameworkInput:
       type: object
       properties:
-        name: { type: string }
-        description: { type: [ "string", "null" ] }
+        nameEn: { type: string }
+        descriptionEn: { type: [ "string", "null" ] }
         isActive: { type: boolean }
-      required: [ name ]
+      required: [ nameEn ]
 
     Competency:
       type: object
@@ -13453,11 +13439,9 @@ components:
       type: object
       properties:
         frameworkId: { type: number }
-        name: { type: string }
-        description: { type: [ "string", "null" ] }
-        category: { type: [ "string", "null" ] }
-        maxScore: { type: number }
-      required: [ frameworkId, name, maxScore ]
+        nameEn: { type: string }
+        descriptionEn: { type: [ "string", "null" ] }
+      required: [ frameworkId, nameEn ]
 
     GoalCycle:
       type: object
@@ -13491,12 +13475,11 @@ components:
     GoalCycleInput:
       type: object
       properties:
-        name: { type: string }
+        nameEn: { type: string }
         startDate: { type: string }
         endDate: { type: string }
         status: { type: string }
-        description: { type: [ "string", "null" ] }
-      required: [ name, startDate, endDate ]
+      required: [ nameEn, startDate, endDate ]
 
     EmployeeGoal:
       type: object
@@ -13563,14 +13546,14 @@ components:
       properties:
         cycleId: { type: number }
         employeeId: { type: number }
-        title: { type: string }
-        description: { type: [ "string", "null" ] }
+        titleEn: { type: string }
+        descriptionEn: { type: [ "string", "null" ] }
         weight: { type: [ "number", "null" ] }
         targetValue: { type: [ "number", "null" ] }
         actualValue: { type: [ "number", "null" ] }
         status: { type: string }
         dueDate: { type: [ "string", "null" ] }
-      required: [ cycleId, employeeId, title ]
+      required: [ cycleId, employeeId, titleEn ]
 
     AppraisalCycle:
       type: object
@@ -13618,14 +13601,9 @@ components:
     AppraisalCycleInput:
       type: object
       properties:
-        name: { type: string }
-        startDate: { type: string }
-        endDate: { type: string }
-        reviewPeriodStart: { type: string }
-        reviewPeriodEnd: { type: string }
+        nameEn: { type: string }
         status: { type: string }
-        description: { type: [ "string", "null" ] }
-      required: [ name, startDate, endDate, reviewPeriodStart, reviewPeriodEnd ]
+      required: [ nameEn ]
 
     AppraisalRecord:
       type: object
@@ -13732,14 +13710,12 @@ components:
       properties:
         cycleId: { type: number }
         employeeId: { type: number }
-        reviewerId: { type: [ "number", "null" ] }
+        reviewerEmployeeId: { type: [ "number", "null" ] }
         status: { type: string }
-        selfRating: { type: [ "number", "null" ] }
-        managerRating: { type: [ "number", "null" ] }
+        selfOverallScore: { type: [ "number", "null" ] }
+        managerOverallScore: { type: [ "number", "null" ] }
         finalRating: { type: [ "number", "null" ] }
-        selfComments: { type: [ "string", "null" ] }
         managerComments: { type: [ "string", "null" ] }
-        hrComments: { type: [ "string", "null" ] }
       required: [ cycleId, employeeId ]
 
     AppraisalCompetencyRating:
@@ -13764,10 +13740,8 @@ components:
       properties:
         appraisalId: { type: number }
         competencyId: { type: number }
-        selfScore: { type: [ "number", "null" ] }
-        managerScore: { type: [ "number", "null" ] }
-        finalScore: { type: [ "number", "null" ] }
-        comments: { type: [ "string", "null" ] }
+        score: { type: [ "number", "null" ] }
+        notes: { type: [ "string", "null" ] }
       required: [ appraisalId, competencyId ]
 
     CalibrationSession:
@@ -13796,7 +13770,7 @@ components:
         cycleId: { type: number }
         departmentId: { type: [ "number", "null" ] }
         sessionDate: { type: string }
-        facilitatorId: { type: [ "number", "null" ] }
+        facilitatorUserId: { type: [ "number", "null" ] }
         status: { type: string }
         notes: { type: [ "string", "null" ] }
       required: [ cycleId, sessionDate ]
@@ -13869,14 +13843,13 @@ components:
       properties:
         employeeId: { type: number }
         incidentDate: { type: string }
-        incidentType: { type: string }
-        severity: { type: string }
-        description: { type: string }
-        actionTaken: { type: [ "string", "null" ] }
+        category: { type: string }
+        descriptionEn: { type: string }
+        actionType: { type: [ "string", "null" ] }
         status: { type: string }
-        issuedBy: { type: [ "number", "null" ] }
+        issuedByEmployeeId: { type: [ "number", "null" ] }
         notes: { type: [ "string", "null" ] }
-      required: [ employeeId, incidentDate, incidentType, severity, description ]
+      required: [ employeeId, incidentDate, category, descriptionEn ]
 
     CommendationRecord:
       type: object
@@ -13925,12 +13898,11 @@ components:
       type: object
       properties:
         employeeId: { type: number }
-        commendationDate: { type: string }
-        commendationType: { type: string }
-        description: { type: string }
-        issuedBy: { type: [ "number", "null" ] }
-        notes: { type: [ "string", "null" ] }
-      required: [ employeeId, commendationDate, commendationType, description ]
+        awardDate: { type: string }
+        awardType: { type: string }
+        descriptionEn: { type: string }
+        nominatedByEmployeeId: { type: [ "number", "null" ] }
+      required: [ employeeId, awardDate, awardType, descriptionEn ]
 
     PromotionRecommendation:
       type: object
@@ -13983,14 +13955,12 @@ components:
       type: object
       properties:
         employeeId: { type: number }
-        recommendedBy: { type: number }
-        currentPositionId: { type: [ "number", "null" ] }
-        recommendedPositionId: { type: [ "number", "null" ] }
+        reviewedByEmployeeId: { type: [ "number", "null" ] }
         effectiveDate: { type: [ "string", "null" ] }
-        justification: { type: [ "string", "null" ] }
+        justificationEn: { type: [ "string", "null" ] }
         status: { type: string }
         notes: { type: [ "string", "null" ] }
-      required: [ employeeId, recommendedBy ]
+      required: [ employeeId ]
 
     # ── Training Schemas ──────────────────────────────────────────
     TrainingProgram:
@@ -14017,11 +13987,11 @@ components:
     TrainingProgramInput:
       type: object
       properties:
-        name: { type: string }
-        description: { type: [ "string", "null" ] }
+        nameEn: { type: string }
+        descriptionEn: { type: [ "string", "null" ] }
         category: { type: [ "string", "null" ] }
         isActive: { type: boolean }
-      required: [ name ]
+      required: [ nameEn ]
 
     TrainingCourse:
       type: object
@@ -14071,13 +14041,13 @@ components:
       type: object
       properties:
         programId: { type: [ "number", "null" ] }
-        name: { type: string }
-        description: { type: [ "string", "null" ] }
-        category: { type: [ "string", "null" ] }
+        nameEn: { type: string }
+        descriptionEn: { type: [ "string", "null" ] }
+        deliveryMode: { type: [ "string", "null" ] }
         durationHours: { type: [ "number", "null" ] }
         maxParticipants: { type: [ "number", "null" ] }
         isActive: { type: boolean }
-      required: [ name ]
+      required: [ nameEn ]
 
     TrainingSession:
       type: object
@@ -14128,14 +14098,14 @@ components:
       type: object
       properties:
         courseId: { type: number }
-        sessionName: { type: string }
+        sessionCode: { type: string }
         startDate: { type: string }
         endDate: { type: string }
         location: { type: [ "string", "null" ] }
-        trainer: { type: [ "string", "null" ] }
+        trainerName: { type: [ "string", "null" ] }
         status: { type: string }
         notes: { type: [ "string", "null" ] }
-      required: [ courseId, sessionName, startDate, endDate ]
+      required: [ courseId, sessionCode, startDate, endDate ]
 
     CourseNomination:
       type: object
@@ -14171,9 +14141,8 @@ components:
       properties:
         sessionId: { type: number }
         employeeId: { type: number }
-        nominatedBy: { type: [ "number", "null" ] }
+        nominatedByEmployeeId: { type: [ "number", "null" ] }
         status: { type: string }
-        nominatedAt: { type: string }
         notes: { type: [ "string", "null" ] }
       required: [ sessionId, employeeId ]
 
@@ -14225,11 +14194,9 @@ components:
       properties:
         sessionId: { type: number }
         employeeId: { type: number }
-        attendanceDate: { type: string }
-        status: { type: string }
-        hoursAttended: { type: [ "number", "null" ] }
+        attendanceStatus: { type: string }
         notes: { type: [ "string", "null" ] }
-      required: [ sessionId, employeeId, attendanceDate ]
+      required: [ sessionId, employeeId ]
 
     Certification:
       type: object
@@ -14273,16 +14240,15 @@ components:
       type: object
       properties:
         employeeId: { type: number }
-        certName: { type: string }
+        certificationName: { type: string }
         certType: { type: [ "string", "null" ] }
         issuingBody: { type: [ "string", "null" ] }
         issuedDate: { type: [ "string", "null" ] }
         expiryDate: { type: [ "string", "null" ] }
-        certNumber: { type: [ "string", "null" ] }
+        certificationNumber: { type: [ "string", "null" ] }
         status: { type: string }
-        documentUrl: { type: [ "string", "null" ] }
-        notes: { type: [ "string", "null" ] }
-      required: [ employeeId, certName ]
+        verificationUrl: { type: [ "string", "null" ] }
+      required: [ employeeId, certificationName ]
 
     EmployeeSkill:
       type: object
@@ -14312,8 +14278,6 @@ components:
         skillName: { type: string }
         skillCategory: { type: [ "string", "null" ] }
         proficiencyLevel: { type: [ "string", "null" ] }
-        yearsExperience: { type: [ "number", "null" ] }
-        lastUsedDate: { type: [ "string", "null" ] }
         certificationId: { type: [ "number", "null" ] }
         notes: { type: [ "string", "null" ] }
       required: [ employeeId, skillName ]
@@ -14359,11 +14323,10 @@ components:
     SuccessionPoolInput:
       type: object
       properties:
-        name: { type: string }
-        targetPositionId: { type: [ "number", "null" ] }
-        description: { type: [ "string", "null" ] }
+        nameEn: { type: string }
+        descriptionEn: { type: [ "string", "null" ] }
         isActive: { type: boolean }
-      required: [ name ]
+      required: [ nameEn ]
 
     SuccessionCandidate:
       type: object
@@ -14412,10 +14375,8 @@ components:
         poolId: { type: number }
         employeeId: { type: number }
         readinessLevel: { type: string }
-        assessmentScore: { type: [ "number", "null" ] }
-        targetDate: { type: [ "string", "null" ] }
-        status: { type: string }
-        notes: { type: [ "string", "null" ] }
+        talentScore: { type: [ "number", "null" ] }
+        reviewNotes: { type: [ "string", "null" ] }
       required: [ poolId, employeeId, readinessLevel ]
 
     DevelopmentPlan:
@@ -14464,12 +14425,11 @@ components:
       type: object
       properties:
         employeeId: { type: number }
-        title: { type: string }
-        description: { type: [ "string", "null" ] }
+        nameEn: { type: string }
         startDate: { type: string }
         endDate: { type: [ "string", "null" ] }
         status: { type: string }
-      required: [ employeeId, title, startDate ]
+      required: [ employeeId, nameEn, startDate ]
 
     DevelopmentActivity:
       type: object
@@ -14504,14 +14464,13 @@ components:
       type: object
       properties:
         planId: { type: number }
-        activityName: { type: string }
+        titleEn: { type: string }
         activityType: { type: [ "string", "null" ] }
-        description: { type: [ "string", "null" ] }
         dueDate: { type: [ "string", "null" ] }
         status: { type: string }
         completedAt: { type: [ "string", "null" ] }
-        notes: { type: [ "string", "null" ] }
-      required: [ planId, activityName ]
+        completionNotes: { type: [ "string", "null" ] }
+      required: [ planId, titleEn ]
 
     # ── Self-Service Schemas ──────────────────────────────────────────
     EmployeeRequest:
@@ -14575,13 +14534,12 @@ components:
       properties:
         employeeId: { type: number }
         requestType: { type: string }
-        subject: { type: string }
-        description: { type: [ "string", "null" ] }
+        titleEn: { type: string }
+        descriptionEn: { type: [ "string", "null" ] }
         status: { type: string }
-        priority: { type: [ "string", "null" ] }
-        assignedToId: { type: [ "number", "null" ] }
+        urgency: { type: [ "string", "null" ] }
         notes: { type: [ "string", "null" ] }
-      required: [ employeeId, requestType, subject ]
+      required: [ employeeId, requestType, titleEn ]
 
     LoginInput:
       type: object
@@ -14637,14 +14595,14 @@ components:
     AnnouncementInput:
       type: object
       properties:
-        title: { type: string }
-        content: { type: string }
+        titleEn: { type: string }
+        bodyEn: { type: string }
         category: { type: [ "string", "null" ] }
         status: { type: string }
         publishedAt: { type: [ "string", "null" ] }
         expiresAt: { type: [ "string", "null" ] }
-        createdBy: { type: number }
-      required: [ title, content, createdBy ]
+        authorUserId: { type: number }
+      required: [ titleEn, bodyEn, authorUserId ]
 
     ApprovalDelegation:
       type: object
@@ -14678,9 +14636,6 @@ components:
         delegateEmployeeId: { type: number }
         startDate: { type: string }
         endDate: { type: string }
-        approvalTypes:
-          type: array
-          items: { type: string }
         status: { type: string }
         reason: { type: [ "string", "null" ] }
       required: [ delegatorEmployeeId, delegateEmployeeId, startDate, endDate ]
@@ -14739,11 +14694,10 @@ components:
     DocumentCategoryInput:
       type: object
       properties:
-        name: { type: string }
-        description: { type: [ "string", "null" ] }
-        parentCategoryId: { type: [ "number", "null" ] }
+        nameEn: { type: string }
+        descriptionEn: { type: [ "string", "null" ] }
         isActive: { type: boolean }
-      required: [ name ]
+      required: [ nameEn ]
 
     EnterpriseDocument:
       type: object
@@ -14832,21 +14786,17 @@ components:
     EnterpriseDocumentInput:
       type: object
       properties:
-        title: { type: string }
-        description: { type: [ "string", "null" ] }
+        titleEn: { type: string }
+        descriptionEn: { type: [ "string", "null" ] }
         categoryId: { type: [ "number", "null" ] }
         employeeId: { type: [ "number", "null" ] }
         classificationLevel: { type: string }
         status: { type: string }
         scope: { type: string }
-        storagePath: { type: [ "string", "null" ] }
-        fileSize: { type: [ "number", "null" ] }
-        mimeType: { type: [ "string", "null" ] }
         isOnLegalHold: { type: boolean }
         legalHoldReason: { type: [ "string", "null" ] }
         expiresAt: { type: [ "string", "null" ] }
-        createdBy: { type: number }
-      required: [ title, classificationLevel, status, scope, createdBy ]
+      required: [ titleEn, classificationLevel, status, scope ]
 
     DocumentVersion:
       type: object
@@ -14884,8 +14834,8 @@ components:
         fileSize: { type: [ "number", "null" ] }
         mimeType: { type: [ "string", "null" ] }
         changeNotes: { type: [ "string", "null" ] }
-        uploadedBy: { type: number }
-      required: [ documentId, storagePath, uploadedBy ]
+        uploadedByUserId: { type: number }
+      required: [ documentId, storagePath, uploadedByUserId ]
 
     DocumentAccessLog:
       type: object
@@ -14997,17 +14947,14 @@ components:
     DocumentTemplateInput:
       type: object
       properties:
-        name: { type: string }
-        description: { type: [ "string", "null" ] }
+        nameEn: { type: string }
         templateType: { type: string }
-        contentBody: { type: string }
-        variables:
+        bodyHtml: { type: string }
+        mergeFieldsJson:
           type: array
           items: { type: string }
-        language: { type: string }
         isActive: { type: boolean }
-        createdBy: { type: number }
-      required: [ name, templateType, contentBody, language, createdBy ]
+      required: [ nameEn, templateType, bodyHtml ]
 
     # ── REPORTING SCHEMAS ─────────────────────────────────────────────────────
 
@@ -15058,18 +15005,15 @@ components:
     ReportDefinitionInput:
       type: object
       properties:
-        name: { type: string }
-        description: { type: [ "string", "null" ] }
+        nameEn: { type: string }
+        descriptionEn: { type: [ "string", "null" ] }
         reportType: { type: string }
-        queryTemplate: { type: [ "string", "null" ] }
+        querySpecJson: { type: [ "string", "null" ] }
         defaultFiltersJson: { type: [ "string", "null" ] }
-        availableColumns:
-          type: array
-          items: { type: string }
         isSystemReport: { type: boolean }
         isActive: { type: boolean }
-        createdBy: { type: number }
-      required: [ name, reportType, createdBy ]
+        createdByUserId: { type: number }
+      required: [ nameEn, reportType, createdByUserId ]
 
     SavedReportFilter:
       type: object
@@ -15092,10 +15036,10 @@ components:
       properties:
         reportDefinitionId: { type: number }
         userId: { type: number }
-        filterName: { type: string }
+        nameEn: { type: string }
         filtersJson: { type: string }
         isDefault: { type: boolean }
-      required: [ reportDefinitionId, userId, filterName, filtersJson ]
+      required: [ reportDefinitionId, userId, nameEn, filtersJson ]
 
     ReportSchedule:
       type: object
@@ -15150,16 +15094,39 @@ components:
       type: object
       properties:
         reportDefinitionId: { type: number }
-        scheduleName: { type: string }
-        cronExpression: { type: string }
+        savedFilterId: { type: [ "number", "null" ] }
+        nameEn: { type: string }
+        frequency: { type: string }
+        dayOfMonth: { type: [ "number", "null" ] }
+        dayOfWeek: { type: [ "number", "null" ] }
+        timeOfDay: { type: string }
         exportFormat: { type: string }
-        recipients:
+        language: { type: string }
+        outputPath: { type: [ "string", "null" ] }
+        notifyUserIdsJson:
           type: array
           items: { type: string }
-        filtersJson: { type: [ "string", "null" ] }
         isActive: { type: boolean }
-        createdBy: { type: number }
-      required: [ reportDefinitionId, scheduleName, cronExpression, exportFormat, createdBy ]
+        createdByUserId: { type: [ "number", "null" ] }
+      required: [ reportDefinitionId, nameEn, exportFormat ]
+
+    ReportScheduleUpdate:
+      type: object
+      properties:
+        reportDefinitionId: { type: number }
+        savedFilterId: { type: [ "number", "null" ] }
+        nameEn: { type: string }
+        frequency: { type: string }
+        dayOfMonth: { type: [ "number", "null" ] }
+        dayOfWeek: { type: [ "number", "null" ] }
+        timeOfDay: { type: string }
+        exportFormat: { type: string }
+        language: { type: string }
+        outputPath: { type: [ "string", "null" ] }
+        notifyUserIdsJson:
+          type: array
+          items: { type: string }
+        isActive: { type: boolean }
 
     ReportOutput:
       type: object
@@ -15470,15 +15437,14 @@ components:
       type: object
       properties:
         packageName: { type: string }
-        version: { type: string }
-        description: { type: [ "string", "null" ] }
+        packageVersion: { type: string }
+        releaseNotes: { type: [ "string", "null" ] }
         storagePath: { type: string }
         checksum: { type: [ "string", "null" ] }
-        fileSize: { type: [ "number", "null" ] }
+        fileSizeBytes: { type: [ "number", "null" ] }
         status: { type: string }
-        isVerified: { type: boolean }
-        releaseNotes: { type: [ "string", "null" ] }
-      required: [ packageName, version, storagePath ]
+        signatureVerified: { type: boolean }
+      required: [ packageName, packageVersion, storagePath ]
 
     DeploymentEvent:
       type: object

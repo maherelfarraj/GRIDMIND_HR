@@ -8,13 +8,13 @@
 
 export interface TrainingSessionInput {
   courseId: number;
-  sessionName: string;
+  sessionCode: string;
   startDate: string;
   endDate: string;
   /** @nullable */
   location?: string | null;
   /** @nullable */
-  trainer?: string | null;
+  trainerName?: string | null;
   status?: string;
   /** @nullable */
   notes?: string | null;

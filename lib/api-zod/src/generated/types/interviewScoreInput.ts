@@ -8,8 +8,8 @@
 
 export interface InterviewScoreInput {
   applicationId: number;
-  interviewerId: number;
-  interviewDate: string;
+  interviewerEmployeeId: number;
+  scheduledAt: string;
   /** @nullable */
   overallScore?: number | null;
   /** @nullable */
@@ -21,5 +21,5 @@ export interface InterviewScoreInput {
   /** @nullable */
   recommendation?: string | null;
   /** @nullable */
-  notes?: string | null;
+  generalNotes?: string | null;
 }

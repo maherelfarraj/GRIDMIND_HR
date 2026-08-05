@@ -9,11 +9,11 @@
 export interface TrainingCourseInput {
   /** @nullable */
   programId?: number | null;
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   /** @nullable */
-  category?: string | null;
+  deliveryMode?: string | null;
   /** @nullable */
   durationHours?: number | null;
   /** @nullable */

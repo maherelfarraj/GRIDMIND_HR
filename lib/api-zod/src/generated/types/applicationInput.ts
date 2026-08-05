@@ -12,7 +12,7 @@ export interface ApplicationInput {
   status?: string;
   appliedAt?: string;
   /** @nullable */
-  coverLetter?: string | null;
+  coverLetterText?: string | null;
   /** @nullable */
   notes?: string | null;
 }

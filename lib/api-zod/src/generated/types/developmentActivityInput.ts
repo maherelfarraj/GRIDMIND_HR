@@ -8,16 +8,14 @@
 
 export interface DevelopmentActivityInput {
   planId: number;
-  activityName: string;
+  titleEn: string;
   /** @nullable */
   activityType?: string | null;
-  /** @nullable */
-  description?: string | null;
   /** @nullable */
   dueDate?: string | null;
   status?: string;
   /** @nullable */
   completedAt?: string | null;
   /** @nullable */
-  notes?: string | null;
+  completionNotes?: string | null;
 }

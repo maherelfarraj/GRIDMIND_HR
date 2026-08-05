@@ -8,14 +8,13 @@
 
 export interface JobOfferInput {
   applicationId: number;
-  offerDate: string;
   /** @nullable */
-  expiryDate?: string | null;
-  salary: number;
+  offerValidUntil?: string | null;
+  baseSalary: number;
   currency: string;
   /** @nullable */
-  startDate?: string | null;
+  proposedStartDate?: string | null;
   status?: string;
   /** @nullable */
-  notes?: string | null;
+  specialConditions?: string | null;
 }

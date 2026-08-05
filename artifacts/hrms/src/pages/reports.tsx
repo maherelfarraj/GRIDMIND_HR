@@ -292,7 +292,7 @@ function ScheduledTab() {
 
   async function handleToggleActive(id: number, current: boolean) {
     try {
-      await updateSched.mutateAsync({ id, data: { isActive: !current } as any });
+      await updateSched.mutateAsync({ id, data: { isActive: !current } });
       qc.invalidateQueries({ queryKey: ['/api/report-schedules'] });
       toast({ title: t('Updated', 'تم التحديث') });
     } catch (e: any) {
@@ -406,12 +406,12 @@ function NewScheduleDialog({ open, onClose, definitions }: { open: boolean; onCl
           nameEn: form.nameEn,
           frequency: form.frequency,
           dayOfMonth: form.dayOfMonth ? Number(form.dayOfMonth) : null,
-          dayOfWeek: form.dayOfWeek || null,
+          dayOfWeek: form.dayOfWeek ? Number(form.dayOfWeek) : null,
           timeOfDay: form.timeOfDay,
           exportFormat: form.exportFormat,
           language: form.language,
           isActive: true,
-        } as any,
+        },
       });
       qc.invalidateQueries({ queryKey: ['/api/report-schedules'] });
       toast({ title: t('Schedule created', 'تم إنشاء الجدولة') });
@@ -474,8 +474,12 @@ function NewScheduleDialog({ open, onClose, definitions }: { open: boolean; onCl
                 <SelectTrigger><SelectValue placeholder={t('Any', 'أي')} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">{t('Any', 'أي')}</SelectItem>
-                  {['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(d => (
-                    <SelectItem key={d} value={d} className="capitalize">{d}</SelectItem>
+                  {[
+                    { v: '0', l: 'Sunday' }, { v: '1', l: 'Monday' }, { v: '2', l: 'Tuesday' },
+                    { v: '3', l: 'Wednesday' }, { v: '4', l: 'Thursday' }, { v: '5', l: 'Friday' },
+                    { v: '6', l: 'Saturday' },
+                  ].map(d => (
+                    <SelectItem key={d.v} value={d.v}>{d.l}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

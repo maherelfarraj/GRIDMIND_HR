@@ -9,14 +9,12 @@
 export interface EmployeeRequestInput {
   employeeId: number;
   requestType: string;
-  subject: string;
+  titleEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   status?: string;
   /** @nullable */
-  priority?: string | null;
-  /** @nullable */
-  assignedToId?: number | null;
+  urgency?: string | null;
   /** @nullable */
   notes?: string | null;
 }

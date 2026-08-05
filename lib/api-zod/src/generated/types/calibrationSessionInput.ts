@@ -12,7 +12,7 @@ export interface CalibrationSessionInput {
   departmentId?: number | null;
   sessionDate: string;
   /** @nullable */
-  facilitatorId?: number | null;
+  facilitatorUserId?: number | null;
   status?: string;
   /** @nullable */
   notes?: string | null;

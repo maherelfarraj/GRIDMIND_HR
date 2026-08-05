@@ -54,9 +54,9 @@ function NewRequestDialog({ open, onClose, employeeId }: { open: boolean; onClos
       data: {
         employeeId,
         requestType: form.requestType,
-        subject: form.subject,
-        description: form.description || null,
-        priority: form.priority,
+        titleEn: form.subject,
+        descriptionEn: form.description || null,
+        urgency: form.priority,
         status: 'open',
       },
     }, {

@@ -10,18 +10,14 @@ export interface AppraisalRecordInput {
   cycleId: number;
   employeeId: number;
   /** @nullable */
-  reviewerId?: number | null;
+  reviewerEmployeeId?: number | null;
   status?: string;
   /** @nullable */
-  selfRating?: number | null;
+  selfOverallScore?: number | null;
   /** @nullable */
-  managerRating?: number | null;
+  managerOverallScore?: number | null;
   /** @nullable */
   finalRating?: number | null;
   /** @nullable */
-  selfComments?: string | null;
-  /** @nullable */
   managerComments?: string | null;
-  /** @nullable */
-  hrComments?: string | null;
 }

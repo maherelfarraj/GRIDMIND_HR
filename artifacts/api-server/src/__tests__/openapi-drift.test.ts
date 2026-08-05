@@ -15,6 +15,13 @@
  * overrides and per-schema allowlists below handle computed/envelope
  * fields and intentionally unexposed columns.
  *
+ * Request-body schemas are covered too: for every matched table, the
+ * `<SchemaName>Input` and `<SchemaName>Update` component schemas (when
+ * they exist) must only declare properties that are real columns — most
+ * route handlers insert/update req.body wholesale and drizzle silently
+ * discards unknown keys, so a stale Input field means what the user typed
+ * is silently lost.
+ *
  * Static only: reads the YAML and the drizzle table definitions; touches
  * neither the DB nor the server.
  */
@@ -255,6 +262,25 @@ const ALLOWED_MISSING_COLUMNS: Record<string, string[]> = {
   GatewayRegistration: ["secretHash"], // secret material — never serialized
 };
 
+/**
+ * Fields a request-body Input/Update schema may carry that are NOT drizzle
+ * columns — fields the route handler explicitly reads and maps to something
+ * else (another column, a related table, or a computed value). Every entry
+ * must cite the handler that performs the mapping. Key: Input schema name.
+ */
+const ALLOWED_EXTRA_INPUT_PROPERTIES: Record<string, string[]> = {
+  // roles.ts explicitly parses `permissions` and serializes it to roles.permissionsJson
+  RoleInput: ["permissions"],
+  RoleUpdate: ["permissions"],
+  // dualAuth.ts explicitly reads `ttlMinutes` and computes expiresAt from it
+  DualAuthRequestInput: ["ttlMinutes"],
+  // breakGlass.ts explicitly destructures `ttlMinutes` and computes expiresAt from it
+  BreakGlassRequest: ["ttlMinutes"],
+};
+
+/** Pre-existing Input-schema drift (shrink target — keep at empty). */
+const KNOWN_EXTRA_INPUT_PROPERTIES: Record<string, string[]> = {};
+
 // Pre-existing drift captured as a shrink-only baseline: the test fails on
 // any NEW drift, while known discrepancies are burned down over time.
 import {
@@ -262,8 +288,41 @@ import {
   KNOWN_MISSING_PROPERTIES,
 } from "./openapi-drift-baseline";
 
-// ─── Convention mapping ─────────────────────────────────────────────────────
-
+/**
+ * Request-body schemas whose table cannot be derived by stripping the
+ * Input/Update/Patch suffix and matching a table's schema name.
+ * Map: request schema name → SQL table name whose columns it must match,
+ * or `null` to opt out — ONLY for action/command payloads that the handler
+ * reads field-by-field (never inserted wholesale into a row). Every entry
+ * must say why.
+ */
+const REQUEST_SCHEMA_TABLES: Record<string, string | null> = {
+  // Base name differs from the response schema name mapped to the table:
+  LeaveRequestInput: "leave_requests", // response schema is LeaveRequestDetail
+  RosterInput: "rosters", // response schema is RosterEntry
+  ChainOfCommandInput: "chain_of_command", // response schema is ChainOfCommandEntry
+  PayrollRunPatch: "payroll_runs", // response schema is PayrollRunDetail
+  MobilizationStatusInput: "mobilization_statuses", // response schema is MobilizationStatus (override table)
+  ApplicationInput: "applications",
+  BreakGlassRequest: "break_glass_access", // handler inserts the body's fields as a new access row
+  // Action/command payloads — the handler reads each field explicitly and
+  // never inserts the body wholesale into a row, so nothing can be dropped
+  // silently (unknown fields are simply not part of the command):
+  LoginInput: null, // auth.ts login: reads username/password explicitly
+  ChangePasswordInput: null, // auth.ts: zod-parsed (ChangeMyPasswordBody), fields read explicitly
+  SetPasswordInput: null, // users.ts: zod-parsed (SetUserPasswordBody)
+  AlertAcknowledgement: null, // alerts.ts: zod-parsed (AcknowledgeAlertBody)
+  ApprovalDecision: null, // approvals.ts decision endpoint: reads decision/comment explicitly
+  DualAuthDecision: null, // dualAuth.ts: reads decision fields explicitly
+  LeaveDecisionInput: null, // leaveRequests.ts approve/reject: reads decision fields explicitly
+  RevokeLeaveInput: null, // leaveRequests.ts revoke: destructures reason/newEndDate/revokedByEmployeeId
+  ReturnToDutyInput: null, // leaveRequests.ts return-to-duty: reads fields explicitly
+  AnnualLeaveResetInput: null, // leaveBalances.ts annual reset command: reads fields explicitly
+  ProvisionLeaveYearInput: null, // leaveBalances.ts provision command: reads fields explicitly
+  PayrollApprovalInput: null, // payroll.ts approve step: reads decision fields explicitly
+  PrivilegedSessionReview: null, // privilegedSessions.ts review: reads fields explicitly
+  LicenseActivationInput: null, // license.ts activate: reads the activation key explicitly
+};
 function singularize(word: string): string {
   if (/(ss|us)$/.test(word)) return word; // status, access, ...
   if (/ies$/.test(word)) return word.replace(/ies$/, "y");
@@ -330,6 +389,38 @@ function collectProperties(schema: unknown, depth = 0): string[] {
   return [...new Set(props)];
 }
 
+/**
+ * Every component schema name referenced (directly or via items/allOf/…)
+ * by any operation's requestBody. Exported for the self-tests below.
+ */
+export function collectRequestBodySchemaNames(specDoc: unknown): string[] {
+  const names = new Set<string>();
+  const walk = (s: unknown, depth = 0): void => {
+    if (!s || typeof s !== "object" || depth > 6) return;
+    const o = s as Record<string, unknown> & { $ref?: string };
+    if (o.$ref) {
+      names.add(o.$ref.replace("#/components/schemas/", ""));
+      return;
+    }
+    for (const key of ["items", "allOf", "oneOf", "anyOf"]) {
+      const v = o[key];
+      if (v) (Array.isArray(v) ? v : [v]).forEach((x) => walk(x, depth + 1));
+    }
+    if (o.properties && typeof o.properties === "object") {
+      Object.values(o.properties).forEach((x) => walk(x, depth + 1));
+    }
+  };
+  const paths = (specDoc as { paths?: Record<string, Record<string, unknown>> }).paths ?? {};
+  for (const pathItem of Object.values(paths)) {
+    for (const op of Object.values(pathItem)) {
+      const body = (op as { requestBody?: { content?: Record<string, { schema?: unknown }> } })
+        ?.requestBody;
+      const schema = body?.content?.["application/json"]?.schema;
+      if (schema) walk(schema);
+    }
+  }
+  return [...names].sort();
+}
 const matched: MatchedPair[] = [];
 const unmatchedTables: string[] = [];
 
@@ -367,6 +458,26 @@ export function computeDrift(
     extra: m.properties.filter((p) => !cols.has(p) && !allowedExtra.has(p)),
     missing: m.tsKeys.filter((k) => !props.has(k) && !allowedMissing.has(k)),
   };
+}
+
+/**
+ * Stale fields in one request-body Input/Update schema: properties that are
+ * neither real columns nor explicitly allowlisted handler-mapped fields.
+ * Exported for the self-tests below.
+ */
+export function computeInputDrift(
+  inputName: string,
+  inputProperties: string[],
+  tsKeys: string[],
+  curatedExtra: Record<string, string[]>,
+  baselineExtra: Record<string, string[]>,
+): string[] {
+  const cols = new Set(tsKeys);
+  const allowed = new Set([
+    ...(curatedExtra[inputName] ?? []),
+    ...(baselineExtra[inputName] ?? []),
+  ]);
+  return inputProperties.filter((p) => !cols.has(p) && !allowed.has(p));
 }
 
 /**
@@ -537,6 +648,112 @@ describe("OpenAPI ↔ drizzle schema drift", () => {
     ).toEqual([]);
   });
 
+  it("every request-body schema referenced by an operation is drift-checked against its table (or deliberately opted out)", () => {
+    // A stale field in a request-body schema means the client sends data the
+    // server's wholesale insert/update silently drops — the user's input is
+    // lost without any error. Coverage is derived from the operations
+    // themselves: every schema referenced by any requestBody must resolve to
+    // a table (by convention, or via REQUEST_SCHEMA_TABLES), be explicitly
+    // opted out as an action payload, or the test fails.
+    const requestSchemaNames = collectRequestBodySchemaNames(spec);
+    // Guard against the check passing vacuously if the walker breaks.
+    expect(
+      requestSchemaNames.length,
+      "expected to find a meaningful number of request-body schemas",
+    ).toBeGreaterThan(80);
+
+    const tableBySchemaName = new Map(matched.map((m) => [m.schemaName, m]));
+    const tableBySqlName = new Map(tables.map((t) => [t.sqlName, t]));
+
+    const unmapped: string[] = [];
+    const problems: string[] = [];
+    let checked = 0;
+    for (const name of requestSchemaNames) {
+      let tsKeys: string[] | undefined;
+      let tableName: string | undefined;
+      if (name in REQUEST_SCHEMA_TABLES) {
+        const sqlName = REQUEST_SCHEMA_TABLES[name];
+        if (sqlName === null) continue; // documented action payload — opted out
+        const t = tableBySqlName.get(sqlName);
+        if (!t) {
+          unmapped.push(`${name} (REQUEST_SCHEMA_TABLES points at unknown table "${sqlName}")`);
+          continue;
+        }
+        tsKeys = t.tsKeys;
+        tableName = t.sqlName;
+      } else {
+        const base = name.replace(/(Input|Update|Patch)$/, "");
+        const m = tableBySchemaName.get(base);
+        if (!m) {
+          unmapped.push(name);
+          continue;
+        }
+        tsKeys = m.tsKeys;
+        tableName = m.sqlName;
+      }
+      checked++;
+      const props = collectProperties(openapiSchemas[name]);
+      const extras = computeInputDrift(
+        name,
+        props,
+        tsKeys,
+        ALLOWED_EXTRA_INPUT_PROPERTIES,
+        KNOWN_EXTRA_INPUT_PROPERTIES,
+      );
+      if (extras.length) {
+        problems.push(`${name} (table ${tableName}): ${extras.join(", ")}`);
+      }
+    }
+
+    expect(checked, "expected to drift-check a meaningful number of request-body schemas").toBeGreaterThan(80);
+    expect(
+      unmapped,
+      `Request-body schemas that could not be mapped to a drizzle table — map them in REQUEST_SCHEMA_TABLES (or opt out action payloads with null + a comment saying which handler reads them field-by-field):\n  - ${unmapped.join("\n  - ")}`,
+    ).toEqual([]);
+    expect(
+      problems,
+      `Request-body schemas carry fields with no corresponding drizzle column — the server would silently drop what the user typed. Rename the field to the real column in lib/api-spec/openapi.yaml (and update the web form), or if the handler explicitly maps the field, add it to ALLOWED_EXTRA_INPUT_PROPERTIES in this test with a comment citing the handler:\n  - ${problems.join("\n  - ")}`,
+    ).toEqual([]);
+  });
+
+  it("non-conventional request schemas are validated via REQUEST_SCHEMA_TABLES, not skipped (self-test)", () => {
+    // LeaveRequestInput's base name ("LeaveRequest") matches no response
+    // schema (the table maps to "LeaveRequestDetail"), so only the explicit
+    // REQUEST_SCHEMA_TABLES mapping covers it. Prove the mapping resolves to
+    // real columns and that a stale field on such a schema would be flagged.
+    const t = tables.find((x) => x.sqlName === REQUEST_SCHEMA_TABLES["LeaveRequestInput"]);
+    expect(t, "REQUEST_SCHEMA_TABLES.LeaveRequestInput must point at a real table").toBeTruthy();
+    const props = collectProperties(openapiSchemas["LeaveRequestInput"]);
+    expect(props.length).toBeGreaterThan(0);
+    // A hypothetical stale field on this non-conventionally-named schema is caught:
+    expect(
+      computeInputDrift("LeaveRequestInput", [...props, "staleLegacyField"], t!.tsKeys, ALLOWED_EXTRA_INPUT_PROPERTIES, KNOWN_EXTRA_INPUT_PROPERTIES),
+    ).toContain("staleLegacyField");
+    // And every action-payload opt-out must be an explicit, commented null — never an unknown table.
+    for (const [name, sqlName] of Object.entries(REQUEST_SCHEMA_TABLES)) {
+      if (sqlName !== null) {
+        expect(tables.some((x) => x.sqlName === sqlName), `${name} → ${sqlName} must be a real table`).toBe(true);
+      }
+    }
+  });
+
+  it("computeInputDrift flags a stale Input field but honors mapped exceptions (self-test)", () => {
+    // Stale field with no column and no allowlist entry → flagged.
+    expect(
+      computeInputDrift("SelfTestInput", ["realCol", "staleField"], ["realCol"], {}, {}),
+    ).toEqual(["staleField"]);
+    // Handler-mapped field allowlisted → not flagged.
+    expect(
+      computeInputDrift(
+        "SelfTestInput",
+        ["realCol", "mappedField"],
+        ["realCol"],
+        { SelfTestInput: ["mappedField"] },
+        {},
+      ),
+    ).toEqual([]);
+  });
+
   it("computeDrift flags a column missing from the spec (self-test)", () => {
     const m = {
       schemaName: "SelfTestSchema",
@@ -549,8 +766,8 @@ describe("OpenAPI ↔ drizzle schema drift", () => {
   });
 
   it("regeneration cannot absorb new drift into the baseline (shrink-only)", () => {
-    const previous = { Employee: ["stillDrifted"] };
-    const current = { Employee: ["stillDrifted", "brandNewDrift"] };
+    const previous = { Employee: ["fixedDrift", "stillDrifted"] };
+    const current = { Employee: ["stillDrifted"] };
     // The new discrepancy never enters the baseline — only known entries survive.
     expect(shrinkBaseline(current, previous)).toEqual({
       Employee: ["stillDrifted"],

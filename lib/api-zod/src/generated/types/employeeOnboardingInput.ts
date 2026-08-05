@@ -12,10 +12,10 @@ export interface EmployeeOnboardingInput {
   templateId?: number | null;
   startDate: string;
   /** @nullable */
-  expectedEndDate?: string | null;
+  targetCompletionDate?: string | null;
   status?: string;
   /** @nullable */
-  assignedToId?: number | null;
+  hrOwnerUserId?: number | null;
   /** @nullable */
   notes?: string | null;
 }

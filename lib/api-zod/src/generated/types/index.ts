@@ -495,6 +495,7 @@ export * from './reportDefinitionInput';
 export * from './reportOutput';
 export * from './reportSchedule';
 export * from './reportScheduleInput';
+export * from './reportScheduleUpdate';
 export * from './resolveSyncConflictBody';
 export * from './restoreTestResult';
 export * from './retentionRule';

@@ -6,23 +6,21 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ReportScheduleInput {
-  reportDefinitionId: number;
+export interface ReportScheduleUpdate {
+  reportDefinitionId?: number;
   /** @nullable */
   savedFilterId?: number | null;
-  nameEn: string;
+  nameEn?: string;
   frequency?: string;
   /** @nullable */
   dayOfMonth?: number | null;
   /** @nullable */
   dayOfWeek?: number | null;
   timeOfDay?: string;
-  exportFormat: string;
+  exportFormat?: string;
   language?: string;
   /** @nullable */
   outputPath?: string | null;
   notifyUserIdsJson?: string[];
   isActive?: boolean;
-  /** @nullable */
-  createdByUserId?: number | null;
 }

@@ -15,5 +15,5 @@ export interface DocumentVersionInput {
   mimeType?: string | null;
   /** @nullable */
   changeNotes?: string | null;
-  uploadedBy: number;
+  uploadedByUserId: number;
 }

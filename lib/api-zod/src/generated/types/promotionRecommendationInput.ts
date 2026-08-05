@@ -8,15 +8,12 @@
 
 export interface PromotionRecommendationInput {
   employeeId: number;
-  recommendedBy: number;
   /** @nullable */
-  currentPositionId?: number | null;
-  /** @nullable */
-  recommendedPositionId?: number | null;
+  reviewedByEmployeeId?: number | null;
   /** @nullable */
   effectiveDate?: string | null;
   /** @nullable */
-  justification?: string | null;
+  justificationEn?: string | null;
   status?: string;
   /** @nullable */
   notes?: string | null;

@@ -10,9 +10,8 @@ export interface CourseNominationInput {
   sessionId: number;
   employeeId: number;
   /** @nullable */
-  nominatedBy?: number | null;
+  nominatedByEmployeeId?: number | null;
   status?: string;
-  nominatedAt?: string;
   /** @nullable */
   notes?: string | null;
 }

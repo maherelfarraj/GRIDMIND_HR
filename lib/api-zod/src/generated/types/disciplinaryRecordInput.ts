@@ -9,14 +9,13 @@
 export interface DisciplinaryRecordInput {
   employeeId: number;
   incidentDate: string;
-  incidentType: string;
-  severity: string;
-  description: string;
+  category: string;
+  descriptionEn: string;
   /** @nullable */
-  actionTaken?: string | null;
+  actionType?: string | null;
   status?: string;
   /** @nullable */
-  issuedBy?: number | null;
+  issuedByEmployeeId?: number | null;
   /** @nullable */
   notes?: string | null;
 }

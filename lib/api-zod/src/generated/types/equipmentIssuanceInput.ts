@@ -9,17 +9,17 @@
 export interface EquipmentIssuanceInput {
   employeeId: number;
   itemType: string;
-  itemName: string;
+  itemDescription: string;
   /** @nullable */
   serialNumber?: string | null;
-  issuedDate: string;
+  issuedAt: string;
   /** @nullable */
   returnDueDate?: string | null;
   status?: string;
   /** @nullable */
   condition?: string | null;
   /** @nullable */
-  issuedBy?: number | null;
+  issuedByUserId?: number | null;
   /** @nullable */
   notes?: string | null;
 }

@@ -7,16 +7,14 @@
  */
 
 export interface OnboardingTaskInput {
-  taskName: string;
+  titleEn: string;
   /** @nullable */
-  taskDescription?: string | null;
+  notes?: string | null;
   /** @nullable */
-  category?: string | null;
+  taskType?: string | null;
   /** @nullable */
   dueDate?: string | null;
   status?: string;
   /** @nullable */
   completedAt?: string | null;
-  /** @nullable */
-  notes?: string | null;
 }

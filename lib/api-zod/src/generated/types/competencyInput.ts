@@ -8,10 +8,7 @@
 
 export interface CompetencyInput {
   frameworkId: number;
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
-  /** @nullable */
-  category?: string | null;
-  maxScore: number;
+  descriptionEn?: string | null;
 }

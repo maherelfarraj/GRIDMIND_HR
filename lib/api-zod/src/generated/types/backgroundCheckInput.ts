@@ -15,9 +15,9 @@ export interface BackgroundCheckInput {
   /** @nullable */
   completedAt?: string | null;
   /** @nullable */
-  result?: string | null;
+  resultSummary?: string | null;
   /** @nullable */
   provider?: string | null;
   /** @nullable */
-  notes?: string | null;
+  reviewNotes?: string | null;
 }

@@ -2637,22 +2637,15 @@ export interface JobRequisition {
 }
 
 export interface JobRequisitionInput {
-  title: string;
+  jobTitleEn: string;
   departmentId: number;
-  /** @nullable */
-  positionId?: number | null;
-  requestedBy: number;
-  numberOfPositions: number;
+  requestedByEmployeeId: number;
+  headcount: number;
   /** @nullable */
   justification?: string | null;
   /** @nullable */
-  requiredBy?: string | null;
+  targetStartDate?: string | null;
   status?: string;
-  /** @nullable */
-  priority?: string | null;
-  budgetApproved?: boolean;
-  /** @nullable */
-  notes?: string | null;
 }
 
 export interface JobPosting {
@@ -2690,22 +2683,12 @@ export interface JobPosting {
 export interface JobPostingInput {
   /** @nullable */
   requisitionId?: number | null;
-  title: string;
+  titleEn: string;
   departmentId: number;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   /** @nullable */
-  requirements?: string | null;
-  /** @nullable */
-  location?: string | null;
-  /** @nullable */
-  employmentType?: string | null;
-  /** @nullable */
-  salaryMin?: number | null;
-  /** @nullable */
-  salaryMax?: number | null;
-  /** @nullable */
-  currency?: string | null;
+  requirementsEn?: string | null;
   status?: string;
   /** @nullable */
   closingDate?: string | null;
@@ -2755,22 +2738,20 @@ export interface Applicant {
 }
 
 export interface ApplicantInput {
-  firstName: string;
-  lastName: string;
+  firstNameEn: string;
+  lastNameEn: string;
   email: string;
   /** @nullable */
   phone?: string | null;
   applicantType: string;
   /** @nullable */
-  currentEmployeeId?: number | null;
+  employeeId?: number | null;
   /** @nullable */
-  resumeUrl?: string | null;
+  resumeDocumentId?: number | null;
   /** @nullable */
   linkedinUrl?: string | null;
   /** @nullable */
   source?: string | null;
-  /** @nullable */
-  notes?: string | null;
 }
 
 export interface Application {
@@ -2816,7 +2797,7 @@ export interface ApplicationInput {
   status?: string;
   appliedAt?: string;
   /** @nullable */
-  coverLetter?: string | null;
+  coverLetterText?: string | null;
   /** @nullable */
   notes?: string | null;
 }
@@ -2864,8 +2845,8 @@ export interface InterviewScore {
 
 export interface InterviewScoreInput {
   applicationId: number;
-  interviewerId: number;
-  interviewDate: string;
+  interviewerEmployeeId: number;
+  scheduledAt: string;
   /** @nullable */
   overallScore?: number | null;
   /** @nullable */
@@ -2877,7 +2858,7 @@ export interface InterviewScoreInput {
   /** @nullable */
   recommendation?: string | null;
   /** @nullable */
-  notes?: string | null;
+  generalNotes?: string | null;
 }
 
 export interface BackgroundCheck {
@@ -2926,11 +2907,11 @@ export interface BackgroundCheckInput {
   /** @nullable */
   completedAt?: string | null;
   /** @nullable */
-  result?: string | null;
+  resultSummary?: string | null;
   /** @nullable */
   provider?: string | null;
   /** @nullable */
-  notes?: string | null;
+  reviewNotes?: string | null;
 }
 
 export interface JobOffer {
@@ -2980,16 +2961,15 @@ export interface JobOffer {
 
 export interface JobOfferInput {
   applicationId: number;
-  offerDate: string;
   /** @nullable */
-  expiryDate?: string | null;
-  salary: number;
+  offerValidUntil?: string | null;
+  baseSalary: number;
   currency: string;
   /** @nullable */
-  startDate?: string | null;
+  proposedStartDate?: string | null;
   status?: string;
   /** @nullable */
-  notes?: string | null;
+  specialConditions?: string | null;
 }
 
 export interface EmploymentContract {
@@ -3034,11 +3014,9 @@ export interface EmploymentContractInput {
   startDate: string;
   /** @nullable */
   endDate?: string | null;
-  salary: number;
-  currency: string;
   status?: string;
   /** @nullable */
-  documentUrl?: string | null;
+  documentId?: number | null;
   /** @nullable */
   signedAt?: string | null;
   /** @nullable */
@@ -3064,9 +3042,9 @@ export interface OnboardingTemplate {
 }
 
 export interface OnboardingTemplateInput {
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   isActive?: boolean;
 }
 
@@ -3115,10 +3093,10 @@ export interface EmployeeOnboardingInput {
   templateId?: number | null;
   startDate: string;
   /** @nullable */
-  expectedEndDate?: string | null;
+  targetCompletionDate?: string | null;
   status?: string;
   /** @nullable */
-  assignedToId?: number | null;
+  hrOwnerUserId?: number | null;
   /** @nullable */
   notes?: string | null;
 }
@@ -3148,18 +3126,16 @@ export interface OnboardingTask {
 }
 
 export interface OnboardingTaskInput {
-  taskName: string;
+  titleEn: string;
   /** @nullable */
-  taskDescription?: string | null;
+  notes?: string | null;
   /** @nullable */
-  category?: string | null;
+  taskType?: string | null;
   /** @nullable */
   dueDate?: string | null;
   status?: string;
   /** @nullable */
   completedAt?: string | null;
-  /** @nullable */
-  notes?: string | null;
 }
 
 export interface ProbationRecord {
@@ -3208,16 +3184,16 @@ export interface ProbationRecordInput {
   startDate: string;
   endDate: string;
   /** @nullable */
-  extensionDate?: string | null;
+  extendedEndDate?: string | null;
   status?: string;
   /** @nullable */
-  reviewDate?: string | null;
+  midReviewDate?: string | null;
   /** @nullable */
   outcome?: string | null;
   /** @nullable */
-  reviewedBy?: number | null;
+  midReviewByEmployeeId?: number | null;
   /** @nullable */
-  notes?: string | null;
+  midReviewNotes?: string | null;
 }
 
 export interface EquipmentIssuance {
@@ -3255,17 +3231,17 @@ export interface EquipmentIssuance {
 export interface EquipmentIssuanceInput {
   employeeId: number;
   itemType: string;
-  itemName: string;
+  itemDescription: string;
   /** @nullable */
   serialNumber?: string | null;
-  issuedDate: string;
+  issuedAt: string;
   /** @nullable */
   returnDueDate?: string | null;
   status?: string;
   /** @nullable */
   condition?: string | null;
   /** @nullable */
-  issuedBy?: number | null;
+  issuedByUserId?: number | null;
   /** @nullable */
   notes?: string | null;
 }
@@ -3298,12 +3274,12 @@ export interface IdCardRecordInput {
   /** @nullable */
   cardNumber?: string | null;
   /** @nullable */
-  issuedDate?: string | null;
+  issuedAt?: string | null;
   /** @nullable */
   expiryDate?: string | null;
   status?: string;
   /** @nullable */
-  issuedBy?: number | null;
+  issuedByUserId?: number | null;
   /** @nullable */
   notes?: string | null;
 }
@@ -3324,9 +3300,9 @@ export interface CompetencyFramework {
 }
 
 export interface CompetencyFrameworkInput {
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   isActive?: boolean;
 }
 
@@ -3356,12 +3332,9 @@ export interface Competency {
 
 export interface CompetencyInput {
   frameworkId: number;
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
-  /** @nullable */
-  category?: string | null;
-  maxScore: number;
+  descriptionEn?: string | null;
 }
 
 export interface GoalCycle {
@@ -3383,12 +3356,10 @@ export interface GoalCycle {
 }
 
 export interface GoalCycleInput {
-  name: string;
+  nameEn: string;
   startDate: string;
   endDate: string;
   status?: string;
-  /** @nullable */
-  description?: string | null;
 }
 
 export interface EmployeeGoal {
@@ -3433,9 +3404,9 @@ export interface EmployeeGoal {
 export interface EmployeeGoalInput {
   cycleId: number;
   employeeId: number;
-  title: string;
+  titleEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   /** @nullable */
   weight?: number | null;
   /** @nullable */
@@ -3472,14 +3443,8 @@ export interface AppraisalCycle {
 }
 
 export interface AppraisalCycleInput {
-  name: string;
-  startDate: string;
-  endDate: string;
-  reviewPeriodStart: string;
-  reviewPeriodEnd: string;
+  nameEn: string;
   status?: string;
-  /** @nullable */
-  description?: string | null;
 }
 
 export interface AppraisalRecord {
@@ -3540,20 +3505,16 @@ export interface AppraisalRecordInput {
   cycleId: number;
   employeeId: number;
   /** @nullable */
-  reviewerId?: number | null;
+  reviewerEmployeeId?: number | null;
   status?: string;
   /** @nullable */
-  selfRating?: number | null;
+  selfOverallScore?: number | null;
   /** @nullable */
-  managerRating?: number | null;
+  managerOverallScore?: number | null;
   /** @nullable */
   finalRating?: number | null;
   /** @nullable */
-  selfComments?: string | null;
-  /** @nullable */
   managerComments?: string | null;
-  /** @nullable */
-  hrComments?: string | null;
 }
 
 export interface AppraisalCompetencyRating {
@@ -3571,13 +3532,9 @@ export interface AppraisalCompetencyRatingInput {
   appraisalId: number;
   competencyId: number;
   /** @nullable */
-  selfScore?: number | null;
+  score?: number | null;
   /** @nullable */
-  managerScore?: number | null;
-  /** @nullable */
-  finalScore?: number | null;
-  /** @nullable */
-  comments?: string | null;
+  notes?: string | null;
 }
 
 export interface CalibrationSession {
@@ -3602,7 +3559,7 @@ export interface CalibrationSessionInput {
   departmentId?: number | null;
   sessionDate: string;
   /** @nullable */
-  facilitatorId?: number | null;
+  facilitatorUserId?: number | null;
   status?: string;
   /** @nullable */
   notes?: string | null;
@@ -3647,14 +3604,13 @@ export interface DisciplinaryRecord {
 export interface DisciplinaryRecordInput {
   employeeId: number;
   incidentDate: string;
-  incidentType: string;
-  severity: string;
-  description: string;
+  category: string;
+  descriptionEn: string;
   /** @nullable */
-  actionTaken?: string | null;
+  actionType?: string | null;
   status?: string;
   /** @nullable */
-  issuedBy?: number | null;
+  issuedByEmployeeId?: number | null;
   /** @nullable */
   notes?: string | null;
 }
@@ -3684,13 +3640,11 @@ export interface CommendationRecord {
 
 export interface CommendationRecordInput {
   employeeId: number;
-  commendationDate: string;
-  commendationType: string;
-  description: string;
+  awardDate: string;
+  awardType: string;
+  descriptionEn: string;
   /** @nullable */
-  issuedBy?: number | null;
-  /** @nullable */
-  notes?: string | null;
+  nominatedByEmployeeId?: number | null;
 }
 
 export interface PromotionRecommendation {
@@ -3726,15 +3680,12 @@ export interface PromotionRecommendation {
 
 export interface PromotionRecommendationInput {
   employeeId: number;
-  recommendedBy: number;
   /** @nullable */
-  currentPositionId?: number | null;
-  /** @nullable */
-  recommendedPositionId?: number | null;
+  reviewedByEmployeeId?: number | null;
   /** @nullable */
   effectiveDate?: string | null;
   /** @nullable */
-  justification?: string | null;
+  justificationEn?: string | null;
   status?: string;
   /** @nullable */
   notes?: string | null;
@@ -3755,9 +3706,9 @@ export interface TrainingProgram {
 }
 
 export interface TrainingProgramInput {
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   /** @nullable */
   category?: string | null;
   isActive?: boolean;
@@ -3795,11 +3746,11 @@ export interface TrainingCourse {
 export interface TrainingCourseInput {
   /** @nullable */
   programId?: number | null;
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   /** @nullable */
-  category?: string | null;
+  deliveryMode?: string | null;
   /** @nullable */
   durationHours?: number | null;
   /** @nullable */
@@ -3839,13 +3790,13 @@ export interface TrainingSession {
 
 export interface TrainingSessionInput {
   courseId: number;
-  sessionName: string;
+  sessionCode: string;
   startDate: string;
   endDate: string;
   /** @nullable */
   location?: string | null;
   /** @nullable */
-  trainer?: string | null;
+  trainerName?: string | null;
   status?: string;
   /** @nullable */
   notes?: string | null;
@@ -3876,9 +3827,8 @@ export interface CourseNominationInput {
   sessionId: number;
   employeeId: number;
   /** @nullable */
-  nominatedBy?: number | null;
+  nominatedByEmployeeId?: number | null;
   status?: string;
-  nominatedAt?: string;
   /** @nullable */
   notes?: string | null;
 }
@@ -3911,10 +3861,7 @@ export interface TrainingAttendance {
 export interface TrainingAttendanceInput {
   sessionId: number;
   employeeId: number;
-  attendanceDate: string;
-  status?: string;
-  /** @nullable */
-  hoursAttended?: number | null;
+  attendanceStatus?: string;
   /** @nullable */
   notes?: string | null;
 }
@@ -3949,7 +3896,7 @@ export interface Certification {
 
 export interface CertificationInput {
   employeeId: number;
-  certName: string;
+  certificationName: string;
   /** @nullable */
   certType?: string | null;
   /** @nullable */
@@ -3959,12 +3906,10 @@ export interface CertificationInput {
   /** @nullable */
   expiryDate?: string | null;
   /** @nullable */
-  certNumber?: string | null;
+  certificationNumber?: string | null;
   status?: string;
   /** @nullable */
-  documentUrl?: string | null;
-  /** @nullable */
-  notes?: string | null;
+  verificationUrl?: string | null;
 }
 
 export interface EmployeeSkill {
@@ -3994,10 +3939,6 @@ export interface EmployeeSkillInput {
   /** @nullable */
   proficiencyLevel?: string | null;
   /** @nullable */
-  yearsExperience?: number | null;
-  /** @nullable */
-  lastUsedDate?: string | null;
-  /** @nullable */
   certificationId?: number | null;
   /** @nullable */
   notes?: string | null;
@@ -4025,11 +3966,9 @@ export interface SuccessionPool {
 }
 
 export interface SuccessionPoolInput {
-  name: string;
+  nameEn: string;
   /** @nullable */
-  targetPositionId?: number | null;
-  /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   isActive?: boolean;
 }
 
@@ -4061,12 +4000,9 @@ export interface SuccessionCandidateInput {
   employeeId: number;
   readinessLevel: string;
   /** @nullable */
-  assessmentScore?: number | null;
+  talentScore?: number | null;
   /** @nullable */
-  targetDate?: string | null;
-  status?: string;
-  /** @nullable */
-  notes?: string | null;
+  reviewNotes?: string | null;
 }
 
 export interface DevelopmentPlan {
@@ -4097,9 +4033,7 @@ export interface DevelopmentPlan {
 
 export interface DevelopmentPlanInput {
   employeeId: number;
-  title: string;
-  /** @nullable */
-  description?: string | null;
+  nameEn: string;
   startDate: string;
   /** @nullable */
   endDate?: string | null;
@@ -4130,18 +4064,16 @@ export interface DevelopmentActivity {
 
 export interface DevelopmentActivityInput {
   planId: number;
-  activityName: string;
+  titleEn: string;
   /** @nullable */
   activityType?: string | null;
-  /** @nullable */
-  description?: string | null;
   /** @nullable */
   dueDate?: string | null;
   status?: string;
   /** @nullable */
   completedAt?: string | null;
   /** @nullable */
-  notes?: string | null;
+  completionNotes?: string | null;
 }
 
 export interface EmployeeRequest {
@@ -4179,14 +4111,12 @@ export interface EmployeeRequest {
 export interface EmployeeRequestInput {
   employeeId: number;
   requestType: string;
-  subject: string;
+  titleEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   status?: string;
   /** @nullable */
-  priority?: string | null;
-  /** @nullable */
-  assignedToId?: number | null;
+  urgency?: string | null;
   /** @nullable */
   notes?: string | null;
 }
@@ -4246,8 +4176,8 @@ export interface Announcement {
 }
 
 export interface AnnouncementInput {
-  title: string;
-  content: string;
+  titleEn: string;
+  bodyEn: string;
   /** @nullable */
   category?: string | null;
   status?: string;
@@ -4255,7 +4185,7 @@ export interface AnnouncementInput {
   publishedAt?: string | null;
   /** @nullable */
   expiresAt?: string | null;
-  createdBy: number;
+  authorUserId: number;
 }
 
 export interface ApprovalDelegation {
@@ -4281,7 +4211,6 @@ export interface ApprovalDelegationInput {
   delegateEmployeeId: number;
   startDate: string;
   endDate: string;
-  approvalTypes?: string[];
   status?: string;
   /** @nullable */
   reason?: string | null;
@@ -4315,11 +4244,9 @@ export interface DocumentCategory {
 }
 
 export interface DocumentCategoryInput {
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
-  /** @nullable */
-  parentCategoryId?: number | null;
+  descriptionEn?: string | null;
   isActive?: boolean;
 }
 
@@ -4375,9 +4302,9 @@ export interface EnterpriseDocument {
 }
 
 export interface EnterpriseDocumentInput {
-  title: string;
+  titleEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   /** @nullable */
   categoryId?: number | null;
   /** @nullable */
@@ -4385,18 +4312,11 @@ export interface EnterpriseDocumentInput {
   classificationLevel: string;
   status: string;
   scope: string;
-  /** @nullable */
-  storagePath?: string | null;
-  /** @nullable */
-  fileSize?: number | null;
-  /** @nullable */
-  mimeType?: string | null;
   isOnLegalHold?: boolean;
   /** @nullable */
   legalHoldReason?: string | null;
   /** @nullable */
   expiresAt?: string | null;
-  createdBy: number;
 }
 
 export interface DocumentVersion {
@@ -4429,7 +4349,7 @@ export interface DocumentVersionInput {
   mimeType?: string | null;
   /** @nullable */
   changeNotes?: string | null;
-  uploadedBy: number;
+  uploadedByUserId: number;
 }
 
 export interface DocumentAccessLog {
@@ -4497,15 +4417,11 @@ export interface DocumentTemplate {
 }
 
 export interface DocumentTemplateInput {
-  name: string;
-  /** @nullable */
-  description?: string | null;
+  nameEn: string;
   templateType: string;
-  contentBody: string;
-  variables?: string[];
-  language: string;
+  bodyHtml: string;
+  mergeFieldsJson?: string[];
   isActive?: boolean;
-  createdBy: number;
 }
 
 export interface ReportDefinition {
@@ -4536,18 +4452,17 @@ export interface ReportDefinition {
 }
 
 export interface ReportDefinitionInput {
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   reportType: string;
   /** @nullable */
-  queryTemplate?: string | null;
+  querySpecJson?: string | null;
   /** @nullable */
   defaultFiltersJson?: string | null;
-  availableColumns?: string[];
   isSystemReport?: boolean;
   isActive?: boolean;
-  createdBy: number;
+  createdByUserId: number;
 }
 
 export interface SavedReportFilter {
@@ -4565,7 +4480,7 @@ export interface SavedReportFilter {
 export interface SavedReportFilterInput {
   reportDefinitionId: number;
   userId: number;
-  filterName: string;
+  nameEn: string;
   filtersJson: string;
   isDefault?: boolean;
 }
@@ -4603,16 +4518,43 @@ export interface ReportSchedule {
 
 export interface ReportScheduleInput {
   reportDefinitionId: number;
-  scheduleName: string;
-  cronExpression: string;
-  exportFormat: string;
-  recipients?: string[];
   /** @nullable */
-  filtersJson?: string | null;
+  savedFilterId?: number | null;
+  nameEn: string;
+  frequency?: string;
+  /** @nullable */
+  dayOfMonth?: number | null;
+  /** @nullable */
+  dayOfWeek?: number | null;
+  timeOfDay?: string;
+  exportFormat: string;
+  language?: string;
+  /** @nullable */
+  outputPath?: string | null;
+  notifyUserIdsJson?: string[];
   isActive?: boolean;
-  createdBy: number;
+  /** @nullable */
+  createdByUserId?: number | null;
 }
 
+export interface ReportScheduleUpdate {
+  reportDefinitionId?: number;
+  /** @nullable */
+  savedFilterId?: number | null;
+  nameEn?: string;
+  frequency?: string;
+  /** @nullable */
+  dayOfMonth?: number | null;
+  /** @nullable */
+  dayOfWeek?: number | null;
+  timeOfDay?: string;
+  exportFormat?: string;
+  language?: string;
+  /** @nullable */
+  outputPath?: string | null;
+  notifyUserIdsJson?: string[];
+  isActive?: boolean;
+}
 export interface ReportOutput {
   id: number;
   reportDefinitionId: number;
@@ -4941,18 +4883,16 @@ export interface UpdatePackage {
 
 export interface UpdatePackageInput {
   packageName: string;
-  version: string;
+  packageVersion: string;
   /** @nullable */
-  description?: string | null;
+  releaseNotes?: string | null;
   storagePath: string;
   /** @nullable */
   checksum?: string | null;
   /** @nullable */
-  fileSize?: number | null;
+  fileSizeBytes?: number | null;
   status?: string;
-  isVerified?: boolean;
-  /** @nullable */
-  releaseNotes?: string | null;
+  signatureVerified?: boolean;
 }
 
 export interface DeploymentEvent {
@@ -7950,4 +7890,3 @@ export type CreateImportMappingTemplateBody = {
 export type DeleteImportMappingTemplate200 = {
   deleted: boolean;
 };
-

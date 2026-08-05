@@ -7,8 +7,8 @@
  */
 
 export interface CompetencyFrameworkInput {
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   isActive?: boolean;
 }

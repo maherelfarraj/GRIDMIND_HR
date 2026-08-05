@@ -12,11 +12,9 @@ export interface EmploymentContractInput {
   startDate: string;
   /** @nullable */
   endDate?: string | null;
-  salary: number;
-  currency: string;
   status?: string;
   /** @nullable */
-  documentUrl?: string | null;
+  documentId?: number | null;
   /** @nullable */
   signedAt?: string | null;
   /** @nullable */

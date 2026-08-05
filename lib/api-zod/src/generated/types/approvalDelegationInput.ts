@@ -11,7 +11,6 @@ export interface ApprovalDelegationInput {
   delegateEmployeeId: number;
   startDate: string;
   endDate: string;
-  approvalTypes?: string[];
   status?: string;
   /** @nullable */
   reason?: string | null;

@@ -8,16 +8,14 @@
 
 export interface UpdatePackageInput {
   packageName: string;
-  version: string;
+  packageVersion: string;
   /** @nullable */
-  description?: string | null;
+  releaseNotes?: string | null;
   storagePath: string;
   /** @nullable */
   checksum?: string | null;
   /** @nullable */
-  fileSize?: number | null;
+  fileSizeBytes?: number | null;
   status?: string;
-  isVerified?: boolean;
-  /** @nullable */
-  releaseNotes?: string | null;
+  signatureVerified?: boolean;
 }

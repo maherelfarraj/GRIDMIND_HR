@@ -68,7 +68,7 @@ function NewProbationDialog({ open, onClose }: { open: boolean; onClose: () => v
         employeeId: parseInt(form.employeeId),
         startDate: form.startDate,
         endDate: form.endDate,
-        notes: form.notes || null,
+        midReviewNotes: form.notes || null,
         status: 'active',
       },
     }, {

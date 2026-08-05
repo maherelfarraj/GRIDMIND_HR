@@ -9,10 +9,7 @@
 export interface TrainingAttendanceInput {
   sessionId: number;
   employeeId: number;
-  attendanceDate: string;
-  status?: string;
-  /** @nullable */
-  hoursAttended?: number | null;
+  attendanceStatus?: string;
   /** @nullable */
   notes?: string | null;
 }

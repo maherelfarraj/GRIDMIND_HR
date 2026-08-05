@@ -9,7 +9,7 @@
 export interface SavedReportFilterInput {
   reportDefinitionId: number;
   userId: number;
-  filterName: string;
+  nameEn: string;
   filtersJson: string;
   isDefault?: boolean;
 }

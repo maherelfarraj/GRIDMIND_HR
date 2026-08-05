@@ -9,22 +9,12 @@
 export interface JobPostingInput {
   /** @nullable */
   requisitionId?: number | null;
-  title: string;
+  titleEn: string;
   departmentId: number;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   /** @nullable */
-  requirements?: string | null;
-  /** @nullable */
-  location?: string | null;
-  /** @nullable */
-  employmentType?: string | null;
-  /** @nullable */
-  salaryMin?: number | null;
-  /** @nullable */
-  salaryMax?: number | null;
-  /** @nullable */
-  currency?: string | null;
+  requirementsEn?: string | null;
   status?: string;
   /** @nullable */
   closingDate?: string | null;

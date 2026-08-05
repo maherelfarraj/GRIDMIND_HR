@@ -8,9 +8,7 @@
 
 export interface DevelopmentPlanInput {
   employeeId: number;
-  title: string;
-  /** @nullable */
-  description?: string | null;
+  nameEn: string;
   startDate: string;
   /** @nullable */
   endDate?: string | null;

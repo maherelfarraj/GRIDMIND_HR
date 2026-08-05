@@ -64,7 +64,7 @@ function AddCertDialog({ open, onClose }: { open: boolean; onClose: () => void }
     mutate({
       data: {
         employeeId: parseInt(form.employeeId),
-        certName: form.certName,
+        certificationName: form.certName,
         certType: form.certType || null,
         issuingBody: form.issuingBody || null,
         issuedDate: form.issuedDate || null,
@@ -236,7 +236,7 @@ export default function Training() {
                           </div>
                         </div>
                         <Button size="sm" variant="outline" className="w-full" onClick={() => {
-                          createNomination({ data: { sessionId: session.id, employeeId: 0, status: 'pending', nominatedAt: new Date().toISOString() } }, {
+                          createNomination({ data: { sessionId: session.id, employeeId: 0, status: 'pending' } }, {
                             onSuccess: () => toast({ title: t('Nomination sent', 'تم إرسال الترشيح') }),
                           });
                         }}>

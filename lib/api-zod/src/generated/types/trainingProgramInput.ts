@@ -7,9 +7,9 @@
  */
 
 export interface TrainingProgramInput {
-  name: string;
+  nameEn: string;
   /** @nullable */
-  description?: string | null;
+  descriptionEn?: string | null;
   /** @nullable */
   category?: string | null;
   isActive?: boolean;
