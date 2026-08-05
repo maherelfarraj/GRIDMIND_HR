@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { DateRangeCalendarModal } from '@/components/DateRangeCalendar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
@@ -53,6 +54,16 @@ export default function NewLeaveScreen() {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const formatDate = (iso: string) => {
+    if (!DATE_RE.test(iso)) return '';
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(
+      lang === 'ar' ? 'ar' : 'en',
+      { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' },
+    );
+  };
 
   const totalDays = useMemo(
     () => daysBetweenInclusive(startDate.trim(), endDate.trim()),
@@ -188,48 +199,93 @@ export default function NewLeaveScreen() {
             })}
           </View>
 
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>
-            {t('startDate')}
-          </Text>
-          <TextInput
-            testID="input-start-date"
-            value={startDate}
-            onChangeText={setStartDate}
-            placeholder="2026-08-10"
-            placeholderTextColor={colors.mutedForeground + '88'}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[
-              styles.input,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                color: colors.foreground,
-                borderRadius: colors.radius,
-              },
-            ]}
-          />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>
+                {t('startDate')}
+              </Text>
+              <Pressable
+                testID="input-start-date"
+                onPress={() => setCalendarOpen(true)}
+                accessibilityLabel={t('startDate')}
+                style={({ pressed }) => [
+                  styles.dateField,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    borderRadius: colors.radius,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Feather
+                  name="calendar"
+                  size={16}
+                  color={colors.mutedForeground}
+                />
+                <Text
+                  style={{
+                    color: startDate
+                      ? colors.foreground
+                      : colors.mutedForeground + '88',
+                    fontSize: 14,
+                    fontFamily: 'Inter_400Regular',
+                    flexShrink: 1,
+                  }}
+                >
+                  {startDate ? formatDate(startDate) : t('selectDate')}
+                </Text>
+              </Pressable>
+            </View>
 
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>
-            {t('endDate')}
-          </Text>
-          <TextInput
-            testID="input-end-date"
-            value={endDate}
-            onChangeText={setEndDate}
-            placeholder="2026-08-14"
-            placeholderTextColor={colors.mutedForeground + '88'}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[
-              styles.input,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                color: colors.foreground,
-                borderRadius: colors.radius,
-              },
-            ]}
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>
+                {t('endDate')}
+              </Text>
+              <Pressable
+                testID="input-end-date"
+                onPress={() => setCalendarOpen(true)}
+                accessibilityLabel={t('endDate')}
+                style={({ pressed }) => [
+                  styles.dateField,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    borderRadius: colors.radius,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Feather
+                  name="calendar"
+                  size={16}
+                  color={colors.mutedForeground}
+                />
+                <Text
+                  style={{
+                    color: endDate
+                      ? colors.foreground
+                      : colors.mutedForeground + '88',
+                    fontSize: 14,
+                    fontFamily: 'Inter_400Regular',
+                    flexShrink: 1,
+                  }}
+                >
+                  {endDate ? formatDate(endDate) : t('selectDate')}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <DateRangeCalendarModal
+            visible={calendarOpen}
+            startDate={startDate}
+            endDate={endDate}
+            onChange={(s, e) => {
+              setStartDate(s);
+              setEndDate(e);
+            }}
+            onClose={() => setCalendarOpen(false)}
           />
 
           {totalDays != null ? (
@@ -300,6 +356,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     marginBottom: 6,
     marginTop: 18,
+  },
+  dateField: {
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
   },
   input: {
     borderWidth: 1,

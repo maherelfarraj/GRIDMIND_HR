@@ -47,6 +47,11 @@ const strings = {
     ar: 'أدخل تواريخ صالحة (YYYY-MM-DD)، النهاية بعد البداية',
   },
   selectLeaveType: { en: 'Select a leave type', ar: 'اختر نوع الإجازة' },
+  selectDate: { en: 'Select date', ar: 'اختر التاريخ' },
+  calendarHint: {
+    en: 'Tap a start day, then an end day',
+    ar: 'اضغط على يوم البداية ثم يوم النهاية',
+  },
   pending: { en: 'Pending', ar: 'قيد الانتظار' },
   approved: { en: 'Approved', ar: 'موافق عليه' },
   rejected: { en: 'Rejected', ar: 'مرفوض' },
