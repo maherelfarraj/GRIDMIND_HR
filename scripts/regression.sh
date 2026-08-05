@@ -41,6 +41,14 @@ else
     bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/schema-drift.test.ts src/__tests__/openapi-drift.test.ts src/__tests__/codegen-drift.test.ts"
 fi
 
+if [[ "${SKIP_CODEGEN_CHECK:-}" == "1" ]]; then
+  echo ""
+  echo "==> SKIP_CODEGEN_CHECK=1: skipping codegen-committed suite"
+else
+  run_suite "codegen-committed" \
+    bash -c "'$ROOT/scripts/check-codegen-committed.sh'"
+fi
+
 run_suite "mobile-tests" \
   bash -c "cd '$ROOT/artifacts/mobile' && npx vitest run"
 
