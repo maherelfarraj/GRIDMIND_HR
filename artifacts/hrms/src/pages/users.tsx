@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearch } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useListUsers, useCreateUser, useGetUser, useUpdateUser, getGetUserQueryKey, useSetUserPassword, useUnlockUser, useIssueOneTimePassword, getListUsersQueryKey, useListRoles, getListRolesQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -153,7 +154,7 @@ export default function Users() {
       },
       {
         onSuccess: (created) => {
-          const name = lang === 'en' ? created.fullNameEn : created.fullNameAr;
+          const name = localName(created.fullNameEn, created.fullNameAr, lang);
           toast({ title: t('User created', 'تم إنشاء المستخدم'), description: t(`Now issue a one-time password for ${name}.`, `الآن أصدر كلمة مرور لمرة واحدة لـ ${name}.`) });
           closeInviteDialog();
           queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
@@ -174,7 +175,7 @@ export default function Users() {
   const [editNameAr, setEditNameAr] = useState('');
 
   const openEditDialog = (user: { id: number; email: string; fullNameEn: string; fullNameAr: string }) => {
-    setEditTarget({ id: user.id, name: lang === 'en' ? user.fullNameEn : user.fullNameAr });
+    setEditTarget({ id: user.id, name: localName(user.fullNameEn, user.fullNameAr, lang) });
     setEditEmail(user.email);
     setEditNameEn(user.fullNameEn);
     setEditNameAr(user.fullNameAr);
@@ -324,7 +325,7 @@ export default function Users() {
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium text-foreground">
-                          {lang === 'en' ? user.fullNameEn : user.fullNameAr}
+                          {localName(user.fullNameEn, user.fullNameAr, lang)}
                         </span>
                         <span className="text-xs text-muted-foreground">{user.email}</span>
                       </div>
@@ -382,18 +383,18 @@ export default function Users() {
                             <Pencil className="w-4 h-4 me-2" />
                             {t('Edit User', 'تعديل المستخدم')}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setPasswordTarget({ id: user.id, name: lang === 'en' ? user.fullNameEn : user.fullNameAr })}>
+                          <DropdownMenuItem onClick={() => setPasswordTarget({ id: user.id, name: localName(user.fullNameEn, user.fullNameAr, lang) })}>
                             <KeyRound className="w-4 h-4 me-2" />
                             {t('Set Password', 'تعيين كلمة المرور')}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setOtpTarget({ id: user.id, name: lang === 'en' ? user.fullNameEn : user.fullNameAr })}>
+                          <DropdownMenuItem onClick={() => setOtpTarget({ id: user.id, name: localName(user.fullNameEn, user.fullNameAr, lang) })}>
                             <Ticket className="w-4 h-4 me-2" />
                             {t('Issue One-Time Password', 'إصدار كلمة مرور لمرة واحدة')}
                           </DropdownMenuItem>
                           {isLocked(user.lockedUntil) && (
                             <DropdownMenuItem
                               disabled={unlockUser.isPending}
-                              onClick={() => handleUnlock(user.id, lang === 'en' ? user.fullNameEn : user.fullNameAr)}
+                              onClick={() => handleUnlock(user.id, localName(user.fullNameEn, user.fullNameAr, lang))}
                             >
                               <LockOpen className="w-4 h-4 me-2" />
                               {t('Unlock Account', 'إلغاء قفل الحساب')}
@@ -444,7 +445,7 @@ export default function Users() {
                 <SelectContent>
                   {(rolesData ?? []).map((role) => (
                     <SelectItem key={role.id} value={String(role.id)} data-testid={`select-invite-role-${role.id}`}>
-                      {lang === 'en' ? role.nameEn : role.nameAr}
+                      {localName(role.nameEn, role.nameAr, lang)}
                     </SelectItem>
                   ))}
                 </SelectContent>

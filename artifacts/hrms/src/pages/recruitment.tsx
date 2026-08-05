@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListJobRequisitions,
@@ -58,7 +59,7 @@ const APP_STATUS_COLORS: Record<string, string> = {
 // ─── New Requisition Dialog ────────────────────────────────────────────────────
 
 function NewRequisitionDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: deptData } = useListDepartments();
@@ -112,11 +113,11 @@ function NewRequisitionDialog({ open, onClose }: { open: boolean; onClose: () =>
           <Input placeholder={t('Job Title', 'المسمى الوظيفي')} value={form.title} onChange={e => set('title', e.target.value)} />
           <Select value={form.departmentId} onValueChange={v => set('departmentId', v)}>
             <SelectTrigger><SelectValue placeholder={t('Department', 'الإدارة')} /></SelectTrigger>
-            <SelectContent>{depts.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.nameEn}</SelectItem>)}</SelectContent>
+            <SelectContent>{depts.map(d => <SelectItem key={d.id} value={String(d.id)}>{localName(d.nameEn, d.nameAr, lang)}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={form.requestedBy} onValueChange={v => set('requestedBy', v)}>
             <SelectTrigger><SelectValue placeholder={t('Requested By', 'مقدم الطلب')} /></SelectTrigger>
-            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>)}</SelectContent>
+            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>)}</SelectContent>
           </Select>
           <Input type="number" min="1" placeholder={t('No. of Positions', 'عدد المناصب')} value={form.numberOfPositions} onChange={e => set('numberOfPositions', e.target.value)} />
           <Textarea placeholder={t('Justification', 'المبرر')} value={form.justification} onChange={e => set('justification', e.target.value)} rows={3} />
@@ -135,7 +136,7 @@ function NewRequisitionDialog({ open, onClose }: { open: boolean; onClose: () =>
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 export default function Recruitment() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [, navigate] = useLocation();
@@ -320,7 +321,7 @@ export default function Recruitment() {
                     <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t('No postings found', 'لا توجد إعلانات')}</TableCell></TableRow>
                   ) : postings.map(p => (
                     <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.titleEn ?? '—'}</TableCell>
+                      <TableCell className="font-medium">{localName(p.titleEn ?? '—', p.titleAr, lang)}</TableCell>
                       <TableCell className="capitalize">{p.visibility ?? '—'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn('capitalize text-xs',

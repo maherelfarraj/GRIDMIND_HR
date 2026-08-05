@@ -1,4 +1,5 @@
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useListRoles, useCreateRole, useGetRole, useUpdateRole, useDeleteRole, useListPermissions, getGetRoleQueryKey } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,7 +49,7 @@ export default function Roles() {
             <CardHeader>
               <div className="flex justify-between items-start">
                 <CardTitle className="text-xl">
-                  {lang === 'en' ? role.nameEn : role.nameAr}
+                  {localName(role.nameEn, role.nameAr, lang)}
                 </CardTitle>
                 {role.systemRole && (
                   <Badge variant="secondary" className="flex items-center gap-1">

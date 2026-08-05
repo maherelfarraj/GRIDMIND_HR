@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -256,7 +257,7 @@ export default function ProductionReadiness() {
               <CardHeader className="pb-3 border-b border-border">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Icon className="w-4 h-4 text-primary shrink-0" />
-                  {lang === 'ar' ? cat.titleAr : cat.title}
+                  {localName(cat.title, cat.titleAr, lang)}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">

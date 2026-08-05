@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useAuth } from '@/hooks/use-auth';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -421,7 +422,7 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
                   <TableRow key={emp.employeeId}>
                     <TableCell className="align-top">
                       <div className="font-medium text-sm">
-                        {lang === 'ar' ? emp.employeeNameAr : emp.employeeNameEn}
+                        {localName(emp.employeeNameEn, emp.employeeNameAr, lang)}
                       </div>
                       <div className="text-xs text-muted-foreground">{emp.employeeNumber}</div>
                     </TableCell>
@@ -446,7 +447,7 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
                                 onClick={() =>
                                   setExcuseTarget({
                                     employeeId: emp.employeeId,
-                                    employeeName: lang === 'ar' ? emp.employeeNameAr : emp.employeeNameEn,
+                                    employeeName: localName(emp.employeeNameEn, emp.employeeNameAr, lang),
                                     date: day.date,
                                   })
                                 }
@@ -651,7 +652,7 @@ function PeriodDetail({
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-xl font-semibold">
-              {lang === 'ar' ? period.nameAr : period.nameEn}
+              {localName(period.nameEn, period.nameAr, lang)}
             </h2>
             <StatusBadge status={period.status} />
             <span className="text-sm text-muted-foreground">{period.currency}</span>
@@ -813,7 +814,7 @@ function PeriodDetail({
                         <TableCell className="text-muted-foreground text-sm">{idx + 1}</TableCell>
                         <TableCell>
                           <div className="font-medium text-sm">
-                            {lang === 'ar' ? (run.employeeNameAr || run.employeeNameEn) : run.employeeNameEn}
+                            {localName(run.employeeNameEn, run.employeeNameAr, lang)}
                           </div>
                           {run.employeeNumber && (
                             <div className="text-xs text-muted-foreground">{run.employeeNumber}</div>
@@ -929,7 +930,7 @@ function PeriodDetail({
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart
                       data={otSummary.byDepartment.map(d => ({
-                        dept: lang === 'ar' ? d.departmentNameAr : d.departmentNameEn,
+                        dept: localName(d.departmentNameEn, d.departmentNameAr, lang),
                         weekday: parseFloat(d.weekday),
                         weekend: parseFloat(d.weekend),
                         holiday: parseFloat(d.holiday),
@@ -1077,7 +1078,7 @@ export default function Payroll() {
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium text-sm truncate">
-                          {lang === 'ar' ? period.nameAr : period.nameEn}
+                          {localName(period.nameEn, period.nameAr, lang)}
                         </span>
                         <StatusBadge status={period.status} />
                       </div>

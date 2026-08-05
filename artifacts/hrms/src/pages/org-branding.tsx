@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertTriangle, Palette, Plus, Eye } from 'lucide-react';
+import { localName } from '@/lib/localise';
 
 function AddTemplateDialog({ open, onClose, onSaved, orgId }: { open: boolean; onClose: () => void; onSaved: () => void; orgId: string }) {
   const { t } = useLanguage();
@@ -91,7 +92,7 @@ const EMPTY_BRANDING: BrandingForm = {
 };
 
 export default function OrgBranding() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedOrg, setSelectedOrg] = useState('');
@@ -172,7 +173,7 @@ export default function OrgBranding() {
           <Select value={selectedOrg} onValueChange={setSelectedOrg}>
             <SelectTrigger className="w-64 bg-slate-700 border-slate-600 text-white"><SelectValue placeholder={t('Select org', 'اختر مؤسسة')} /></SelectTrigger>
             <SelectContent className="bg-slate-800 border-slate-700">
-              {orgs.map(o => <SelectItem key={o.id} value={String(o.id)}>{o.nameEn}</SelectItem>)}
+              {orgs.map(o => <SelectItem key={o.id} value={String(o.id)}>{localName(o.nameEn, o.nameAr, lang)}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -319,7 +320,7 @@ export default function OrgBranding() {
                         <TableRow><TableCell colSpan={5} className="text-center text-slate-400 py-8">{t('No templates found', 'لا توجد قوالب')}</TableCell></TableRow>
                       ) : templates.map(tp => (
                         <TableRow key={tp.id} className="border-slate-700 hover:bg-slate-700/30">
-                          <TableCell className="text-white">{tp.nameEn}</TableCell>
+                          <TableCell className="text-white">{localName(tp.nameEn, tp.nameAr, lang)}</TableCell>
                           <TableCell className="text-slate-300 text-sm">{tp.templateType}</TableCell>
                           <TableCell className="text-slate-300">{tp.paperSize}</TableCell>
                           <TableCell className="text-slate-300 uppercase text-xs">{tp.defaultExportFormat}</TableCell>

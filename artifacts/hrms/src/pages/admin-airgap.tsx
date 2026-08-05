@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetSyncStatus, useListBranchServers, useRegisterBranchServer,
@@ -43,7 +44,7 @@ function statusDot(status: string) {
 
 // ─── Tab 1: Overview ──────────────────────────────────────────────────────────
 function OverviewTab() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { data: syncStatus, isLoading } = useGetSyncStatus();
 
   if (isLoading) return <div className="space-y-2">{[...Array(4)].map((_,i) => <Skeleton key={i} className="h-20" />)}</div>;
@@ -91,7 +92,7 @@ function OverviewTab() {
                 {s.branchServers.map((bs: any) => (
                   <TableRow key={bs.id}>
                     <TableCell className="font-mono text-xs">{bs.serverCode}</TableCell>
-                    <TableCell className="text-sm">{bs.nameEn}</TableCell>
+                    <TableCell className="text-sm">{localName(bs.nameEn, bs.nameAr, lang)}</TableCell>
                     <TableCell><div className="flex items-center gap-1.5">{statusDot(bs.status)}<span className="text-xs capitalize">{bs.status}</span></div></TableCell>
                     <TableCell className="text-xs">{fmtDate(bs.lastSeen)}</TableCell>
                     <TableCell className="text-sm">{bs.pendingCount ?? 0}</TableCell>
@@ -108,7 +109,7 @@ function OverviewTab() {
 
 // ─── Tab 2: Branch Servers ────────────────────────────────────────────────────
 function BranchServersTab() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
@@ -181,7 +182,7 @@ function BranchServersTab() {
                   ) : (servers ?? []).map((s: any) => (
                     <TableRow key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                       <TableCell className="font-mono text-xs">{s.serverCode}</TableCell>
-                      <TableCell className="font-medium text-sm">{s.nameEn}</TableCell>
+                      <TableCell className="font-medium text-sm">{localName(s.nameEn, s.nameAr, lang)}</TableCell>
                       <TableCell className="text-sm text-gray-500">{s.location ?? '—'}</TableCell>
                       <TableCell className="font-mono text-xs">{s.ipAddress ?? '—'}</TableCell>
                       <TableCell><div className="flex items-center gap-1.5">{statusDot(s.status)}<span className="text-xs capitalize">{s.status}</span></div></TableCell>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListEmployeeOnboarding,
@@ -44,7 +45,7 @@ function CircularProgress({ pct }: { pct: number }) {
 }
 
 function OnboardingCard({ record }: { record: any }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(false);
@@ -94,7 +95,7 @@ function OnboardingCard({ record }: { record: any }) {
                     : <Circle className="w-4 h-4 text-muted-foreground" />}
                 </button>
                 <div className="flex-1">
-                  <p className={cn('text-sm', task.status === 'completed' && 'line-through text-muted-foreground')}>{task.titleEn ?? '—'}</p>
+                  <p className={cn('text-sm', task.status === 'completed' && 'line-through text-muted-foreground')}>{localName(task.titleEn ?? '—', task.titleAr, lang)}</p>
                   {task.taskType && <p className="text-xs text-muted-foreground capitalize">{task.taskType.replace('_', ' ')}</p>}
                 </div>
                 {task.dueDate && <p className="text-xs text-muted-foreground">{fmtDate(task.dueDate)}</p>}
@@ -108,7 +109,7 @@ function OnboardingCard({ record }: { record: any }) {
 }
 
 export default function Onboarding() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { data: onboardingData, isLoading } = useListEmployeeOnboarding({ limit: 100 } as any);
   const { data: templatesData, isLoading: templatesLoading } = useListOnboardingTemplates({ limit: 50 } as any);
 
@@ -155,7 +156,7 @@ export default function Onboarding() {
                   <Card key={tmpl.id}>
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">{tmpl.nameEn ?? '—'}</CardTitle>
+                        <CardTitle className="text-base">{localName(tmpl.nameEn ?? '—', tmpl.nameAr, lang)}</CardTitle>
                         <Badge variant="outline" className={cn('text-xs', tmpl.isActive ? 'border-emerald-400 text-emerald-600' : 'border-gray-400 text-gray-500')}>
                           {tmpl.isActive ? t('Active', 'نشط') : t('Inactive', 'غير نشط')}
                         </Badge>

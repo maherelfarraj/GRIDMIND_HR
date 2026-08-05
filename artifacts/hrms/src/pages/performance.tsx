@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListAppraisalCycles,
@@ -110,7 +111,7 @@ function CyclePanel({ cycle }: { cycle: any }) {
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 export default function Performance() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [selectedGoalCycle, setSelectedGoalCycle] = useState('');
 
   const { data: cyclesData, isLoading: cyclesLoading } = useListAppraisalCycles({ limit: 50 } as any);
@@ -159,7 +160,7 @@ export default function Performance() {
                 </SelectTrigger>
                 <SelectContent>
                   {goalCycles.map(gc => (
-                    <SelectItem key={gc.id} value={String(gc.id)}>{gc.nameEn}</SelectItem>
+                    <SelectItem key={gc.id} value={String(gc.id)}>{localName(gc.nameEn, gc.nameAr, lang)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -187,7 +188,7 @@ export default function Performance() {
                   <TableBody>
                     {goals.map(g => (
                       <TableRow key={g.id}>
-                        <TableCell className="font-medium">{g.titleEn}</TableCell>
+                        <TableCell className="font-medium">{localName(g.titleEn, g.titleAr, lang)}</TableCell>
                         <TableCell>#{g.employeeId}</TableCell>
                         <TableCell>{g.weight != null ? `${g.weight}%` : '—'}</TableCell>
                         <TableCell>{g.targetValue ?? '—'}</TableCell>

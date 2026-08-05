@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListEmployeeSkills,
@@ -59,7 +60,7 @@ function ProficiencyBar({ level }: { level?: string | null }) {
 }
 
 export default function Skills() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [empFilter, setEmpFilter] = useState('');
 
   const { data: skillsData, isLoading: skillsLoading } = useListEmployeeSkills({ limit: 500 } as any);
@@ -85,7 +86,7 @@ export default function Skills() {
 
   function getEmpName(id: number) {
     const e = emps.find(e => e.id === id);
-    return e ? `${e.firstNameEn} ${e.lastNameEn}` : `#${id}`;
+    return e ? localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang) : `#${id}`;
   }
 
   // Get best skill in a category for a given employee
@@ -161,7 +162,7 @@ export default function Skills() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">{t('All Employees', 'جميع الموظفين')}</SelectItem>
-                {emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>)}
+                {emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>)}
               </SelectContent>
             </Select>
 

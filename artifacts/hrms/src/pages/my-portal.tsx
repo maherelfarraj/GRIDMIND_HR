@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import {
@@ -149,7 +150,7 @@ export default function MyPortal() {
             {t('My Portal', 'بوابتي')}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {t('Welcome back,', 'مرحباً،')} {lang === 'en' ? user?.fullNameEn : user?.fullNameAr}
+            {t('Welcome back,', 'مرحباً،')} {localName(user?.fullNameEn, user?.fullNameAr, lang)}
           </p>
         </div>
 
@@ -278,7 +279,7 @@ export default function MyPortal() {
                   ) : requests.map(r => (
                     <TableRow key={r.id}>
                       <TableCell className="capitalize">{r.requestType}</TableCell>
-                      <TableCell className="max-w-48 truncate">{r.titleEn}</TableCell>
+                      <TableCell className="max-w-48 truncate">{localName(r.titleEn, (r as any).titleAr, lang)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn('capitalize text-xs',
                           r.urgency === 'high' ? 'border-red-400 text-red-600' :
@@ -316,7 +317,7 @@ export default function MyPortal() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <Bell className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                        <h3 className="font-semibold">{a.titleEn}</h3>
+                        <h3 className="font-semibold">{localName(a.titleEn, a.titleAr, lang)}</h3>
                         {a.category && <Badge variant="outline" className="text-xs">{a.category}</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground">{a.bodyEn}</p>

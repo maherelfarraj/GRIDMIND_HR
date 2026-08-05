@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListLeaveTypes, useCreateLeaveType, useUpdateLeaveType, useDeleteLeaveType,
@@ -297,7 +298,7 @@ function LeaveTypesTab() {
                       </Badge>
                     </div>
                     <CardTitle className="text-base leading-tight">
-                      {lang === 'ar' ? lt.nameAr : lt.nameEn}
+                      {localName(lt.nameEn, lt.nameAr, lang)}
                     </CardTitle>
                     {lang !== 'ar' && lt.nameAr && (
                       <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{lt.nameAr}</p>
@@ -604,7 +605,7 @@ interface DelegationDialogProps {
 }
 
 function DelegationDialog({ open, onClose }: DelegationDialogProps) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createMut = useCreateLeaveDelegation();
@@ -660,7 +661,7 @@ function DelegationDialog({ open, onClose }: DelegationDialogProps) {
               <SelectTrigger><SelectValue placeholder={t('Select employee', 'اختر موظفاً')} /></SelectTrigger>
               <SelectContent>
                 {employees.map(e => (
-                  <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>
+                  <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -671,7 +672,7 @@ function DelegationDialog({ open, onClose }: DelegationDialogProps) {
               <SelectTrigger><SelectValue placeholder={t('Select employee', 'اختر موظفاً')} /></SelectTrigger>
               <SelectContent>
                 {employees.map(e => (
-                  <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>
+                  <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

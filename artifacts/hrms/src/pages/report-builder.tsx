@@ -1,17 +1,8 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '@/lib/api';
+import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useToast } from '@/hooks/use-toast';
-import {
-  useGetReportBuilderConfigs, usePostReportBuilderConfigs,
-  usePostReportBuilderConfigsIdRun, usePostReportBuilderConfigsIdExport,
-  useDeleteReportBuilderConfigsId, getGetReportBuilderConfigsQueryKey,
-  useGetExportJobs, usePostExportJobsIdRetry, getGetExportJobsQueryKey,
-} from '@workspace/api-client-react';
-import type {
-  ReportBuilderConfig, ExportJob,
-  PostReportBuilderConfigsIdRun200RowsItem,
-} from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -61,7 +52,7 @@ const DATA_SOURCES = ['employees', 'attendance', 'payroll', 'leave', 'training',
 // ─── Run Results Dialog ───────────────────────────────────────────────────────
 
 function RunResultsDialog({ open, onClose, results, loading }: {
-  open: boolean; onClose: () => void; results: PostReportBuilderConfigsIdRun200RowsItem[]; loading: boolean;
+  open: boolean; onClose: () => void; results: any[]; loading: boolean;
 }) {
   const { t } = useLanguage();
   const cols = results.length > 0 ? Object.keys(results[0]) : [];
@@ -117,35 +108,47 @@ function RunResultsDialog({ open, onClose, results, loading }: {
 // ─── My Reports Tab ───────────────────────────────────────────────────────────
 
 function MyReportsTab() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
-
-  const { data: configs = [], isLoading: loading } = useGetReportBuilderConfigs();
-
-  const runMut = usePostReportBuilderConfigsIdRun();
-  const exportMut = usePostReportBuilderConfigsIdExport();
-  const deleteMut = useDeleteReportBuilderConfigsId();
-  const queryClient = useQueryClient();
+  const [configs, setConfigs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [runDialogOpen, setRunDialogOpen] = useState(false);
-  const [runResults, setRunResults] = useState<PostReportBuilderConfigsIdRun200RowsItem[]>([]);
+  const [runResults, setRunResults] = useState<any[]>([]);
+  const [runLoading, setRunLoading] = useState(false);
+
+  function loadConfigs() {
+    setLoading(true);
+    apiFetch('/api/report-builder-configs')
+      .then(r => r.json())
+      .then(d => setConfigs(Array.isArray(d) ? d : d?.data ?? []))
+      .catch(() => setConfigs([]))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { loadConfigs(); }, []);
 
   async function handleRun(id: number) {
+    setRunLoading(true);
     setRunDialogOpen(true);
     setRunResults([]);
     try {
-      const data = await runMut.mutateAsync({ id });
-      setRunResults(data.rows ?? []);
+      const res = await apiFetch(`/api/report-builder-configs/${id}/run`, { method: 'POST' });
+      const data = await res.json();
+      setRunResults(Array.isArray(data) ? data : data?.rows ?? data?.data ?? []);
     } catch {
       toast({ title: t('Error running report', 'خطأ في تشغيل التقرير'), variant: 'destructive' });
       setRunDialogOpen(false);
+    } finally {
+      setRunLoading(false);
     }
   }
 
   async function handleExport(id: number) {
     try {
-      const data = await exportMut.mutateAsync({ id });
-      const jobId = data.jobId ?? 'N';
+      const res = await apiFetch(`/api/report-builder-configs/${id}/export`, { method: 'POST' });
+      const data = await res.json();
+      const jobId = data?.jobId ?? data?.id ?? 'N';
       toast({ title: t('Export queued', 'تم قائمة التصدير'), description: `Job #${jobId}` });
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
@@ -154,9 +157,9 @@ function MyReportsTab() {
 
   async function handleDelete(id: number) {
     try {
-      await deleteMut.mutateAsync({ id });
+      await apiFetch(`/api/report-builder-configs/${id}`, { method: 'DELETE' });
       toast({ title: t('Deleted', 'تم الحذف') });
-      queryClient.invalidateQueries({ queryKey: getGetReportBuilderConfigsQueryKey() });
+      loadConfigs();
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
     }
@@ -183,11 +186,11 @@ function MyReportsTab() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {configs.map((cfg: ReportBuilderConfig) => (
+          {configs.map((cfg: any) => (
             <Card key={cfg.id} className="bg-slate-800 border-slate-700 flex flex-col">
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base text-white">{cfg.nameEn ?? 'Untitled'}</CardTitle>
+                  <CardTitle className="text-base text-white">{localName(cfg.nameEn ?? cfg.name, cfg.nameAr, lang)}</CardTitle>
                   <Badge variant="outline" className="text-xs border-slate-600 text-slate-300 capitalize shrink-0">
                     {cfg.dataSource ?? '—'}
                   </Badge>
@@ -195,27 +198,27 @@ function MyReportsTab() {
                 {cfg.nameAr && <p className="text-sm text-slate-400" dir="rtl">{cfg.nameAr}</p>}
               </CardHeader>
               <CardContent className="flex-1 pb-2">
-                <p className="text-xs text-slate-400">{cfg.descriptionEn ?? t('No description', 'لا يوجد وصف')}</p>
-                <p className="text-xs text-slate-500 mt-2">{t('Last run:', 'آخر تشغيل:')} {fmtDate(cfg.updatedAt)}</p>
+                <p className="text-xs text-slate-400">{cfg.description ?? t('No description', 'لا يوجد وصف')}</p>
+                <p className="text-xs text-slate-500 mt-2">{t('Last run:', 'آخر تشغيل:')} {fmtDate(cfg.lastRunAt)}</p>
               </CardContent>
               <div className="px-6 pb-4 flex gap-2 flex-wrap">
                 <Button
                   size="sm"
                   className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold gap-1"
-                  onClick={() => cfg.id != null && handleRun(cfg.id)}
+                  onClick={() => handleRun(cfg.id)}
                 >
                   <Play className="w-3 h-3" />
                   {t('Run', 'تشغيل')}
                   <span className="text-[10px] bg-amber-600/30 text-amber-900 px-1 rounded border border-amber-700/30 ms-1">⚠ Simulated</span>
                 </Button>
-                <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 gap-1" onClick={() => cfg.id != null && handleExport(cfg.id)}>
+                <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 gap-1" onClick={() => handleExport(cfg.id)}>
                   <Download className="w-3 h-3" />
                   {t('Export', 'تصدير')}
                 </Button>
                 <Button size="sm" variant="ghost" className="text-slate-400 gap-1">
                   <Edit className="w-3 h-3" />
                 </Button>
-                <Button size="sm" variant="ghost" className="text-red-400 gap-1" onClick={() => cfg.id != null && handleDelete(cfg.id)}>
+                <Button size="sm" variant="ghost" className="text-red-400 gap-1" onClick={() => handleDelete(cfg.id)}>
                   <Trash2 className="w-3 h-3" />
                 </Button>
               </div>
@@ -228,7 +231,7 @@ function MyReportsTab() {
         open={runDialogOpen}
         onClose={() => setRunDialogOpen(false)}
         results={runResults}
-        loading={runMut.isPending}
+        loading={runLoading}
       />
     </div>
   );
@@ -239,13 +242,12 @@ function MyReportsTab() {
 function NewReportTab({ onCreated }: { onCreated: () => void }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const createMut = usePostReportBuilderConfigs();
-  const queryClient = useQueryClient();
 
   const [form, setForm] = useState({
     nameEn: '', nameAr: '', dataSource: '', description: '',
     roleRestriction: '', isPublic: false,
   });
+  const [saving, setSaving] = useState(false);
 
   function setF(k: string, v: string | boolean) {
     setForm(p => ({ ...p, [k]: v }));
@@ -256,23 +258,20 @@ function NewReportTab({ onCreated }: { onCreated: () => void }) {
       toast({ title: t('Name and Data Source are required', 'الاسم ومصدر البيانات مطلوبان'), variant: 'destructive' });
       return;
     }
+    setSaving(true);
     try {
-      await createMut.mutateAsync({
-        data: {
-          nameEn: form.nameEn,
-          nameAr: form.nameAr || form.nameEn,
-          dataSource: form.dataSource,
-          descriptionEn: form.description || undefined,
-          roleRestriction: form.roleRestriction || undefined,
-          isPublic: form.isPublic,
-        },
+      await apiFetch('/api/report-builder-configs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
       });
       toast({ title: t('Report created', 'تم إنشاء التقرير') });
       setForm({ nameEn: '', nameAr: '', dataSource: '', description: '', roleRestriction: '', isPublic: false });
-      queryClient.invalidateQueries({ queryKey: getGetReportBuilderConfigsQueryKey() });
       onCreated();
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -338,10 +337,10 @@ function NewReportTab({ onCreated }: { onCreated: () => void }) {
         <Button
           className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
           onClick={handleCreate}
-          disabled={createMut.isPending}
+          disabled={saving}
         >
           <Plus className="w-4 h-4 me-2" />
-          {createMut.isPending ? t('Creating…', 'جاري الإنشاء…') : t('Create Report', 'إنشاء تقرير')}
+          {saving ? t('Creating…', 'جاري الإنشاء…') : t('Create Report', 'إنشاء تقرير')}
         </Button>
       </CardContent>
     </Card>
@@ -353,16 +352,25 @@ function NewReportTab({ onCreated }: { onCreated: () => void }) {
 function ExportQueueTab() {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const { data: jobs = [], isLoading: loading, refetch } = useGetExportJobs();
-  const retryMut = usePostExportJobsIdRetry();
+  function loadJobs() {
+    setLoading(true);
+    apiFetch('/api/export-jobs')
+      .then(r => r.json())
+      .then(d => setJobs(Array.isArray(d) ? d : d?.data ?? []))
+      .catch(() => setJobs([]))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { loadJobs(); }, []);
 
   async function handleRetry(id: number) {
     try {
-      await retryMut.mutateAsync({ id });
+      await apiFetch(`/api/export-jobs/${id}/retry`, { method: 'POST' });
       toast({ title: t('Retry queued', 'تمت إعادة المحاولة') });
-      queryClient.invalidateQueries({ queryKey: getGetExportJobsQueryKey() });
+      loadJobs();
     } catch {
       toast({ title: t('Error', 'خطأ'), variant: 'destructive' });
     }
@@ -371,7 +379,7 @@ function ExportQueueTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={() => refetch()}>
+        <Button variant="outline" size="sm" className="border-slate-600 text-slate-300" onClick={loadJobs}>
           <RefreshCw className="w-4 h-4 me-1" />
           {t('Refresh', 'تحديث')}
         </Button>
@@ -406,16 +414,16 @@ function ExportQueueTab() {
                       </TableCell>
                     </TableRow>
                   )
-                  : jobs.map((job: ExportJob) => (
+                  : jobs.map((job: any) => (
                     <TableRow key={job.id} className="border-slate-700 hover:bg-slate-700/40">
-                      <TableCell className="text-white capitalize">{job.jobType ?? '—'}</TableCell>
+                      <TableCell className="text-white capitalize">{job.jobType ?? job.type ?? '—'}</TableCell>
                       <TableCell className="text-slate-300 capitalize">{job.entityType ?? '—'}</TableCell>
                       <TableCell><StatusBadge status={job.status ?? 'pending'} /></TableCell>
                       <TableCell className="text-slate-300 text-sm">{fmtDate(job.createdAt)}</TableCell>
                       <TableCell className="text-slate-300 text-sm">{fmtDate(job.completedAt)}</TableCell>
                       <TableCell>
-                        {job.status === 'failed' && job.id != null && (
-                          <Button size="sm" variant="ghost" className="text-amber-400 h-7 px-2" onClick={() => handleRetry(job.id!)}>
+                        {job.status === 'failed' && (
+                          <Button size="sm" variant="ghost" className="text-amber-400 h-7 px-2" onClick={() => handleRetry(job.id)}>
                             <RefreshCw className="w-3 h-3 me-1" />
                             {t('Retry', 'إعادة المحاولة')}
                           </Button>

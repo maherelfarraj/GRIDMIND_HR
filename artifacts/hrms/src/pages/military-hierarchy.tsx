@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListMilitaryRanks, useCreateMilitaryRank, useDeleteMilitaryRank,
@@ -184,6 +185,7 @@ function RanksTab() {
 
 // ─── Tree Node ────────────────────────────────────────────────────────────────
 function TreeNode({ node, depth = 0 }: { node: any; depth?: number }) {
+  const { lang } = useLanguage();
   const [expanded, setExpanded] = useState(depth < 2);
   const hasChildren = node.children && node.children.length > 0;
   return (
@@ -196,7 +198,7 @@ function TreeNode({ node, depth = 0 }: { node: any; depth?: number }) {
         {hasChildren ? (
           expanded ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />
         ) : <span className="w-3 h-3" />}
-        <span className="font-medium">{node.nameEn}</span>
+        <span className="font-medium">{localName(node.nameEn, node.nameAr, lang)}</span>
         <span className="text-xs text-gray-400 ml-1">({node.unitCode})</span>
         <Badge className="ml-auto text-[10px] border-transparent bg-gray-100 text-gray-600">{node.unitType}</Badge>
       </div>
@@ -209,7 +211,7 @@ function TreeNode({ node, depth = 0 }: { node: any; depth?: number }) {
 
 // ─── Tab: Org Units ───────────────────────────────────────────────────────────
 function OrgUnitsTab() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -281,7 +283,7 @@ function OrgUnitsTab() {
                     ) : (orgUnits ?? []).map((u: any) => (
                       <TableRow key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <TableCell className="font-mono text-xs">{u.unitCode}</TableCell>
-                        <TableCell className="font-medium text-sm">{u.nameEn}</TableCell>
+                        <TableCell className="font-medium text-sm">{localName(u.nameEn, u.nameAr, lang)}</TableCell>
                         <TableCell className="text-xs">{u.unitType}</TableCell>
                         <TableCell className="text-xs">{u.organizationType}</TableCell>
                         <TableCell><Badge className={cn('text-xs border-transparent', classifColor(u.classificationLevel))}>{u.classificationLevel}</Badge></TableCell>
@@ -336,7 +338,7 @@ function OrgUnitsTab() {
                 <SelectTrigger><SelectValue placeholder={t('None (root)','لا يوجد (جذر)')} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">{t('None (root)','لا يوجد (جذر)')}</SelectItem>
-                  {(orgUnits ?? []).map((u: any) => <SelectItem key={u.id} value={String(u.id)}>{u.nameEn} ({u.unitCode})</SelectItem>)}
+                  {(orgUnits ?? []).map((u: any) => <SelectItem key={u.id} value={String(u.id)}>{localName(u.nameEn, u.nameAr, lang)} ({u.unitCode})</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

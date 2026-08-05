@@ -22,6 +22,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { GitBranch, Plus, AlertTriangle, CheckCircle, XCircle, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react';
+import { localName } from '@/lib/localise';
 
 function fmtDate(s: string | null | undefined) {
   if (!s) return '—';
@@ -126,7 +127,7 @@ function DiffBlock({ label, json }: { label: string; json: unknown }) {
 }
 
 export default function PolicyGovernance() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newChangeOpen, setNewChangeOpen] = useState(false);
@@ -246,7 +247,7 @@ export default function PolicyGovernance() {
                       {pending.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-slate-400 py-8">{t('No pending changes', 'لا توجد تغييرات معلقة')}</TableCell></TableRow>
                       : pending.map(r => (
                         <TableRow key={r.id} className="border-slate-700 hover:bg-slate-700/30">
-                          <TableCell className="text-white font-medium">{r.titleEn}</TableCell>
+                          <TableCell className="text-white font-medium">{localName(r.titleEn, r.titleAr, lang)}</TableCell>
                           <TableCell><Badge variant="outline" className={`text-xs ${policyAreaBadge(r.policyArea)}`}>{r.policyArea}</Badge></TableCell>
                           <TableCell><Badge variant="outline" className={`text-xs ${statusBadge(r.status)}`}>{r.status}</Badge></TableCell>
                           <TableCell className="text-slate-300 text-sm">{r.makerUserId ?? '—'}</TableCell>
@@ -278,7 +279,7 @@ export default function PolicyGovernance() {
                         <div>
                           <div className="flex items-center gap-2">
                             <button onClick={() => toggleExpand(r.id)} className="text-white font-medium hover:text-blue-300 flex items-center gap-1">
-                              {expanded.has(r.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}{r.titleEn}
+                              {expanded.has(r.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}{localName(r.titleEn, r.titleAr, lang)}
                             </button>
                             <Badge variant="outline" className={`text-xs ${policyAreaBadge(r.policyArea)}`}>{r.policyArea}</Badge>
                           </div>
@@ -313,7 +314,7 @@ export default function PolicyGovernance() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-wrap">
                           <button onClick={() => toggleExpand(r.id)} className="text-white font-medium hover:text-blue-300 flex items-center gap-1">
-                            {expanded.has(r.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}{r.titleEn}
+                            {expanded.has(r.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}{localName(r.titleEn, r.titleAr, lang)}
                           </button>
                           <Badge variant="outline" className={`text-xs ${policyAreaBadge(r.policyArea)}`}>{r.policyArea}</Badge>
                           <Badge variant="outline" className={`text-xs ${statusBadge(r.status)}`}>{r.status}</Badge>
@@ -347,7 +348,7 @@ export default function PolicyGovernance() {
             <AlertDialogHeader>
               <AlertDialogTitle>{t('Rollback Policy Change?', 'التراجع عن تغيير السياسة؟')}</AlertDialogTitle>
               <AlertDialogDescription className="text-slate-400">
-                {t('Rolling back', 'التراجع عن')} <strong className="text-white">{rollbackTarget?.titleEn}</strong>. {t('This action is audit-logged.', 'هذا الإجراء مسجل تدقيقياً.')}
+                {t('Rolling back', 'التراجع عن')} <strong className="text-white">{localName(rollbackTarget?.titleEn ?? '', rollbackTarget?.titleAr, lang)}</strong>. {t('This action is audit-logged.', 'هذا الإجراء مسجل تدقيقياً.')}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="px-1 pb-2">

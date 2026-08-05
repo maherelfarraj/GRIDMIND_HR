@@ -25,6 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ClipboardCheck, PlayCircle, ChevronDown, ChevronRight, CheckCircle, XCircle, SkipForward, AlertTriangle, RefreshCw } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+import { localName } from '@/lib/localise';
 interface UATStep { stepNumber: number; actionEn: string; actionAr: string; expectedResultEn: string; expectedResultAr: string; inputData?: string; navigateTo?: string; }
 interface StepResult { stepNumber: number; result: 'pass' | 'fail' | 'skip'; notes: string; }
 
@@ -123,8 +124,8 @@ function ScriptRunDialog({ script, open, onClose, onComplete }: { script: UatScr
               <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${progress}%` }} />
             </div>
             <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-4 space-y-2">
-              <div className="font-semibold text-white">{lang === 'ar' ? currentStep.actionAr : currentStep.actionEn}</div>
-              <div className="text-sm text-emerald-300">{t('Expected:', 'المتوقع:')} {lang === 'ar' ? currentStep.expectedResultAr : currentStep.expectedResultEn}</div>
+              <div className="font-semibold text-white">{localName(currentStep.actionEn, currentStep.actionAr, lang)}</div>
+              <div className="text-sm text-emerald-300">{t('Expected:', 'المتوقع:')} {localName(currentStep.expectedResultEn, currentStep.expectedResultAr, lang)}</div>
               {currentStep.inputData && <div className="text-xs text-blue-300 bg-blue-900/20 rounded p-2">{t('Input:', 'المدخل:')} {currentStep.inputData}</div>}
               {currentStep.navigateTo && (
                 <a href={currentStep.navigateTo} target="_blank" rel="noreferrer" className="text-xs text-indigo-400 underline">
@@ -282,7 +283,7 @@ export default function UATScripts() {
                     <div className="flex items-start justify-between">
                       <Badge className="bg-slate-700 text-slate-300 text-xs font-mono">{sc.scriptCode}</Badge>
                     </div>
-                    <div className="font-semibold text-white text-sm">{lang === 'ar' ? sc.titleAr : sc.titleEn}</div>
+                    <div className="font-semibold text-white text-sm">{localName(sc.titleEn, sc.titleAr, lang)}</div>
                     <div className="flex gap-1 flex-wrap">
                       <Badge className="bg-blue-900 text-blue-300 text-xs">{sc.targetRole}</Badge>
                       <Badge className="bg-purple-900 text-purple-300 text-xs">{sc.module}</Badge>

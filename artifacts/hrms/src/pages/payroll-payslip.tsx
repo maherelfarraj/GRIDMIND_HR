@@ -1,5 +1,6 @@
 import { useParams, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useGetPayslip } from '@workspace/api-client-react';
 import {
   Table,
@@ -180,12 +181,12 @@ export default function PayrollPayslip() {
               />
               <InfoRow
                 label={t('Job Title', 'المسمى الوظيفي')}
-                value={lang === 'ar' ? employee.jobTitleAr : employee.jobTitleEn}
+                value={localName(employee.jobTitleEn, employee.jobTitleAr, lang)}
               />
               <InfoRow
                 icon={<Building2 className="h-3.5 w-3.5" />}
                 label={t('Department', 'الإدارة')}
-                value={lang === 'ar' ? employee.departmentNameAr : employee.departmentNameEn}
+                value={localName(employee.departmentNameEn, employee.departmentNameAr, lang)}
               />
               <InfoRow label={t('National ID', 'الهوية الوطنية')} value={employee.nationalId} />
               {employee.grade && (
@@ -199,7 +200,7 @@ export default function PayrollPayslip() {
                 <Calendar className="h-3.5 w-3.5" />
                 {t('Period Information', 'بيانات الفترة')}
               </p>
-              <InfoRow label={t('Period Name', 'اسم الفترة')} value={lang === 'ar' ? period.nameAr : period.nameEn} />
+              <InfoRow label={t('Period Name', 'اسم الفترة')} value={localName(period.nameEn, period.nameAr, lang)} />
               <InfoRow label={t('Period Code', 'رمز الفترة')} value={period.periodCode} />
               <InfoRow
                 label={t('Pay Period', 'فترة الصرف')}

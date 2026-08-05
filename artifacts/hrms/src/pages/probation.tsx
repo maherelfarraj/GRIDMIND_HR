@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListProbationRecords,
@@ -50,7 +51,7 @@ function DaysRemainingBadge({ endDate }: { endDate: string }) {
 
 // ─── New Probation Dialog ──────────────────────────────────────────────────────
 function NewProbationDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: empData } = useListEmployees({ limit: 500 } as any);
@@ -93,7 +94,7 @@ function NewProbationDialog({ open, onClose }: { open: boolean; onClose: () => v
         <div className="space-y-3">
           <Select value={form.employeeId} onValueChange={v => set('employeeId', v)}>
             <SelectTrigger><SelectValue placeholder={t('Select Employee', 'اختر الموظف')} /></SelectTrigger>
-            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>)}</SelectContent>
+            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>)}</SelectContent>
           </Select>
           <div className="grid grid-cols-2 gap-2">
             <div><label className="text-xs text-muted-foreground mb-1 block">{t('Start Date', 'تاريخ البدء')}</label><Input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} /></div>

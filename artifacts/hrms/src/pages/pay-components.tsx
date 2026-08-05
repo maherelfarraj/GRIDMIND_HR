@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListPayComponents, useCreatePayComponent, useUpdatePayComponent, useDeletePayComponent,
@@ -184,7 +185,8 @@ export default function PayComponents() {
                 ) : filtered.map(c => {
                   const meta = TYPE_META[c.type];
                   const Icon = meta?.icon ?? Minus;
-                  const calcLabel = CALC_METHODS.find(m => m.value === c.calculationMethod)?.[lang === 'ar' ? 'labelAr' : 'labelEn'] ?? c.calculationMethod;
+                  const _calcMethod = CALC_METHODS.find(m => m.value === c.calculationMethod);
+                  const calcLabel = localName(_calcMethod?.labelEn ?? c.calculationMethod, _calcMethod?.labelAr, lang);
                   const valueDisplay = c.calculationMethod === 'percentage'
                     ? `${c.value}%${c.percentageBase ? ` of ${c.percentageBase === 'base_salary' ? 'Base' : 'Gross'}` : ''}`
                     : `SAR ${parseFloat(c.value).toFixed(2)}`;
@@ -192,7 +194,7 @@ export default function PayComponents() {
                     <TableRow key={c.id} className={!c.isActive ? 'opacity-50' : ''}>
                       <TableCell><code className="text-xs bg-muted px-1.5 py-0.5 rounded">{c.codeEn}</code></TableCell>
                       <TableCell>
-                        <div className="font-medium text-sm">{lang === 'ar' ? c.nameAr : c.nameEn}</div>
+                        <div className="font-medium text-sm">{localName(c.nameEn, c.nameAr, lang)}</div>
                         <div className="text-xs text-muted-foreground">{lang === 'ar' ? c.nameEn : c.nameAr}</div>
                       </TableCell>
                       <TableCell>

@@ -1,6 +1,8 @@
+import { apiFetch } from '@/lib/api';
 import { useMemo, useState } from 'react';
 import { useSearch, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useListAttendance, useGetAttendanceDailySummary, useListDevices, useListEmployees, useListDepartments } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,15 +19,37 @@ import { Calendar, Download, Filter, Clock, Fingerprint, Cpu, CheckCircle, XCirc
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
-import {
-  useListAttendanceCorrections, getListAttendanceCorrectionsQueryKey,
-  useCreateAttendanceCorrection,
-  useDecideAttendanceCorrection,
-  useListDeviceMappings, getListDeviceMappingsQueryKey,
-  useCreateDeviceMapping,
-  useDeleteDeviceMapping,
-  getListAttendanceQueryKey,
-} from '@workspace/api-client-react';
+
+interface DeviceMapping {
+  deviceId: number;
+  employeeId: number;
+  employeeNameEn: string;
+  employeeNameAr: string;
+  employeeNumber: string;
+  biometricType: string;
+  accessLevel: string;
+  enrolledAt: string;
+  isActive: boolean;
+  notes: string | null;
+}
+
+interface Correction {
+  id: number;
+  attendanceId: number;
+  employeeId: number;
+  employeeNameEn: string;
+  employeeNameAr: string;
+  correctionType: string;
+  originalValue: string;
+  requestedValue: string;
+  reason: string;
+  status: string;
+  requestedAt: string;
+  reviewedAt: string | null;
+  reviewedByUserId: number | null;
+  reviewedByUsername: string | null;
+  reviewNote: string | null;
+}
 
 export default function Attendance() {
   const { t, lang } = useLanguage();
@@ -48,12 +72,15 @@ export default function Attendance() {
   const filterDepartmentName = useMemo(() => {
     if (filterDepartmentId == null) return null;
     const dept = departments?.find((d) => d.id === filterDepartmentId);
-    if (dept) return lang === 'ar' ? dept.nameAr : dept.nameEn;
-    return (
-      attendanceData?.find((r) => r.departmentId === filterDepartmentId)?.departmentNameEn ??
-      summaryData?.find((s) => s.departmentId === filterDepartmentId)?.[lang === 'ar' ? 'departmentNameAr' : 'departmentNameEn'] ??
-      `#${filterDepartmentId}`
-    );
+    if (dept) return localName(dept.nameEn, dept.nameAr, lang);
+    const attRow = attendanceData?.find((r) => r.departmentId === filterDepartmentId);
+    const sumRow = summaryData?.find((s) => s.departmentId === filterDepartmentId);
+    // AttendanceRecord only has departmentNameEn; AttendanceDailySummary has both
+    return localName(
+      attRow?.departmentNameEn ?? sumRow?.departmentNameEn,
+      sumRow?.departmentNameAr,
+      lang,
+    ) || `#${filterDepartmentId}`;
   }, [filterDepartmentId, attendanceData, summaryData, lang]);
 
   const clearFilters = () => navigate('/attendance', { replace: true });
@@ -73,40 +100,22 @@ export default function Attendance() {
   const [correctionType, setCorrectionType] = useState('');
   const [requestedValue, setRequestedValue] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
+  const [submittingCorrection, setSubmittingCorrection] = useState(false);
 
   const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
+  const [deviceMappings, setDeviceMappings] = useState<DeviceMapping[]>([]);
+  const [loadingMappings, setLoadingMappings] = useState(false);
   const [enrollDialog, setEnrollDialog] = useState(false);
   const [enrollEmployeeId, setEnrollEmployeeId] = useState('');
   const [enrollAccessLevel, setEnrollAccessLevel] = useState('standard');
   const [enrollBiometricType, setEnrollBiometricType] = useState('fingerprint');
+  const [enrolling, setEnrolling] = useState(false);
 
-  const [correctionsEnabled, setCorrectionsEnabled] = useState(false);
+  const [corrections, setCorrections] = useState<Correction[]>([]);
+  const [loadingCorrections, setLoadingCorrections] = useState(false);
   const [decidingId, setDecidingId] = useState<number | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [rejectDialogId, setRejectDialogId] = useState<number | null>(null);
-
-  const deviceMappingsParams = { deviceId: selectedDevice ?? undefined };
-  const {
-    data: deviceMappings = [],
-    isLoading: loadingMappings,
-  } = useListDeviceMappings(
-    deviceMappingsParams,
-    { query: { enabled: selectedDevice != null, queryKey: getListDeviceMappingsQueryKey(deviceMappingsParams) } },
-  );
-
-  const {
-    data: corrections = [],
-    isLoading: loadingCorrections,
-  } = useListAttendanceCorrections(undefined, {
-    query: { enabled: correctionsEnabled, queryKey: getListAttendanceCorrectionsQueryKey() },
-  });
-
-  const createCorrection = useCreateAttendanceCorrection();
-  const submittingCorrection = createCorrection.isPending;
-  const createMapping = useCreateDeviceMapping();
-  const enrolling = createMapping.isPending;
-  const deleteMapping = useDeleteDeviceMapping();
-  const decideCorrectionMut = useDecideAttendanceCorrection();
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -148,82 +157,135 @@ export default function Attendance() {
 
   const submitCorrection = async () => {
     if (!selectedAttendance || !correctionType || !requestedValue || !correctionReason) return;
-
+    
+    setSubmittingCorrection(true);
     try {
-      await createCorrection.mutateAsync({
-        id: selectedAttendance.id,
-        data: {
+      const res = await apiFetch(`/api/attendance/${selectedAttendance.id}/correction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
           employeeId: selectedAttendance.employeeId,
           correctionType,
-          originalValue: correctionType === 'check_in' ? selectedAttendance.checkInTime :
+          originalValue: correctionType === 'check_in' ? selectedAttendance.checkInTime : 
                           correctionType === 'check_out' ? selectedAttendance.checkOutTime : selectedAttendance.status,
           requestedValue,
           reason: correctionReason,
-        },
+        }),
       });
 
+      if (!res.ok) throw new Error('Failed to submit correction');
+      
       toast({ title: t('Success', 'نجاح'), description: t('Correction request submitted', 'تم إرسال طلب التصحيح') });
       setCorrectionDialog(false);
-      queryClient.invalidateQueries({ queryKey: getListAttendanceQueryKey() });
+      queryClient.invalidateQueries({ queryKey: ['listAttendance'] });
     } catch (error: any) {
       toast({ title: t('Error', 'خطأ'), description: error.message, variant: 'destructive' });
+    } finally {
+      setSubmittingCorrection(false);
+    }
+  };
+
+  const fetchDeviceMappings = async (deviceId: number) => {
+    setLoadingMappings(true);
+    try {
+      const res = await apiFetch(`/api/device-mappings?deviceId=${deviceId}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch mappings');
+      const data = await res.json();
+      setDeviceMappings(data);
+    } catch (error) {
+      toast({ title: t('Error', 'خطأ'), description: 'Failed to load device mappings', variant: 'destructive' });
+    } finally {
+      setLoadingMappings(false);
     }
   };
 
   const handleDeviceSelect = (deviceId: number) => {
     setSelectedDevice(deviceId);
+    fetchDeviceMappings(deviceId);
   };
 
   const enrollEmployee = async () => {
     if (!selectedDevice || !enrollEmployeeId) return;
-
+    
+    setEnrolling(true);
     try {
-      await createMapping.mutateAsync({
-        id: selectedDevice,
-        data: {
+      const res = await apiFetch(`/api/devices/${selectedDevice}/mappings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
           employeeId: Number(enrollEmployeeId),
           accessLevel: enrollAccessLevel,
           biometricType: enrollBiometricType,
           enrolledAt: new Date().toISOString(),
           notes: null,
-        },
+        }),
       });
 
+      if (!res.ok) throw new Error('Failed to enroll employee');
+      
       toast({ title: t('Success', 'نجاح'), description: t('Employee enrolled successfully', 'تم تسجيل الموظف بنجاح') });
       setEnrollDialog(false);
       setEnrollEmployeeId('');
-      queryClient.invalidateQueries({ queryKey: getListDeviceMappingsQueryKey({ deviceId: selectedDevice }) });
+      fetchDeviceMappings(selectedDevice);
     } catch (error: any) {
       toast({ title: t('Error', 'خطأ'), description: error.message, variant: 'destructive' });
+    } finally {
+      setEnrolling(false);
     }
   };
 
   const removeMapping = async (deviceId: number, employeeId: number) => {
     try {
-      await deleteMapping.mutateAsync({ deviceId, employeeId });
+      const res = await apiFetch(`/api/devices/${deviceId}/mappings/${employeeId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
 
+      if (!res.ok) throw new Error('Failed to remove mapping');
+      
       toast({ title: t('Success', 'نجاح'), description: t('Employee removed from device', 'تم إزالة الموظف من الجهاز') });
-      queryClient.invalidateQueries({ queryKey: getListDeviceMappingsQueryKey({ deviceId }) });
+      fetchDeviceMappings(deviceId);
     } catch (error: any) {
       toast({ title: t('Error', 'خطأ'), description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const fetchCorrections = async (status?: string) => {
+    setLoadingCorrections(true);
+    try {
+      const url = status ? `/api/attendance/corrections?status=${status}` : '/api/attendance/corrections';
+      const res = await apiFetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch corrections');
+      const data = await res.json();
+      setCorrections(data);
+    } catch (error) {
+      toast({ title: t('Error', 'خطأ'), description: 'Failed to load corrections', variant: 'destructive' });
+    } finally {
+      setLoadingCorrections(false);
     }
   };
 
   const decideCorrection = async (id: number, decision: 'approved' | 'rejected', note?: string) => {
     setDecidingId(id);
     try {
-      await decideCorrectionMut.mutateAsync({
-        id,
-        data: { decision, reviewNote: note },
+      const res = await apiFetch(`/api/attendance/corrections/${id}/decision`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ decision, reviewNote: note }),
       });
 
-      toast({
-        title: t('Success', 'نجاح'),
-        description: decision === 'approved'
-          ? t('Correction approved', 'تمت الموافقة على التصحيح')
+      if (!res.ok) throw new Error('Failed to decide correction');
+      
+      toast({ 
+        title: t('Success', 'نجاح'), 
+        description: decision === 'approved' 
+          ? t('Correction approved', 'تمت الموافقة على التصحيح') 
           : t('Correction rejected', 'تم رفض التصحيح')
       });
-      queryClient.invalidateQueries({ queryKey: getListAttendanceCorrectionsQueryKey() });
+      fetchCorrections();
       setRejectDialogId(null);
       setRejectNote('');
     } catch (error: any) {
@@ -272,7 +334,7 @@ export default function Attendance() {
       )}
 
       <Tabs defaultValue="daily" className="w-full" onValueChange={(val) => {
-        if (val === 'corrections') setCorrectionsEnabled(true);
+        if (val === 'corrections') fetchCorrections();
       }}>
         <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="daily">{t('Daily Log', 'السجل اليومي')}</TabsTrigger>
@@ -345,7 +407,7 @@ export default function Attendance() {
                     <SelectItem value="all">{t('All Departments', 'جميع الأقسام')}</SelectItem>
                     {(departments ?? []).map((dept) => (
                       <SelectItem key={dept.id} value={String(dept.id)}>
-                        {lang === 'en' ? dept.nameEn : dept.nameAr}
+                        {localName(dept.nameEn, dept.nameAr, lang)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -389,7 +451,7 @@ export default function Attendance() {
                   attendanceData.map((record) => (
                     <TableRow key={record.id}>
                       <TableCell className="font-medium">
-                        {lang === 'en' ? record.employeeNameEn : record.employeeNameAr}
+                        {localName(record.employeeNameEn, record.employeeNameAr, lang)}
                       </TableCell>
                       <TableCell className="text-muted-foreground">{record.departmentNameEn}</TableCell>
                       <TableCell className="font-mono text-xs">{record.checkInTime || '--:--'}</TableCell>
@@ -428,7 +490,7 @@ export default function Attendance() {
               </div>
             ) : (
               attendanceData.map((record) => {
-                const initials = (lang === 'en' ? record.employeeNameEn : record.employeeNameAr)
+                const initials = (localName(record.employeeNameEn, record.employeeNameAr, lang))
                   .split(' ')
                   .map(n => n[0])
                   .join('')
@@ -446,7 +508,7 @@ export default function Attendance() {
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">
-                            {lang === 'en' ? record.employeeNameEn : record.employeeNameAr}
+                            {localName(record.employeeNameEn, record.employeeNameAr, lang)}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {record.departmentNameEn}
@@ -558,10 +620,10 @@ export default function Attendance() {
                     corrections.map((correction) => (
                       <TableRow key={correction.id}>
                         <TableCell className="font-medium">
-                          {lang === 'en' ? correction.employeeNameEn : correction.employeeNameAr}
+                          {localName(correction.employeeNameEn, correction.employeeNameAr, lang)}
                         </TableCell>
                         <TableCell className="text-xs">
-                          {new Date(correction.createdAt).toLocaleDateString()}
+                          {new Date(correction.requestedAt).toLocaleDateString()}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="capitalize text-xs">
@@ -614,8 +676,8 @@ export default function Attendance() {
                             </div>
                           ) : (
                             <div className="text-xs text-muted-foreground">
-                              {correction.reviewedByName && (
-                                <p>{t('By', 'بواسطة')}: {correction.reviewedByName}</p>
+                              {correction.reviewedByUsername && (
+                                <p>{t('By', 'بواسطة')}: {correction.reviewedByUsername}</p>
                               )}
                               {correction.reviewedAt && (
                                 <p>{new Date(correction.reviewedAt).toLocaleDateString()}</p>
@@ -722,8 +784,7 @@ export default function Attendance() {
                     </TableHeader>
                     <TableBody>
                       {deviceMappings.map((mapping) => {
-                        const mappingName = (lang === 'en' ? mapping.employeeNameEn : mapping.employeeNameAr) ?? '';
-                        const initials = mappingName
+                        const initials = (localName(mapping.employeeNameEn, mapping.employeeNameAr, lang))
                           .split(' ')
                           .map(n => n[0])
                           .join('')
@@ -741,7 +802,7 @@ export default function Attendance() {
                                 </Avatar>
                                 <div>
                                   <p className="text-sm font-medium">
-                                    {lang === 'en' ? mapping.employeeNameEn : mapping.employeeNameAr}
+                                    {localName(mapping.employeeNameEn, mapping.employeeNameAr, lang)}
                                   </p>
                                   <p className="text-xs text-muted-foreground">{mapping.employeeNumber}</p>
                                 </div>
@@ -758,10 +819,14 @@ export default function Attendance() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
-                              {mapping.enrolledAt ? new Date(mapping.enrolledAt).toLocaleDateString() : '-'}
+                              {new Date(mapping.enrolledAt).toLocaleDateString()}
                             </TableCell>
                             <TableCell>
-                              <CheckCircle className="w-4 h-4 text-emerald-500" />
+                              {mapping.isActive ? (
+                                <CheckCircle className="w-4 h-4 text-emerald-500" />
+                              ) : (
+                                <XCircle className="w-4 h-4 text-muted-foreground" />
+                              )}
                             </TableCell>
                             <TableCell className="text-end">
                               <Button
@@ -871,7 +936,7 @@ export default function Attendance() {
                 <SelectContent>
                   {employees?.data?.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id.toString()}>
-                      {lang === 'en' ? emp.firstNameEn + ' ' + emp.lastNameEn : emp.firstNameAr + ' ' + emp.lastNameAr}
+                      {localFullName(emp.firstNameEn, emp.lastNameEn, emp.firstNameAr, emp.lastNameAr, lang)}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useListApprovals, useDecideApproval, useGetLeaveRequest } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -267,7 +268,7 @@ export default function Approvals() {
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <TypeIcon className="w-4 h-4 text-muted-foreground" />
-                        <span>{lang === 'en' ? item.titleEn : item.titleAr}</span>
+                        <span>{localName(item.titleEn, item.titleAr, lang)}</span>
                       </div>
                     </TableCell>
                     <TableCell>{item.requestedByEmployeeNameEn}</TableCell>

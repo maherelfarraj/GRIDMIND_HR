@@ -1,24 +1,7 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import {
-  useGetGoLiveGatesSummary, getGetGoLiveGatesSummaryQueryKey,
-  useListReadinessScorecard, getListReadinessScorecardQueryKey,
-  useListGoLiveGates, getListGoLiveGatesQueryKey,
-  useListPilotDefects, getListPilotDefectsQueryKey,
-  useListMigrationStatus, getListMigrationStatusQueryKey,
-  useGetLatestRestoreTests, getGetLatestRestoreTestsQueryKey,
-  useGetLatestBackup, getGetLatestBackupQueryKey,
-  useGetUatTestRunsSummary,
-  useListConnectionProfiles,
-  useListDevices,
-  useEvaluateGoLiveGates,
-  useRecalculateReadinessScorecard,
-  useRunRestoreTest,
-  useCreatePilotDefect,
-  useOverrideGoLiveGate,
-} from '@workspace/api-client-react';
-import type { GoLiveGate } from '@workspace/api-client-react';
+import { apiFetch } from '@/lib/api';
+import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +17,18 @@ import {
   PlusCircle, Edit,
 } from 'lucide-react';
 import { useLocation } from 'wouter';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface GoLiveSummary { isReadyForGoLive: boolean; criticalBlockers: number; lastEvaluated: string; }
+interface Scorecard { id: number; moduleKey: string; moduleName: string; moduleNameAr: string; readinessStatus: string; readinessPercentage: number; totalGates: number; passingGates: number; coveredRoles: string[]; }
+interface GoLiveGate { id: number; gateKey: string; titleEn: string; titleAr: string; category: string; severity: string; status: string; blockerDescription?: string; remediationHint?: string; evidenceJson?: string; isManual: boolean; }
+interface Defect { id: number; defectCode: string; module: string; severity: string; titleEn: string; titleAr?: string | null; isGoLiveBlocker: boolean; daysOpen: number; status: string; assignee?: string; }
+interface Migration { id: number; itemName: string; priority: string; status: string; progressPct: number; recordsMigrated: number; totalRecords: number; sourceSystem: string; isGoLiveBlocker: boolean; }
+interface BackupStatus { lastBackup?: { performedAt: string; backupType: string; status: string; }; lastRestoreTest?: { testedAt: string; result: string; durationSeconds: number; }; }
+interface UATSummary { roles: { role: string; coverage: string }[]; }
+interface ConnectionProfile { id: number; profileName: string; systemType: string; connectionStatus: string; lastTestedAt?: string; lastTestedByNameEn?: string | null; lastTestedByNameAr?: string | null; }
+interface Device { id: number; name: string; deviceCode: string; status: string; lastHeartbeat?: string; }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -77,24 +72,17 @@ function RaiseDefectDialog({ open, onClose, onCreated }: { open: boolean; onClos
   const { t } = useLanguage();
   const { toast } = useToast();
   const [form, setForm] = useState({ titleEn: '', module: '', severity: 'medium', description: '', isGoLiveBlocker: false });
-  const createMut = useCreatePilotDefect();
-  const saving = createMut.isPending;
+  const [saving, setSaving] = useState(false);
 
   async function submit() {
+    setSaving(true);
     try {
-      await createMut.mutateAsync({
-        data: {
-          module: form.module,
-          titleEn: form.titleEn,
-          descriptionEn: form.description || null,
-          severity: form.severity || null,
-          isGoLiveBlocker: form.isGoLiveBlocker,
-        },
-      });
+      await apiFetch('/api/pilot-defects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       toast({ title: t('Defect raised', 'تم رفع العيب') });
       onCreated();
       onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -125,26 +113,27 @@ function RaiseDefectDialog({ open, onClose, onCreated }: { open: boolean; onClos
 // ─── Override Gate Dialog ─────────────────────────────────────────────────────
 
 function OverrideGateDialog({ gate, open, onClose, onDone }: { gate: GoLiveGate | null; open: boolean; onClose: () => void; onDone: () => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const [reason, setReason] = useState('');
-  const overrideMut = useOverrideGoLiveGate();
-  const saving = overrideMut.isPending;
+  const [saving, setSaving] = useState(false);
 
   async function submit() {
     if (!gate) return;
+    setSaving(true);
     try {
-      await overrideMut.mutateAsync({ gateCode: gate.gateCode, data: { reason } });
+      await apiFetch(`/api/go-live-gates/${gate.id}/override`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
       toast({ title: t('Gate overridden', 'تم تجاوز البوابة') });
       onDone();
       onClose();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+    finally { setSaving(false); }
   }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="bg-slate-800 border-slate-700 text-white">
-        <DialogHeader><DialogTitle>{t('Override Gate', 'تجاوز البوابة')}: {gate?.titleEn}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t('Override Gate', 'تجاوز البوابة')}: {localName(gate?.titleEn, gate?.titleAr, lang)}</DialogTitle></DialogHeader>
         <Textarea placeholder={t('Reason for override (required)', 'سبب التجاوز (مطلوب)')} className="bg-slate-700 border-slate-600 text-white" value={reason} onChange={e => setReason(e.target.value)} />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>{t('Cancel', 'إلغاء')}</Button>
@@ -158,43 +147,24 @@ function OverrideGateDialog({ gate, open, onClose, onDone }: { gate: GoLiveGate 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PilotControlCenter() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const queryClient = useQueryClient();
 
-  const summaryQuery = useGetGoLiveGatesSummary();
-  const scorecardQuery = useListReadinessScorecard();
-  const gatesQuery = useListGoLiveGates();
-  const defectsQuery = useListPilotDefects({ status: 'open' });
-  const migrationsQuery = useListMigrationStatus();
-  const restoreTestsQuery = useGetLatestRestoreTests();
-  const backupQuery = useGetLatestBackup();
-  const uatQuery = useGetUatTestRunsSummary();
-  const profilesQuery = useListConnectionProfiles();
-  const devicesQuery = useListDevices();
+  const [summary, setSummary] = useState<GoLiveSummary | null>(null);
+  const [scorecards, setScorecards] = useState<Scorecard[]>([]);
+  const [gates, setGates] = useState<GoLiveGate[]>([]);
+  const [defects, setDefects] = useState<Defect[]>([]);
+  const [migrations, setMigrations] = useState<Migration[]>([]);
+  const [backup, setBackup] = useState<BackupStatus>({});
+  const [uatSummary, setUatSummary] = useState<UATSummary | null>(null);
+  const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
+  const [devices, setDevices] = useState<Device[]>([]);
 
-  const summary = summaryQuery.data ?? null;
-  const scorecards = scorecardQuery.data ?? [];
-  const gates = gatesQuery.data?.gates ?? [];
-  const defects = defectsQuery.data ?? [];
-  const migrations = migrationsQuery.data ?? [];
-  const lastRestoreTest = restoreTestsQuery.data?.latest?.[0] ?? null;
-  const lastBackup = backupQuery.data?.backup ?? null;
-  const uatSummary = uatQuery.data ?? null;
-  const profiles = profilesQuery.data ?? [];
-  const devices = devicesQuery.data ?? [];
-
-  const loading = summaryQuery.isLoading || scorecardQuery.isLoading || gatesQuery.isLoading
-    || defectsQuery.isLoading || migrationsQuery.isLoading || uatQuery.isLoading
-    || profilesQuery.isLoading || devicesQuery.isLoading;
-
-  const evaluateMut = useEvaluateGoLiveGates();
-  const recalculateMut = useRecalculateReadinessScorecard();
-  const runRestoreMut = useRunRestoreTest();
-  const evaluating = evaluateMut.isPending;
-  const recalculating = recalculateMut.isPending;
-  const runningRestore = runRestoreMut.isPending;
+  const [loading, setLoading] = useState(true);
+  const [evaluating, setEvaluating] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+  const [runningRestore, setRunningRestore] = useState(false);
   const [restoreResult, setRestoreResult] = useState<string | null>(null);
 
   const [expandedGateCategories, setExpandedGateCategories] = useState<Record<string, boolean>>({});
@@ -203,48 +173,74 @@ export default function PilotControlCenter() {
   const [showRaiseDefect, setShowRaiseDefect] = useState(false);
   const [overrideGate, setOverrideGate] = useState<GoLiveGate | null>(null);
 
-  function invalidateGates() {
-    queryClient.invalidateQueries({ queryKey: getGetGoLiveGatesSummaryQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getListGoLiveGatesQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getListReadinessScorecardQueryKey() });
+  async function loadAll() {
+    setLoading(true);
+    try {
+      const [sum, sc, g, def, mig, bk, uat, pr, dev] = await Promise.allSettled([
+        apiFetch('/api/go-live-gates/summary').then(r => r.json()),
+        apiFetch('/api/readiness-scorecard').then(r => r.json()),
+        apiFetch('/api/go-live-gates').then(r => r.json()),
+        apiFetch('/api/pilot-defects?status=open').then(r => r.json()),
+        apiFetch('/api/migration-status').then(r => r.json()),
+        Promise.all([apiFetch('/api/restore-tests/latest').then(r => r.json()), apiFetch('/api/admin/backup').then(r => r.json())]),
+        apiFetch('/api/uat-test-runs/summary').then(r => r.json()),
+        apiFetch('/api/integration-governance/connection-profiles').then(r => r.json()),
+        apiFetch('/api/devices').then(r => r.json()),
+      ]);
+      if (sum.status === 'fulfilled') setSummary(sum.value);
+      if (sc.status === 'fulfilled') setScorecards(Array.isArray(sc.value) ? sc.value : sc.value.scorecards ?? []);
+      if (g.status === 'fulfilled') setGates(Array.isArray(g.value) ? g.value : g.value.gates ?? []);
+      if (def.status === 'fulfilled') setDefects(Array.isArray(def.value) ? def.value : def.value.defects ?? []);
+      if (mig.status === 'fulfilled') setMigrations(Array.isArray(mig.value) ? mig.value : mig.value.items ?? []);
+      if (bk.status === 'fulfilled') {
+        const [rt, bkup] = bk.value as [any, any];
+        setBackup({ lastRestoreTest: rt?.test ?? rt, lastBackup: bkup?.backup ?? bkup });
+      }
+      if (uat.status === 'fulfilled') setUatSummary(uat.value);
+      if (pr.status === 'fulfilled') setProfiles(Array.isArray(pr.value) ? pr.value : pr.value.profiles ?? []);
+      if (dev.status === 'fulfilled') setDevices(Array.isArray(dev.value) ? dev.value : dev.value.devices ?? []);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
   }
 
+  useEffect(() => { loadAll(); }, []);
+
   async function handleEvaluate() {
+    setEvaluating(true);
     try {
-      await evaluateMut.mutateAsync();
+      await apiFetch('/api/go-live-gates/evaluate', { method: 'POST' });
       toast({ title: t('Gates re-evaluated', 'تمت إعادة تقييم البوابات') });
-      invalidateGates();
+      loadAll();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+    finally { setEvaluating(false); }
   }
 
   async function handleRecalculate() {
+    setRecalculating(true);
     try {
-      await recalculateMut.mutateAsync();
+      await apiFetch('/api/readiness-scorecard/recalculate', { method: 'POST' });
       toast({ title: t('Scorecards recalculated', 'تمت إعادة حساب بطاقات الجاهزية') });
-      queryClient.invalidateQueries({ queryKey: getListReadinessScorecardQueryKey() });
+      loadAll();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
+    finally { setRecalculating(false); }
   }
 
   async function handleRunRestore() {
+    setRunningRestore(true);
     try {
-      const res = await runRestoreMut.mutateAsync({ data: {} });
+      const res = await apiFetch('/api/restore-tests', { method: 'POST' }).then(r => r.json());
       setRestoreResult(res.result ?? 'completed');
-      queryClient.invalidateQueries({ queryKey: getGetLatestRestoreTestsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetLatestBackupQueryKey() });
+      loadAll();
     } catch { setRestoreResult('error'); }
+    finally { setRunningRestore(false); }
   }
 
-  // Per-gate manual evaluation has no dedicated server route; re-evaluate all automated gates instead.
-  async function handleManualEvaluate() {
+  async function handleManualEvaluate(gateId: number) {
     try {
-      await evaluateMut.mutateAsync();
+      await apiFetch(`/api/go-live-gates/${gateId}/evaluate`, { method: 'POST' });
       toast({ title: t('Gate evaluated', 'تم تقييم البوابة') });
-      invalidateGates();
+      loadAll();
     } catch { /* silent */ }
-  }
-
-  function refreshDefects() {
-    queryClient.invalidateQueries({ queryKey: getListPilotDefectsQueryKey({ status: 'open' }) });
   }
 
   const gatesByCategory = gates.reduce<Record<string, GoLiveGate[]>>((acc, g) => {
@@ -261,7 +257,8 @@ export default function PilotControlCenter() {
   });
 
   const UAT_ROLES = ['HR Admin', 'Payroll Admin', 'Line Manager', 'Employee', 'Attendance Supervisor', 'Auditor', 'Security Admin', 'Government User', 'Defense User'];
-  const uatRolesCovered = new Set(uatSummary?.rolesCovered ?? []);
+  const uatRoleMap: Record<string, string> = {};
+  if (uatSummary?.roles) uatSummary.roles.forEach((r: any) => { uatRoleMap[r.role] = r.coverage; });
 
   return (
     <AnimatedPage className="space-y-6">
@@ -282,7 +279,7 @@ export default function PilotControlCenter() {
             {t('🎯 Pilot Control Center', '🎯 مركز التحكم التجريبي')}
           </h1>
           <p className="text-slate-400 mt-1 text-sm">
-            {t('Total gates:', 'إجمالي البوابات:')} {summary?.totalGates ?? t('—', '—')}
+            {t('Last evaluated:', 'آخر تقييم:')} {summary?.lastEvaluated ?? t('—', '—')}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -305,7 +302,7 @@ export default function PilotControlCenter() {
           <div className={`text-xl font-bold ${summary.isReadyForGoLive ? 'text-emerald-300' : 'text-red-300'}`}>
             {summary.isReadyForGoLive
               ? t('✅ ALL CRITICAL GATES PASSED — System may proceed to go-live', '✅ اجتازت جميع البوابات الحرجة — يمكن للنظام المتابعة للإطلاق')
-              : t(`⛔ NOT READY FOR GO-LIVE — ${summary.criticalBlockers.length} critical blockers unresolved`, `⛔ غير جاهز للإطلاق — ${summary.criticalBlockers.length} عوائق حرجة غير محلولة`)}
+              : t(`⛔ NOT READY FOR GO-LIVE — ${summary.criticalBlockers} critical blockers unresolved`, `⛔ غير جاهز للإطلاق — ${summary.criticalBlockers} عوائق حرجة غير محلولة`)}
           </div>
           <div className="text-slate-400 text-sm mt-2">
             {t(
@@ -324,27 +321,23 @@ export default function PilotControlCenter() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{Array(6).fill(0).map((_, i) => <SkeletonCard key={i} />)}</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {scorecards.map(sc => {
-                let coveredRoles: string[] = [];
-                try { const parsed = JSON.parse(sc.coveredRolesJson); if (Array.isArray(parsed)) coveredRoles = parsed; } catch { /* ignore */ }
-                return (
+              {scorecards.map(sc => (
                 <div key={sc.id} className="bg-slate-700/50 border border-slate-600 rounded-lg p-4 cursor-pointer hover:bg-slate-700 transition-colors" onClick={() => navigate('/go-live-checklist')}>
                   <div className="flex items-start justify-between mb-2">
                     <div>
-                      <div className="font-semibold text-white text-sm">{t(sc.moduleDisplayEn, sc.moduleDisplayAr)}</div>
+                      <div className="font-semibold text-white text-sm">{t(sc.moduleName, sc.moduleNameAr)}</div>
                       <ReadinessBadge status={sc.readinessStatus} />
                     </div>
-                    <CircularProgress pct={Math.round(Number(sc.readinessScore) || 0)} />
+                    <CircularProgress pct={sc.readinessPercentage ?? 0} />
                   </div>
                   <div className="text-xs text-slate-400 mt-2">{sc.passingGates}/{sc.totalGates} {t('gates passing', 'بوابات ناجحة')}</div>
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {coveredRoles.slice(0, 3).map(r => (
+                    {(sc.coveredRoles ?? []).slice(0, 3).map(r => (
                       <span key={r} className="text-[10px] bg-slate-600 text-slate-300 rounded px-1.5 py-0.5">{r}</span>
                     ))}
                   </div>
                 </div>
-                );
-              })}
+              ))}
               {scorecards.length === 0 && <div className="col-span-3 text-slate-500 text-center py-8">{t('No scorecards found', 'لا توجد بطاقات جاهزية')}</div>}
             </div>
           )}
@@ -381,8 +374,8 @@ export default function PilotControlCenter() {
                               <span className="flex-1 text-sm text-white">{t(gate.titleEn, gate.titleAr)}</span>
                               <SeverityBadge severity={gate.severity} />
                               <div className="flex gap-1">
-                                {gate.evaluationType === 'manual' && (
-                                  <Button size="sm" variant="outline" className="h-6 text-xs border-slate-600 text-slate-300" onClick={() => handleManualEvaluate()}>
+                                {gate.isManual && (
+                                  <Button size="sm" variant="outline" className="h-6 text-xs border-slate-600 text-slate-300" onClick={() => handleManualEvaluate(gate.id)}>
                                     {t('Evaluate', 'تقييم')}
                                   </Button>
                                 )}
@@ -396,13 +389,13 @@ export default function PilotControlCenter() {
                                 </Button>
                               </div>
                             </div>
-                            {gate.blockerDescriptionEn && (
-                              <div className="ml-7 mt-1 text-xs text-red-400">{gate.blockerDescriptionEn}</div>
+                            {gate.blockerDescription && (
+                              <div className="ml-7 mt-1 text-xs text-red-400">{gate.blockerDescription}</div>
                             )}
                             {isGateExpanded && (
                               <div className="ml-7 mt-2 space-y-1">
                                 {gate.evidenceJson && <pre className="text-xs text-slate-400 bg-slate-900 rounded p-2 overflow-x-auto">{gate.evidenceJson}</pre>}
-                                {gate.remediationEn && <div className="text-xs text-amber-400 bg-amber-900/20 rounded p-2">{t('Remediation:', 'الإصلاح:')} {gate.remediationEn}</div>}
+                                {gate.remediationHint && <div className="text-xs text-amber-400 bg-amber-900/20 rounded p-2">{t('Remediation:', 'الإصلاح:')} {gate.remediationHint}</div>}
                               </div>
                             )}
                           </div>
@@ -463,11 +456,11 @@ export default function PilotControlCenter() {
                     <TableCell><Badge className="bg-slate-700 text-slate-300 text-xs">{d.defectCode}</Badge></TableCell>
                     <TableCell><Badge className="bg-blue-900 text-blue-300 text-xs">{d.module}</Badge></TableCell>
                     <TableCell><DefectSeverityBadge severity={d.severity} /></TableCell>
-                    <TableCell className="text-white text-sm">{d.titleEn}</TableCell>
+                    <TableCell className="text-white text-sm">{localName(d.titleEn, d.titleAr, lang)}</TableCell>
                     <TableCell>{d.isGoLiveBlocker && <Badge className="bg-red-900 text-red-300 text-xs">⛔ {t('Blocker', 'عائق')}</Badge>}</TableCell>
-                    <TableCell className="text-slate-300">{Math.max(0, Math.floor((Date.now() - new Date(d.reportedAt).getTime()) / 86400000))}</TableCell>
+                    <TableCell className="text-slate-300">{d.daysOpen}</TableCell>
                     <TableCell><Badge className="bg-amber-900 text-amber-300 text-xs">{d.status}</Badge></TableCell>
-                    <TableCell className="text-slate-400 text-sm">{d.assignedToUserId ?? '—'}</TableCell>
+                    <TableCell className="text-slate-400 text-sm">{d.assignee ?? '—'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -500,17 +493,17 @@ export default function PilotControlCenter() {
                   <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-8">{t('No migration items', 'لا توجد عناصر ترحيل')}</TableCell></TableRow>
                 ) : migrations.map(m => (
                   <TableRow key={m.id} className="border-slate-700">
-                    <TableCell className="text-white text-sm">{m.titleEn}</TableCell>
+                    <TableCell className="text-white text-sm">{m.itemName}</TableCell>
                     <TableCell><Badge className={`text-xs ${m.priority === 'critical' ? 'bg-red-900 text-red-300' : 'bg-amber-900 text-amber-300'}`}>{m.priority}</Badge></TableCell>
                     <TableCell><Badge className={`text-xs ${m.status === 'complete' ? 'bg-emerald-900 text-emerald-300' : m.status === 'in_progress' ? 'bg-blue-900 text-blue-300' : 'bg-slate-700 text-slate-300'}`}>{m.status}</Badge></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="w-24 bg-slate-600 rounded-full h-2"><div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.round(Number(m.progressPercent) || 0)}%` }} /></div>
-                        <span className="text-xs text-slate-400">{Math.round(Number(m.progressPercent) || 0)}%</span>
+                        <div className="w-24 bg-slate-600 rounded-full h-2"><div className="bg-blue-500 h-2 rounded-full" style={{ width: `${m.progressPct ?? 0}%` }} /></div>
+                        <span className="text-xs text-slate-400">{m.progressPct ?? 0}%</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-slate-300 text-sm">{m.migratedRecords ?? 0}/{m.totalRecords ?? 0}</TableCell>
-                    <TableCell className="text-slate-400 text-sm">{m.sourceSystem ?? '—'}</TableCell>
+                    <TableCell className="text-slate-300 text-sm">{m.recordsMigrated ?? 0}/{m.totalRecords ?? 0}</TableCell>
+                    <TableCell className="text-slate-400 text-sm">{m.sourceSystem}</TableCell>
                     <TableCell>{m.isGoLiveBlocker && <Badge className="bg-red-900 text-red-300 text-xs">⛔</Badge>}</TableCell>
                   </TableRow>
                 ))}
@@ -535,24 +528,24 @@ export default function PilotControlCenter() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-4">
               <div className="text-slate-400 text-xs mb-1">{t('Last Backup', 'آخر نسخ احتياطي')}</div>
-              {lastBackup ? (
+              {backup.lastBackup ? (
                 <>
-                  <div className="text-white font-semibold">{new Date(lastBackup.startedAt).toLocaleString()}</div>
+                  <div className="text-white font-semibold">{new Date(backup.lastBackup.performedAt).toLocaleString()}</div>
                   <div className="flex gap-2 mt-1">
-                    <Badge className="bg-blue-900 text-blue-300 text-xs">{lastBackup.backupType}</Badge>
-                    <Badge className={`text-xs ${lastBackup.status === 'success' ? 'bg-emerald-900 text-emerald-300' : 'bg-red-900 text-red-300'}`}>{lastBackup.status}</Badge>
+                    <Badge className="bg-blue-900 text-blue-300 text-xs">{backup.lastBackup.backupType}</Badge>
+                    <Badge className={`text-xs ${backup.lastBackup.status === 'success' ? 'bg-emerald-900 text-emerald-300' : 'bg-red-900 text-red-300'}`}>{backup.lastBackup.status}</Badge>
                   </div>
                 </>
               ) : <div className="text-slate-500 text-sm">{t('No backup data', 'لا توجد بيانات نسخ احتياطي')}</div>}
             </div>
             <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-4">
               <div className="text-slate-400 text-xs mb-1">{t('Last Restore Test', 'آخر اختبار استعادة')}</div>
-              {lastRestoreTest ? (
+              {backup.lastRestoreTest ? (
                 <>
-                  <div className="text-white font-semibold">{new Date(lastRestoreTest.testedAt).toLocaleString()}</div>
+                  <div className="text-white font-semibold">{new Date(backup.lastRestoreTest.testedAt).toLocaleString()}</div>
                   <div className="flex gap-2 mt-1">
-                    <Badge className={`text-xs ${lastRestoreTest.result === 'success' ? 'bg-emerald-900 text-emerald-300' : 'bg-red-900 text-red-300'}`}>{lastRestoreTest.result}</Badge>
-                    <span className="text-xs text-slate-400">{lastRestoreTest.restoreDurationSeconds ?? 0}s</span>
+                    <Badge className={`text-xs ${backup.lastRestoreTest.result === 'success' ? 'bg-emerald-900 text-emerald-300' : 'bg-red-900 text-red-300'}`}>{backup.lastRestoreTest.result}</Badge>
+                    <span className="text-xs text-slate-400">{backup.lastRestoreTest.durationSeconds}s</span>
                   </div>
                 </>
               ) : (
@@ -576,13 +569,13 @@ export default function PilotControlCenter() {
         <CardContent>
           <div className="flex flex-wrap gap-2">
             {UAT_ROLES.map(role => {
-              const covered = uatRolesCovered.has(role);
-              const color = covered ? 'bg-emerald-900 text-emerald-300 border-emerald-700' : 'bg-slate-700 text-slate-400 border-slate-600';
+              const cov = uatRoleMap[role];
+              const color = cov === 'complete' ? 'bg-emerald-900 text-emerald-300 border-emerald-700' : cov === 'partial' ? 'bg-amber-900 text-amber-300 border-amber-700' : 'bg-slate-700 text-slate-400 border-slate-600';
               return <Badge key={role} className={`text-sm px-3 py-1 border ${color}`}>{role}</Badge>;
             })}
           </div>
           <div className="mt-3 text-xs text-slate-400">
-            {UAT_ROLES.filter(r => uatRolesCovered.has(r)).length} / {UAT_ROLES.length} {t('roles have complete UAT coverage', 'أدوار لديها تغطية UAT كاملة')}
+            {Object.values(uatRoleMap).filter(v => v === 'complete').length} / {UAT_ROLES.length} {t('roles have complete UAT coverage', 'أدوار لديها تغطية UAT كاملة')}
           </div>
         </CardContent>
       </Card>
@@ -597,15 +590,37 @@ export default function PilotControlCenter() {
               <TableBody>
                 {profiles.slice(0, 5).map(p => (
                   <TableRow key={p.id} className="border-slate-700">
-                    <TableCell className="text-white text-xs">{p.profileName}</TableCell>
-                    <TableCell className="text-slate-400 text-xs">{p.integrationType}</TableCell>
-                    <TableCell><Badge className={`text-xs ${p.status === 'connected' ? 'bg-emerald-900 text-emerald-300' : 'bg-red-900 text-red-300'}`}>{p.status}</Badge></TableCell>
-                    <TableCell className="text-slate-400 text-xs">{p.lastTestedAt ? new Date(p.lastTestedAt).toLocaleDateString() : '—'}</TableCell>
+                    <TableCell className="text-white text-xs">{localName(p.profileName, (p as any).profileNameAr, lang)}</TableCell>
+                    <TableCell className="text-slate-400 text-xs">{p.systemType}</TableCell>
+                    <TableCell><Badge className={`text-xs ${p.connectionStatus === 'connected' ? 'bg-emerald-900 text-emerald-300' : 'bg-red-900 text-red-300'}`}>{p.connectionStatus}</Badge></TableCell>
+                    <TableCell className="text-slate-400 text-xs">
+                      {p.lastTestedAt ? (
+                        <div>
+                          <span>{new Date(p.lastTestedAt).toLocaleDateString()}</span>
+                          <p className="text-[11px] text-slate-500">
+                            {(p.lastTestedByNameEn || p.lastTestedByNameAr)
+                              ? `${t('Tested by', 'اختبرها')} ${localName(p.lastTestedByNameEn, p.lastTestedByNameAr, lang)}`
+                              : t('Automated health check', 'فحص صحة تلقائي')}
+                          </p>
+                        </div>
+                      ) : '—'}
+                    </TableCell>
                   </TableRow>
                 ))}
                 {profiles.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-slate-500 text-xs py-4">{t('No profiles', 'لا توجد ملفات')}</TableCell></TableRow>}
               </TableBody>
             </Table>
+            {profiles.length > 5 && (
+              <div className="mt-2 flex items-center justify-between text-xs">
+                <span className="text-slate-400" data-testid="text-profiles-count">
+                  {t(`Showing 5 of ${profiles.length} profiles`, `عرض 5 من ${profiles.length} ملفات`)}
+                </span>
+                <Button variant="link" size="sm" className="text-indigo-400 h-auto p-0 text-xs" onClick={() => navigate('/integration-governance')} data-testid="link-all-profiles">
+                  {t('View all profiles', 'عرض جميع الملفات')}
+                  <ChevronRight className="w-3 h-3 ml-1" />
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -618,9 +633,9 @@ export default function PilotControlCenter() {
                 {devices.slice(0, 5).map(d => (
                   <TableRow key={d.id} className="border-slate-700">
                     <TableCell className="text-white text-xs">{d.name}</TableCell>
-                    <TableCell className="text-slate-400 text-xs">{d.serialNumber}</TableCell>
+                    <TableCell className="text-slate-400 text-xs">{d.deviceCode}</TableCell>
                     <TableCell><Badge className={`text-xs ${d.status === 'online' ? 'bg-emerald-900 text-emerald-300' : 'bg-red-900 text-red-300'}`}>{d.status}</Badge></TableCell>
-                    <TableCell className="text-slate-400 text-xs">{d.lastSyncAt ? new Date(d.lastSyncAt).toLocaleDateString() : '—'}</TableCell>
+                    <TableCell className="text-slate-400 text-xs">{d.lastHeartbeat ? new Date(d.lastHeartbeat).toLocaleDateString() : '—'}</TableCell>
                   </TableRow>
                 ))}
                 {devices.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-slate-500 text-xs py-4">{t('No devices', 'لا توجد أجهزة')}</TableCell></TableRow>}
@@ -630,8 +645,8 @@ export default function PilotControlCenter() {
         </Card>
       </div>
 
-      <RaiseDefectDialog open={showRaiseDefect} onClose={() => setShowRaiseDefect(false)} onCreated={refreshDefects} />
-      <OverrideGateDialog gate={overrideGate} open={!!overrideGate} onClose={() => setOverrideGate(null)} onDone={invalidateGates} />
+      <RaiseDefectDialog open={showRaiseDefect} onClose={() => setShowRaiseDefect(false)} onCreated={loadAll} />
+      <OverrideGateDialog gate={overrideGate} open={!!overrideGate} onClose={() => setOverrideGate(null)} onDone={loadAll} />
     </AnimatedPage>
   );
 }

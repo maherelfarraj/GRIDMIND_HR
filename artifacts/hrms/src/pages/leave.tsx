@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useAuth } from '@/hooks/use-auth';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -74,7 +75,7 @@ interface NewRequestDialogProps {
 }
 
 function NewRequestDialog({ open, onClose }: NewRequestDialogProps) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -198,7 +199,7 @@ function NewRequestDialog({ open, onClose }: NewRequestDialogProps) {
               <SelectContent>
                 {employees.map(e => (
                   <SelectItem key={e.id} value={String(e.id)}>
-                    {e.firstNameEn} {e.lastNameEn}
+                    {localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -214,7 +215,7 @@ function NewRequestDialog({ open, onClose }: NewRequestDialogProps) {
                   <SelectItem key={lt.id} value={String(lt.id)}>
                     <span className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: lt.color }} />
-                      {lt.nameEn}
+                      {localName(lt.nameEn, lt.nameAr, lang)}
                       {lt.requiresAttachment && (
                         <span className="text-amber-600 text-[10px] font-medium">
                           {t('(cert required)', '(يتطلب شهادة)')}
@@ -292,7 +293,7 @@ function NewRequestDialog({ open, onClose }: NewRequestDialogProps) {
                 <SelectItem value="">{t('None', 'لا يوجد')}</SelectItem>
                 {employees.map(e => (
                   <SelectItem key={e.id} value={String(e.id)}>
-                    {e.firstNameEn} {e.lastNameEn}
+                    {localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -345,7 +346,7 @@ function RequestsTab() {
     if (!search.trim()) return list;
     const q = search.toLowerCase();
     return list.filter(r =>
-      r.employeeNameEn.toLowerCase().includes(q) ||
+      (r.employeeNameEn + ' ' + (r.employeeNameAr ?? '')).toLowerCase().includes(q) ||
       r.requestNumber.toLowerCase().includes(q)
     );
   }, [requests, search]);
@@ -548,7 +549,7 @@ function RequestsTab() {
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">{idx + 1}</TableCell>
                           <TableCell className="font-mono text-xs">{req.requestNumber}</TableCell>
-                          <TableCell>{req.employeeNameEn}</TableCell>
+                          <TableCell>{localName(req.employeeNameEn, req.employeeNameAr, lang)}</TableCell>
                           <TableCell>
                             <Badge
                               variant="outline"
@@ -559,7 +560,7 @@ function RequestsTab() {
                                 className="w-2 h-2 rounded-full me-1 inline-block"
                                 style={{ backgroundColor: req.leaveTypeColor }}
                               />
-                              {lang === 'ar' ? req.leaveTypeNameAr : req.leaveTypeNameEn}
+                              {localName(req.leaveTypeNameEn, req.leaveTypeNameAr, lang)}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm">
@@ -792,7 +793,7 @@ function TeamQueueTab() {
             <SelectItem value="all">{t('All Departments', 'كل الأقسام')}</SelectItem>
             {(depts ?? []).map(d => (
               <SelectItem key={d.id} value={String(d.id)}>
-                {lang === 'ar' ? d.nameAr : d.nameEn}
+                {localName(d.nameEn, d.nameAr, lang)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -829,7 +830,7 @@ function TeamQueueTab() {
                     const busy = actioning === req.id;
                     return (
                       <TableRow key={req.id}>
-                        <TableCell className="font-medium">{req.employeeNameEn}</TableCell>
+                        <TableCell className="font-medium">{localName(req.employeeNameEn, req.employeeNameAr, lang)}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {(req as any).departmentId ?? '—'}
                         </TableCell>
@@ -839,7 +840,7 @@ function TeamQueueTab() {
                             className="text-xs"
                             style={{ borderColor: req.leaveTypeColor, color: req.leaveTypeColor }}
                           >
-                            {lang === 'ar' ? req.leaveTypeNameAr : req.leaveTypeNameEn}
+                            {localName(req.leaveTypeNameEn, req.leaveTypeNameAr, lang)}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm">
@@ -931,7 +932,7 @@ function CalendarTab() {
   // map date → holiday
   const holidayByDate = useMemo(() => {
     const map: Record<string, string> = {};
-    (holidays ?? []).forEach(h => { map[h.date] = lang === 'ar' ? h.nameAr : h.nameEn; });
+    (holidays ?? []).forEach(h => { map[h.date] = localName(h.nameEn, h.nameAr, lang); });
     return map;
   }, [holidays, lang]);
 

@@ -1,8 +1,10 @@
+import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { useListPunchEvents, useListMissingPunches } from '@workspace/api-client-react';
-import type { PunchEvent } from '@workspace/api-client-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { localName } from '@/lib/localise';
+import { useListDevices } from '@workspace/api-client-react';
+import { useQuery } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,6 +16,21 @@ import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import {
   Fingerprint, AlertTriangle, CheckCircle2, Cpu, ShieldCheck, XCircle
 } from 'lucide-react';
+
+interface PunchEvent {
+  id: number;
+  employeeId: number;
+  employeeNameEn: string;
+  employeeNameAr: string;
+  eventType: 'CLOCK_IN' | 'CLOCK_OUT' | 'BREAK_START' | 'BREAK_END' | 'OVERTIME_START' | 'OVERTIME_END';
+  source: 'BIOMETRIC' | 'MANUAL' | 'CORRECTION';
+  deviceId: number | null;
+  deviceName: string | null;
+  eventTime: string;
+  isVerified: boolean;
+  isMissing: boolean;
+  rawData?: Record<string, unknown> | null;
+}
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
   CLOCK_IN: 'bg-emerald-500/10 text-emerald-500',
@@ -34,13 +51,6 @@ function formatEventType(type: string): string {
   return type.replace(/_/g, ' ');
 }
 
-function employeeName(ev: PunchEvent, lang: string): string {
-  if (lang === 'en') {
-    return [ev.firstNameEn, ev.lastNameEn].filter(Boolean).join(' ') || '-';
-  }
-  return [ev.firstNameAr, ev.lastNameAr].filter(Boolean).join(' ') || '-';
-}
-
 export default function PunchEvents() {
   const { t, lang } = useLanguage();
   const today = new Date().toISOString().split('T')[0];
@@ -51,12 +61,19 @@ export default function PunchEvents() {
   const [missingOnly, setMissingOnly] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<PunchEvent | null>(null);
 
-  const { data: eventsResponse, isLoading } = useListPunchEvents({ limit: 100 });
-  const events = eventsResponse?.data ?? [];
+  const { data: events, isLoading } = useQuery<PunchEvent[]>({
+    queryKey: ['punch-events'],
+    queryFn: () =>
+      apiFetch('/api/punch-events?limit=100', { credentials: 'include' }).then(r => r.json()),
+  });
 
-  const { data: missingData } = useListMissingPunches();
+  const { data: missingData } = useQuery<PunchEvent[]>({
+    queryKey: ['punch-events-missing'],
+    queryFn: () =>
+      apiFetch('/api/punch-events/missing', { credentials: 'include' }).then(r => r.json()),
+  });
 
-  const filtered = events.filter(ev => {
+  const filtered = (events ?? []).filter(ev => {
     if (filterDate && !ev.eventTime.startsWith(filterDate)) return false;
     if (filterEventType !== 'all' && ev.eventType !== filterEventType) return false;
     if (filterSource !== 'all' && ev.source !== filterSource) return false;
@@ -64,10 +81,10 @@ export default function PunchEvents() {
     return true;
   });
 
-  const totalEvents = events.length;
-  const missingCount = missingData?.length ?? events.filter(e => e.isMissing).length;
-  const manualCount = events.filter(e => e.source === 'MANUAL').length;
-  const biometricCount = events.filter(e => e.source === 'BIOMETRIC').length;
+  const totalEvents = events?.length ?? 0;
+  const missingCount = missingData?.length ?? (events?.filter(e => e.isMissing).length ?? 0);
+  const manualCount = events?.filter(e => e.source === 'MANUAL').length ?? 0;
+  const biometricCount = events?.filter(e => e.source === 'BIOMETRIC').length ?? 0;
 
   const formatTime = (iso: string) => {
     try {
@@ -238,7 +255,7 @@ export default function PunchEvents() {
                       {formatTime(ev.eventTime)}
                     </TableCell>
                     <TableCell className="font-medium">
-                      {employeeName(ev, lang)}
+                      {localName(ev.employeeNameEn, ev.employeeNameAr, lang)}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -288,7 +305,7 @@ export default function PunchEvents() {
                 <div className="p-3 rounded-md bg-muted/50">
                   <p className="text-xs text-muted-foreground mb-1">{t('Employee', 'الموظف')}</p>
                   <p className="font-semibold text-sm">
-                    {employeeName(selectedEvent, lang)}
+                    {localName(selectedEvent.employeeNameEn, selectedEvent.employeeNameAr, lang)}
                   </p>
                 </div>
                 <div className="p-3 rounded-md bg-muted/50">
@@ -335,11 +352,11 @@ export default function PunchEvents() {
                 <p className="font-mono text-sm text-muted-foreground">#{selectedEvent.id}</p>
               </div>
 
-              {selectedEvent.rawPayload && (
+              {selectedEvent.rawData && (
                 <div className="p-3 rounded-md bg-muted/50">
                   <p className="text-xs text-muted-foreground mb-2">{t('Raw Data', 'البيانات الخام')}</p>
                   <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-all overflow-auto max-h-36">
-                    {selectedEvent.rawPayload}
+                    {JSON.stringify(selectedEvent.rawData, null, 2)}
                   </pre>
                 </div>
               )}

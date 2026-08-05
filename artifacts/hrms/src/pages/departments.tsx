@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useListDepartments, useGetDepartmentTree } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -123,7 +124,7 @@ export default function Departments() {
           {/* Department info */}
           <div className="flex-1 min-w-0 flex items-center gap-3">
             <span className="font-semibold truncate">
-              {lang === 'en' ? node.nameEn : node.nameAr}
+              {localName(node.nameEn, node.nameAr, lang)}
             </span>
             <Badge variant="secondary" className="text-xs shrink-0">
               {node.code}
@@ -238,7 +239,7 @@ export default function Departments() {
                   departments?.map((dept) => (
                     <TableRow key={dept.id}>
                       <TableCell className="font-medium">
-                        {lang === 'en' ? dept.nameEn : dept.nameAr}
+                        {localName(dept.nameEn, dept.nameAr, lang)}
                         {dept.organizationType !== 'commercial' && (
                           <Badge variant="outline" className="ms-2 text-[10px] uppercase">
                             {dept.organizationType}

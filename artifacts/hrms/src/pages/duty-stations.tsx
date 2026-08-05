@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListDutyStations, useCreateDutyStation } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -103,7 +104,7 @@ function CreateStationDialog({ open, onClose }: { open: boolean; onClose: () => 
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function DutyStations() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
@@ -165,7 +166,7 @@ export default function DutyStations() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <Badge className="bg-indigo-100 text-indigo-700 border-transparent text-xs font-mono mb-1">{s.stationCode}</Badge>
-                      <h3 className="font-semibold text-gray-900 dark:text-white leading-tight">{s.nameEn}</h3>
+                      <h3 className="font-semibold text-gray-900 dark:text-white leading-tight">{localName(s.nameEn, s.nameAr, lang)}</h3>
                       {s.nameAr && <p className="text-sm text-gray-500 dark:text-gray-400 font-arabic">{s.nameAr}</p>}
                     </div>
                     <Lock className="w-4 h-4 text-gray-300 flex-shrink-0 mt-1" />

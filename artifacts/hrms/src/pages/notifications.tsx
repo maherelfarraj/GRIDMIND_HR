@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useAuth } from '@/hooks/use-auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
@@ -192,7 +193,7 @@ function SeverityBadge({ severity }: { severity: string }) {
 // ── Inbox Tab ─────────────────────────────────────────────────────────────────
 
 function InboxTab() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [, navigate] = useLocation();
@@ -339,7 +340,7 @@ function InboxTab() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className={cn('text-sm font-medium', isUnread ? 'text-white' : 'text-slate-300')}>
-                              {n.titleEn ?? n.title}
+                              {localName(n.titleEn ?? n.title, n.titleAr, lang)}
                             </p>
                             {isUnread && (
                               <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
@@ -392,7 +393,7 @@ function InboxTab() {
 // ── Escalation Rules Tab ──────────────────────────────────────────────────────
 
 function EscalationRulesTab() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [newOpen, setNewOpen] = useState(false);
@@ -450,7 +451,7 @@ function EscalationRulesTab() {
                     const r = rule as any;
                     return (
                       <TableRow key={r.id} className="border-slate-700 hover:bg-slate-700/40">
-                        <TableCell className="text-white font-medium">{r.nameEn ?? r.name}</TableCell>
+                        <TableCell className="text-white font-medium">{localName(r.nameEn ?? r.name, r.nameAr, lang)}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs border-slate-600 text-slate-300 capitalize">
                             {r.entityType?.replace(/_/g, ' ') ?? '—'}

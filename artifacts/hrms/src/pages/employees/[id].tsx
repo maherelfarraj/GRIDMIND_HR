@@ -1,4 +1,5 @@
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useGetEmployee, useGetEmployeeAttendance, useGetEmployeeDocuments, useUpdateEmployee, useDeleteEmployee } from '@workspace/api-client-react';
 import { useParams, Link } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -74,9 +75,9 @@ export default function EmployeeDetail() {
     );
   };
 
-  const name = lang === 'en' ? `${employee.firstNameEn} ${employee.lastNameEn}` : `${employee.firstNameAr} ${employee.lastNameAr}`;
-  const title = lang === 'en' ? employee.jobTitleEn : employee.jobTitleAr;
-  const dept = lang === 'en' ? employee.departmentNameEn : employee.departmentNameAr;
+  const name = localFullName(employee.firstNameEn, employee.lastNameEn, employee.firstNameAr, employee.lastNameAr, lang);
+  const title = localName(employee.jobTitleEn, employee.jobTitleAr, lang);
+  const dept = localName(employee.departmentNameEn, employee.departmentNameAr, lang);
 
   return (
     <AnimatedPage className="space-y-6 max-w-6xl mx-auto">
@@ -153,7 +154,7 @@ export default function EmployeeDetail() {
                   <AvatarImage src={employee.photoUrl} alt={name} />
                 ) : (
                   <AvatarFallback className="text-4xl bg-primary/10 text-primary">
-                    {employee.firstNameEn.charAt(0)}{employee.lastNameEn.charAt(0)}
+                    {localFullName(employee.firstNameEn, employee.lastNameEn, employee.firstNameAr, employee.lastNameAr, lang).split(' ').map(n => n[0]).filter(Boolean).slice(0,2).join('')}
                   </AvatarFallback>
                 )}
               </Avatar>
@@ -213,7 +214,7 @@ export default function EmployeeDetail() {
               {employee.rankEn && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">{t('Rank', 'الرتبة')}</p>
-                  <p className="text-sm font-medium">{lang === 'en' ? employee.rankEn : employee.rankAr}</p>
+                  <p className="text-sm font-medium">{localName(employee.rankEn, employee.rankAr, lang)}</p>
                 </div>
               )}
             </CardContent>
@@ -295,7 +296,7 @@ export default function EmployeeDetail() {
                           <TableRow key={doc.id}>
                             <TableCell className="font-medium flex items-center gap-2">
                               <FileText className="w-4 h-4 text-muted-foreground" />
-                              {lang === 'en' ? doc.titleEn : doc.titleAr}
+                              {localName(doc.titleEn, doc.titleAr, lang)}
                             </TableCell>
                             <TableCell><Badge variant="outline">{doc.category}</Badge></TableCell>
                             <TableCell>

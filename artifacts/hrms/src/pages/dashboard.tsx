@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import {
   useGetDashboardSummary,
   useGetDashboardActivity,
@@ -57,7 +58,7 @@ export default function Dashboard() {
   const otData = useMemo(
     () => (exec?.otCostByDepartment ?? []).map((d) => ({
       ...d,
-      name: lang === 'ar' ? d.departmentNameAr : d.departmentNameEn,
+      name: localName(d.departmentNameEn, d.departmentNameAr, lang),
     })),
     [exec, lang]
   );
@@ -231,7 +232,7 @@ export default function Dashboard() {
                   <div className="w-full mt-2 space-y-1 text-xs">
                     {todayGaps.slice(0, 3).map((g) => (
                       <div key={`${g.date}-${g.shiftId}`} className="flex justify-between text-muted-foreground">
-                        <span>{lang === 'ar' ? g.shiftNameAr : g.shiftNameEn} ({g.shiftCode})</span>
+                        <span>{localName(g.shiftNameEn, g.shiftNameAr, lang)} ({g.shiftCode})</span>
                         <span className={g.gap > 0 ? 'text-amber-500 font-medium' : 'text-emerald-500'}>
                           {g.worked}/{g.scheduled}
                         </span>
@@ -299,7 +300,7 @@ export default function Dashboard() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">
-                        {lang === 'ar' ? e.nameAr : e.nameEn}
+                        {localName(e.nameEn, e.nameAr, lang)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {e.occurrences} {t('occurrences', 'مرات')}
@@ -353,7 +354,7 @@ export default function Dashboard() {
                 {exec.departmentHeatmap.map((dept) => (
                   <tr key={dept.departmentId} className="border-t border-border">
                     <td className="py-1.5 pe-3 font-medium text-foreground whitespace-nowrap">
-                      {lang === 'ar' ? dept.departmentNameAr : dept.departmentNameEn}
+                      {localName(dept.departmentNameEn, dept.departmentNameAr, lang)}
                     </td>
                     <td className="text-center py-1.5 px-1 text-muted-foreground">{dept.headcount}</td>
                     {dept.days.map((day) => (

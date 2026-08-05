@@ -1,6 +1,7 @@
 import { fetchGatewayRegistrations, selectOfflineGateways, type GatewayRegistration } from '@/lib/gateways';
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import {
   useListDevices,
   useGetDevice,
@@ -255,7 +256,7 @@ export default function Devices() {
                     <Badge variant="destructive" className="text-xs">
                       {t('Offline', 'غير متصل')}
                     </Badge>
-                    <span className="font-medium">{lang === 'ar' && g.nameAr ? g.nameAr : g.name}</span>
+                    <span className="font-medium">{localName(g.name, g.nameAr, lang)}</span>
                     {g.adapterType && <span className="text-xs text-muted-foreground font-mono">{g.adapterType}</span>}
                   </div>
                   <span className="text-xs text-muted-foreground">
@@ -667,7 +668,7 @@ export default function Devices() {
                 return (
                   <div key={g.id} className="p-4 bg-background rounded-md border border-border" data-testid={`sdk-integration-${g.id}`}>
                     <div className="flex justify-between items-center mb-2 gap-2">
-                      <span className="font-semibold truncate">{lang === 'ar' && g.nameAr ? g.nameAr : g.name}</span>
+                      <span className="font-semibold truncate">{localName(g.name, g.nameAr, lang)}</span>
                       {online ? (
                         <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-500 shrink-0">{t('Connected', 'متصل')}</Badge>
                       ) : isActive ? (

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListTrainingPrograms,
@@ -45,7 +46,7 @@ function isExpiringSoon(d?: string | null) {
 
 // ─── Add Certification Dialog ──────────────────────────────────────────────────
 function AddCertDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: empData } = useListEmployees({ limit: 500 } as any);
@@ -92,7 +93,7 @@ function AddCertDialog({ open, onClose }: { open: boolean; onClose: () => void }
         <div className="space-y-3">
           <Select value={form.employeeId} onValueChange={v => set('employeeId', v)}>
             <SelectTrigger><SelectValue placeholder={t('Select Employee', 'اختر الموظف')} /></SelectTrigger>
-            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>)}</SelectContent>
+            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>)}</SelectContent>
           </Select>
           <Input placeholder={t('Certification Name', 'اسم الشهادة')} value={form.certName} onChange={e => set('certName', e.target.value)} />
           <Input placeholder={t('Type', 'النوع')} value={form.certType} onChange={e => set('certType', e.target.value)} />
@@ -113,7 +114,7 @@ function AddCertDialog({ open, onClose }: { open: boolean; onClose: () => void }
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 export default function Training() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -162,7 +163,7 @@ export default function Training() {
 
   function getEmpName(id: number) {
     const e = emps.find(e => e.id === id);
-    return e ? `${e.firstNameEn} ${e.lastNameEn}` : `#${id}`;
+    return e ? localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang) : `#${id}`;
   }
 
   return (
@@ -192,7 +193,7 @@ export default function Training() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">{t('All Programs', 'جميع البرامج')}</SelectItem>
-                  {programs.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nameEn}</SelectItem>)}
+                  {programs.map(p => <SelectItem key={p.id} value={String(p.id)}>{localName(p.nameEn, p.nameAr, lang)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Badge variant="outline">{filteredSessions.length} {t('sessions', 'جلسات')}</Badge>

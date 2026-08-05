@@ -1,4 +1,5 @@
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useAuth } from '@/hooks/use-auth';
 import { useListEmployees, useCreateEmployee } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -119,13 +120,13 @@ export default function Employees() {
                             <AvatarImage src={employee.photoUrl} alt={employee.firstNameEn} />
                           ) : (
                             <AvatarFallback className="bg-primary/10 text-primary">
-                              {employee.firstNameEn.charAt(0)}{employee.lastNameEn.charAt(0)}
+                              {localFullName(employee.firstNameEn, employee.lastNameEn, employee.firstNameAr, employee.lastNameAr, lang).split(' ').map(n => n[0]).filter(Boolean).slice(0,2).join('')}
                             </AvatarFallback>
                           )}
                         </Avatar>
                         <div>
                           <Link href={`/employees/${employee.id}`} className="font-medium text-foreground hover:underline hover:text-primary transition-colors block">
-                            {lang === 'en' ? `${employee.firstNameEn} ${employee.lastNameEn}` : `${employee.firstNameAr} ${employee.lastNameAr}`}
+                            {localFullName(employee.firstNameEn, employee.lastNameEn, employee.firstNameAr, employee.lastNameAr, lang)}
                           </Link>
                           <span className="text-xs text-muted-foreground">{employee.email}</span>
                         </div>
@@ -134,12 +135,12 @@ export default function Employees() {
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium text-sm text-foreground">{employee.employeeNumber}</span>
-                        <span className="text-xs text-muted-foreground">{lang === 'en' ? employee.jobTitleEn : employee.jobTitleAr}</span>
+                        <span className="text-xs text-muted-foreground">{localName(employee.jobTitleEn, employee.jobTitleAr, lang)}</span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="text-sm text-foreground">{lang === 'en' ? employee.departmentNameEn : employee.departmentNameAr}</span>
+                        <span className="text-sm text-foreground">{localName(employee.departmentNameEn, employee.departmentNameAr, lang)}</span>
                         <span className="text-xs text-muted-foreground">{employee.organizationType}</span>
                       </div>
                     </TableCell>

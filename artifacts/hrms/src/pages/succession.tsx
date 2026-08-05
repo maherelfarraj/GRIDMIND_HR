@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListSuccessionPools,
@@ -112,7 +113,7 @@ function PoolPanel({ pool }: { pool: any }) {
 
 // ─── Dev Plan Panel ────────────────────────────────────────────────────────────
 function DevPlanPanel({ plan }: { plan: any }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   const { data: activitiesData } = useListDevelopmentActivities(plan.id, { query: { enabled: expanded, queryKey: getListDevelopmentActivitiesQueryKey(plan.id) } });
   const activities = activitiesData?.data ?? [];
@@ -153,7 +154,7 @@ function DevPlanPanel({ plan }: { plan: any }) {
                       'bg-muted-foreground'
                 )} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{a.titleEn}</p>
+                  <p className="text-sm font-medium truncate">{localName(a.titleEn, (a as any).titleAr, lang)}</p>
                   {a.activityType && <p className="text-xs text-muted-foreground capitalize">{a.activityType}</p>}
                 </div>
                 <div className="text-right flex-shrink-0">

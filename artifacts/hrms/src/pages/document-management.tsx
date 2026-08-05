@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListEnterpriseDocuments,
@@ -79,7 +80,7 @@ function StatusBadge({ status }: { status: string }) {
 // ── Documents Tab ─────────────────────────────────────────────────────────────
 
 function DocumentsTab() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -197,7 +198,7 @@ function DocumentsTab() {
             <SelectContent>
               <SelectItem value="all">{t('All Categories', 'كل الفئات')}</SelectItem>
               {categories.map(c => (
-                <SelectItem key={c.id} value={String(c.id)}>{(c as any).nameEn ?? (c as any).code}</SelectItem>
+                <SelectItem key={c.id} value={String(c.id)}>{localName((c as any).nameEn ?? (c as any).code, (c as any).nameAr, lang)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -271,11 +272,11 @@ function DocumentsTab() {
                     return (
                       <TableRow key={d.id} className="border-slate-700 hover:bg-slate-700/40">
                         <TableCell className="font-mono text-xs text-amber-400">{d.documentNumber}</TableCell>
-                        <TableCell className="text-white font-medium">{d.titleEn}</TableCell>
+                        <TableCell className="text-white font-medium">{localName(d.titleEn, d.titleAr, lang)}</TableCell>
                         <TableCell>
                           {catName && (
                             <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
-                              {(catName as any).nameEn ?? (catName as any).code}
+                              {localName((catName as any).nameEn ?? (catName as any).code, (catName as any).nameAr, lang)}
                             </Badge>
                           )}
                         </TableCell>
@@ -357,7 +358,7 @@ function NewDocumentDialog({
   categories: any[];
   employees: any[];
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -429,7 +430,7 @@ function NewDocumentDialog({
               <SelectTrigger><SelectValue placeholder={t('Select category', 'اختر الفئة')} /></SelectTrigger>
               <SelectContent>
                 {categories.map(c => (
-                  <SelectItem key={c.id} value={String(c.id)}>{(c as any).nameEn ?? (c as any).code}</SelectItem>
+                  <SelectItem key={c.id} value={String(c.id)}>{localName((c as any).nameEn ?? (c as any).code, (c as any).nameAr, lang)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -465,7 +466,7 @@ function NewDocumentDialog({
               <SelectContent>
                 <SelectItem value="">{t('None', 'لا يوجد')}</SelectItem>
                 {employees.map(e => (
-                  <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>
+                  <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -499,7 +500,7 @@ function NewDocumentDialog({
 // ── Templates Tab ─────────────────────────────────────────────────────────────
 
 function TemplatesTab() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -565,7 +566,7 @@ function TemplatesTab() {
               <Card key={tpl.id} className="bg-slate-800 border-slate-700 flex flex-col">
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base text-white">{tpl.nameEn ?? tpl.name}</CardTitle>
+                    <CardTitle className="text-base text-white">{localName(tpl.nameEn ?? tpl.name, tpl.nameAr, lang)}</CardTitle>
                     <Badge variant="outline" className="text-xs border-slate-600 text-slate-300 shrink-0 capitalize">
                       {tpl.templateType ?? tpl.type ?? 'document'}
                     </Badge>
@@ -611,7 +612,7 @@ function TemplatesTab() {
                 <SelectTrigger><SelectValue placeholder={t('Select employee', 'اختر موظفاً')} /></SelectTrigger>
                 <SelectContent>
                   {employees.map(e => (
-                    <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>
+                    <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -648,7 +649,7 @@ function TemplatesTab() {
 // ── Categories Tab ────────────────────────────────────────────────────────────
 
 function CategoriesTab() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -708,7 +709,7 @@ function CategoriesTab() {
                     return (
                       <TableRow key={c.id} className="border-slate-700 hover:bg-slate-700/40">
                         <TableCell className="font-mono text-amber-400 text-xs">{c.code}</TableCell>
-                        <TableCell className="text-white font-medium">{c.nameEn ?? c.name}</TableCell>
+                        <TableCell className="text-white font-medium">{localName(c.nameEn ?? c.name, c.nameAr, lang)}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs border-slate-600 text-slate-300 capitalize">
                             {c.categoryType ?? c.type ?? '—'}

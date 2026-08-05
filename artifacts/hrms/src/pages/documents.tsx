@@ -1,4 +1,5 @@
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useListDocuments, useCreateDocument, useGetDocument, useUpdateDocument, useDeleteDocument, getGetDocumentQueryKey } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -104,8 +105,8 @@ export default function Documents() {
                         <div className="w-8 h-8 rounded bg-secondary flex items-center justify-center shrink-0">
                           <FileText className="w-4 h-4 text-primary" />
                         </div>
-                        <span className="truncate max-w-[200px]" title={lang === 'en' ? doc.titleEn : doc.titleAr}>
-                          {lang === 'en' ? doc.titleEn : doc.titleAr}
+                        <span className="truncate max-w-[200px]" title={localName(doc.titleEn, doc.titleAr, lang)}>
+                          {localName(doc.titleEn, doc.titleAr, lang)}
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">

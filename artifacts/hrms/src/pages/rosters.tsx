@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { ChevronLeft, ChevronRight, CalendarDays, Users, XCircle, AlertCircle, CalendarOff } from 'lucide-react';
+import { localName } from '@/lib/localise';
 
 function rosterNameEn(r: RosterEntry): string {
   return [r.firstNameEn, r.lastNameEn].filter(Boolean).join(' ').trim() || `#${r.employeeId}`;
@@ -196,7 +197,7 @@ export default function Rosters() {
             <SelectItem value="all">{t('All Departments', 'جميع الأقسام')}</SelectItem>
             {departments?.map(d => (
               <SelectItem key={d.id} value={String(d.id)}>
-                {lang === 'en' ? d.nameEn : d.nameAr}
+                {localName(d.nameEn, d.nameAr, lang)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -245,7 +246,7 @@ export default function Rosters() {
                 employees.map(emp => (
                   <TableRow key={emp.id} className="hover:bg-muted/30">
                     <TableCell className="font-medium sticky start-0 bg-background z-10">
-                      {lang === 'en' ? emp.nameEn : emp.nameAr}
+                      {localName(emp.nameEn, emp.nameAr, lang)}
                     </TableCell>
                     {weekDates.map(date => {
                       const entry = rosterMap[emp.id]?.[date];

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import {
@@ -37,7 +38,7 @@ function fmtDate(d?: string | null) {
 
 // ─── New Delegation Dialog ─────────────────────────────────────────────────────
 function NewDelegationDialog({ open, onClose, delegatorEmployeeId }: { open: boolean; onClose: () => void; delegatorEmployeeId: number }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: empData } = useListEmployees({ limit: 500 } as any);
@@ -81,7 +82,7 @@ function NewDelegationDialog({ open, onClose, delegatorEmployeeId }: { open: boo
         <div className="space-y-3">
           <Select value={form.delegateEmployeeId} onValueChange={v => set('delegateEmployeeId', v)}>
             <SelectTrigger><SelectValue placeholder={t('Delegate To', 'تفويض إلى')} /></SelectTrigger>
-            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>)}</SelectContent>
+            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>)}</SelectContent>
           </Select>
           <div className="grid grid-cols-2 gap-2">
             <div><label className="text-xs text-muted-foreground mb-1 block">{t('From', 'من')}</label><Input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} /></div>
@@ -100,7 +101,7 @@ function NewDelegationDialog({ open, onClose, delegatorEmployeeId }: { open: boo
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 export default function ManagerPortal() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -129,7 +130,7 @@ export default function ManagerPortal() {
   function getEmpName(id?: number | null) {
     if (!id) return '—';
     const e = employees.find(e => e.id === id);
-    return e ? `${e.firstNameEn} ${e.lastNameEn}` : `#${id}`;
+    return e ? localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang) : `#${id}`;
   }
 
   function handleLeaveDecision(id: number, decision: 'approved' | 'rejected') {
@@ -190,10 +191,10 @@ export default function ManagerPortal() {
                   <CardContent className="pt-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-600 font-bold text-sm">
-                        {emp.firstNameEn.charAt(0)}
+                        {localFullName(emp.firstNameEn, emp.lastNameEn, emp.firstNameAr, emp.lastNameAr, lang).charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{emp.firstNameEn} {emp.lastNameEn}</p>
+                        <p className="font-medium text-sm truncate">{localFullName(emp.firstNameEn, emp.lastNameEn, emp.firstNameAr, emp.lastNameAr, lang)}</p>
                         <p className="text-xs text-muted-foreground">#{emp.employeeNumber}</p>
                       </div>
                       <Badge variant="outline" className={cn('text-xs capitalize',
@@ -228,8 +229,8 @@ export default function ManagerPortal() {
                     <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t('No pending leave requests', 'لا توجد طلبات إجازة معلقة')}</TableCell></TableRow>
                   ) : pendingLeave.map((r: any) => (
                     <TableRow key={r.id}>
-                      <TableCell>{r.employeeNameEn || `#${r.employeeId}`}</TableCell>
-                      <TableCell>{r.leaveTypeNameEn || `#${r.leaveTypeId}`}</TableCell>
+                      <TableCell>{localName(r.employeeNameEn, r.employeeNameAr, lang) || `#${r.employeeId}`}</TableCell>
+                      <TableCell>{localName(r.leaveTypeNameEn, r.leaveTypeNameAr, lang) || `#${r.leaveTypeId}`}</TableCell>
                       <TableCell>{fmtDate(r.startDate)}</TableCell>
                       <TableCell>{fmtDate(r.endDate)}</TableCell>
                       <TableCell>{r.totalDays}</TableCell>
@@ -266,7 +267,7 @@ export default function ManagerPortal() {
                   ) : pendingApprovals.map(a => (
                     <TableRow key={a.id}>
                       <TableCell className="capitalize">{a.type}</TableCell>
-                      <TableCell className="max-w-48 truncate">{a.titleEn}</TableCell>
+                      <TableCell className="max-w-48 truncate">{localName(a.titleEn, a.titleAr, lang)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize text-xs">{a.status}</Badge>
                       </TableCell>
@@ -306,7 +307,7 @@ export default function ManagerPortal() {
                   <TableBody>
                     {goals.slice(0, 20).map(g => (
                       <TableRow key={g.id}>
-                        <TableCell className="font-medium">{g.titleEn}</TableCell>
+                        <TableCell className="font-medium">{localName(g.titleEn, g.titleAr, lang)}</TableCell>
                         <TableCell>{getEmpName(g.employeeId)}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={cn('capitalize text-xs',

@@ -25,6 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ShieldAlert, RefreshCw, AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronRight, Info } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+import { localName } from '@/lib/localise';
 type RunWithFindings = SecurityTestRun & { findings?: SecurityTestFinding[] };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -214,7 +215,7 @@ export default function SecurityTests() {
                   <TableRow key={s.id} className="border-slate-700">
                     <TableCell><Badge className="bg-slate-700 text-slate-300 text-xs font-mono">{s.scenarioCode}</Badge></TableCell>
                     <TableCell><AttackVectorBadge vector={s.attackVector} /></TableCell>
-                    <TableCell className="text-white text-sm">{lang === 'ar' ? s.titleAr : s.titleEn}</TableCell>
+                    <TableCell className="text-white text-sm">{localName(s.titleEn, s.titleAr, lang)}</TableCell>
                     <TableCell><SeverityBadge severity={s.severity} /></TableCell>
                     <TableCell className="text-slate-400 text-xs">{s.strideCategory}</TableCell>
                     <TableCell className="text-slate-400 text-xs font-mono max-w-xs truncate">{s.targetEndpoint}</TableCell>
@@ -307,7 +308,7 @@ export default function SecurityTests() {
                         {vecScenarios.map(s => (
                           <div key={s.id} className="flex items-center gap-3 text-sm">
                             <Badge className="bg-slate-700 text-slate-300 text-xs font-mono w-28 shrink-0">{s.scenarioCode}</Badge>
-                            <span className="text-white flex-1">{lang === 'ar' ? s.titleAr : s.titleEn}</span>
+                            <span className="text-white flex-1">{localName(s.titleEn, s.titleAr, lang)}</span>
                             <SeverityBadge severity={s.severity} />
                           </div>
                         ))}

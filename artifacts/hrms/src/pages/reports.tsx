@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListReportDefinitions,
@@ -184,7 +185,7 @@ function RunReportDialog({ open, reportId, reportName, onClose, onSuccess }: Run
 }
 
 function RunReportsTab({ onRunSuccess }: { onRunSuccess: () => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { data: defs, isLoading } = useListReportDefinitions(undefined as any);
   const [typeFilter, setTypeFilter] = useState('all');
   const [runDialog, setRunDialog] = useState<{ open: boolean; id: number | null; name: string }>({
@@ -231,7 +232,7 @@ function RunReportsTab({ onRunSuccess }: { onRunSuccess: () => void }) {
               <Card key={d.id} className="bg-slate-800 border-slate-700 flex flex-col">
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base text-white">{d.nameEn ?? d.name}</CardTitle>
+                    <CardTitle className="text-base text-white">{localName(d.nameEn ?? d.name, d.nameAr, lang)}</CardTitle>
                     <Badge variant="outline" className="text-xs border-slate-600 text-slate-300 capitalize shrink-0">
                       {d.reportType ?? d.type ?? 'report'}
                     </Badge>
@@ -247,7 +248,7 @@ function RunReportsTab({ onRunSuccess }: { onRunSuccess: () => void }) {
                   <Button
                     size="sm"
                     className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
-                    onClick={() => setRunDialog({ open: true, id: d.id, name: d.nameEn ?? d.name })}
+                    onClick={() => setRunDialog({ open: true, id: d.id, name: localName(d.nameEn ?? d.name, d.nameAr, lang) })}
                   >
                     <Play className="w-3 h-3 me-1" />
                     {t('Run Report', 'تشغيل التقرير')}
@@ -279,7 +280,7 @@ function RunReportsTab({ onRunSuccess }: { onRunSuccess: () => void }) {
 // ── Scheduled Tab ─────────────────────────────────────────────────────────────
 
 function ScheduledTab() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [newOpen, setNewOpen] = useState(false);
@@ -339,7 +340,7 @@ function ScheduledTab() {
                     const def = (defs ?? []).find(d => d.id === sc.reportDefinitionId) as any;
                     return (
                       <TableRow key={sc.id} className="border-slate-700 hover:bg-slate-700/40">
-                        <TableCell className="text-white font-medium">{sc.nameEn ?? def?.nameEn ?? '—'}</TableCell>
+                        <TableCell className="text-white font-medium">{localName(sc.nameEn ?? def?.nameEn, sc.nameAr ?? def?.nameAr, lang)}</TableCell>
                         <TableCell><FrequencyBadge freq={sc.frequency ?? 'daily'} /></TableCell>
                         <TableCell className="text-slate-300 text-sm">
                           {sc.dayOfMonth ? `Day ${sc.dayOfMonth}` : sc.dayOfWeek ?? '—'} {sc.timeOfDay ? `@ ${sc.timeOfDay}` : ''}
@@ -379,7 +380,7 @@ function ScheduledTab() {
 }
 
 function NewScheduleDialog({ open, onClose, definitions }: { open: boolean; onClose: () => void; definitions: any[] }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const createSched = useCreateReportSchedule();
@@ -437,7 +438,7 @@ function NewScheduleDialog({ open, onClose, definitions }: { open: boolean; onCl
               <SelectTrigger><SelectValue placeholder={t('Select report', 'اختر التقرير')} /></SelectTrigger>
               <SelectContent>
                 {definitions.map(d => (
-                  <SelectItem key={d.id} value={String(d.id)}>{(d as any).nameEn ?? (d as any).name}</SelectItem>
+                  <SelectItem key={d.id} value={String(d.id)}>{localName((d as any).nameEn ?? (d as any).name, (d as any).nameAr, lang)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -528,7 +529,7 @@ function NewScheduleDialog({ open, onClose, definitions }: { open: boolean; onCl
 // ── Output History Tab ────────────────────────────────────────────────────────
 
 function OutputHistoryTab() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState('all');
   const [defFilter, setDefFilter] = useState('all');
@@ -583,7 +584,7 @@ function OutputHistoryTab() {
           <SelectContent>
             <SelectItem value="all">{t('All Reports', 'كل التقارير')}</SelectItem>
             {(defs ?? []).map(d => (
-              <SelectItem key={d.id} value={String(d.id)}>{(d as any).nameEn ?? (d as any).name}</SelectItem>
+              <SelectItem key={d.id} value={String(d.id)}>{localName((d as any).nameEn ?? (d as any).name, (d as any).nameAr, lang)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -620,7 +621,7 @@ function OutputHistoryTab() {
                     const def = (defs ?? []).find(d => d.id === op.reportDefinitionId) as any;
                     return (
                       <TableRow key={op.id} className="border-slate-700 hover:bg-slate-700/40">
-                        <TableCell className="text-white text-sm">{def?.nameEn ?? def?.name ?? '—'}</TableCell>
+                        <TableCell className="text-white text-sm">{localName(def?.nameEn ?? def?.name, def?.nameAr, lang)}</TableCell>
                         <TableCell className="text-slate-300 text-sm">{op.generatedByName ?? op.generatedBy ?? '—'}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs border-slate-600 text-slate-300 uppercase">

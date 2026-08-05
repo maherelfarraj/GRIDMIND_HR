@@ -6,6 +6,7 @@ import {
 } from '@workspace/api-client-react';
 import type { ListOrganizations200Item } from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -125,13 +126,13 @@ function AddOrgDialog({ open, onClose, onSaved }: { open: boolean; onClose: () =
 }
 
 function OrgDetailDrawer({ org, onClose }: { org: Org; onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   return (
     <div className="fixed inset-0 z-50 flex" onClick={onClose}>
       <div className="flex-1 bg-black/50" />
       <div className="w-96 bg-slate-800 border-l border-slate-700 h-full overflow-y-auto p-6 space-y-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">{org.nameEn}</h2>
+          <h2 className="text-lg font-bold text-white">{localName(org.nameEn, org.nameAr, lang)}</h2>
           <Button variant="ghost" size="sm" onClick={onClose} className="text-slate-400">✕</Button>
         </div>
         <Card className="bg-slate-700 border-slate-600">
@@ -158,7 +159,7 @@ function OrgDetailDrawer({ org, onClose }: { org: Org; onClose: () => void }) {
 }
 
 export default function Organizations() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: orgs = [], isLoading, error } = useListOrganizations();
@@ -239,7 +240,7 @@ export default function Organizations() {
                   ) : orgs.map(org => (
                     <TableRow key={org.id} className="border-slate-700 hover:bg-slate-700/30">
                       <TableCell className="font-mono text-slate-300 text-sm">{org.orgCode}</TableCell>
-                      <TableCell className="text-white font-medium">{org.nameEn}</TableCell>
+                      <TableCell className="text-white font-medium">{localName(org.nameEn, org.nameAr, lang)}</TableCell>
                       <TableCell className="text-slate-300" dir="rtl">{org.nameAr || '—'}</TableCell>
                       <TableCell><Badge variant="outline" className={orgTypeBadge(org.orgType)}>{org.orgType}</Badge></TableCell>
                       <TableCell><Badge variant="outline" className={statusBadge(org.status)}>{org.status}</Badge></TableCell>
@@ -277,7 +278,7 @@ export default function Organizations() {
             <AlertDialogHeader>
               <AlertDialogTitle>{t('Archive Organization?', 'أرشفة المؤسسة؟')}</AlertDialogTitle>
               <AlertDialogDescription className="text-slate-400">
-                {t('This will archive', 'سيتم أرشفة')} <strong className="text-white">{archiveTarget?.nameEn}</strong>. {t('This action is audit-logged.', 'هذا الإجراء مسجل تدقيقياً.')}
+                {t('This will archive', 'سيتم أرشفة')} <strong className="text-white">{localName(archiveTarget?.nameEn, archiveTarget?.nameAr, lang)}</strong>. {t('This action is audit-logged.', 'هذا الإجراء مسجل تدقيقياً.')}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

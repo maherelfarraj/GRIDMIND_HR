@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetApplication,
@@ -154,7 +155,7 @@ function BackgroundCheckDialog({ open, onClose, applicationId }: { open: boolean
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 export default function RecruitmentApplication() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const params = useParams<{ id: string }>();
@@ -235,7 +236,7 @@ export default function RecruitmentApplication() {
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><User className="w-4 h-4 text-amber-500" />{t('Applicant Profile', 'ملف المتقدم')}</CardTitle></CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t('Name', 'الاسم')}</span><span className="font-medium">{applicant ? `${applicant.firstNameEn ?? ''} ${applicant.lastNameEn ?? ''}`.trim() || '—' : '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t('Name', 'الاسم')}</span><span className="font-medium">{applicant ? localFullName(applicant.firstNameEn, applicant.lastNameEn, applicant.firstNameAr, applicant.lastNameAr, lang) || '—' : '—'}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">{t('Email', 'البريد')}</span><span>{applicant?.email ?? '—'}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">{t('Phone', 'الهاتف')}</span><span>{applicant?.phone ?? '—'}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">{t('Type', 'النوع')}</span><span className="capitalize">{applicant?.applicantType ?? '—'}</span></div>

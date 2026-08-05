@@ -1,19 +1,74 @@
+import { useEffect, useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   AlertTriangle, CheckCircle, XCircle, ClipboardList, AlertCircle, WifiOff, Wifi,
 } from 'lucide-react';
-import {
-  useGetGoLiveGatesSummary,
-  useListReadinessScorecard,
-  useListPilotDefects,
-  useGetMigrationStatusSummary,
-  useListMigrationStatus,
-  useListGatewayRegistrations,
-} from '@workspace/api-client-react';
-import type { ReadinessScorecard } from '@workspace/api-client-react';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+import { apiFetch } from '@/lib/api';
+
+interface GoLiveSummary {
+  isReadyForGoLive: boolean;
+  criticalBlockers: number;
+  lastEvaluated?: string;
+  reason?: string;
+}
+
+interface Scorecard {
+  id: number;
+  moduleKey: string;
+  moduleName: string;
+  moduleNameAr: string;
+  readinessStatus: string;
+  readinessPercentage: number;
+}
+
+interface Defect {
+  id: number;
+  defectCode: string;
+  module: string;
+  severity: string;
+  titleEn: string;
+  titleAr?: string | null;
+  isGoLiveBlocker: boolean;
+  daysOpen: number;
+  status: string;
+}
+
+interface MigrationItem {
+  id: number;
+  itemName: string;
+  priority: string;
+  status: string;
+  progressPct: number;
+  recordsMigrated: number;
+  totalRecords: number;
+  sourceSystem?: string;
+  isGoLiveBlocker: boolean;
+}
+
+interface GatewayRegistration {
+  id: number;
+  name: string;
+  nameAr?: string | null;
+  status: string;
+  silent: boolean;
+  silenceThresholdMs: number;
+  lastHeartbeatAt?: string | null;
+  lastSeenAt?: string | null;
+  adapterType?: string | null;
+}
+
+interface MigrationSummary {
+  overallPct: number;
+  totalItems: number;
+  completedItems: number;
+  blockerItems: number;
+}
 
 // ─── Static module notes (honest per-module assessment) ──────────────────────
 
@@ -107,9 +162,9 @@ const KNOWN_BLOCKERS: KnownBlocker[] = [
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function scoreFromScorecards(scorecards: ReadinessScorecard[], key: string): number | null {
-  const sc = scorecards.find(s => s.module === key);
-  return sc ? Math.round(Number(sc.readinessScore) || 0) : null;
+function scoreFromScorecards(scorecards: Scorecard[], key: string): number | null {
+  const sc = scorecards.find(s => s.moduleKey === key);
+  return sc ? sc.readinessPercentage : null;
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -117,30 +172,37 @@ function scoreFromScorecards(scorecards: ReadinessScorecard[], key: string): num
 export default function ReadinessPage() {
   const { t, lang } = useLanguage();
 
-  const summaryQuery = useGetGoLiveGatesSummary();
-  const scorecardsQuery = useListReadinessScorecard();
-  const defectsQuery = useListPilotDefects({ status: 'open' });
-  const migSummaryQuery = useGetMigrationStatusSummary();
-  const migItemsQuery = useListMigrationStatus();
-  const gatewaysQuery = useListGatewayRegistrations();
+  const [summary, setSummary] = useState<GoLiveSummary | null>(null);
+  const [scorecards, setScorecards] = useState<Scorecard[]>([]);
+  const [defects, setDefects] = useState<Defect[]>([]);
+  const [migSummary, setMigSummary] = useState<MigrationSummary | null>(null);
+  const [migItems, setMigItems] = useState<MigrationItem[]>([]);
+  const [gateways, setGateways] = useState<GatewayRegistration[] | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const summary = summaryQuery.data ?? null;
-  const scorecards = scorecardsQuery.data ?? [];
-  const defects = defectsQuery.data ?? [];
-  const migSummary = migSummaryQuery.data ?? null;
-  const migItems = migItemsQuery.data ?? [];
-  const gateways = gatewaysQuery.data ?? null;
-
-  const loading =
-    summaryQuery.isLoading ||
-    scorecardsQuery.isLoading ||
-    defectsQuery.isLoading ||
-    migSummaryQuery.isLoading ||
-    migItemsQuery.isLoading;
-
-  const migOverallPct = migSummary && migSummary.total > 0
-    ? Math.round((migSummary.complete / migSummary.total) * 100)
-    : 0;
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const [sumR, scR, defR, migSumR, gwR] = await Promise.allSettled([
+        apiFetch('/api/go-live-gates/summary').then(r => r.json()),
+        apiFetch('/api/readiness-scorecard').then(r => r.json()),
+        apiFetch('/api/pilot-defects?status=open').then(r => r.json()),
+        apiFetch('/api/migration-status/summary').then(r => r.json()),
+        apiFetch('/api/gateway/registrations', { credentials: 'include' }).then(r => (r.ok ? r.json() : null)),
+      ]);
+      if (gwR.status === 'fulfilled' && Array.isArray(gwR.value)) setGateways(gwR.value);
+      if (sumR.status === 'fulfilled') setSummary(sumR.value);
+      if (scR.status === 'fulfilled') setScorecards(Array.isArray(scR.value) ? scR.value : scR.value?.scorecards ?? []);
+      if (defR.status === 'fulfilled') setDefects(Array.isArray(defR.value) ? defR.value : defR.value?.defects ?? []);
+      if (migSumR.status === 'fulfilled') {
+        const v = migSumR.value;
+        setMigSummary(v?.summary ?? v ?? null);
+        setMigItems(v?.items ?? []);
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
 
   return (
     <AnimatedPage className="space-y-8 pb-10">
@@ -174,8 +236,11 @@ export default function ReadinessPage() {
           <div className={`text-2xl font-bold flex items-center gap-3 ${summary.isReadyForGoLive ? 'text-emerald-300' : 'text-red-300'}`}>
             {summary.isReadyForGoLive
               ? <><CheckCircle className="w-7 h-7" /> {t('ALL CRITICAL GATES PASSED — System may proceed to go-live', 'اجتازت جميع البوابات الحرجة — يمكن للنظام المتابعة للإطلاق')}</>
-              : <><XCircle className="w-7 h-7" /> {t(`NOT READY FOR GO-LIVE — ${summary.criticalBlockers.length} critical blocker(s) unresolved`, `غير جاهز للإطلاق — ${summary.criticalBlockers.length} عائق حرج غير محلول`)}</>}
+              : <><XCircle className="w-7 h-7" /> {t(`NOT READY FOR GO-LIVE — ${summary.criticalBlockers} critical blocker(s) unresolved`, `غير جاهز للإطلاق — ${summary.criticalBlockers} عائق حرج غير محلول`)}</>}
           </div>
+          {summary.reason && (
+            <p className="text-slate-400 text-sm mt-2">{summary.reason}</p>
+          )}
           {!summary.isReadyForGoLive && (
             <p className="text-slate-400 text-sm mt-2">
               {t(
@@ -225,7 +290,7 @@ export default function ReadinessPage() {
                       <Badge className="bg-red-900 text-red-300 border-red-700 border text-xs">
                         {t('Offline', 'غير متصل')}
                       </Badge>
-                      <span className="text-red-200 font-medium">{lang === 'ar' && g.nameAr ? g.nameAr : g.name}</span>
+                      <span className="text-red-200 font-medium">{localName(g.name, g.nameAr, lang)}</span>
                       {g.adapterType && <span className="text-xs text-slate-400 font-mono">{g.adapterType}</span>}
                     </div>
                     <span className="text-xs text-slate-400">
@@ -266,7 +331,7 @@ export default function ReadinessPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-semibold text-foreground text-sm">
-                        {lang === 'ar' ? mod.nameAr : mod.nameEn}
+                        {localName(mod.nameEn, mod.nameAr, lang)}
                       </p>
                       <p className="text-muted-foreground text-xs">
                         {lang === 'ar' ? mod.nameEn : mod.nameAr}
@@ -380,13 +445,13 @@ export default function ReadinessPage() {
                         <Badge className={`text-xs ${sevMap[d.severity] ?? 'bg-slate-700 text-slate-300'}`}>{d.severity}</Badge>
                       </td>
                       <td className="py-2.5 px-4 text-sm text-foreground">{d.module}</td>
-                      <td className="py-2.5 px-4 text-sm text-foreground">{d.titleEn}</td>
+                      <td className="py-2.5 px-4 text-sm text-foreground">{localName(d.titleEn, d.titleAr, lang)}</td>
                       <td className="py-2.5 px-4 text-center">
                         {d.isGoLiveBlocker
                           ? <Badge className="bg-red-900 text-red-300 text-xs">{t('Blocker', 'عائق')}</Badge>
                           : <span className="text-muted-foreground text-xs">—</span>}
                       </td>
-                      <td className="py-2.5 px-4 text-end text-muted-foreground text-sm">{Math.max(0, Math.floor((Date.now() - new Date(d.reportedAt).getTime()) / 86400000))}</td>
+                      <td className="py-2.5 px-4 text-end text-muted-foreground text-sm">{d.daysOpen}</td>
                     </tr>
                   );
                 })}
@@ -412,18 +477,18 @@ export default function ReadinessPage() {
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-foreground">{t('Overall Migration Progress', 'تقدم الهجرة الإجمالي')}</span>
-                    <span className="text-sm font-bold text-foreground">{migOverallPct}%</span>
+                    <span className="text-sm font-bold text-foreground">{migSummary.overallPct ?? 0}%</span>
                   </div>
                   <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary rounded-full transition-all"
-                      style={{ width: `${migOverallPct}%` }}
+                      style={{ width: `${migSummary.overallPct ?? 0}%` }}
                     />
                   </div>
                   <div className="flex gap-6 text-xs text-muted-foreground flex-wrap">
-                    <span>{t('Total items:', 'إجمالي العناصر:')} <strong className="text-foreground">{migSummary.total ?? 0}</strong></span>
-                    <span>{t('Completed:', 'مكتملة:')} <strong className="text-emerald-400">{migSummary.complete ?? 0}</strong></span>
-                    <span>{t('Blockers:', 'عوائق:')} <strong className="text-red-400">{migSummary.blockers ?? 0}</strong></span>
+                    <span>{t('Total items:', 'إجمالي العناصر:')} <strong className="text-foreground">{migSummary.totalItems ?? 0}</strong></span>
+                    <span>{t('Completed:', 'مكتملة:')} <strong className="text-emerald-400">{migSummary.completedItems ?? 0}</strong></span>
+                    <span>{t('Blockers:', 'عوائق:')} <strong className="text-red-400">{migSummary.blockerItems ?? 0}</strong></span>
                   </div>
                 </CardContent>
               </Card>
@@ -443,7 +508,7 @@ export default function ReadinessPage() {
                   <tbody>
                     {migItems.map((item, idx) => (
                       <tr key={item.id} className={`border-b border-border ${idx % 2 === 0 ? '' : 'bg-muted/10'} hover:bg-muted/20 transition-colors`}>
-                        <td className="py-2.5 px-4 text-foreground font-medium">{lang === 'ar' ? item.titleAr : item.titleEn}</td>
+                        <td className="py-2.5 px-4 text-foreground font-medium">{item.itemName}</td>
                         <td className="py-2.5 px-4">
                           <Badge className={`text-xs ${item.priority === 'critical' ? 'bg-red-900 text-red-300' : item.priority === 'high' ? 'bg-amber-900 text-amber-300' : 'bg-slate-700 text-slate-300'}`}>
                             {item.priority}
@@ -457,9 +522,9 @@ export default function ReadinessPage() {
                         <td className="py-2.5 px-4">
                           <div className="flex items-center gap-2">
                             <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden min-w-[60px]">
-                              <div className="h-full bg-primary rounded-full" style={{ width: `${Math.round(Number(item.progressPercent) || 0)}%` }} />
+                              <div className="h-full bg-primary rounded-full" style={{ width: `${item.progressPct ?? 0}%` }} />
                             </div>
-                            <span className="text-xs text-muted-foreground">{Math.round(Number(item.progressPercent) || 0)}%</span>
+                            <span className="text-xs text-muted-foreground">{item.progressPct ?? 0}%</span>
                           </div>
                         </td>
                         <td className="py-2.5 px-4 text-center">

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListSalaryGrades, useCreateSalaryGrade, useUpdateSalaryGrade, useDeleteSalaryGrade,
@@ -179,7 +180,7 @@ export default function SalaryGrades() {
                 size="sm"
                 onClick={() => setOrgFilter(v)}
               >
-                {v === 'all' ? t('All', 'الكل') : ORG_TYPES.find(o => o.value === v)?.[lang === 'ar' ? 'labelAr' : 'labelEn']}
+                {v === 'all' ? t('All', 'الكل') : localName(ORG_TYPES.find(o => o.value === v)?.labelEn, ORG_TYPES.find(o => o.value === v)?.labelAr, lang)}
               </Button>
             ))}
           </div>
@@ -191,7 +192,8 @@ export default function SalaryGrades() {
         ) : (
           Object.entries(grouped).map(([org, rows]) => {
             const OrgIcon = ORG_ICONS[org] ?? Building2;
-            const orgLabel = ORG_TYPES.find(o => o.value === org)?.[lang === 'ar' ? 'labelAr' : 'labelEn'] ?? org;
+            const _orgType = ORG_TYPES.find(o => o.value === org);
+            const orgLabel = localName(_orgType?.labelEn ?? org, _orgType?.labelAr, lang);
             return (
               <Card key={org}>
                 <CardHeader className="pb-3">
@@ -229,7 +231,7 @@ export default function SalaryGrades() {
                           <TableRow key={g.id} className={!g.isActive ? 'opacity-50' : ''}>
                             <TableCell><code className="text-xs bg-muted px-1.5 py-0.5 rounded">{g.gradeCode}</code></TableCell>
                             <TableCell>
-                              <div className="font-medium text-sm">{lang === 'ar' ? g.nameAr : g.nameEn}</div>
+                              <div className="font-medium text-sm">{localName(g.nameEn, g.nameAr, lang)}</div>
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">{g.step}</TableCell>
                             <TableCell className="text-end font-mono text-sm">{g.currency} {fmt(g.baseSalary)}</TableCell>

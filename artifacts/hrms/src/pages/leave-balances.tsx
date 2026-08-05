@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListLeaveBalances, useListLeaveTypes, useListEmployees, useUpdateLeaveBalance,
@@ -39,7 +40,7 @@ interface AdjustDialogProps {
 }
 
 function AdjustDialog({ balance, onClose }: AdjustDialogProps) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const updateMut = useUpdateLeaveBalance();
@@ -94,7 +95,7 @@ function AdjustDialog({ balance, onClose }: AdjustDialogProps) {
         <DialogHeader>
           <DialogTitle>{t('Adjust Leave Balance', 'تعديل رصيد الإجازة')}</DialogTitle>
           <DialogDescription>
-            {balance.employeeNameEn} — {balance.leaveTypeNameEn} ({balance.year})
+            {localName(balance.employeeNameEn, balance.employeeNameAr, lang)} — {localName(balance.leaveTypeNameEn, balance.leaveTypeNameAr, lang)} ({balance.year})
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">
@@ -317,7 +318,7 @@ export default function LeaveBalancesPage() {
                 <SelectItem key={lt.id} value={String(lt.id)}>
                   <span className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: lt.color }} />
-                    {lang === 'ar' ? lt.nameAr : lt.nameEn}
+                    {localName(lt.nameEn, lt.nameAr, lang)}
                   </span>
                 </SelectItem>
               ))}
@@ -366,7 +367,7 @@ export default function LeaveBalancesPage() {
                         return (
                           <TableRow key={b.id}>
                             <TableCell className="font-medium">
-                              {lang === 'ar' ? (b.employeeNameAr ?? b.employeeNameEn) : b.employeeNameEn}
+                              {localName(b.employeeNameEn, b.employeeNameAr, lang)}
                             </TableCell>
                             <TableCell>
                               <Badge
@@ -381,7 +382,7 @@ export default function LeaveBalancesPage() {
                                   className="w-2 h-2 rounded-full mr-1 inline-block"
                                   style={{ backgroundColor: b.leaveTypeColor }}
                                 />
-                                {lang === 'ar' ? b.leaveTypeNameAr : b.leaveTypeNameEn}
+                                {localName(b.leaveTypeNameEn, b.leaveTypeNameAr, lang)}
                               </Badge>
                             </TableCell>
                             <TableCell>{b.year}</TableCell>

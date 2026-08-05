@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Globe, Plus } from 'lucide-react';
+import { localName } from '@/lib/localise';
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const DAY_AR = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
@@ -317,7 +318,7 @@ export default function PolicyLocalization() {
               <Select value={selectedOrg} onValueChange={setSelectedOrg}>
                 <SelectTrigger className="w-56 bg-slate-700 border-slate-600 text-white"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
-                  {orgs.map(o => <SelectItem key={o.id} value={String(o.id)}>{o.nameEn}</SelectItem>)}
+                  {orgs.map(o => <SelectItem key={o.id} value={String(o.id)}>{localName(o.nameEn, o.nameAr, lang)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -420,7 +421,7 @@ export default function PolicyLocalization() {
                     {empTypes.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-slate-400 py-8">{t('No employment types', 'لا توجد أنواع توظيف')}</TableCell></TableRow>
                     : empTypes.map(et => (
                       <TableRow key={et.id} className="border-slate-700 hover:bg-slate-700/30">
-                        <TableCell className="text-white">{et.labelEn}</TableCell>
+                        <TableCell className="text-white">{localName(et.labelEn, et.labelAr, lang)}</TableCell>
                         <TableCell className="text-slate-300" dir="rtl">{et.labelAr || '—'}</TableCell>
                         <TableCell className="text-slate-300">{et.probationDays ?? '—'} {t('days', 'أيام')}</TableCell>
                         <TableCell className="text-slate-300">{et.defaultContractMonths ?? '—'} {t('mo', 'شهر')}</TableCell>
@@ -447,7 +448,7 @@ export default function PolicyLocalization() {
               <Select value={selectedOrg} onValueChange={setSelectedOrg}>
                 <SelectTrigger className="w-56 bg-slate-700 border-slate-600 text-white"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
-                  {orgs.map(o => <SelectItem key={o.id} value={String(o.id)}>{o.nameEn}</SelectItem>)}
+                  {orgs.map(o => <SelectItem key={o.id} value={String(o.id)}>{localName(o.nameEn, o.nameAr, lang)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

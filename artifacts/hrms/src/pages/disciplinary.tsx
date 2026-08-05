@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName, localFullName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListDisciplinaryRecords,
@@ -39,7 +40,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 
 // ─── New Disciplinary Record Dialog ───────────────────────────────────────────
 function NewDisciplinaryDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: empData } = useListEmployees({ limit: 500 } as any);
@@ -85,7 +86,7 @@ function NewDisciplinaryDialog({ open, onClose }: { open: boolean; onClose: () =
         <div className="space-y-3">
           <Select value={form.employeeId} onValueChange={v => set('employeeId', v)}>
             <SelectTrigger><SelectValue placeholder={t('Select Employee', 'اختر الموظف')} /></SelectTrigger>
-            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>)}</SelectContent>
+            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>)}</SelectContent>
           </Select>
           <Input type="date" value={form.incidentDate} onChange={e => set('incidentDate', e.target.value)} />
           <Input placeholder={t('Incident Type', 'نوع الحادثة')} value={form.incidentType} onChange={e => set('incidentType', e.target.value)} />
@@ -103,7 +104,7 @@ function NewDisciplinaryDialog({ open, onClose }: { open: boolean; onClose: () =
 
 // ─── Recommend Promotion Dialog ────────────────────────────────────────────────
 function PromotionDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: empData } = useListEmployees({ limit: 500 } as any);
@@ -146,11 +147,11 @@ function PromotionDialog({ open, onClose }: { open: boolean; onClose: () => void
         <div className="space-y-3">
           <Select value={form.employeeId} onValueChange={v => set('employeeId', v)}>
             <SelectTrigger><SelectValue placeholder={t('Employee', 'الموظف')} /></SelectTrigger>
-            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>)}</SelectContent>
+            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={form.recommendedBy} onValueChange={v => set('recommendedBy', v)}>
             <SelectTrigger><SelectValue placeholder={t('Recommended By', 'موصى به من')} /></SelectTrigger>
-            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstNameEn} {e.lastNameEn}</SelectItem>)}</SelectContent>
+            <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>)}</SelectContent>
           </Select>
           <Input type="date" value={form.effectiveDate} onChange={e => set('effectiveDate', e.target.value)} />
           <Textarea placeholder={t('Justification', 'المبرر')} value={form.justification} onChange={e => set('justification', e.target.value)} rows={3} />

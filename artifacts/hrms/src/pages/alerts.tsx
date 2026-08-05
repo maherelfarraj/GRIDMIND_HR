@@ -1,4 +1,5 @@
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useListAlerts, useAcknowledgeAlert } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -66,7 +67,7 @@ export default function Alerts() {
                   <div className="flex-1 space-y-1">
                     <div className="flex justify-between items-start">
                       <h3 className="text-lg font-semibold leading-none tracking-tight">
-                        {lang === 'en' ? alert.titleEn : alert.titleAr}
+                        {localName(alert.titleEn, alert.titleAr, lang)}
                       </h3>
                       {!alert.acknowledged && (
                         <Button 
@@ -86,7 +87,7 @@ export default function Alerts() {
                       )}
                     </div>
                     <p className={`text-sm ${alert.acknowledged ? 'text-muted-foreground' : 'text-foreground/80'}`}>
-                      {lang === 'en' ? alert.descriptionEn : alert.descriptionAr}
+                      {localName(alert.descriptionEn, alert.descriptionAr, lang)}
                     </p>
                     <div className="flex items-center gap-3 mt-4 text-xs font-mono text-muted-foreground pt-4 border-t border-border/50">
                       <span>ID: ALT-{alert.id.toString().padStart(4, '0')}</span>

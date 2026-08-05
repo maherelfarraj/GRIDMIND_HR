@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Plus, Timer, Moon, Sun, GitFork, Zap, Clock, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { localName } from '@/lib/localise';
 
 type ShiftType = 'day' | 'night' | 'split' | 'flexible';
 
@@ -183,7 +184,7 @@ export default function Shifts() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h3 className="font-semibold text-base">
-                      {lang === 'en' ? shift.nameEn : shift.nameAr}
+                      {localName(shift.nameEn, shift.nameAr, lang)}
                     </h3>
                     <div className="flex items-center gap-2 mt-1.5">
                       <Badge
