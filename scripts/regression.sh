@@ -14,6 +14,17 @@ set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FAILED=()
 
+# Rebuild all composite shared libraries (lib/db, lib/api-zod, etc.) before any
+# suite runs.  Without this, a schema edit that hasn't been manually compiled
+# will silently leave lib/db/dist stale and break the API-server typecheck even
+# though the source change is correct.  tsc --build is incremental, so this is
+# fast when nothing changed.
+echo "==> Rebuilding shared libs (tsc --build)…"
+if ! (cd "$ROOT" && pnpm run typecheck:libs); then
+  echo "==> FATAL: shared-lib build failed; aborting regression run"
+  exit 1
+fi
+
 run_suite() {
   local name="$1"; shift
   echo ""
