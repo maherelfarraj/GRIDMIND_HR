@@ -2570,6 +2570,11 @@ export interface BackupRecordInput {
   notes?: string | null;
 }
 
+export type BackupScheduleStatusLastPrune = {
+  expired: number;
+  filesDeleted: number;
+  errors: number;
+} | null;
 export interface BranchServer {
   id: number;
   serverCode: string;
@@ -8510,10 +8515,6 @@ page?: number | null;
  * @nullable
  */
 pageSize?: number | null;
-/**
- * @nullable
- */
-eventType?: string | null;
 };
 
 export type ListIntegrationAuditLog200 = {
@@ -8636,3 +8637,17 @@ templateType?: string | null;
 export type CreateOrgReportTemplateBody = { [key: string]: unknown };
 
 export type UpsertOrganizationBrandingBody = { [key: string]: unknown };
+
+export interface BackupScheduleStatus {
+  enabled: boolean;
+  cronExpression: string;
+  valid: boolean;
+  running: boolean;
+  /** @nullable */
+  lastRunAt: string | null;
+  /** @nullable */
+  lastRunStatus: string | null;
+  /** @nullable */
+  lastRunError: string | null;
+  lastPrune: BackupScheduleStatusLastPrune;
+}

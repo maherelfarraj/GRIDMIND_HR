@@ -67,6 +67,8 @@ export * from './backgroundCheck';
 export * from './backgroundCheckInput';
 export * from './backupRecord';
 export * from './backupRecordInput';
+export * from './backupScheduleStatus';
+export * from './backupScheduleStatusLastPrune';
 export * from './branchServer';
 export * from './branchServerInput';
 export * from './breakGlassAccess';

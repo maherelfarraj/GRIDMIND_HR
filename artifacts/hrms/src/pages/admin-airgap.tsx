@@ -6,6 +6,7 @@ import {
   useGetSyncStatus, useListBranchServers, useRegisterBranchServer,
   useListSyncQueue, useResolveSyncConflict,
   useListBackupRecords, useCreateBackupRecord, useGetDrStatus,
+  useGetBackupScheduleStatus,
   useGetLicense,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
@@ -20,7 +21,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { Server, Plus, Loader2, HardDrive, Shield, GitBranch, AlertTriangle, CheckCircle, XCircle, RefreshCw, Activity } from 'lucide-react';
+import { Server, Plus, Loader2, HardDrive, Shield, GitBranch, AlertTriangle, CheckCircle, XCircle, RefreshCw, Activity, Clock, Calendar } from 'lucide-react';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function fmtDate(d: string | null | undefined) {
@@ -320,6 +321,7 @@ function BackupDrTab() {
 
   const { data: drStatus, isLoading: loadingDr } = useGetDrStatus();
   const { data: backups, isLoading: loadingBackups } = useListBackupRecords();
+  const { data: scheduleStatus, isLoading: loadingSchedule } = useGetBackupScheduleStatus({ query: { refetchInterval: 30_000 } as any });
 
   const createBackupMutation = useCreateBackupRecord({
     mutation: {
@@ -347,16 +349,65 @@ function BackupDrTab() {
 
   const dr = drStatus as any;
 
+  const sched = scheduleStatus as any;
+
   return (
     <div className="space-y-6">
-      {/* Backup simulation banner */}
-      <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg text-sm">
-        <AlertTriangle className="w-4 h-4 shrink-0" />
-        {t(
-          'Backup execution is not implemented; records shown are metadata only. No pg_dump is executed in this installation.',
-          'تنفيذ النسخ الاحتياطي غير مُطبَّق؛ السجلات المعروضة بيانات وصفية فقط. لا يتم تنفيذ pg_dump في هذا التثبيت.'
-        )}
-      </div>
+      {/* Backup Schedule card */}
+      {loadingSchedule ? <Skeleton className="h-36 rounded-xl" /> : sched && (
+        <Card className="rounded-xl shadow-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-indigo-500" />
+                {t('Backup Schedule','جدول النسخ الاحتياطي')}
+              </CardTitle>
+              {sched.enabled && sched.valid && sched.running
+                ? <Badge className="bg-green-100 text-green-700 border-transparent">{t('Active','نشط')}</Badge>
+                : sched.enabled && !sched.valid
+                  ? <Badge className="bg-red-100 text-red-700 border-transparent">{t('Invalid cron','cron غير صالح')}</Badge>
+                  : <Badge className="bg-gray-100 text-gray-500 border-transparent">{t('Disabled','معطّل')}</Badge>
+              }
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs text-gray-500">{t('Cron expression','تعبير Cron')}</p>
+                <p className="text-sm font-mono font-medium">{sched.cronExpression}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">{t('Last run','آخر تشغيل')}</p>
+                <p className="text-sm font-medium">{fmtDate(sched.lastRunAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">{t('Last run status','حالة آخر تشغيل')}</p>
+                {sched.lastRunStatus === 'completed'
+                  ? <span className="flex items-center gap-1 text-sm font-medium text-green-600"><CheckCircle className="w-3.5 h-3.5" />{t('Completed','مكتمل')}</span>
+                  : sched.lastRunStatus === 'failed'
+                    ? <span className="flex items-center gap-1 text-sm font-medium text-red-600"><XCircle className="w-3.5 h-3.5" />{t('Failed','فشل')}</span>
+                    : <span className="text-sm text-gray-400">—</span>
+                }
+              </div>
+              {sched.lastPrune && (
+                <div>
+                  <p className="text-xs text-gray-500">{t('Last prune','آخر تنظيف')}</p>
+                  <p className="text-sm font-medium">
+                    {sched.lastPrune.expired} {t('expired','منتهي')} · {sched.lastPrune.filesDeleted} {t('deleted','محذوف')}
+                    {sched.lastPrune.errors > 0 && <span className="text-red-500"> · {sched.lastPrune.errors} {t('errors','أخطاء')}</span>}
+                  </p>
+                </div>
+              )}
+            </div>
+            {sched.lastRunError && (
+              <Alert className="border-red-400/40 bg-red-50 dark:bg-red-950/20 py-2">
+                <XCircle className="h-3 w-3 text-red-600" />
+                <AlertDescription className="text-red-700 text-xs font-mono">{sched.lastRunError}</AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* DR Status card */}
       {loadingDr ? <Skeleton className="h-48 rounded-xl" /> : dr && (

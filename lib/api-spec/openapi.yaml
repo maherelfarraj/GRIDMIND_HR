@@ -3510,6 +3510,18 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/BackupRecord' }
 
+  /admin/backup-schedule:
+    get:
+      operationId: getBackupScheduleStatus
+      tags: [ admin ]
+      summary: Live backup scheduler status (cron expression, last run, last prune)
+      responses:
+        '200':
+          description: Scheduler status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BackupScheduleStatus' }
+
   # ── Admin — Branch Servers ─────────────────────────────────────────────────
   /admin/branch-servers:
     get:
@@ -13957,6 +13969,27 @@ components:
         serverCode: { type: string }
         notes: { type: [ "string", "null" ] }
       required: [ backupType ]
+
+    BackupScheduleStatus:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        cronExpression: { type: string }
+        valid: { type: boolean }
+        running: { type: boolean }
+        lastRunAt: { type: [ 'string', 'null' ] }
+        lastRunStatus: { type: [ 'string', 'null' ] }
+        lastRunError: { type: [ 'string', 'null' ] }
+        lastPrune:
+          oneOf:
+            - type: object
+              properties:
+                expired: { type: number }
+                filesDeleted: { type: number }
+                errors: { type: number }
+              required: [ expired, filesDeleted, errors ]
+            - type: 'null'
+      required: [ enabled, cronExpression, valid, running, lastRunAt, lastRunStatus, lastRunError, lastPrune ]
 
     BranchServer:
       type: object

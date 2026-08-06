@@ -6102,7 +6102,23 @@ export const VerifyBackupRecordResponse = zod.object({
   "createdAt": zod.coerce.date().optional()
 })
 
-
+/**
+ * @summary Live backup scheduler status (cron expression, last run, last prune)
+ */
+export const GetBackupScheduleStatusResponse = zod.object({
+  "enabled": zod.boolean(),
+  "cronExpression": zod.string(),
+  "valid": zod.boolean(),
+  "running": zod.boolean(),
+  "lastRunAt": zod.string().nullable(),
+  "lastRunStatus": zod.string().nullable(),
+  "lastRunError": zod.string().nullable(),
+  "lastPrune": zod.union([zod.object({
+  "expired": zod.number(),
+  "filesDeleted": zod.number(),
+  "errors": zod.number()
+}),zod.null()])
+})
 /**
  * @summary List registered branch servers
  */

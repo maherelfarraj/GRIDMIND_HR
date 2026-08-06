@@ -2,8 +2,14 @@ import { Router } from "express";
 import { db, backupRecordsTable, auditLogsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { runBackup } from "../lib/backupService.js";
+import { getBackupScheduleStatus } from "../lib/backupScheduler.js";
 
 const router = Router();
+
+// GET /admin/backup-schedule — live scheduler status
+router.get("/admin/backup-schedule", (req, res): void => {
+  res.json(getBackupScheduleStatus());
+});
 
 // GET /admin/backup — latest backup summary (used by pilot control center)
 router.get("/admin/backup", async (req, res): Promise<void> => {
