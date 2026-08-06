@@ -733,6 +733,10 @@ export interface Approval {
   dueDate?: string | null;
   /** @nullable */
   metadata?: string | null;
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityId?: number | null;
   createdAt: string;
 }
 
@@ -748,6 +752,10 @@ export interface ApprovalInput {
   dueDate?: string | null;
   /** @nullable */
   metadata?: string | null;
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityId?: number | null;
 }
 
 export interface ApprovalDecision {

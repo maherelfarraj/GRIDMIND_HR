@@ -288,7 +288,7 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
       eventType: success ? "test_passed" : "test_failed",
       outcome: success ? "success" : "failure",
       message,
-      metadataJson: JSON.stringify({ latencyMs, simulated }),
+      metadataJson: JSON.stringify({ latencyMs, simulated, attempts: 1 }),
       actorUserId,
     });
 

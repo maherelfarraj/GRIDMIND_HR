@@ -831,6 +831,8 @@ export const ListApprovalsResponseItem = zod.object({
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
   "metadata": zod.string().nullish(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish(),
   "createdAt": zod.string()
 })
 export const ListApprovalsResponse = zod.array(ListApprovalsResponseItem)
@@ -847,7 +849,9 @@ export const CreateApprovalBody = zod.object({
   "requestedByEmployeeId": zod.number(),
   "assignedToUserId": zod.number().nullish(),
   "dueDate": zod.string().nullish(),
-  "metadata": zod.string().nullish()
+  "metadata": zod.string().nullish(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish()
 })
 
 export const CreateApprovalResponse = zod.object({
@@ -865,6 +869,8 @@ export const CreateApprovalResponse = zod.object({
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
   "metadata": zod.string().nullish(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish(),
   "createdAt": zod.string()
 })
 
@@ -891,6 +897,8 @@ export const GetApprovalResponse = zod.object({
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
   "metadata": zod.string().nullish(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish(),
   "createdAt": zod.string()
 })
 
@@ -922,6 +930,8 @@ export const DecideApprovalResponse = zod.object({
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
   "metadata": zod.string().nullish(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish(),
   "createdAt": zod.string()
 })
 

@@ -12063,6 +12063,8 @@ components:
         decisionNote: { type: [ "string", "null" ] }
         dueDate: { type: [ "string", "null" ] }
         metadata: { type: [ "string", "null" ] }
+        entityType: { type: [ "string", "null" ] }
+        entityId: { type: [ "integer", "null" ] }
         createdAt: { type: string }
       required:
         - id
@@ -12086,6 +12088,8 @@ components:
         assignedToUserId: { type: [ "integer", "null" ] }
         dueDate: { type: [ "string", "null" ] }
         metadata: { type: [ "string", "null" ] }
+        entityType: { type: [ "string", "null" ] }
+        entityId: { type: [ "integer", "null" ] }
       required: [ type, titleEn, titleAr, priority, requestedByEmployeeId ]
 
     ApprovalDecision:
