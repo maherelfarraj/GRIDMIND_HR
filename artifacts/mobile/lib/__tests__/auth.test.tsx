@@ -34,6 +34,14 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 vi.mock('expo-secure-store', () => secureStoreMock);
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
+// usePathname/useRouter are used inside AuthProvider for route tracking and
+// imperative navigation on session expiry. Tests supply controllable values.
+let mockPathname = '/(tabs)';
+const mockRouterReplace = vi.fn();
+vi.mock('expo-router', () => ({
+  usePathname: () => mockPathname,
+  useRouter: () => ({ replace: mockRouterReplace }),
+}));
 
 import { AuthProvider, useAuth } from '../auth';
 // customFetch is internal to the api-client package (not re-exported), so
@@ -93,16 +101,18 @@ function Probe() {
 }
 
 /**
- * Render with a stored token + cached profile. `/auth/me` validation fails
- * with a network error (offline), so the cached profile is kept — the
- * signed-in state is backed by the token, not blind trust in the profile.
+ * Render with a stored token + validated session. `/auth/me` returns a
+ * successful profile so the session latch (sessionLiveRef) is armed — which
+ * is required for the 401 handler to treat subsequent failures as mid-session
+ * expiry rather than bootstrap noise.
  */
 async function renderSignedIn() {
   secureStoreMock.getItemAsync.mockResolvedValue('tok-123');
   asyncStorageMock.getItem.mockResolvedValue(STORED_USER);
-  vi.stubGlobal('fetch', vi.fn(async () => {
-    throw new TypeError('Network request failed');
-  }));
+  const stored = JSON.parse(STORED_USER) as Record<string, unknown>;
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) =>
+    make200Response(String(input), stored),
+  ));
   render(
     <AuthProvider>
       <Probe />
@@ -139,6 +149,8 @@ async function fire401(url: string) {
 
 beforeEach(() => {
   latestAuth = null;
+  mockPathname = '/(tabs)';
+  mockRouterReplace.mockClear();
   asyncStorageMock.getItem.mockReset();
   asyncStorageMock.removeItem.mockClear();
   asyncStorageMock.setItem.mockClear();
@@ -384,5 +396,85 @@ describe('AuthProvider 401 session-expiry handling', () => {
     ).rejects.toBeInstanceOf(ApiError);
 
     expect(asyncStorageMock.removeItem).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthProvider expiredReturnTo', () => {
+  it('captures the current route as expiredReturnTo on session expiry', async () => {
+    mockPathname = '/notifications';
+    await renderSignedIn();
+
+    await fire401('https://api.example.com/employees/me');
+
+    await waitFor(() => {
+      expect(latestAuth?.expiredReturnTo).toBe('/notifications');
+    });
+  });
+
+  it('does not capture /login or /change-password as expiredReturnTo', async () => {
+    mockPathname = '/login';
+    await renderSignedIn();
+    await fire401('https://api.example.com/employees/me');
+    await waitFor(() => { expect(latestAuth?.user).toBeNull(); });
+    expect(latestAuth?.expiredReturnTo).toBeNull();
+  });
+
+  it('does not set expiredReturnTo on credential-check 401s', async () => {
+    mockPathname = '/(tabs)';
+    await renderSignedIn();
+    await fire401('https://api.example.com/auth/login');
+    expect(latestAuth?.expiredReturnTo).toBeNull();
+  });
+
+  it('clearExpiredReturnTo resets the value to null', async () => {
+    mockPathname = '/approvals';
+    await renderSignedIn();
+    await fire401('https://api.example.com/employees/me');
+    await waitFor(() => { expect(latestAuth?.expiredReturnTo).toBe('/approvals'); });
+
+    await act(async () => { latestAuth!.clearExpiredReturnTo(); });
+    expect(latestAuth?.expiredReturnTo).toBeNull();
+  });
+
+  it('does not set expiredReturnTo on a voluntary logout', async () => {
+    mockPathname = '/(tabs)/approvals';
+    await renderSignedIn();
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline'); }));
+    await act(async () => { await latestAuth!.logout(); });
+    expect(latestAuth?.expiredReturnTo).toBeNull();
+  });
+
+  it('navigates to /login imperatively so unguarded screens are covered', async () => {
+    mockPathname = '/notifications';
+    await renderSignedIn();
+
+    await fire401('https://api.example.com/employees/me');
+
+    await waitFor(() => { expect(latestAuth?.user).toBeNull(); });
+    expect(mockRouterReplace).toHaveBeenCalledWith('/login');
+  });
+
+  it('only the first concurrent 401 captures the route (latch prevents overwrite)', async () => {
+    mockPathname = '/devices';
+    await renderSignedIn();
+
+    // Simulate two in-flight requests that both receive a 401.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => make401Response('https://api.example.com/api')),
+    );
+    await act(async () => {
+      await Promise.allSettled([
+        customFetch('https://api.example.com/api/first'),
+        customFetch('https://api.example.com/api/second'),
+      ]);
+    });
+
+    await waitFor(() => { expect(latestAuth?.user).toBeNull(); });
+    // Route captured from the first 401; second was suppressed by the latch.
+    expect(latestAuth?.expiredReturnTo).toBe('/devices');
+    // router.replace called exactly once — not twice.
+    expect(mockRouterReplace).toHaveBeenCalledTimes(1);
+    expect(mockRouterReplace).toHaveBeenCalledWith('/login');
   });
 });

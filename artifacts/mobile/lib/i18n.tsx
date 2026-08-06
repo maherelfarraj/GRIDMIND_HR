@@ -244,6 +244,10 @@ const strings = {
     en: 'Your account was set up with a one-time password. For security, you must choose a new password before continuing.',
     ar: 'تم إنشاء حسابك بكلمة مرور لمرة واحدة. لأسباب أمنية، يجب اختيار كلمة مرور جديدة قبل المتابعة.',
   },
+  sessionExpiredNotice: {
+    en: 'Your session has expired. Please sign in again.',
+    ar: 'انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى.',
+  },
 } as const;
 
 export type StringKey = keyof typeof strings;

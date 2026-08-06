@@ -32,7 +32,7 @@ function formatRetryDuration(seconds: number, lang: 'en' | 'ar'): string {
 export default function LoginScreen() {
   const colors = useColors();
   const { t, lang } = useI18n();
-  const { user, login } = useAuth();
+  const { user, login, expiredReturnTo, clearExpiredReturnTo } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -81,9 +81,12 @@ export default function LoginScreen() {
     try {
       await login(username.trim(), password);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // The `user` redirect above also covers this, but replace explicitly so
-      // login never remains on the back stack.
-      router.replace('/(tabs)');
+      // Return the user to whatever screen they were on before expiry,
+      // or fall back to the main tabs. Clear the saved route first so it
+      // isn't replayed if they later log out and back in manually.
+      const destination = expiredReturnTo ?? '/(tabs)';
+      clearExpiredReturnTo();
+      router.replace(destination as Parameters<typeof router.replace>[0]);
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         // Account lockout: surface the bilingual message from the API and,
@@ -156,6 +159,36 @@ export default function LoginScreen() {
             {t('loginHint')}
           </Text>
         </View>
+
+        {expiredReturnTo !== null ? (
+          <View
+            testID="session-expired-notice"
+            style={{
+              backgroundColor: colors.card,
+              borderColor: '#f59e0b',
+              borderWidth: 1,
+              borderRadius: colors.radius,
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              marginBottom: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <Text style={{ fontSize: 15 }}>⚠️</Text>
+            <Text
+              style={{
+                color: '#b45309',
+                fontSize: 13,
+                fontFamily: 'Inter_500Medium',
+                flexShrink: 1,
+              }}
+            >
+              {t('sessionExpiredNotice')}
+            </Text>
+          </View>
+        ) : null}
 
         <Text style={[styles.label, { color: colors.mutedForeground }]}>
           {t('username')}

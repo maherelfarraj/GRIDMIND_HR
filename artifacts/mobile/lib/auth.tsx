@@ -4,11 +4,13 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import { usePathname, useRouter } from 'expo-router';
 import {
   getAuthMe,
   loginUser,
@@ -76,6 +78,13 @@ interface AuthContextValue {
    * change so the navigation guards let the user into the tabs again.
    */
   markPasswordChanged: () => void;
+  /**
+   * The route the user was on when their session expired, so login can
+   * return them there. Null when the sign-out was voluntary.
+   */
+  expiredReturnTo: string | null;
+  /** Consume and clear the saved return-to route after navigating. */
+  clearExpiredReturnTo: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -83,11 +92,27 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [expiredReturnTo, setExpiredReturnTo] = useState<string | null>(null);
+
+  const router = useRouter();
+
+  // Track the current route so the 401 handler can save it as the return
+  // destination before clearing the user state.
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  // Latch: true while a validated session is active, false otherwise. The 401
+  // handler flips it to false on the first expiry so that concurrent in-flight
+  // requests that also 401 are ignored instead of overwriting the saved route.
+  const sessionLiveRef = useRef(false);
 
   // Any 401 from the API (outside credential-check endpoints) means the
-  // server session is gone — clear the token and cached profile so the
-  // navigation guards return the user to the sign-in screen instead of
-  // rendering broken screens with failing reads.
+  // server session is gone — clear the token and cached profile, navigate
+  // every screen (including those without their own auth guard) to login,
+  // and record the current route so login can return the user there.
   useEffect(() => {
     setUnauthorizedHandler((response) => {
       const url = response.url ?? '';
@@ -95,13 +120,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (url.includes('/auth/login') || url.includes('/auth/change-password')) {
         return;
       }
+      // Latch: only the first 401 per session captures the route and
+      // navigates. Subsequent concurrent responses return early so they
+      // can't overwrite the saved destination or issue a second replace.
+      if (!sessionLiveRef.current) return;
+      sessionLiveRef.current = false;
+
+      // Capture the current route for post-login redirect. Exclude auth
+      // screens themselves (they're not a meaningful return destination).
+      const route = pathnameRef.current;
+      const isAuthScreen = route === '/login' || route === '/change-password';
+      setExpiredReturnTo(isAuthScreen ? null : route || null);
       currentToken = null;
       setUser(null);
       clearToken().catch(() => {});
       AsyncStorage.removeItem(PROFILE_KEY).catch(() => {});
+      // Navigate imperatively so screens that lack their own auth guard
+      // (e.g. /notifications, /devices, /payslip/[id]) are also sent to
+      // login reliably; guarded screens would redirect on their own, but
+      // this makes the behaviour unconditional.
+      router.replace('/login');
     });
     return () => setUnauthorizedHandler(null);
-  }, []);
+  }, [router]);
 
   // The API rejects all business endpoints with 403 PASSWORD_CHANGE_REQUIRED
   // while must_change_password is set (e.g. an admin reset the password
@@ -146,7 +187,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const fresh = await getAuthMe();
-        if (!cancelled) setUser(fresh as AuthUser);
+        if (!cancelled) {
+          setUser(fresh as AuthUser);
+          // Session is confirmed live — arm the latch so the 401 handler
+          // will capture the route and navigate on mid-session expiry.
+          sessionLiveRef.current = true;
+        }
         AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(fresh)).catch(() => {});
       } catch {
         // 401 → unauthorized handler already signed us out. Network errors
@@ -175,6 +221,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     currentToken = token;
     await writeToken(token);
     const { sessionToken: _omit, ...profile } = authUser;
+    // Arm the latch before setting user so any 401 that fires immediately
+    // after login is treated as a mid-session expiry.
+    sessionLiveRef.current = true;
     setUser(profile as AuthUser);
     // Cache profile for instant paint only — never store the token here.
     await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
@@ -202,9 +251,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const clearExpiredReturnTo = useCallback(() => {
+    setExpiredReturnTo(null);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user, isLoading, login, logout, markPasswordChanged }),
-    [user, isLoading, login, logout, markPasswordChanged],
+    () => ({
+      user,
+      isLoading,
+      login,
+      logout,
+      markPasswordChanged,
+      expiredReturnTo,
+      clearExpiredReturnTo,
+    }),
+    [user, isLoading, login, logout, markPasswordChanged, expiredReturnTo, clearExpiredReturnTo],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
