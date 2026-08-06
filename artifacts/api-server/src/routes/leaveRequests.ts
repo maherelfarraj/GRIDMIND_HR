@@ -732,6 +732,7 @@ router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
 
 // POST /leave-requests/:id/return — record employee's return to work after approved leave
 router.post("/leave-requests/:id/return", async (req, res): Promise<void> => {
+  const actor = await getActorInfo(req);
   const actorUserId: number = actor.userId;
   const id = parseInt(req.params.id, 10);
   const { returnDate, returnNotes } = req.body;
@@ -743,34 +744,7 @@ router.post("/leave-requests/:id/return", async (req, res): Promise<void> => {
     .set({ returnedToWork: true, returnDate: returnDate ?? null, returnNotes: returnNotes ?? null, updatedAt: new Date() })
     .where(eq(leaveRequestsTable.id, id))
     .returning();
-  const id = parseInt(req.params.id, 10);
-
-  // 404 if request doesn't exist (also enforces org ownership via router.param guard above)
-  const [existing] = await db.select({ id: leaveRequestsTable.id, status: leaveRequestsTable.status })
-    .from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
-  if (!existing) { res.status(404).json({ error: "Leave request not found" }); return; }
-
-  // 409 if not a draft — attachments can only be added before submission
-  if (existing.status !== "draft") {
-    res.status(409).json({ error: "Attachments can only be added to draft leave requests", code: "NOT_DRAFT" });
-    return;
-  }
-
-  const { fileName, fileType, fileSize, fileUrl } = req.body;
-  if (!fileName) { res.status(400).json({ error: "fileName required" }); return; }
-  // Only allow safe URL schemes: https, or data: URLs with whitelisted document/image MIME types.
-  if (fileUrl != null) {
-    const safeDataUrl = /^data:(application\/pdf|image\/(png|jpe?g|webp|gif));base64,[A-Za-z0-9+/=]+$/i;
-    const isHttps = /^https:\/\//i.test(fileUrl);
-    if (typeof fileUrl !== "string" || (!isHttps && !safeDataUrl.test(fileUrl))) {
-      res.status(400).json({ error: "fileUrl must be an https URL or a base64 data URL of type pdf/png/jpeg/webp/gif" });
-      return;
-    }
-  }
-      const [att] = await tx.select().from(leaveAttachmentsTable).where(
-        and(eq(leaveAttachmentsTable.id, attachmentId), eq(leaveAttachmentsTable.leaveRequestId, id))
-      );
-  res.status(201).json(att);
+  res.json(await enrichRequest(updated));
 });
 
 // DELETE /leave-requests/:id/attachments/:attachmentId — remove a wrongly-attached document from a draft

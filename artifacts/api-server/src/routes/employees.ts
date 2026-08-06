@@ -158,13 +158,22 @@ router.patch("/employees/:id", async (req, res): Promise<void> => {
     .where(eq(employeesTable.id, id))
     .returning();
   if (!emp) { res.status(404).json({ error: "Not found" }); return; }
+  // Build accurate before/after snapshots: only record the fields that were
+  // included in the request body so the diff is meaningful.
+  const changedKeys = Object.keys(parsed.data) as (keyof typeof parsed.data)[];
+  const beforeSnapshot = Object.fromEntries(
+    changedKeys.map((k) => [k, (before as Record<string, unknown>)[k] ?? null])
+  );
+  const afterSnapshot = Object.fromEntries(
+    changedKeys.map((k) => [k, (emp as Record<string, unknown>)[k] ?? null])
+  );
   await db.insert(auditLogsTable).values({
     action: "update",
     entityType: "employee",
     entityId: emp.id,
     entityLabel: `${emp.firstNameEn} ${emp.lastNameEn}`,
     actorUserId,
-    changesJson: JSON.stringify({ before: parsed.data, after: parsed.data }),
+    changesJson: JSON.stringify({ before: beforeSnapshot, after: afterSnapshot }),
   });
   res.json(await buildEmployeeResponse(emp));
 });
