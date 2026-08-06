@@ -139,7 +139,7 @@ function NotificationCard({
                       fontFamily: 'Inter_600SemiBold',
                     }}
                   >
-                    {t('viewDevice')}
+                    {t('viewDetails')}
                   </Text>
                   <Feather
                     name="chevron-right"

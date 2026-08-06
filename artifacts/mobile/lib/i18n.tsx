@@ -135,6 +135,7 @@ const strings = {
   noNotifications: { en: 'No notifications', ar: 'لا توجد إشعارات' },
   markAllRead: { en: 'Mark all read', ar: 'تعليم الكل كمقروء' },
   viewDevice: { en: 'View device', ar: 'عرض الجهاز' },
+  viewDetails: { en: 'View details', ar: 'عرض التفاصيل' },
   devices: { en: 'Attendance Devices', ar: 'أجهزة الحضور' },
   noDevices: { en: 'No devices found', ar: 'لم يتم العثور على أجهزة' },
   deviceOnline: { en: 'Online', ar: 'متصل' },

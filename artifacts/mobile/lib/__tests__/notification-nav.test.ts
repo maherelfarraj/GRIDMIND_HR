@@ -14,6 +14,8 @@ const palette = {
 };
 
 describe('mobileRouteForNotification', () => {
+  // ── attendance devices ────────────────────────────────────────────────────
+
   it('maps the device_command_outcome web actionUrl to the mobile devices screen', () => {
     expect(
       mobileRouteForNotification({ actionUrl: '/attendance-devices' }),
@@ -29,6 +31,19 @@ describe('mobileRouteForNotification', () => {
     ).toBe('/devices');
   });
 
+  // ── attendance gateway ────────────────────────────────────────────────────
+
+  it('maps gateway credential / silence alerts to the devices screen', () => {
+    expect(
+      mobileRouteForNotification({ actionUrl: '/attendance-gateway' }),
+    ).toBe('/devices');
+    expect(
+      mobileRouteForNotification({ actionUrl: '/attendance-gateway?tab=alerts' }),
+    ).toBe('/devices');
+  });
+
+  // ── security lockouts ─────────────────────────────────────────────────────
+
   it('maps lockout security alerts to the mobile users screen, keeping the highlight param', () => {
     expect(
       mobileRouteForNotification({ actionUrl: '/users?highlight=jdoe' }),
@@ -43,16 +58,83 @@ describe('mobileRouteForNotification', () => {
     expect(mobileRouteForNotification({ actionUrl: '/users-archive' })).toBeNull();
   });
 
+  // ── approvals ─────────────────────────────────────────────────────────────
+
+  it('maps leave/approval notifications to the approvals tab', () => {
+    expect(mobileRouteForNotification({ actionUrl: '/approvals' })).toBe('/approvals');
+    expect(
+      mobileRouteForNotification({ actionUrl: '/approvals?tab=leave' }),
+    ).toBe('/approvals');
+  });
+
+  // ── payroll ───────────────────────────────────────────────────────────────
+
+  it('maps plain /payroll notifications to the approvals tab', () => {
+    expect(mobileRouteForNotification({ actionUrl: '/payroll' })).toBe('/approvals');
+  });
+
+  it('deep-links /payroll?period=<id> to the payroll-period-ot detail screen', () => {
+    expect(
+      mobileRouteForNotification({ actionUrl: '/payroll?period=42' }),
+    ).toBe('/payroll-period-ot/42');
+  });
+
+  it('maps payroll no-show alerts with extra params, using only the period id', () => {
+    expect(
+      mobileRouteForNotification({
+        actionUrl: '/payroll?period=7&tab=noshows&employees=E001%2CE002',
+      }),
+    ).toBe('/payroll-period-ot/7');
+  });
+
+  it('falls back to approvals tab when /payroll has no period param', () => {
+    expect(
+      mobileRouteForNotification({ actionUrl: '/payroll?tab=noshows' }),
+    ).toBe('/approvals');
+  });
+
+  // ── privileged sessions ───────────────────────────────────────────────────
+
+  it('maps privileged-session sweep alerts to the privileged-sessions screen', () => {
+    expect(
+      mobileRouteForNotification({ actionUrl: '/privileged-sessions' }),
+    ).toBe('/privileged-sessions');
+    expect(
+      mobileRouteForNotification({ actionUrl: '/privileged-sessions?filter=open' }),
+    ).toBe('/privileged-sessions');
+  });
+
+  // ── unmapped / graceful degradation ──────────────────────────────────────
+
   it('returns null for unmapped, external or missing URLs', () => {
-    expect(mobileRouteForNotification({ actionUrl: '/payroll' })).toBeNull();
     expect(
       mobileRouteForNotification({ actionUrl: 'https://example.com/x' }),
     ).toBeNull();
     expect(mobileRouteForNotification({ actionUrl: null })).toBeNull();
     expect(mobileRouteForNotification({})).toBeNull();
+    // Unmapped web-only pages degrade gracefully.
+    expect(mobileRouteForNotification({ actionUrl: '/integration-governance' })).toBeNull();
+    expect(mobileRouteForNotification({ actionUrl: '/admin/backups' })).toBeNull();
+    expect(mobileRouteForNotification({ actionUrl: '/performance' })).toBeNull();
+    expect(mobileRouteForNotification({ actionUrl: '/disciplinary' })).toBeNull();
+  });
+
+  it('prefix must match a full path segment', () => {
     // Prefix must match a full path segment.
     expect(
       mobileRouteForNotification({ actionUrl: '/attendance-devices-archive' }),
+    ).toBeNull();
+    expect(
+      mobileRouteForNotification({ actionUrl: '/attendance-gatewayX' }),
+    ).toBeNull();
+    expect(
+      mobileRouteForNotification({ actionUrl: '/approvals-legacy' }),
+    ).toBeNull();
+    expect(
+      mobileRouteForNotification({ actionUrl: '/payroll-periods' }),
+    ).toBeNull();
+    expect(
+      mobileRouteForNotification({ actionUrl: '/privileged-sessions-archive' }),
     ).toBeNull();
   });
 });
