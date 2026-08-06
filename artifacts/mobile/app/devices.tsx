@@ -11,6 +11,7 @@ import {
 } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useI18n } from '@/lib/i18n';
+import { computeDeviceVerdict } from '@/lib/device-verdict';
 import { useListDevices } from '@workspace/api-client-react';
 import type { AttendanceDevice } from '@workspace/api-client-react';
 
@@ -23,20 +24,10 @@ function DeviceCard({ item }: { item: AttendanceDevice }) {
 
   // Same verdict precedence as the web devices page:
   // Online (real contact) > Stale (contact but too old) > No contact.
-  const online = item.isOnline === true;
-  const stale = item.isStale === true;
-  const statusLabel = online
-    ? t('deviceOnline')
-    : stale
-      ? t('deviceStale')
-      : t('deviceNoContact');
-  const statusColor = online
-    ? colors.success
-    : stale
-      ? colors.destructive
-      : colors.mutedForeground;
-  // Stored status shown separately when it disagrees with reality
-  const storedDisagrees = item.status === 'online' && !online;
+  const verdict = computeDeviceVerdict(item, colors);
+  const { online, stale, storedDisagrees } = verdict;
+  const statusLabel = t(verdict.statusKey);
+  const statusColor = verdict.statusColor;
 
   return (
     <Card style={{ marginBottom: 12 }}>
@@ -78,7 +69,7 @@ function DeviceCard({ item }: { item: AttendanceDevice }) {
       </View>
       <Text
         style={{
-          color: stale ? colors.destructive : colors.mutedForeground,
+          color: verdict.lastContactColor,
           fontSize: 11,
           fontFamily: 'Inter_400Regular',
           marginTop: 10,
