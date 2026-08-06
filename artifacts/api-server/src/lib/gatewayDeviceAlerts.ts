@@ -27,6 +27,8 @@ export const GATEWAY_BATCH_DISCREPANCY_ALERT_TYPE = "gateway_batch_discrepancy";
 export const GATEWAY_AUTH_FAILED_ALERT_TYPE = "gateway_device_auth_failed";
 export const GATEWAY_UNREACHABLE_ALERT_TYPE = "gateway_device_unreachable";
 
+export const GATEWAY_CREDENTIAL_UNUSABLE_ALERT_TYPE = "gateway_credential_unusable";
+
 /**
  * Raised once per open pepper-rotation window (GATEWAY_KEY_PEPPER_PREVIOUS set
  * but all envelopes already re-wrapped). Stored with entityType="system_config"
@@ -66,13 +68,14 @@ interface NextState {
 /**
  * Alert types that warrant an email as well as an in-app notification.
  * SDK-missing and clock-skew are lower-severity warnings; batch-discrepancy
- * alerts are their own category. The three below indicate that punch
- * collection has stopped completely.
+ * alerts are their own category. The types below indicate that punch
+ * collection has stopped completely or the credential must be re-registered.
  */
 const EMAIL_ALERT_TYPES = new Set([
   GATEWAY_SILENT_ALERT_TYPE,
   GATEWAY_AUTH_FAILED_ALERT_TYPE,
   GATEWAY_UNREACHABLE_ALERT_TYPE,
+  GATEWAY_CREDENTIAL_UNUSABLE_ALERT_TYPE,
 ]);
 
 /** Active system users whose role name contains "admin" (System Administrator, HR Admin, ...). */
@@ -233,6 +236,43 @@ export async function processGatewayWarningTransitions(prev: PrevState, next: Ne
   }
 }
 
+/**
+ * Credential-unusable transitions.
+ *
+ * Called whenever the `credentialUnusable` flag changes on a registration:
+ *  - false → true: the stored envelope can no longer be decrypted (tampered
+ *    pepper, lost key); the gateway will 401 until it is re-registered. Raise
+ *    a one-time alert and send email (critical: punch collection has stopped).
+ *  - true → false: self-heal (pepper restored / re-registration) — auto-
+ *    resolve any open credential-unusable alert.
+ *
+ * Transition detection is done here (prev vs next) so callers that have
+ * already gated their update behind `if (!reg.credentialUnusable)` do not
+ * need to pass redundant state. Never throws — a notification failure must
+ * not propagate to the calling request or sweep.
+ */
+export async function processCredentialUnusableTransitions(
+  reg: { id: number; name: string; nameAr: string | null; credentialUnusable: boolean },
+  nextUnusable: boolean,
+): Promise<void> {
+  try {
+    const nameAr = reg.nameAr ?? reg.name;
+    if (nextUnusable && !reg.credentialUnusable) {
+      await raiseAlert(
+        { id: reg.id, name: reg.name, nameAr: reg.nameAr, sdkPresent: null, deviceClockSkewAlert: false, adapterConnStatus: null },
+        GATEWAY_CREDENTIAL_UNUSABLE_ALERT_TYPE,
+        `Gateway "${reg.name}": credential unusable — re-register`,
+        `البوابة "${nameAr}": بيانات الاعتماد غير صالحة — يرجى إعادة التسجيل`,
+        `The attendance gateway "${reg.name}" can no longer authenticate because its stored credential cannot be decrypted (the signing-key envelope may have been tampered with or the pepper lost). Punch collection has stopped. Re-register the gateway to restore connectivity.`,
+        `تعذر على بوابة الحضور "${nameAr}" المصادقة لأن بيانات الاعتماد المخزنة لا يمكن فك تشفيرها (ربما تعرض غلاف مفتاح التوقيع للتلاعب أو فُقد الفلفل). توقف جمع البصمات. أعد تسجيل البوابة لاستعادة الاتصال.`,
+      );
+    } else if (!nextUnusable && reg.credentialUnusable) {
+      await resolveAlerts(reg.id, [GATEWAY_CREDENTIAL_UNUSABLE_ALERT_TYPE]);
+    }
+  } catch (e) {
+    logger.error({ err: e, registrationId: reg.id }, "Failed to process credential-unusable transitions");
+  }
+}
 /**
  * Punch-batch reconcile discrepancy transitions.
  *

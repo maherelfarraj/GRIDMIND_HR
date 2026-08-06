@@ -17,6 +17,7 @@ import { materializePunch } from "../lib/attendanceMaterializer.js";
 import {
   processGatewayWarningTransitions,
   processReconcileDiscrepancyTransitions,
+  processCredentialUnusableTransitions,
   GATEWAY_SILENCE_THRESHOLD_MS,
   effectiveSilenceThresholdMs,
 } from "../lib/gatewayDeviceAlerts.js";
@@ -101,17 +102,24 @@ async function verifyGatewaySignature(req: GatewayRequest, res: Response, next: 
         .update(gatewayRegistrationsTable)
         .set({ credentialUnusable: true, updatedAt: new Date() })
         .where(and(eq(gatewayRegistrationsTable.id, reg.id), eq(gatewayRegistrationsTable.secretHash, reg.secretHash)));
+      // Notify admins exactly once on the false → true transition.
+      // Fire-and-forget: the 401 is already being returned and a notification
+      // failure must never change the response.
+      processCredentialUnusableTransitions(reg, true).catch(() => {/* logged inside */});
     }
     res.status(401).json({ error: "Gateway credential unusable — re-register the gateway", errorAr: "بيانات اعتماد البوابة غير صالحة" });
     return;
   }
   // Self-heal: the stored credential decrypts again (e.g. the pepper was
-  // restored or the row was re-wrapped), so clear a stale unusable flag.
+  // restored or the row was re-wrapped), so clear a stale unusable flag and
+  // auto-resolve any open credential-unusable alert.
   if (reg.credentialUnusable) {
     await db
       .update(gatewayRegistrationsTable)
       .set({ credentialUnusable: false, updatedAt: new Date() })
       .where(eq(gatewayRegistrationsTable.id, reg.id));
+    // Resolve open alerts on the true → false transition.
+    processCredentialUnusableTransitions(reg, false).catch(() => {/* logged inside */});
   }
   const bodyHash = sha256(req.rawBody ?? Buffer.from(""));
   const expected = createHmac("sha256", signingKey).update(`${timestamp}.${bodyHash}`).digest("hex");
@@ -211,6 +219,8 @@ export async function sweepUnusableGatewayCredentials(): Promise<{
   const rows = await db
     .select({
       id: gatewayRegistrationsTable.id,
+      name: gatewayRegistrationsTable.name,
+      nameAr: gatewayRegistrationsTable.nameAr,
       secretHash: gatewayRegistrationsTable.secretHash,
       credentialUnusable: gatewayRegistrationsTable.credentialUnusable,
     })
@@ -234,7 +244,12 @@ export async function sweepUnusableGatewayCredentials(): Promise<{
       .set({ credentialUnusable: unusable, updatedAt: new Date() })
       .where(and(eq(gatewayRegistrationsTable.id, row.id), eq(gatewayRegistrationsTable.secretHash, row.secretHash)))
       .returning({ id: gatewayRegistrationsTable.id });
-    if (updated.length) (unusable ? marked : cleared).push(row.id);
+    if (updated.length) {
+      (unusable ? marked : cleared).push(row.id);
+      // Notify / resolve exactly once per transition. Fire-and-forget so a
+      // notification failure never stalls the sweep for other registrations.
+      processCredentialUnusableTransitions(row, unusable).catch(() => {/* logged inside */});
+    }
   }
   return { marked, cleared };
 }
