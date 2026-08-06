@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -76,7 +77,7 @@ function AddTemplateDialog({ open, onClose, onSaved, orgId }: { open: boolean; o
 }
 
 export default function OrgBranding() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const [orgs, setOrgs] = useState<any[]>([]);
   const [selectedOrg, setSelectedOrg] = useState('');
@@ -151,7 +152,7 @@ export default function OrgBranding() {
           <Select value={selectedOrg} onValueChange={setSelectedOrg}>
             <SelectTrigger className="w-64 bg-slate-700 border-slate-600 text-white"><SelectValue placeholder={t('Select org', 'اختر مؤسسة')} /></SelectTrigger>
             <SelectContent className="bg-slate-800 border-slate-700">
-              {orgs.map(o => <SelectItem key={o.id} value={String(o.id)}>{o.nameEn}</SelectItem>)}
+              {orgs.map(o => <SelectItem key={o.id} value={String(o.id)}>{localName(o.nameEn, o.nameAr, lang)}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>

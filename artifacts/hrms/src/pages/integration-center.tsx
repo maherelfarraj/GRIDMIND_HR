@@ -11,6 +11,7 @@ import type {
   IntegrationConnector, IntegrationRetryQueue, IntegrationEvent, ConnectionHealthLog,
 } from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,7 +96,7 @@ function ConfigureDialog({ open, connector, onClose, onSaved }: {
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const updateMut = useUpdateIntegrationConnector();
   const [endpoint, setEndpoint] = useState(connector?.endpoint ?? '');
@@ -133,7 +134,7 @@ function ConfigureDialog({ open, connector, onClose, onSaved }: {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{t('Configure Connector', 'تكوين الموصل')}</DialogTitle>
-          <DialogDescription>{connector?.nameEn ?? ''}</DialogDescription>
+          <DialogDescription>{localName(connector?.nameEn, connector?.nameAr, lang)}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div>
@@ -167,7 +168,7 @@ function ConnectorsTab({ connectors, loading, onRefresh }: {
   loading: boolean;
   onRefresh: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const testMut = useTestIntegrationConnector();
   const [configConnector, setConfigConnector] = useState<IntegrationConnector | null>(null);
@@ -230,7 +231,7 @@ function ConnectorsTab({ connectors, loading, onRefresh }: {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <StatusDot status={c.status ?? 'unconfigured'} />
-                        <span className="text-white font-medium text-sm truncate">{c.nameEn ?? '—'}</span>
+                        <span className="text-white font-medium text-sm truncate">{localName(c.nameEn, c.nameAr, lang) || '—'}</span>
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
                         <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400 capitalize">
@@ -294,7 +295,7 @@ function ConnectorsTab({ connectors, loading, onRefresh }: {
 // ─── Health Monitor Tab ───────────────────────────────────────────────────────
 
 function HealthMonitorTab({ connectors }: { connectors: IntegrationConnector[] }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const testMut = useTestIntegrationConnector();
   const [selectedId, setSelectedId] = useState<string>('');
@@ -340,7 +341,7 @@ function HealthMonitorTab({ connectors }: { connectors: IntegrationConnector[] }
           </SelectTrigger>
           <SelectContent>
             {connectors.map(c => (
-              <SelectItem key={c.id} value={String(c.id)}>{c.nameEn}</SelectItem>
+              <SelectItem key={c.id} value={String(c.id)}>{localName(c.nameEn, c.nameAr, lang)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -401,7 +402,7 @@ function HealthMonitorTab({ connectors }: { connectors: IntegrationConnector[] }
 // ─── Retry Queue Tab ──────────────────────────────────────────────────────────
 
 function RetryQueueTab({ connectors }: { connectors: IntegrationConnector[] }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const queueQuery = useListIntegrationRetryQueue();
@@ -413,9 +414,9 @@ function RetryQueueTab({ connectors }: { connectors: IntegrationConnector[] }) {
 
   const connectorName = useMemo(() => {
     const map = new Map<number, string>();
-    connectors.forEach(c => map.set(c.id, c.nameEn));
+    connectors.forEach(c => map.set(c.id, localName(c.nameEn, c.nameAr, lang)));
     return map;
-  }, [connectors]);
+  }, [connectors, lang]);
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: getListIntegrationRetryQueueQueryKey() });
@@ -523,7 +524,7 @@ function RetryQueueTab({ connectors }: { connectors: IntegrationConnector[] }) {
 // ─── Event Log Tab ────────────────────────────────────────────────────────────
 
 function EventLogTab({ connectors }: { connectors: IntegrationConnector[] }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [connectorFilter, setConnectorFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
@@ -536,9 +537,9 @@ function EventLogTab({ connectors }: { connectors: IntegrationConnector[] }) {
 
   const connectorName = useMemo(() => {
     const map = new Map<number, string>();
-    connectors.forEach(c => map.set(c.id, c.nameEn));
+    connectors.forEach(c => map.set(c.id, localName(c.nameEn, c.nameAr, lang)));
     return map;
-  }, [connectors]);
+  }, [connectors, lang]);
 
   const eventTypes = [...new Set(events.map(e => e.eventType).filter(Boolean))];
 
@@ -552,7 +553,7 @@ function EventLogTab({ connectors }: { connectors: IntegrationConnector[] }) {
           <SelectContent>
             <SelectItem value="all">{t('All Connectors', 'كل الموصلات')}</SelectItem>
             {connectors.map(c => (
-              <SelectItem key={c.id} value={String(c.id)}>{c.nameEn}</SelectItem>
+              <SelectItem key={c.id} value={String(c.id)}>{localName(c.nameEn, c.nameAr, lang)}</SelectItem>
             ))}
           </SelectContent>
         </Select>

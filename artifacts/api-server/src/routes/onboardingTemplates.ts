@@ -30,6 +30,14 @@ router.post("/", validateBody(CreateOnboardingTemplateBody), async (req, res): P
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
+router.get("/:id", async (req, res): Promise<void> => {
+  try {
+    const [row] = await db.select().from(onboardingTemplatesTable).where(eq(onboardingTemplatesTable.id, parseInt(req.params.id as string)));
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
+  } catch (e) { res.status(500).json({ error: String(e) }); }
+});
+
 router.patch("/:id", validateBody(UpdateOnboardingTemplateBody.partial()), async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string);

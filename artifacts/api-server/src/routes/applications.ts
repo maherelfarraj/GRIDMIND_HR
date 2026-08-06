@@ -62,7 +62,7 @@ router.patch("/:id", validateBody(UpdateApplicationBody.partial()), async (req, 
 router.post("/:id/shortlist", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(applicationsTable)
-      .set({ status: "shortlisted", updatedAt: new Date() })
+      .set({ status: "shortlisted", shortlistedAt: new Date(), shortlistedByUserId: getActorUserId(req), updatedAt: new Date() })
       .where(eq(applicationsTable.id, parseInt(req.params.id as string)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }

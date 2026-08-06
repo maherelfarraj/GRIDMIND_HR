@@ -309,6 +309,17 @@ function NewImportTab() {
     setJob(null);
     if (!text.trim()) {
       toast({ title: t('This worksheet is empty', 'ورقة العمل هذه فارغة'), variant: 'destructive' });
+    } else {
+      const headers = parseCsvHeaders(text);
+      if (!hasUsableHeaders(headers)) {
+        toast({
+          title: t(
+            'This worksheet has no recognisable column headers — it may be a cover or notes sheet.',
+            'لا تحتوي ورقة العمل هذه على رؤوس أعمدة معروفة — قد تكون غلافاً أو ورقة ملاحظات.',
+          ),
+          variant: 'destructive',
+        });
+      }
     }
   }
 

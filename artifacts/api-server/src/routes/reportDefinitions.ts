@@ -27,7 +27,7 @@ router.post("/", validateBody(CreateReportDefinitionBody), async (req, res): Pro
   try {
     const userId = getActorUserId(req);
     const [row] = await db.insert(reportDefinitionsTable)
-      .values({ ...req.body, isSystemReport: false })
+      .values({ ...req.body, isSystemReport: false, createdByUserId: userId })
       .returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "report_definition", entityId: row.id, actorUserId: userId, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);

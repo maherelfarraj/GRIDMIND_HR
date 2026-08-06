@@ -481,7 +481,7 @@ const router = Router();
 // belongs to a different organization than the active org context.
 router.param("id", async (req, res, next, rawId) => {
   try {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(rawId, 10);
     if (!Number.isInteger(id)) { res.status(404).json({ error: "Not found" }); return; }
     const [row] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
     if (!row || row.orgId !== (await resolveOrgId(req))) {
@@ -501,17 +501,10 @@ router.get("/payroll-periods", async (req, res): Promise<void> => {
   if (status) conditions.push(eq(payrollPeriodsTable.status, status));
   if (year) conditions.push(sql`extract(year from ${payrollPeriodsTable.startDate}::date) = ${parseInt(year)}`);
   const rows = await db
-    .select({
-      codeEn: payrollRunLinesTable.codeEn,
-      total: sql<string>`coalesce(sum(${payrollRunLinesTable.amount}), 0)`,
-    })
-    .from(payrollRunLinesTable)
-    .innerJoin(payrollRunsTable, eq(payrollRunLinesTable.payrollRunId, payrollRunsTable.id))
-    .where(and(
-      eq(payrollRunsTable.payrollPeriodId, id),
-      sql`${payrollRunLinesTable.codeEn} in ('OT_WEEKDAY', 'OT_WEEKEND', 'OT_HOLIDAY')`,
-    ))
-    .groupBy(payrollRunLinesTable.codeEn);
+    .select()
+    .from(payrollPeriodsTable)
+    .where(and(...conditions))
+    .orderBy(sql`${payrollPeriodsTable.startDate} desc`);
   res.json(rows);
 });
 
@@ -625,16 +618,49 @@ router.get("/payroll-periods/:id/ot-summary", async (req, res): Promise<void> =>
     .sort((a, b) =>
       (parseFloat(b.weekend) + parseFloat(b.holiday)) - (parseFloat(a.weekend) + parseFloat(a.holiday))
       || parseFloat(b.total) - parseFloat(a.total));
-  const actorUserId: number = getActorUserId(req);
+
+  res.json({
+    weekday: weekday.toFixed(2),
+    weekend: weekend.toFixed(2),
+    holiday: holiday.toFixed(2),
+    total: (weekday + weekend + holiday).toFixed(2),
+    byDepartment,
+  });
+});
+
+// GET /payroll-periods/:id — single period detail
+router.get("/payroll-periods/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
+  if (!period) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(period);
+});
+
+// PATCH /payroll-periods/:id — edit nameEn/nameAr/payDate/notes on a non-closed period
+router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
+  const actorUserId: number = getActorUserId(req);
+  const periodId = parseInt(req.params.id, 10);
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
   if (!period) { res.status(404).json({ error: "Not found" }); return; }
   if (period.isClosed) { res.status(400).json({ error: "Cannot edit a closed payroll period" }); return; }
   const { nameEn, nameAr, payDate, notes } = req.body;
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  if (nameEn !== undefined) updateData.nameEn = nameEn;
+  if (nameAr !== undefined) updateData.nameAr = nameAr;
+  if (payDate !== undefined) updateData.payDate = payDate;
+  if (notes !== undefined) updateData.notes = notes;
   const [updated] = await db.update(payrollPeriodsTable)
     .set(updateData)
     .where(eq(payrollPeriodsTable.id, periodId))
     .returning();
+  await db.insert(auditLogsTable).values({
+    action: "payroll_period.updated",
+    entityType: "payroll_period",
+    entityId: periodId,
+    entityLabel: period.nameEn,
+    actorUserId,
+    changesJson: JSON.stringify(req.body),
+  });
   res.json(updated);
 });
 

@@ -13,6 +13,7 @@ import type {
   NumberingScheme, EmploymentTypeConfig, RetentionRule, PolicyLocale,
 } from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
+import { localName } from '@/lib/localise';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent } from '@/components/ui/card';
@@ -74,8 +75,8 @@ function AddSchemeDialog({ open, onClose, onSaved }: { open: boolean; onClose: (
   );
 }
 
-function AddEmploymentTypeDialog({ open, onClose, onSaved, orgs, defaultOrgId }: { open: boolean; onClose: () => void; onSaved: () => void; orgs: { id: number; nameEn: string }[]; defaultOrgId: string }) {
-  const { t } = useLanguage();
+function AddEmploymentTypeDialog({ open, onClose, onSaved, orgs, defaultOrgId }: { open: boolean; onClose: () => void; onSaved: () => void; orgs: { id: number; nameEn: string; nameAr: string | null }[]; defaultOrgId: string }) {
+  const { t, lang } = useLanguage();
   const { toast } = useToast();
   const createMut = useCreateEmploymentTypeConfig();
   const [form, setForm] = useState({ orgId: '', employmentType: '', labelEn: '', labelAr: '', probationDays: '90', defaultContractMonths: '12', eligibleLeave: true, eligiblePayroll: true, eligibleBenefits: false });
@@ -116,7 +117,7 @@ function AddEmploymentTypeDialog({ open, onClose, onSaved, orgs, defaultOrgId }:
             <Select value={form.orgId} onValueChange={v => setForm(f => ({ ...f, orgId: v }))}>
               <SelectTrigger className="mt-1 bg-slate-700 border-slate-600"><SelectValue placeholder={t('Select organization', 'اختر المؤسسة')} /></SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
-                {orgs.map(o => <SelectItem key={o.id} value={String(o.id)}>{o.nameEn}</SelectItem>)}
+                {orgs.map(o => <SelectItem key={o.id} value={String(o.id)}>{localName(o.nameEn, o.nameAr, lang)}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

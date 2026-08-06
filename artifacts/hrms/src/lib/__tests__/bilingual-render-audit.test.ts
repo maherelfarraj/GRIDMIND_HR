@@ -103,6 +103,10 @@ function isSafeTernary(line: string, file: string): boolean {
   // Exception 7: guarded ternaries — `lang === 'ar' && x.fieldAr ?`
   if (/lang\s*===\s*['"](?:ar|en)['"]\s*&&/.test(l)) return true;
 
+  // Exception 8: true branch uses `||` to fall back to the English field — safe.
+  // e.g. lang === 'ar' ? x.fieldAr || x.fieldEn : x.fieldEn  (functionally identical to localName)
+  if (/lang\s*===\s*['"]ar['"]\s*\?[^:]*[A-Za-z]Ar\b\s*\|\|/.test(l)) return true;
+
   return false;
 }
 
@@ -241,6 +245,74 @@ const ENGLISH_ONLY_PATTERNS: RegExp[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CHECK 3 — no unguarded direct nameEn / titleEn entity renders
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Matches JSX expressions that render a bilingual entity name or title field
+ * (.nameEn / .titleEn) directly without routing through localName / t().
+ * CHECK 2 covers person-name fields (*NameEn); this check covers the simpler
+ * entity-level fields that appear on departments, connectors, ranks, etc.
+ */
+const ENTITY_RENDER_PATTERNS: RegExp[] = [
+  // {x.nameEn}  {x?.nameEn}  {x.nameEn ?? '...'}  {x.nameEn || '...'}
+  /\{[^}]*\.nameEn[^}]*\}/,
+  // {x.titleEn}  {x?.titleEn}  {x.titleEn ?? '...'}
+  /\{[^}]*\.titleEn[^}]*\}/,
+];
+
+/**
+ * Returns true when the line is a known-safe usage of .nameEn / .titleEn that
+ * should not be flagged as a missing localisation.
+ */
+function isSafeEntityRender(line: string, file: string): boolean {
+  const l = line.trim();
+
+  // Already routed through a localisation helper — safe
+  if (l.includes('localName(') || l.includes('localFullName(')) return true;
+  // t(en, ar) bilingual call — safe
+  if (/\bt\(/.test(l) && (l.includes('nameAr') || l.includes('titleAr'))) return true;
+
+  // Comments / imports / type annotations / declarations
+  if (l.startsWith('//') || l.startsWith('*') || l.startsWith('/*') ||
+      l.startsWith('import ') || l.startsWith('export type') ||
+      l.startsWith('interface ') || l.startsWith('type ')) return true;
+
+  // Variable / state assignment — not rendered to the DOM
+  if (/^\s*(const|let|var)\s/.test(l)) return true;
+  // Object-literal field: nameEn: value — not a JSX render
+  if (l.includes('nameEn:') || l.includes('titleEn:')) return true;
+  // Form-state references (e.g. form.nameEn, ruleForm.nameEn) — not rendered
+  if (/\bform\.[a-zA-Z]*[Nn]ame[Ee]n\b/.test(l) ||
+      /\b[a-zA-Z]*[Ff]orm\.[a-zA-Z]*[Nn]ame[Ee]n\b/.test(l)) return true;
+
+  // Form / input prop contexts — value=, disabled=, onChange= etc. — not display renders
+  if (l.includes('value=') || l.includes('disabled=') || l.includes('onChange=') ||
+      l.includes('placeholder=') || l.includes('defaultValue=')) return true;
+
+  // Filter / search computations — only affect row visibility, not rendered text
+  if (l.includes('.toLowerCase()') || l.includes('.toUpperCase()') ||
+      l.includes('.includes(') || l.includes('.filter(') ||
+      l.includes('forEach(') || l.includes('map.set(')) return true;
+
+  // Swapped subtitle — intentionally shows the OTHER language as a secondary hint.
+  // e.g. {lang === 'ar' ? x.nameEn : x.nameAr}  (renders En when Arabic UI, Ar when English UI)
+  const swappedArToEn = /lang\s*===\s*['"]ar['"]\s*\?[^:]*[A-Za-z]En\b[^:]*:[^;\n,}]*[A-Za-z]Ar\b/;
+  const swappedEnToAr = /lang\s*===\s*['"]en['"]\s*\?[^:]*[A-Za-z]Ar\b[^:]*:[^;\n,}]*[A-Za-z]En\b/;
+  if (swappedArToEn.test(l) || swappedEnToAr.test(l)) return true;
+
+  // Exception: deliberately bilingual two-column tables — both languages always shown side-by-side
+  const bilingualFiles = ['military-hierarchy.tsx', 'leave-config.tsx', 'payroll-payslip.tsx'];
+  if (bilingualFiles.some(f => file.endsWith(f))) return true;
+
+  // Exception: org-branding payslip templates — the create form collects only nameEn;
+  // there is no nameAr column on that entity. Cannot localise without a schema change.
+  if (l.includes('tp.nameEn') && file.endsWith('org-branding.tsx')) return true;
+
+  return false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -293,6 +365,33 @@ describe('bilingual render audit', () => {
       console.error(
         '\nFix: use localName(nameEn, nameAr, lang) or localFullName(firstEn, lastEn, firstAr, lastAr, lang).\n' +
         'If the API type genuinely has no Arabic field, add the case to isSafeEnglishOnly() with a comment.',
+      );
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it('has no unguarded direct nameEn / titleEn entity renders', () => {
+    const files = loadPages();
+    const violations: string[] = [];
+
+    for (const file of files) {
+      const src = readFileSync(file, 'utf8');
+      const lines = src.split('\n');
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!ENTITY_RENDER_PATTERNS.some(re => re.test(line))) continue;
+        if (isSafeEntityRender(line, file)) continue;
+        violations.push(`${rel(file)}:${i + 1}  ${line.trim().slice(0, 140)}`);
+      }
+    }
+
+    if (violations.length > 0) {
+      console.error('\nDirect English-only entity name/title render violations:');
+      violations.forEach(v => console.error('  ', v));
+      console.error(
+        '\nFix: use localName(nameEn, nameAr, lang) instead of rendering .nameEn / .titleEn directly.\n' +
+        'If the API type genuinely has no Arabic field, add the case to isSafeEntityRender() with a comment.',
       );
     }
     expect(violations).toEqual([]);
