@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
-import { inArray, eq, and } from "drizzle-orm";
+import { inArray, eq, and, like } from "drizzle-orm";
 import {
   db,
   payrollPeriodsTable,
@@ -328,5 +328,95 @@ describe("payroll no-show HR digest", () => {
     ]);
     for (const r of results) expect(r.status).toBe(200);
     expect((await hrDigests()).length).toBe(before);
+  });
+});
+
+describe("auto-dismissal when all no-show days are excused", () => {
+  // At this point: emp 2 (absentEmpId) has both NO_SHOW_DAYS unexcused
+  // (the first excuse was removed by the "does not re-announce" test).
+  // Emp 3 (lateEmpId) has all WORKDAYS as unexcused no-shows.
+
+  it("partial excusal leaves notifications in place", async () => {
+    // Excuse only the first day for emp 2 — one day still pending.
+    const res = await request(app)
+      .post(`/api/payroll-periods/${periodId}/excused-absences`)
+      .send({ employeeId: absentEmpId, date: NO_SHOW_DAYS[0], reason: "partial excuse" });
+    expect(res.status).toBe(201);
+
+    // Notifications must remain (not dismissed) because NO_SHOW_DAYS[1] is still open.
+    const empNotifs = await db.select().from(notificationsTable).where(and(
+      eq(notificationsTable.recipientUserId, absentUserId),
+      eq(notificationsTable.notificationType, NOTIF_TYPE),
+      eq(notificationsTable.entityType, "payroll_period"),
+      eq(notificationsTable.entityId, periodId),
+    ));
+    expect(empNotifs.some(n => !n.isDismissed)).toBe(true);
+
+    const mgrNotifs = await db.select().from(notificationsTable).where(and(
+      eq(notificationsTable.recipientUserId, managerUserId),
+      eq(notificationsTable.notificationType, NOTIF_TYPE),
+      eq(notificationsTable.entityType, "payroll_period"),
+      eq(notificationsTable.entityId, periodId),
+    ));
+    expect(mgrNotifs.some(n => !n.isDismissed)).toBe(true);
+  });
+
+  it("dismisses employee and manager notifications when all days are excused", async () => {
+    // Excuse the remaining day for emp 2 — all no-show days now covered.
+    const res = await request(app)
+      .post(`/api/payroll-periods/${periodId}/excused-absences`)
+      .send({ employeeId: absentEmpId, date: NO_SHOW_DAYS[1], reason: "full excuse" });
+    expect(res.status).toBe(201);
+
+    const empNotifs = await db.select().from(notificationsTable).where(and(
+      eq(notificationsTable.recipientUserId, absentUserId),
+      eq(notificationsTable.notificationType, NOTIF_TYPE),
+      eq(notificationsTable.entityType, "payroll_period"),
+      eq(notificationsTable.entityId, periodId),
+    ));
+    expect(empNotifs.every(n => n.isDismissed)).toBe(true);
+
+    const mgrNotifs = await db.select().from(notificationsTable).where(and(
+      eq(notificationsTable.recipientUserId, managerUserId),
+      eq(notificationsTable.notificationType, NOTIF_TYPE),
+      eq(notificationsTable.entityType, "payroll_period"),
+      eq(notificationsTable.entityId, periodId),
+    ));
+    expect(mgrNotifs.every(n => n.isDismissed)).toBe(true);
+  });
+
+  it("leaves HR digest open while another employee still has unexcused days", async () => {
+    // Emp 3 (lateEmpId) still has all WORKDAYS unexcused — hrUserId's digest must stay open.
+    const digests = await db.select().from(notificationsTable).where(and(
+      eq(notificationsTable.recipientUserId, hrUserId),
+      eq(notificationsTable.notificationType, HR_DIGEST_TYPE),
+      eq(notificationsTable.entityType, "payroll_period"),
+      eq(notificationsTable.entityId, periodId),
+    ));
+    expect(digests.some(d => !d.isDismissed)).toBe(true);
+  });
+
+  it("dismisses the HR digest that exclusively announced emp 3's days once all are excused", async () => {
+    // Excuse all WORKDAYS for emp 3 — every pair in the emp-3 digest is now covered.
+    // The digest that exclusively lists emp 3 was created in a separate calculation
+    // round (after emp 3 became eligible), so its announced pairs are only for emp 3.
+    for (const d of WORKDAYS) {
+      const res = await request(app)
+        .post(`/api/payroll-periods/${periodId}/excused-absences`)
+        .send({ employeeId: lateEmpId, date: d, reason: "full excuse emp3" });
+      expect(res.status).toBe(201);
+    }
+
+    // The digest(s) that mention emp 3 must now be dismissed.
+    const emp3Marker = `[T-NNE-${SUFFIX}-3]`;
+    const emp3Digests = await db.select().from(notificationsTable).where(and(
+      eq(notificationsTable.recipientUserId, hrUserId),
+      eq(notificationsTable.notificationType, HR_DIGEST_TYPE),
+      eq(notificationsTable.entityType, "payroll_period"),
+      eq(notificationsTable.entityId, periodId),
+      like(notificationsTable.bodyEn, `%${emp3Marker}%`),
+    ));
+    expect(emp3Digests.length).toBeGreaterThan(0);
+    expect(emp3Digests.every(d => d.isDismissed)).toBe(true);
   });
 });
