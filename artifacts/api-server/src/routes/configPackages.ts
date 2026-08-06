@@ -43,9 +43,22 @@ function computeChecksum(data: string): string {
  *   in process memory.
  * - The "default-secret" fallback exists only so development environments
  *   without SESSION_SECRET still function; production must set SESSION_SECRET.
+ * - In production (NODE_ENV=production), SESSION_SECRET MUST be set. If it is
+ *   missing, sign and import operations throw immediately so that a forged
+ *   signature cannot be produced or accepted under the well-known fallback key.
  */
 function computeSignature(data: string): string {
-  const secret = process.env.SESSION_SECRET ?? "default-secret";
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "SESSION_SECRET must be set in production: refusing to sign or verify " +
+        "config packages with the insecure default key. Set SESSION_SECRET and restart.",
+      );
+    }
+    // Development/test fallback — never reaches production
+    return createHmac("sha256", "default-secret").update(data).digest("hex");
+  }
   return createHmac("sha256", secret).update(data).digest("hex");
 }
 
