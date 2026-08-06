@@ -197,16 +197,27 @@ export default function AdminUsersScreen() {
   const [issueError, setIssueError] = useState(false);
   const [unlockError, setUnlockError] = useState(false);
   const [unlockingId, setUnlockingId] = useState<number | null>(null);
+  // Track whether the highlighted account has been unlocked so the amber
+  // border can be cleared immediately after the admin acts on the alert.
+  const [highlightCleared, setHighlightCleared] = useState(false);
+  const unlockingUsernameRef = useRef<string | null>(null);
 
   // Unlock uses the existing POST /users/:id/unlock endpoint; on success the
   // list refetches so the "Locked" badge and button clear immediately.
   const unlockUser = useUnlockUser({
     mutation: {
       onSuccess: () => {
+        // If the just-unlocked account was the one highlighted by the alert,
+        // clear the highlight so the admin can see the action took effect.
+        if (unlockingUsernameRef.current === highlightUsername) {
+          setHighlightCleared(true);
+        }
+        unlockingUsernameRef.current = null;
         setUnlockingId(null);
         queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
       },
       onError: () => {
+        unlockingUsernameRef.current = null;
         setUnlockingId(null);
         setUnlockError(true);
       },
@@ -307,11 +318,12 @@ export default function AdminUsersScreen() {
           renderItem={({ item }) => (
             <UserRow
               item={item}
-              highlighted={item.username === highlightUsername}
+              highlighted={item.username === highlightUsername && !highlightCleared}
               unlockPending={unlockUser.isPending && unlockingId === item.id}
               onUnlock={(u) => {
                 setUnlockError(false);
                 setUnlockingId(u.id);
+                unlockingUsernameRef.current = u.username;
                 unlockUser.mutate({ id: u.id });
               }}
               onIssue={(u) => {

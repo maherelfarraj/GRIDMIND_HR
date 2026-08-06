@@ -39,6 +39,8 @@ export default function Users() {
   const highlightUsername = new URLSearchParams(search).get('highlight');
   const highlightRowRef = useRef<HTMLTableRowElement | null>(null);
   const scrolledRef = useRef(false);
+  // Clear the highlight once the admin successfully unlocks the flagged account.
+  const [highlightCleared, setHighlightCleared] = useState(false);
   useEffect(() => {
     if (!scrolledRef.current && highlightRowRef.current) {
       highlightRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -46,11 +48,16 @@ export default function Users() {
     }
   }, [usersData, highlightUsername]);
 
-  const handleUnlock = (id: number, name: string) => {
+  const handleUnlock = (id: number, name: string, username: string) => {
     unlockUser.mutate(
       { id },
       {
         onSuccess: () => {
+          // If this was the highlighted (alerted) account, drop the amber
+          // highlight immediately so the admin can see the action took effect.
+          if (username === highlightUsername) {
+            setHighlightCleared(true);
+          }
           toast({ title: t('Account unlocked', 'تم إلغاء قفل الحساب'), description: t(`${name} can sign in again immediately.`, `يمكن لـ ${name} تسجيل الدخول مرة أخرى فورًا.`) });
           queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
         },
@@ -320,7 +327,7 @@ export default function Users() {
                     key={user.id}
                     ref={user.username === highlightUsername ? highlightRowRef : undefined}
                     data-testid={`row-user-${user.id}`}
-                    className={user.username === highlightUsername ? 'bg-amber-500/10 hover:bg-amber-500/15' : undefined}
+                    className={user.username === highlightUsername && !highlightCleared ? 'bg-amber-500/10 hover:bg-amber-500/15' : undefined}
                   >
                     <TableCell>
                       <div className="flex flex-col">
@@ -394,7 +401,7 @@ export default function Users() {
                           {isLocked(user.lockedUntil) && (
                             <DropdownMenuItem
                               disabled={unlockUser.isPending}
-                              onClick={() => handleUnlock(user.id, localName(user.fullNameEn, user.fullNameAr, lang))}
+                              onClick={() => handleUnlock(user.id, localName(user.fullNameEn, user.fullNameAr, lang), user.username)}
                             >
                               <LockOpen className="w-4 h-4 me-2" />
                               {t('Unlock Account', 'إلغاء قفل الحساب')}
