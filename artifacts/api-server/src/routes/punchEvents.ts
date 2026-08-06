@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, punchEventsTable, employeesTable, attendanceDevicesTable, attendanceRecordsTable } from "@workspace/db";
 import { eq, and, desc, gte, lte, isNull } from "drizzle-orm";
+import { resolveOrgId } from "../lib/orgContext.js";
 
 const router = Router();
 
@@ -11,6 +12,17 @@ router.get("/punch-events", async (req, res): Promise<void> => {
     eventType?: string; source?: string; isMissing?: string;
     page?: string; limit?: string;
   };
+
+  const orgId = await resolveOrgId(req);
+
+  // Scope to the org via the employee join; additional filters applied in SQL where possible
+  const conditions: any[] = [eq(employeesTable.orgId, orgId)];
+  if (dateFrom) conditions.push(gte(punchEventsTable.eventTime, new Date(dateFrom)));
+  if (dateTo) conditions.push(lte(punchEventsTable.eventTime, new Date(dateTo + "T23:59:59Z")));
+  if (employeeId) conditions.push(eq(punchEventsTable.employeeId, parseInt(employeeId, 10)));
+  if (eventType) conditions.push(eq(punchEventsTable.eventType, eventType));
+  if (source) conditions.push(eq(punchEventsTable.source, source));
+  if (isMissing !== undefined) conditions.push(eq(punchEventsTable.isMissing, isMissing === "true"));
 
   const rows = await db
     .select({
@@ -36,18 +48,13 @@ router.get("/punch-events", async (req, res): Promise<void> => {
     .from(punchEventsTable)
     .leftJoin(employeesTable, eq(punchEventsTable.employeeId, employeesTable.id))
     .leftJoin(attendanceDevicesTable, eq(punchEventsTable.deviceId, attendanceDevicesTable.id))
+    .where(and(...conditions))
     .orderBy(desc(punchEventsTable.eventTime))
     .limit(parseInt(limit, 10))
     .offset((parseInt(page, 10) - 1) * parseInt(limit, 10));
 
-  const filtered = rows
-    .filter((r) => !employeeId || r.employeeId === parseInt(employeeId, 10))
-    .filter((r) => !eventType || r.eventType === eventType)
-    .filter((r) => !source || r.source === source)
-    .filter((r) => isMissing === undefined || r.isMissing === (isMissing === "true"));
-
   res.json({
-    data: filtered.map((r) => ({
+    data: rows.map((r) => ({
       ...r,
       eventTime: r.eventTime.toISOString(),
       createdAt: r.createdAt.toISOString(),
@@ -59,6 +66,8 @@ router.get("/punch-events", async (req, res): Promise<void> => {
 
 // GET /punch-events/missing — events flagged as missing
 router.get("/punch-events/missing", async (req, res): Promise<void> => {
+  const orgId = await resolveOrgId(req);
+
   const rows = await db
     .select({
       id: punchEventsTable.id,
@@ -75,7 +84,7 @@ router.get("/punch-events/missing", async (req, res): Promise<void> => {
     })
     .from(punchEventsTable)
     .leftJoin(employeesTable, eq(punchEventsTable.employeeId, employeesTable.id))
-    .where(eq(punchEventsTable.isMissing, true))
+    .where(and(eq(punchEventsTable.isMissing, true), eq(employeesTable.orgId, orgId)))
     .orderBy(desc(punchEventsTable.eventTime));
 
   res.json(rows.map((r) => ({

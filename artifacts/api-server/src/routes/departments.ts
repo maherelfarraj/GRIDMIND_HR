@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { db, departmentsTable, employeesTable } from "@workspace/db";
-import { eq, count } from "drizzle-orm";
+import { eq, and, count, inArray, isNotNull } from "drizzle-orm";
 import {
   CreateDepartmentBody, UpdateDepartmentBody,
   GetDepartmentParams, UpdateDepartmentParams, DeleteDepartmentParams,
 } from "@workspace/api-zod";
+import { resolveOrgId } from "../lib/orgContext.js";
 
 const router = Router();
 
@@ -39,11 +40,27 @@ async function buildDeptResponse(d: typeof departmentsTable.$inferSelect) {
   };
 }
 
+/** Return the set of department IDs that have at least one employee in the given org. */
+async function orgDeptIds(orgId: number): Promise<number[]> {
+  const rows = await db
+    .selectDistinct({ departmentId: employeesTable.departmentId })
+    .from(employeesTable)
+    .where(and(eq(employeesTable.orgId, orgId), isNotNull(employeesTable.departmentId)));
+  return rows.map((r) => r.departmentId).filter((id): id is number => id !== null);
+}
+
 router.get("/departments", async (req, res): Promise<void> => {
-  const depts = await db.select().from(departmentsTable);
+  const orgId = await resolveOrgId(req);
+  const deptIds = await orgDeptIds(orgId);
+
+  const depts = deptIds.length > 0
+    ? await db.select().from(departmentsTable).where(inArray(departmentsTable.id, deptIds))
+    : [];
+
   const empCounts = await db
     .select({ deptId: employeesTable.departmentId, c: count() })
     .from(employeesTable)
+    .where(eq(employeesTable.orgId, orgId))
     .groupBy(employeesTable.departmentId);
   const countMap = Object.fromEntries(empCounts.map((e) => [e.deptId, e.c]));
   const deptMap = Object.fromEntries(depts.map((d) => [d.id, d]));
@@ -67,10 +84,17 @@ router.post("/departments", async (req, res): Promise<void> => {
 });
 
 router.get("/departments/tree", async (req, res): Promise<void> => {
-  const depts = await db.select().from(departmentsTable);
+  const orgId = await resolveOrgId(req);
+  const deptIds = await orgDeptIds(orgId);
+
+  const depts = deptIds.length > 0
+    ? await db.select().from(departmentsTable).where(inArray(departmentsTable.id, deptIds))
+    : [];
+
   const empCounts = await db
     .select({ deptId: employeesTable.departmentId, c: count() })
     .from(employeesTable)
+    .where(eq(employeesTable.orgId, orgId))
     .groupBy(employeesTable.departmentId);
   const countMap = Object.fromEntries(empCounts.map((e) => [e.deptId, e.c]));
 

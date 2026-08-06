@@ -14,14 +14,19 @@ import {
   trainingAttendanceTable,
   trainingSessionsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, desc, sql, isNull, ne } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql, isNull, ne, inArray } from "drizzle-orm";
+import { resolveOrgId } from "../lib/orgContext.js";
 
 const router = Router();
 
 // GET /analytics/executive-summary
 router.get("/analytics/executive-summary", async (req, res) => {
   try {
-    // Latest snapshot
+    const orgId = await resolveOrgId(req);
+
+    // Latest snapshot — workforceSnapshotsTable has no org_id column so this
+    // returns the most recent global snapshot (scoped tables like attendance
+    // and leave are filtered below).
     const [latestSnapshot] = await db
       .select()
       .from(workforceSnapshotsTable)
@@ -29,9 +34,17 @@ router.get("/analytics/executive-summary", async (req, res) => {
       .orderBy(desc(workforceSnapshotsTable.snapshotDate))
       .limit(1);
 
-    // Documents expiring in 30 days
+    // Documents expiring in 30 days — scope via employee when possible
     const today = new Date().toISOString().slice(0, 10);
     const in30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    // Get org employee IDs for employee-linked tables
+    const orgEmpRows = await db
+      .select({ id: employeesTable.id })
+      .from(employeesTable)
+      .where(eq(employeesTable.orgId, orgId));
+    const orgEmpIds = orgEmpRows.map((e) => e.id);
+
     const expiringDocs = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(enterpriseDocumentsTable)
@@ -42,23 +55,28 @@ router.get("/analytics/executive-summary", async (req, res) => {
         )
       );
 
-    // Training compliance
-    const totalNominations = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(courseNominationsTable);
-    const completedNominations = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(courseNominationsTable)
-      .where(eq(courseNominationsTable.status, "enrolled"));
+    // Training compliance — scope via employee orgId
+    const totalNominations = orgEmpIds.length > 0
+      ? await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(courseNominationsTable)
+          .where(inArray(courseNominationsTable.employeeId, orgEmpIds))
+      : [{ count: 0 }];
+    const completedNominations = orgEmpIds.length > 0
+      ? await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(courseNominationsTable)
+          .where(and(inArray(courseNominationsTable.employeeId, orgEmpIds), eq(courseNominationsTable.status, "enrolled")))
+      : [{ count: 0 }];
     const totalN = totalNominations[0]?.count ?? 0;
     const completedN = completedNominations[0]?.count ?? 0;
     const trainingComplianceRate = totalN > 0 ? Math.round((completedN / totalN) * 100 * 10) / 10 : 0;
 
-    // Pending approvals (leave requests with pending status)
+    // Pending leave balances — scoped by leaveBalances.orgId
     const pendingApprovals = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(leaveBalancesTable)
-      .where(gte(sql`${leaveBalancesTable.pending}::numeric`, sql`1`));
+      .where(and(eq(leaveBalancesTable.orgId, orgId), gte(sql`${leaveBalancesTable.pending}::numeric`, sql`1`)));
 
     res.json({
       headcount: latestSnapshot?.headcount ?? 0,
@@ -81,6 +99,7 @@ router.get("/analytics/executive-summary", async (req, res) => {
 // GET /analytics/headcount?months=12
 router.get("/analytics/headcount", async (req, res) => {
   try {
+    // workforceSnapshotsTable has no org_id — global aggregate data
     const months = Math.min(parseInt(req.query.months as string) || 12, 24);
     const rows = await db
       .select()
@@ -98,6 +117,7 @@ router.get("/analytics/headcount", async (req, res) => {
 // GET /analytics/vacancies?months=6
 router.get("/analytics/vacancies", async (req, res) => {
   try {
+    // workforceSnapshotsTable has no org_id — global aggregate data
     const months = Math.min(parseInt(req.query.months as string) || 6, 24);
     const rows = await db
       .select({
@@ -121,15 +141,18 @@ router.get("/analytics/vacancies", async (req, res) => {
 // GET /analytics/attendance-anomalies?threshold=15&departmentId=
 router.get("/analytics/attendance-anomalies", async (req, res) => {
   try {
+    const orgId = await resolveOrgId(req);
     const threshold = parseFloat(req.query.threshold as string) || 15;
     const departmentId = req.query.departmentId ? parseInt(req.query.departmentId as string) : null;
 
     // Aggregate absent days per employee in last 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    const conditions = departmentId
-      ? and(gte(attendanceRecordsTable.date, thirtyDaysAgo), eq(attendanceRecordsTable.departmentId, departmentId))
-      : gte(attendanceRecordsTable.date, thirtyDaysAgo);
+    const conditions: any[] = [
+      eq(attendanceRecordsTable.orgId, orgId),
+      gte(attendanceRecordsTable.date, thirtyDaysAgo),
+    ];
+    if (departmentId) conditions.push(eq(attendanceRecordsTable.departmentId, departmentId));
 
     const stats = await db
       .select({
@@ -138,7 +161,7 @@ router.get("/analytics/attendance-anomalies", async (req, res) => {
         absentDays: sql<number>`sum(case when ${attendanceRecordsTable.status} = 'absent' then 1 else 0 end)::int`,
       })
       .from(attendanceRecordsTable)
-      .where(conditions)
+      .where(and(...conditions))
       .groupBy(attendanceRecordsTable.employeeId);
 
     const anomalies = stats
@@ -175,14 +198,17 @@ router.get("/analytics/attendance-anomalies", async (req, res) => {
 // GET /analytics/overtime-anomalies?threshold=20&departmentId=
 router.get("/analytics/overtime-anomalies", async (req, res) => {
   try {
+    const orgId = await resolveOrgId(req);
     const threshold = parseFloat(req.query.threshold as string) || 20;
     const departmentId = req.query.departmentId ? parseInt(req.query.departmentId as string) : null;
 
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    const conditions = departmentId
-      ? and(gte(attendanceRecordsTable.date, thirtyDaysAgo), eq(attendanceRecordsTable.departmentId, departmentId))
-      : gte(attendanceRecordsTable.date, thirtyDaysAgo);
+    const conditions: any[] = [
+      eq(attendanceRecordsTable.orgId, orgId),
+      gte(attendanceRecordsTable.date, thirtyDaysAgo),
+    ];
+    if (departmentId) conditions.push(eq(attendanceRecordsTable.departmentId, departmentId));
 
     const stats = await db
       .select({
@@ -191,7 +217,7 @@ router.get("/analytics/overtime-anomalies", async (req, res) => {
         daysWithOvertime: sql<number>`sum(case when ${attendanceRecordsTable.overtimeMinutes} > 0 then 1 else 0 end)::int`,
       })
       .from(attendanceRecordsTable)
-      .where(conditions)
+      .where(and(...conditions))
       .groupBy(attendanceRecordsTable.employeeId);
 
     const anomalies = stats.filter(s => (s.totalOvertimeMinutes / 60) >= threshold);
@@ -226,6 +252,7 @@ router.get("/analytics/overtime-anomalies", async (req, res) => {
 // GET /analytics/payroll-variance?periods=6
 router.get("/analytics/payroll-variance", async (req, res) => {
   try {
+    const orgId = await resolveOrgId(req);
     const periods = Math.min(parseInt(req.query.periods as string) || 6, 24);
 
     const rows = await db
@@ -244,6 +271,7 @@ router.get("/analytics/payroll-variance", async (req, res) => {
       })
       .from(payrollVarianceLogTable)
       .innerJoin(payrollPeriodsTable, eq(payrollVarianceLogTable.periodId, payrollPeriodsTable.id))
+      .where(eq(payrollPeriodsTable.orgId, orgId))
       .orderBy(desc(payrollPeriodsTable.startDate))
       .limit(periods);
 
@@ -256,11 +284,11 @@ router.get("/analytics/payroll-variance", async (req, res) => {
 // GET /analytics/leave-exposure?departmentId=
 router.get("/analytics/leave-exposure", async (req, res) => {
   try {
+    const orgId = await resolveOrgId(req);
     const departmentId = req.query.departmentId ? parseInt(req.query.departmentId as string) : null;
 
-    const conditions = departmentId
-      ? eq(employeesTable.departmentId, departmentId)
-      : undefined;
+    const conditions: any[] = [eq(leaveBalancesTable.orgId, orgId)];
+    if (departmentId) conditions.push(eq(employeesTable.departmentId, departmentId));
 
     const baseQuery = db
       .select({
@@ -272,11 +300,10 @@ router.get("/analytics/leave-exposure", async (req, res) => {
       })
       .from(leaveBalancesTable)
       .innerJoin(employeesTable, eq(leaveBalancesTable.employeeId, employeesTable.id))
-      .groupBy(employeesTable.departmentId);
+      .groupBy(employeesTable.departmentId)
+      .where(and(...conditions));
 
-    const rows = conditions
-      ? await baseQuery.where(conditions)
-      : await baseQuery;
+    const rows = await baseQuery;
 
     // Enrich with department names
     const enriched = await Promise.all(
@@ -299,11 +326,11 @@ router.get("/analytics/leave-exposure", async (req, res) => {
 // GET /analytics/training-compliance?departmentId=
 router.get("/analytics/training-compliance", async (req, res) => {
   try {
+    const orgId = await resolveOrgId(req);
     const departmentId = req.query.departmentId ? parseInt(req.query.departmentId as string) : null;
 
-    const empCondition = departmentId
-      ? eq(employeesTable.departmentId, departmentId)
-      : undefined;
+    const conditions: any[] = [eq(employeesTable.orgId, orgId)];
+    if (departmentId) conditions.push(eq(employeesTable.departmentId, departmentId));
 
     const baseQuery = db
       .select({
@@ -315,11 +342,10 @@ router.get("/analytics/training-compliance", async (req, res) => {
       })
       .from(courseNominationsTable)
       .innerJoin(employeesTable, eq(courseNominationsTable.employeeId, employeesTable.id))
-      .groupBy(employeesTable.departmentId);
+      .groupBy(employeesTable.departmentId)
+      .where(and(...conditions));
 
-    const rows = empCondition
-      ? await baseQuery.where(empCondition)
-      : await baseQuery;
+    const rows = await baseQuery;
 
     const enriched = await Promise.all(
       rows.map(async r => {

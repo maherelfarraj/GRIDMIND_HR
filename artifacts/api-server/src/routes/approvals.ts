@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { db, approvalsTable, employeesTable, systemUsersTable, auditLogsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { CreateApprovalBody, DecideApprovalBody, ListApprovalsQueryParams } from "@workspace/api-zod";
 import { decideLeaveStep } from "../lib/leaveDecision.js";
 import { requireActorPermission, ForbiddenError } from "../lib/permissions.js";
+import { resolveOrgId } from "../lib/orgContext.js";
 
 const router = Router();
 
@@ -31,14 +32,28 @@ router.get("/approvals", async (req, res): Promise<void> => {
   const parsed = ListApprovalsQueryParams.safeParse(req.query);
   const q = parsed.success ? parsed.data : {};
 
-  const conditions = [];
+  const orgId = await resolveOrgId(req);
+
+  // Resolve employee IDs that belong to this org so we can scope the approvals inbox
+  const orgEmps = await db
+    .select({ id: employeesTable.id })
+    .from(employeesTable)
+    .where(eq(employeesTable.orgId, orgId));
+  const orgEmpIds = orgEmps.map((e) => e.id);
+
+  const conditions: any[] = [];
+  if (orgEmpIds.length > 0) {
+    conditions.push(inArray(approvalsTable.requestedByEmployeeId, orgEmpIds));
+  } else {
+    // No employees in this org — return empty inbox
+    res.json([]);
+    return;
+  }
   if (q.status) conditions.push(eq(approvalsTable.status, q.status));
   if (q.type) conditions.push(eq(approvalsTable.type, q.type));
   if (q.assignedToUserId) conditions.push(eq(approvalsTable.assignedToUserId, q.assignedToUserId));
 
-  const approvals = conditions.length > 0
-    ? await db.select().from(approvalsTable).where(and(...conditions))
-    : await db.select().from(approvalsTable);
+  const approvals = await db.select().from(approvalsTable).where(and(...conditions));
 
   const emps = await db.select().from(employeesTable);
   const users = await db.select().from(systemUsersTable);

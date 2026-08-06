@@ -6,7 +6,9 @@ import {
   auditLogsTable, attendanceRecordsTable,
   shiftsTable, rostersTable, overtimeRulesTable
 } from "@workspace/db";
-import { eq, and, sql, count, gte, lte } from "drizzle-orm";
+import { eq, and, sql, count, gte, lte, inArray } from "drizzle-orm";
+import type { InferSelectModel } from "drizzle-orm";
+import { resolveOrgId } from "../lib/orgContext.js";
 
 const router = Router();
 
@@ -16,26 +18,55 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   firstOfMonth.setDate(1);
   const firstOfMonthStr = firstOfMonth.toISOString().slice(0, 10);
 
-  const [totalEmp] = await db.select({ c: count() }).from(employeesTable);
-  const [activeEmp] = await db.select({ c: count() }).from(employeesTable).where(eq(employeesTable.status, "active"));
+  const orgId = await resolveOrgId(req);
+
+  // Resolve org employee IDs for tables that have no org_id column
+  const orgEmps = await db
+    .select({ id: employeesTable.id, departmentId: employeesTable.departmentId })
+    .from(employeesTable)
+    .where(eq(employeesTable.orgId, orgId));
+  const orgEmpIds = orgEmps.map((e) => e.id);
+  const orgDeptIds = [...new Set(orgEmps.map((e) => e.departmentId).filter((id): id is number => id !== null))];
+
+  const [totalEmp] = await db.select({ c: count() }).from(employeesTable)
+    .where(eq(employeesTable.orgId, orgId));
+  const [activeEmp] = await db.select({ c: count() }).from(employeesTable)
+    .where(and(eq(employeesTable.orgId, orgId), eq(employeesTable.status, "active")));
   const [newHires] = await db.select({ c: count() }).from(employeesTable).where(
-    and(gte(employeesTable.hireDate, firstOfMonthStr), eq(employeesTable.status, "active"))
+    and(eq(employeesTable.orgId, orgId), gte(employeesTable.hireDate, firstOfMonthStr), eq(employeesTable.status, "active"))
   );
-  const [pendingApprovals] = await db.select({ c: count() }).from(approvalsTable).where(eq(approvalsTable.status, "pending"));
-  const [openAlerts] = await db.select({ c: count() }).from(securityAlertsTable).where(eq(securityAlertsTable.acknowledged, false));
+
+  // Approvals scoped via the requesting employee
+  const [pendingApprovals] = orgEmpIds.length > 0
+    ? await db.select({ c: count() }).from(approvalsTable).where(
+        and(eq(approvalsTable.status, "pending"), inArray(approvalsTable.requestedByEmployeeId, orgEmpIds))
+      )
+    : [{ c: 0 }];
+
+  // Security alerts are global (no org_id)
+  const [openAlerts] = await db.select({ c: count() }).from(securityAlertsTable)
+    .where(eq(securityAlertsTable.acknowledged, false));
+
   const [onLeave] = await db.select({ c: count() }).from(attendanceRecordsTable).where(
-    and(eq(attendanceRecordsTable.date, today), eq(attendanceRecordsTable.status, "on_leave"))
+    and(eq(attendanceRecordsTable.orgId, orgId), eq(attendanceRecordsTable.date, today), eq(attendanceRecordsTable.status, "on_leave"))
   );
   const [present] = await db.select({ c: count() }).from(attendanceRecordsTable).where(
-    and(eq(attendanceRecordsTable.date, today), eq(attendanceRecordsTable.status, "present"))
+    and(eq(attendanceRecordsTable.orgId, orgId), eq(attendanceRecordsTable.date, today), eq(attendanceRecordsTable.status, "present"))
   );
   const [absent] = await db.select({ c: count() }).from(attendanceRecordsTable).where(
-    and(eq(attendanceRecordsTable.date, today), eq(attendanceRecordsTable.status, "absent"))
+    and(eq(attendanceRecordsTable.orgId, orgId), eq(attendanceRecordsTable.date, today), eq(attendanceRecordsTable.status, "absent"))
   );
-  const [totalDepts] = await db.select({ c: count() }).from(departmentsTable);
+
+  const [totalDepts] = orgDeptIds.length > 0
+    ? await db.select({ c: count() }).from(departmentsTable).where(inArray(departmentsTable.id, orgDeptIds))
+    : [{ c: 0 }];
+
+  // Devices and documents are global (no org_id)
   const [totalDevices] = await db.select({ c: count() }).from(attendanceDevicesTable);
-  const [onlineDevices] = await db.select({ c: count() }).from(attendanceDevicesTable).where(eq(attendanceDevicesTable.status, "online"));
-  const [docsPending] = await db.select({ c: count() }).from(documentsTable).where(eq(documentsTable.status, "pending"));
+  const [onlineDevices] = await db.select({ c: count() }).from(attendanceDevicesTable)
+    .where(eq(attendanceDevicesTable.status, "online"));
+  const [docsPending] = await db.select({ c: count() }).from(documentsTable)
+    .where(eq(documentsTable.status, "pending"));
 
   res.json({
     totalEmployees: totalEmp?.c ?? 0,
@@ -76,12 +107,23 @@ router.get("/dashboard/activity", async (req, res): Promise<void> => {
 
 router.get("/dashboard/attendance-overview", async (req, res): Promise<void> => {
   const today = new Date().toISOString().slice(0, 10);
+  const orgId = await resolveOrgId(req);
 
-  const depts = await db.select().from(departmentsTable);
+  // Departments visible in this org (via employee membership)
+  const orgEmps = await db
+    .select({ departmentId: employeesTable.departmentId })
+    .from(employeesTable)
+    .where(eq(employeesTable.orgId, orgId));
+  const orgDeptIds = [...new Set(orgEmps.map((e) => e.departmentId).filter((id): id is number => id !== null))];
+
+  const depts = orgDeptIds.length > 0
+    ? await db.select().from(departmentsTable).where(inArray(departmentsTable.id, orgDeptIds))
+    : [];
+
   const todayRecords = await db
     .select()
     .from(attendanceRecordsTable)
-    .where(eq(attendanceRecordsTable.date, today));
+    .where(and(eq(attendanceRecordsTable.orgId, orgId), eq(attendanceRecordsTable.date, today)));
 
   const byDept = depts.map((d) => {
     const recs = todayRecords.filter((r) => r.departmentId === d.id);
@@ -116,21 +158,37 @@ router.get("/dashboard/executive", async (req, res): Promise<void> => {
   const start30 = daysAgo(29);
   const start7 = daysAgo(6);
 
-  const [depts, employees, records30, rosters30, shifts, otRules] = await Promise.all([
-    db.select().from(departmentsTable),
-    db.select().from(employeesTable).where(eq(employeesTable.status, "active")),
+  const orgId = await resolveOrgId(req);
+
+  // Org employee IDs for tables without org_id (rosters)
+  const allOrgEmps = await db
+    .select({ id: employeesTable.id, departmentId: employeesTable.departmentId })
+    .from(employeesTable)
+    .where(and(eq(employeesTable.orgId, orgId), eq(employeesTable.status, "active")));
+  const orgEmpIds = allOrgEmps.map((e) => e.id);
+  const orgDeptIds = [...new Set(allOrgEmps.map((e) => e.departmentId).filter((id): id is number => id !== null))];
+
+  type DeptRow = typeof departmentsTable.$inferSelect;
+  type RosterRow = typeof rostersTable.$inferSelect;
+
+  const [depts, records30, rosters30, shifts, otRules] = await Promise.all([
+    orgDeptIds.length > 0
+      ? db.select().from(departmentsTable).where(inArray(departmentsTable.id, orgDeptIds))
+      : Promise.resolve([] as DeptRow[]),
     db.select().from(attendanceRecordsTable).where(
-      and(gte(attendanceRecordsTable.date, start30), lte(attendanceRecordsTable.date, today))
+      and(eq(attendanceRecordsTable.orgId, orgId), gte(attendanceRecordsTable.date, start30), lte(attendanceRecordsTable.date, today))
     ),
-    db.select().from(rostersTable).where(
-      and(gte(rostersTable.date, start30), lte(rostersTable.date, today))
-    ),
+    orgEmpIds.length > 0
+      ? db.select().from(rostersTable).where(
+          and(inArray(rostersTable.employeeId, orgEmpIds), gte(rostersTable.date, start30), lte(rostersTable.date, today))
+        )
+      : Promise.resolve([] as RosterRow[]),
     db.select().from(shiftsTable),
     db.select().from(overtimeRulesTable).where(eq(overtimeRulesTable.isActive, true)),
   ]);
 
-  const empById = new Map(employees.map((e) => [e.id, e]));
-  const activeCount = employees.length;
+  const empById = new Map(allOrgEmps.map((e) => [e.id, e]));
+  const activeCount = allOrgEmps.length;
 
   // ── 30-day attendance rate trend ──
   const attendanceTrend: { date: string; presentCount: number; totalCount: number; ratePct: number }[] = [];
@@ -217,8 +275,8 @@ router.get("/dashboard/executive", async (req, res): Promise<void> => {
       const emp = empById.get(employeeId);
       return {
         employeeId,
-        nameEn: emp ? `${emp.firstNameEn} ${emp.lastNameEn}` : `#${employeeId}`,
-        nameAr: emp ? `${emp.firstNameAr} ${emp.lastNameAr}` : `#${employeeId}`,
+        nameEn: emp ? `${(emp as any).firstNameEn ?? ""} ${(emp as any).lastNameEn ?? ""}`.trim() : `#${employeeId}`,
+        nameAr: emp ? `${(emp as any).firstNameAr ?? ""} ${(emp as any).lastNameAr ?? ""}`.trim() : `#${employeeId}`,
         totalLateMinutes: v.totalLateMinutes,
         occurrences: v.occurrences,
       };
@@ -230,7 +288,7 @@ router.get("/dashboard/executive", async (req, res): Promise<void> => {
   const days7: string[] = [];
   for (let i = 6; i >= 0; i--) days7.push(daysAgo(i));
   const departmentHeatmap = depts.map((d) => {
-    const deptEmpIds = new Set(employees.filter((e) => e.departmentId === d.id).map((e) => e.id));
+    const deptEmpIds = new Set(allOrgEmps.filter((e) => e.departmentId === d.id).map((e) => e.id));
     const days = days7.map((date) => {
       const rostered = rosters30.filter(
         (r) => r.date === date && !r.isOffDay && deptEmpIds.has(r.employeeId)

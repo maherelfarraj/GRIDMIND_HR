@@ -1,8 +1,18 @@
 import { Router } from "express";
 import { db, rostersTable, shiftsTable, employeesTable, departmentsTable } from "@workspace/db";
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
+import { resolveOrgId } from "../lib/orgContext.js";
 
 const router = Router();
+
+/** Return all employee IDs belonging to the given org. */
+async function orgEmployeeIds(orgId: number): Promise<number[]> {
+  const rows = await db
+    .select({ id: employeesTable.id })
+    .from(employeesTable)
+    .where(eq(employeesTable.orgId, orgId));
+  return rows.map((r) => r.id);
+}
 
 // Weekly roster: GET /rosters?weekStart=YYYY-MM-DD&weekEnd=YYYY-MM-DD&departmentId=X
 router.get("/rosters", async (req, res): Promise<void> => {
@@ -10,13 +20,12 @@ router.get("/rosters", async (req, res): Promise<void> => {
     weekStart?: string; weekEnd?: string; departmentId?: string; employeeId?: string;
   };
 
-  const conditions: any[] = [];
+  const orgId = await resolveOrgId(req);
+
+  const conditions: any[] = [eq(employeesTable.orgId, orgId)];
   if (weekStart) conditions.push(gte(rostersTable.date, weekStart));
   if (weekEnd) conditions.push(lte(rostersTable.date, weekEnd));
   if (employeeId) conditions.push(eq(rostersTable.employeeId, parseInt(employeeId, 10)));
-
-  let empConditions: any[] = [];
-  if (departmentId) empConditions.push(eq(employeesTable.departmentId, parseInt(departmentId, 10)));
 
   const rows = await db
     .select({
@@ -46,7 +55,7 @@ router.get("/rosters", async (req, res): Promise<void> => {
     .from(rostersTable)
     .leftJoin(employeesTable, eq(rostersTable.employeeId, employeesTable.id))
     .leftJoin(shiftsTable, eq(rostersTable.shiftId, shiftsTable.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(rostersTable.date, employeesTable.lastNameEn);
 
   // If departmentId filter apply after join
@@ -103,13 +112,20 @@ router.post("/rosters/bulk", async (req, res): Promise<void> => {
 // Summary: how many employees per shift per week
 router.get("/rosters/summary", async (req, res): Promise<void> => {
   const { weekStart, weekEnd } = req.query as { weekStart?: string; weekEnd?: string };
+
+  const orgId = await resolveOrgId(req);
+  const empIds = await orgEmployeeIds(orgId);
+
   const shifts = await db.select().from(shiftsTable).where(eq(shiftsTable.isActive, true));
   const conditions: any[] = [];
   if (weekStart) conditions.push(gte(rostersTable.date, weekStart));
   if (weekEnd) conditions.push(lte(rostersTable.date, weekEnd));
+  if (empIds.length > 0) conditions.push(inArray(rostersTable.employeeId, empIds));
 
-  const rows = await db.select().from(rostersTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined);
+  const rows = empIds.length === 0
+    ? []
+    : await db.select().from(rostersTable)
+        .where(conditions.length > 0 ? and(...conditions) : undefined);
 
   const summary = shifts.map((s) => ({
     shiftId: s.id, shiftNameEn: s.nameEn, shiftNameAr: s.nameAr,
