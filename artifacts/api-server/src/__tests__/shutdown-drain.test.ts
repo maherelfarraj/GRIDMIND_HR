@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { execSync, spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 
@@ -59,13 +59,20 @@ async function waitForReady(base: string, timeoutMs: number): Promise<void> {
 }
 
 describe("graceful shutdown drain (spawned built server)", () => {
+  beforeAll(
+    () => {
+      // Build the production bundle once for the entire suite.
+      // All four tests spawn from the same dist/index.mjs — rebuilding per
+      // test is wasted work since the output is identical each time.
+      execSync("node ./build.mjs", { cwd: serverRoot, stdio: "ignore" });
+    },
+    { timeout: 120_000 },
+  );
+
   it(
     "SIGTERM flips healthz to 503, closes the listener after the grace window, and completes in-flight requests",
     { timeout: 180_000 },
     async () => {
-      // Build the production bundle exactly as `pnpm run start` would use it.
-      execSync("node ./build.mjs", { cwd: serverRoot, stdio: "ignore" });
-
       const port = 38000 + Math.floor(Math.random() * 1000);
       const base = `http://127.0.0.1:${port}`;
       let child: ChildProcess | null = null;
@@ -174,8 +181,6 @@ describe("graceful shutdown drain (spawned built server)", () => {
     "a stuck request cannot hold up shutdown forever: SIGTERM still exits 0 after the drain timeout, with a warning",
     { timeout: 180_000 },
     async () => {
-      execSync("node ./build.mjs", { cwd: serverRoot, stdio: "ignore" });
-
       // Shorten the drain timeout (test-only env override) so the give-up
       // path is provable quickly; the stuck request (25s) far exceeds it.
       const DRAIN_MS = 2_000;
@@ -250,8 +255,6 @@ describe("graceful shutdown drain (spawned built server)", () => {
     "a stuck background sweep cannot stall a redeploy: SIGTERM still exits 0 after the monitor-stop timeout, with a warning",
     { timeout: 180_000 },
     async () => {
-      execSync("node ./build.mjs", { cwd: serverRoot, stdio: "ignore" });
-
       // Shorten the monitor-stop timeout (test-only env override) and inject
       // a simulated sweep stuck mid-database-write far past it.
       const MONITOR_STOP_MS = 1_000;
@@ -316,8 +319,6 @@ describe("graceful shutdown drain (spawned built server)", () => {
     "a stuck deferred-notification flush cannot stall a redeploy: SIGTERM still exits 0 after the flush timeout, with a warning",
     { timeout: 180_000 },
     async () => {
-      execSync("node ./build.mjs", { cwd: serverRoot, stdio: "ignore" });
-
       // Shorten the flush timeout (test-only env override) and inject a
       // simulated deferred write that stays pending far past it.
       const FLUSH_MS = 1_000;
