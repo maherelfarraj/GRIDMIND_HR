@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, asc } from "drizzle-orm";
 import { db, installationReadinessTable, auditLogsTable } from "@workspace/db";
 
@@ -45,7 +46,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
       .where(eq(installationReadinessTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "installation_readiness", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "installation_readiness", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

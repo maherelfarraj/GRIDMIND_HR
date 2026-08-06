@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, and, desc, sql } from "drizzle-orm";
 import {
   db,
@@ -48,7 +49,7 @@ router.get("/pilot-defects", async (req, res): Promise<void> => {
 // ─── POST /pilot-defects — create defect ──────────────────────────────────────
 router.post("/pilot-defects", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const { module, titleEn, titleAr, descriptionEn, stepsToReproduce, severity, isGoLiveBlocker, relatedGateCode, sourceTestCode, assignedToUserId } = req.body;
 
     if (!module) return void res.status(400).json({ error: "module is required" });
@@ -109,7 +110,7 @@ router.get("/pilot-defects/:id", async (req, res): Promise<void> => {
 // ─── PATCH /pilot-defects/:id — update status/assignment/notes ────────────────
 router.patch("/pilot-defects/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id, 10);
 
     const [existing] = await db.select().from(pilotDefectsTable).where(eq(pilotDefectsTable.id, id));
@@ -145,7 +146,7 @@ router.patch("/pilot-defects/:id", async (req, res): Promise<void> => {
 // ─── POST /pilot-defects/:id/resolve ──────────────────────────────────────────
 router.post("/pilot-defects/:id/resolve", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id, 10);
 
     const [existing] = await db.select().from(pilotDefectsTable).where(eq(pilotDefectsTable.id, id));
@@ -182,7 +183,7 @@ router.post("/pilot-defects/:id/resolve", async (req, res): Promise<void> => {
 // ─── POST /pilot-defects/:id/verify ───────────────────────────────────────────
 router.post("/pilot-defects/:id/verify", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id, 10);
 
     const [existing] = await db.select().from(pilotDefectsTable).where(eq(pilotDefectsTable.id, id));

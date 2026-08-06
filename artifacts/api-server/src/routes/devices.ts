@@ -11,7 +11,7 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { CreateDeviceBody, UpdateDeviceBody } from "@workspace/api-zod";
-import { requireAuth } from "../middleware/requireAuth.js";
+import { requireAuth, getActorUserId } from "../middleware/requireAuth.js";
 import { deviceConnectivityVerdict } from "../lib/gatewayDeviceAlerts.js";
 import { notifyCommandOutcomes, DEVICE_COMMAND_TTL_MS } from "../lib/deviceCommandNotifications.js";
 export { DEVICE_COMMAND_TTL_MS };
@@ -328,17 +328,17 @@ router.post("/devices/:id/restart", async (req, res): Promise<void> => {
     return;
   }
 
-  const session = req.session as { userId?: number } | undefined;
+  const actorUserId = getActorUserId(req);
   const [command] = await db
     .insert(deviceCommandsTable)
-    .values({ deviceId: id, registrationId: reg.id, command: "RESTART", requestedByUserId: session?.userId ?? null })
+    .values({ deviceId: id, registrationId: reg.id, command: "RESTART", requestedByUserId: actorUserId })
     .returning();
   await db.insert(auditLogsTable).values({
     action: "device_restart_requested",
     entityType: "attendance_device",
     entityId: id,
     entityLabel: device.name,
-    actorUserId: session?.userId ?? null,
+    actorUserId,
     changesJson: JSON.stringify({ commandId: command.id, registrationId: reg.id }),
   });
   res.status(201).json(serializeCommand(command));

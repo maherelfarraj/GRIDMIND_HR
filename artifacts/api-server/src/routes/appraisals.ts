@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, appraisalCyclesTable, appraisalRecordsTable, appraisalCompetencyRatingsTable, calibrationSessionsTable, auditLogsTable } from "@workspace/db";
 
@@ -23,7 +24,7 @@ appraisalCyclesRouter.get("/", async (req, res): Promise<void> => {
 appraisalCyclesRouter.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(appraisalCyclesTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "appraisal_cycle", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "appraisal_cycle", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -40,7 +41,7 @@ appraisalCyclesRouter.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(appraisalCyclesTable).set({ ...req.body, updatedAt: new Date() }).where(eq(appraisalCyclesTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "appraisal_cycle", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "appraisal_cycle", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -66,7 +67,7 @@ appraisalRecordsRouter.get("/", async (req, res): Promise<void> => {
 appraisalRecordsRouter.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(appraisalRecordsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "appraisal_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "appraisal_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -83,7 +84,7 @@ appraisalRecordsRouter.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(appraisalRecordsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(appraisalRecordsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "appraisal_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "appraisal_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -101,7 +102,7 @@ appraisalRecordsRouter.post("/:id/competency-ratings", async (req, res): Promise
   try {
     const appraisalId = parseInt(req.params.id);
     const [row] = await db.insert(appraisalCompetencyRatingsTable).values({ ...req.body, appraisalId }).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "appraisal_competency_rating", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "appraisal_competency_rating", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -138,7 +139,7 @@ calibrationSessionsRouter.get("/", async (req, res): Promise<void> => {
 calibrationSessionsRouter.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(calibrationSessionsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "calibration_session", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "calibration_session", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -155,7 +156,7 @@ calibrationSessionsRouter.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(calibrationSessionsTable).set(req.body).where(eq(calibrationSessionsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "calibration_session", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "calibration_session", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

@@ -9,6 +9,7 @@
  * This is honest reporting — the system does NOT falsely claim security it doesn't have.
  */
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, and, desc } from "drizzle-orm";
 import {
   db,
@@ -41,7 +42,7 @@ router.get("/security-test-scenarios", async (req, res): Promise<void> => {
 // POST /security-test-scenarios — create scenario
 router.post("/security-test-scenarios", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const {
       scenarioCode, attackVector, titleEn, titleAr, descriptionEn, severity,
       strideCategory, targetEndpoint, targetMethod, requestTemplateJson,
@@ -96,7 +97,7 @@ router.post("/security-test-scenarios", async (req, res): Promise<void> => {
 // PATCH /security-test-scenarios/:id
 router.patch("/security-test-scenarios/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id, 10);
 
     const [existing] = await db
@@ -430,7 +431,7 @@ router.get("/security-test-runs/latest", async (req, res): Promise<void> => {
 // POST /security-test-runs — trigger a security test run
 router.post("/security-test-runs", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const { runLabel, runType } = req.body;
 
     // Get all active automated scenarios

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import {
   db,
   dataImportJobsTable,
@@ -97,7 +98,7 @@ router.get("/imports", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/imports", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const { importType, fileFormat, rowsJson, columnMappingJson, originalFilename } = req.body;
 
     if (!importType) return void res.status(400).json({ error: "importType is required" });
@@ -220,7 +221,7 @@ router.get("/imports/:id/rows", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/imports/:id/confirm-preview", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id, 10);
 
     const [job] = await db.select().from(dataImportJobsTable).where(eq(dataImportJobsTable.id, id));
@@ -252,7 +253,7 @@ router.post("/imports/:id/confirm-preview", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/imports/:id/execute", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id, 10);
 
     const [job] = await db.select().from(dataImportJobsTable).where(eq(dataImportJobsTable.id, id));
@@ -351,7 +352,7 @@ router.post("/imports/:id/execute", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/imports/:id/rollback", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id, 10);
 
     const [job] = await db.select().from(dataImportJobsTable).where(eq(dataImportJobsTable.id, id));
@@ -412,7 +413,7 @@ router.post("/imports/:id/rollback", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.delete("/imports/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id, 10);
 
     const [job] = await db.select().from(dataImportJobsTable).where(eq(dataImportJobsTable.id, id));
@@ -456,7 +457,7 @@ router.get("/import-mapping-templates", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/import-mapping-templates", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const { name, importType, columnMappingJson, isDefault } = req.body;
 
     if (!name) return void res.status(400).json({ error: "name is required" });
@@ -517,7 +518,7 @@ router.post("/import-mapping-templates/:id/use", async (req, res): Promise<void>
 // ─────────────────────────────────────────────────────────────────────────────
 router.delete("/import-mapping-templates/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id, 10);
 
     const [tmpl] = await db.select().from(importMappingTemplatesTable).where(eq(importMappingTemplatesTable.id, id));

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { db, employeesTable, departmentsTable, rolesTable, documentsTable, attendanceRecordsTable, systemUsersTable, auditLogsTable } from "@workspace/db";
 import { eq, and, ilike, sql, count } from "drizzle-orm";
 import {
@@ -78,7 +79,7 @@ router.get("/employees", async (req, res): Promise<void> => {
 router.post("/employees", async (req, res): Promise<void> => {
   // Demo mode: default to admin (userId=1) when no session is present.
   // In production, enforce real session middleware before this guard.
-  const actorUserId: number = (req as any).session?.userId ?? 1;
+  const actorUserId = getActorUserId(req);
   const parsed = CreateEmployeeBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -117,7 +118,7 @@ router.get("/employees/:id", async (req, res): Promise<void> => {
 router.patch("/employees/:id", async (req, res): Promise<void> => {
   // Demo mode: default to admin (userId=1) when no session is present.
   // In production, enforce real session middleware before this guard.
-  const actorUserId: number = (req as any).session?.userId ?? 1;
+  const actorUserId = getActorUserId(req);
   const id = parseId(req.params.id);
   const parsed = UpdateEmployeeBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, and } from "drizzle-orm";
 import {
   db,
@@ -11,7 +12,7 @@ const router = Router();
 // POST /integration-retry-queue/clear-abandoned — MUST be before /:id
 router.post("/integration-retry-queue/clear-abandoned", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const deleted = await db.delete(integrationRetryQueueTable)
       .where(eq(integrationRetryQueueTable.status, "abandoned"))
       .returning();
@@ -46,7 +47,7 @@ router.get("/integration-retry-queue", async (req, res): Promise<void> => {
 // POST /integration-retry-queue/:id/retry — bump attemptCount, set retrying, update nextRetryAt
 router.post("/integration-retry-queue/:id/retry", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [existing] = await db.select().from(integrationRetryQueueTable).where(eq(integrationRetryQueueTable.id, id));
     if (!existing) { res.status(404).json({ error: "Not found" }); return; }
@@ -79,7 +80,7 @@ router.post("/integration-retry-queue/:id/retry", async (req, res): Promise<void
 // DELETE /integration-retry-queue/:id — abandon
 router.delete("/integration-retry-queue/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [row] = await db.update(integrationRetryQueueTable)
       .set({ status: "abandoned", updatedAt: new Date() })

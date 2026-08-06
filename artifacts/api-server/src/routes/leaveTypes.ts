@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { db, leaveTypesTable, auditLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -10,7 +11,7 @@ router.get("/leave-types", async (_req, res): Promise<void> => {
 });
 
 router.post("/leave-types", async (req, res): Promise<void> => {
-  const actorUserId: number = (req as any).session?.userId ?? 1;
+  const actorUserId = getActorUserId(req);
   const {
     codeEn, nameEn, nameAr, descriptionEn, descriptionAr, category,
     defaultDaysPerYear, accrualFrequency, accrualAmount, maxCarryoverDays,
@@ -57,7 +58,7 @@ router.get("/leave-types/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/leave-types/:id", async (req, res): Promise<void> => {
-  const actorUserId: number = (req as any).session?.userId ?? 1;
+  const actorUserId = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
   const {
     nameEn, nameAr, descriptionEn, descriptionAr, category,

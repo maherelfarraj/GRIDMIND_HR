@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db, notificationsTable } from "@workspace/db";
 
@@ -13,7 +14,7 @@ const router = Router();
  * require the notification to be addressed to the caller.
  */
 function actorId(req: any): number {
-  return req.session?.userId ?? 1;
+  return getActorUserId(req);
 }
 
 function isAdmin(req: any): boolean {

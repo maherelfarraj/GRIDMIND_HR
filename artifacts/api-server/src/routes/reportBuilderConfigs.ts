@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { db, reportBuilderConfigsTable, exportJobsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
@@ -17,7 +18,7 @@ router.get("/report-builder-configs", async (req, res): Promise<void> => {
 // POST /report-builder-configs
 router.post("/report-builder-configs", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const {
       nameEn, nameAr, descriptionEn, dataSource, columnsJson, filtersJson,
       sortByJson, groupByJson, roleRestriction, isPublic,
@@ -150,7 +151,7 @@ router.post("/report-builder-configs/:id/run", async (req, res): Promise<void> =
 // POST /report-builder-configs/:id/export — queue export job
 router.post("/report-builder-configs/:id/export", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
 
     const [config] = await db

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { db, organizationBrandingTable, auditLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -19,7 +20,7 @@ router.get("/organization-branding/:orgId", async (req, res): Promise<void> => {
 // PUT /organization-branding/:orgId — upsert
 router.put("/organization-branding/:orgId", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const orgId = parseInt(req.params.orgId, 10);
 
     const [existing] = await db.select().from(organizationBrandingTable).where(eq(organizationBrandingTable.orgId, orgId));

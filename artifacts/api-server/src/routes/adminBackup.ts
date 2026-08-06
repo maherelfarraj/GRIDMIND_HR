@@ -1,14 +1,11 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { db, backupRecordsTable, auditLogsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getBackupScheduleStatus } from "../lib/backupScheduler.js";
 import { runBackup, retryOffsiteUploads, retryOffsiteUploadForRecord } from "../lib/backupService.js";
 
 const router = Router();
-
-function actorId(req: any): number {
-  return req.session?.userId ?? 1;
-}
 
 // GET /admin/backup-schedule — live scheduler status
 router.get("/admin/backup-schedule", (req, res): void => {
@@ -51,7 +48,7 @@ router.get("/admin/backup-records", async (req, res): Promise<void> => {
 // POST /admin/backup-records/run — execute a REAL pg_dump backup
 router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
   try {
-    const actorUserId = actorId(req);
+    const actorUserId = getActorUserId(req);
     const { backupType, notes } = req.body ?? {};
 
     if (!backupType) {
@@ -59,7 +56,7 @@ router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
       return;
     }
 
-    const record = await runBackup({ backupType, notes: notes ?? null, initiatedByUserId: actorUserId });
+    const record = await runBackup({ backupType, notes, initiatedByUserId: actorUserId });
 
     await db.insert(auditLogsTable).values({
       action: "create",

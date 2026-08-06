@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { db, attendanceCorrectionsTable, attendanceRecordsTable, employeesTable, systemUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -49,7 +50,7 @@ router.post("/attendance/:id/correction", async (req, res): Promise<void> => {
   const [correction] = await db.insert(attendanceCorrectionsTable).values({
     attendanceRecordId: recordId,
     employeeId: employeeId ?? 1,
-    requestedByUserId: requestedByUserId ?? 1,
+    requestedByUserId: getActorUserId(req),
     correctionType,
     originalValue: originalValue ?? null,
     requestedValue,
@@ -73,7 +74,7 @@ router.patch("/attendance/corrections/:id/decision", async (req, res): Promise<v
     .set({
       status: decision,
       reviewNote: reviewNote ?? null,
-      reviewedByUserId: reviewedByUserId ?? 1,
+      reviewedByUserId: getActorUserId(req),
       reviewedAt: new Date(),
       updatedAt: new Date(),
     })

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, and, desc } from "drizzle-orm";
 import {
   db,
@@ -29,7 +30,7 @@ router.get("/integration-connectors", async (req, res): Promise<void> => {
 // POST /integration-connectors — create
 router.post("/integration-connectors", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const [row] = await db.insert(integrationConnectorsTable).values({ ...req.body }).returning();
     await db.insert(integrationEventLogTable).values({
       connectorId: row.id,
@@ -62,7 +63,7 @@ router.get("/integration-connectors/:id", async (req, res): Promise<void> => {
 // PATCH /integration-connectors/:id — update config
 router.patch("/integration-connectors/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [row] = await db.update(integrationConnectorsTable)
       .set({ ...req.body, updatedAt: new Date() })
@@ -85,7 +86,7 @@ router.patch("/integration-connectors/:id", async (req, res): Promise<void> => {
 // DELETE /integration-connectors/:id — soft delete (set isActive=false)
 router.delete("/integration-connectors/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [row] = await db.update(integrationConnectorsTable)
       .set({ isActive: false, status: "disabled", updatedAt: new Date() })
@@ -107,7 +108,7 @@ router.delete("/integration-connectors/:id", async (req, res): Promise<void> => 
 // POST /integration-connectors/:id/test — simulate connection test
 router.post("/integration-connectors/:id/test", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [connector] = await db.select().from(integrationConnectorsTable).where(eq(integrationConnectorsTable.id, id));
     if (!connector) { res.status(404).json({ error: "Not found" }); return; }

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db, approvalInboxItemsTable, auditLogsTable } from "@workspace/db";
 
@@ -80,7 +81,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
       .where(eq(approvalInboxItemsTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "approval_inbox_item", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "approval_inbox_item", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

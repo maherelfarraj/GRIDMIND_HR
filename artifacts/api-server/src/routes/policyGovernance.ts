@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { db, auditLogsTable, policyChangeRequestsTable, policyVersionsTable, approvalChainConfigsTable } from "@workspace/db";
 import { eq, and, desc, or, isNull } from "drizzle-orm";
 import { createHash } from "crypto";
@@ -45,7 +46,7 @@ router.get("/policy-change-requests", async (req, res): Promise<void> => {
 
 router.post("/policy-change-requests", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const [row] = await db.insert(policyChangeRequestsTable).values({
       ...req.body,
       // Admin governance endpoint: an explicit body orgId is honored only in
@@ -80,7 +81,7 @@ router.post("/policy-change-requests/:id/preview-impact", async (req, res): Prom
 
 router.patch("/policy-change-requests/:id/submit", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [existingRow] = await db.select().from(policyChangeRequestsTable).where(eq(policyChangeRequestsTable.id, id));
     if (!existingRow || !(await canAccessOrgRow(req, existingRow.orgId))) return void res.status(404).json({ error: "Not found" });
@@ -93,7 +94,7 @@ router.patch("/policy-change-requests/:id/submit", async (req, res): Promise<voi
 
 router.patch("/policy-change-requests/:id/approve", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [existingRow] = await db.select().from(policyChangeRequestsTable).where(eq(policyChangeRequestsTable.id, id));
     if (!existingRow || !(await canAccessOrgRow(req, existingRow.orgId))) return void res.status(404).json({ error: "Not found" });
@@ -110,7 +111,7 @@ router.patch("/policy-change-requests/:id/approve", async (req, res): Promise<vo
 
 router.patch("/policy-change-requests/:id/reject", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [existingRow] = await db.select().from(policyChangeRequestsTable).where(eq(policyChangeRequestsTable.id, id));
     if (!existingRow || !(await canAccessOrgRow(req, existingRow.orgId))) return void res.status(404).json({ error: "Not found" });
@@ -127,7 +128,7 @@ router.patch("/policy-change-requests/:id/reject", async (req, res): Promise<voi
 
 router.patch("/policy-change-requests/:id/apply", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [cr] = await db.select().from(policyChangeRequestsTable).where(eq(policyChangeRequestsTable.id, id));
     if (!cr || !(await canAccessOrgRow(req, cr.orgId))) return void res.status(404).json({ error: "Not found" });
@@ -173,7 +174,7 @@ router.patch("/policy-change-requests/:id/apply", async (req, res): Promise<void
 
 router.patch("/policy-change-requests/:id/withdraw", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [existingRow] = await db.select().from(policyChangeRequestsTable).where(eq(policyChangeRequestsTable.id, id));
     if (!existingRow || !(await canAccessOrgRow(req, existingRow.orgId))) return void res.status(404).json({ error: "Not found" });
@@ -216,7 +217,7 @@ router.get("/policy-versions", async (req, res): Promise<void> => {
 
 router.post("/policy-versions", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const snapshot = typeof req.body.snapshotJson === "string" ? req.body.snapshotJson : JSON.stringify(req.body.snapshotJson ?? {});
     const checksum = createHash("sha256").update(snapshot).digest("hex");
     const [row] = await db.insert(policyVersionsTable).values({
@@ -234,7 +235,7 @@ router.post("/policy-versions", async (req, res): Promise<void> => {
 // POST /policy-versions/:id/rollback — static before /:id
 router.post("/policy-versions/:id/rollback", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [target] = await db.select().from(policyVersionsTable).where(eq(policyVersionsTable.id, id));
     if (!target || !(await canAccessOrgRow(req, target.orgId))) return void res.status(404).json({ error: "Version not found" });
@@ -294,7 +295,7 @@ router.get("/approval-chain-configs", async (req, res): Promise<void> => {
 
 router.post("/approval-chain-configs", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const [row] = await db.insert(approvalChainConfigsTable).values({
       ...req.body,
       orgId: await resolveOrgId(req),
@@ -349,7 +350,7 @@ router.get("/approval-chain-configs/:id", async (req, res): Promise<void> => {
 
 router.patch("/approval-chain-configs/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     if (!(await chainInOrg(req, id))) return void res.status(404).json({ error: "Not found" });
     const [before] = await db.select().from(approvalChainConfigsTable).where(eq(approvalChainConfigsTable.id, id));
@@ -362,7 +363,7 @@ router.patch("/approval-chain-configs/:id", async (req, res): Promise<void> => {
 
 router.delete("/approval-chain-configs/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     if (!(await chainInOrg(req, id))) return void res.status(404).json({ error: "Not found" });
     const [row] = await db.delete(approvalChainConfigsTable).where(eq(approvalChainConfigsTable.id, id)).returning();

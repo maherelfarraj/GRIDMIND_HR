@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import {
   db,
   pilotAccountsTable,
@@ -31,7 +32,7 @@ router.get("/pilot/accounts", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/pilot/accounts", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const { persona, labelEn, labelAr, systemUsername, roleType, descriptionEn, descriptionAr, permittedPathsJson, sortOrder } = req.body;
 
     if (!persona) return void res.status(400).json({ error: "persona is required" });
@@ -118,7 +119,7 @@ router.get("/pilot/scenarios/:id", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/pilot/scenarios", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const {
       scenarioCode, titleEn, titleAr, descriptionEn, descriptionAr,
       category, applicableTo, estimatedMinutes, stepsJson, targetPersonas, sortOrder,
@@ -166,7 +167,7 @@ router.post("/pilot/scenarios", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/pilot/progress/:scenarioId/start", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const scenarioId = parseInt(req.params.scenarioId, 10);
 
     const [scenario] = await db.select().from(pilotScenariosTable).where(eq(pilotScenariosTable.id, scenarioId));
@@ -221,7 +222,7 @@ router.post("/pilot/progress/:scenarioId/start", async (req, res): Promise<void>
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/pilot/progress/:scenarioId/advance", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const scenarioId = parseInt(req.params.scenarioId, 10);
 
     const [progress] = await db
@@ -254,7 +255,7 @@ router.post("/pilot/progress/:scenarioId/advance", async (req, res): Promise<voi
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/pilot/progress/:scenarioId/complete", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const scenarioId = parseInt(req.params.scenarioId, 10);
 
     const [progress] = await db
@@ -291,7 +292,7 @@ router.post("/pilot/progress/:scenarioId/complete", async (req, res): Promise<vo
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/pilot/progress", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const rows = await db
       .select()
       .from(pilotScenarioProgressTable)
@@ -308,7 +309,7 @@ router.get("/pilot/progress", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/pilot/reset", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
 
     const deleted = await db
       .delete(pilotScenarioProgressTable)

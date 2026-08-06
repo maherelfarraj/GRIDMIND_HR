@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, onboardingTemplatesTable, onboardingTemplateItemsTable, auditLogsTable } from "@workspace/db";
 import { CreateOnboardingTemplateBody, UpdateOnboardingTemplateBody } from "@workspace/api-zod";
@@ -24,7 +25,7 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/", validateBody(CreateOnboardingTemplateBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(onboardingTemplatesTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "onboarding_template", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "onboarding_template", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -41,7 +42,7 @@ router.patch("/:id", validateBody(UpdateOnboardingTemplateBody), async (req, res
   try {
     const [row] = await db.update(onboardingTemplatesTable).set({ ...req.body, updatedAt: new Date() }).where(eq(onboardingTemplatesTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "onboarding_template", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "onboarding_template", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -60,7 +61,7 @@ router.post("/:id/items", async (req, res): Promise<void> => {
   try {
     const templateId = parseInt(req.params.id as string);
     const [row] = await db.insert(onboardingTemplateItemsTable).values({ ...req.body, templateId }).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "onboarding_template_item", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "onboarding_template_item", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

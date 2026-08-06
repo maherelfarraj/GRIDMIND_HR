@@ -3,6 +3,7 @@ import { eq, and, asc, sql } from "drizzle-orm";
 import { db, reportDefinitionsTable, reportOutputsTable, auditLogsTable } from "@workspace/db";
 import { CreateReportDefinitionBody, UpdateReportDefinitionBody } from "@workspace/api-zod";
 import { validateBody } from "../middleware/validateBody.js";
+import { getActorUserId } from "../middleware/requireAuth.js";
 
 const router = Router();
 
@@ -24,7 +25,7 @@ router.get("/", async (req, res): Promise<void> => {
 // POST / — create (set isSystemReport:false for user-created)
 router.post("/", validateBody(CreateReportDefinitionBody), async (req, res): Promise<void> => {
   try {
-    const userId = (req as any).session?.userId ?? null;
+    const userId = getActorUserId(req);
     const [row] = await db.insert(reportDefinitionsTable).values({
       ...req.body,
       isSystemReport: false,
@@ -61,7 +62,7 @@ router.patch("/:id", validateBody(UpdateReportDefinitionBody), async (req, res):
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(reportDefinitionsTable.id, id))
       .returning();
-    const patchUserId = (req as any).session?.userId ?? null;
+    const patchUserId = getActorUserId(req);
     await db.insert(auditLogsTable).values({ action: "update", entityType: "report_definition", entityId: row.id, actorUserId: patchUserId, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
@@ -74,7 +75,7 @@ router.post("/:id/run", async (req, res): Promise<void> => {
     const [def] = await db.select().from(reportDefinitionsTable).where(eq(reportDefinitionsTable.id, id));
     if (!def) { res.status(404).json({ error: "Report definition not found" }); return; }
 
-    const userId = (req as any).session?.userId ?? null;
+    const userId = getActorUserId(req);
     const { filtersJson, exportFormat, language } = req.body;
     const fmt = exportFormat ?? "pdf";
     const now = new Date();

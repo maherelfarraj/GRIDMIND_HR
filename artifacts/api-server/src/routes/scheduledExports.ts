@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { db, scheduledExportsTable, exportJobsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -109,7 +110,7 @@ router.delete("/scheduled-exports/:id", async (req, res): Promise<void> => {
 // POST /scheduled-exports/:id/run-now — manually trigger (creates export_job)
 router.post("/scheduled-exports/:id/run-now", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
 
     const [schedule] = await db.select().from(scheduledExportsTable).where(eq(scheduledExportsTable.id, id));

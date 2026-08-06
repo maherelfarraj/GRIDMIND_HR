@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, and, desc, sql } from "drizzle-orm";
 import {
   db,
@@ -43,13 +44,13 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
   try {
     const documentNumber = "DOC-" + Date.now();
-    const userId = (req as any).session?.userId ?? null;
+    const userId = getActorUserId(req);
     const [row] = await db.insert(enterpriseDocumentsTable).values({
       ...req.body,
       documentNumber,
       uploadedByUserId: userId,
     }).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "enterprise_document", entityId: row.id, entityLabel: documentNumber, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "enterprise_document", entityId: row.id, entityLabel: documentNumber, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -74,7 +75,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
       .where(eq(enterpriseDocumentsTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "enterprise_document", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "enterprise_document", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -106,7 +107,7 @@ router.post("/:id/versions", async (req, res): Promise<void> => {
       .set({ isCurrentVersion: false })
       .where(eq(documentVersionsTable.documentId, id));
 
-    const userId = (req as any).session?.userId ?? null;
+    const userId = getActorUserId(req);
     const [version] = await db.insert(documentVersionsTable).values({
       ...req.body,
       documentId: id,
@@ -147,7 +148,7 @@ router.get("/:id/access-logs", async (req, res): Promise<void> => {
 router.post("/:id/acknowledge", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const userId = (req as any).session?.userId ?? 0;
+    const userId = getActorUserId(req);
     const [ack] = await db.insert(documentAcknowledgementsTable).values({
       documentId: id,
       employeeId: userId,
@@ -166,7 +167,7 @@ router.post("/:id/acknowledge", async (req, res): Promise<void> => {
 router.post("/:id/legal-hold", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const userId = (req as any).session?.userId ?? null;
+    const userId = getActorUserId(req);
     const { reason } = req.body;
     const [row] = await db.update(enterpriseDocumentsTable)
       .set({
@@ -179,7 +180,7 @@ router.post("/:id/legal-hold", async (req, res): Promise<void> => {
       .where(eq(enterpriseDocumentsTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "legal_hold", entityType: "enterprise_document", entityId: id, changesJson: JSON.stringify({ reason }) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "legal_hold", entityType: "enterprise_document", entityId: id, changesJson: JSON.stringify({ reason }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -193,7 +194,7 @@ router.post("/:id/remove-legal-hold", async (req, res): Promise<void> => {
       .where(eq(enterpriseDocumentsTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "remove_legal_hold", entityType: "enterprise_document", entityId: id, changesJson: JSON.stringify({}) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "remove_legal_hold", entityType: "enterprise_document", entityId: id, changesJson: JSON.stringify({}) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -202,7 +203,7 @@ router.post("/:id/remove-legal-hold", async (req, res): Promise<void> => {
 router.get("/:id/download", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const userId = (req as any).session?.userId ?? 0;
+    const userId = getActorUserId(req);
 
     const [doc] = await db.select().from(enterpriseDocumentsTable).where(eq(enterpriseDocumentsTable.id, id));
     if (!doc) { res.status(404).json({ error: "Not found" }); return; }

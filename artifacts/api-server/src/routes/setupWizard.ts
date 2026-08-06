@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { db, setupWizardProgressTable, auditLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -42,7 +43,7 @@ router.get("/setup/wizard", async (req, res): Promise<void> => {
 // PATCH /setup/wizard — update currentStep, completedSteps, answersJson
 router.patch("/setup/wizard", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const { currentStep, completedSteps, answersJson } = req.body;
 
     const rows = await db.select().from(setupWizardProgressTable).limit(1);
@@ -97,7 +98,7 @@ router.patch("/setup/wizard", async (req, res): Promise<void> => {
 // POST /setup/wizard/complete — mark isComplete=true
 router.post("/setup/wizard/complete", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
 
     const rows = await db.select().from(setupWizardProgressTable).limit(1);
     if (rows.length === 0) {
@@ -138,7 +139,7 @@ router.post("/setup/wizard/complete", async (req, res): Promise<void> => {
 // POST /setup/wizard/reset — reset to initial state
 router.post("/setup/wizard/reset", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
 
     const rows = await db.select().from(setupWizardProgressTable).limit(1);
     if (rows.length === 0) {

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import bcrypt from "bcryptjs";
 import { db, systemUsersTable, rolesTable, auditLogsTable, employeesTable } from "@workspace/db";
 import { and, eq, gte, inArray } from "drizzle-orm";
@@ -92,8 +93,8 @@ const USER_ADMIN_ROLES = new Set(["Super Administrator"]);
  * Demo fallback (userId=1) only applies when auth is disabled; with
  * PILOT_AUTH enforced, unauthenticated requests never reach here.
  */
-async function getActorAdminStatus(req: { session?: { userId?: number } }) {
-  const actorId = req.session?.userId ?? 1;
+async function getActorAdminStatus(req: import("express").Request) {
+  const actorId = getActorUserId(req);
   const [actor] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, actorId));
   const [role] = actor
     ? await db.select().from(rolesTable).where(eq(rolesTable.id, actor.roleId))
@@ -219,7 +220,7 @@ router.post("/users/:id/password", async (req, res): Promise<void> => {
   // Authorization: the acting user (session user; demo fallback userId=1)
   // must hold an admin role. Prevents any authenticated user from taking
   // over other accounts via password reset.
-  const actorId = req.session?.userId ?? 1;
+  const actorId = getActorUserId(req);
   const [actor] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, actorId));
   const [actorRole] = actor
     ? await db.select().from(rolesTable).where(eq(rolesTable.id, actor.roleId))
@@ -291,7 +292,7 @@ router.post("/users/:id/password", async (req, res): Promise<void> => {
 // target dies atomically with the credential swap. Only the event — not the
 // value — is audit-logged.
 router.post("/users/:id/one-time-password", async (req, res): Promise<void> => {
-  const actorId = req.session?.userId ?? 1;
+  const actorId = getActorUserId(req);
   const [actor] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, actorId));
   const [actorRole] = actor
     ? await db.select().from(rolesTable).where(eq(rolesTable.id, actor.roleId))
@@ -342,7 +343,7 @@ router.post("/users/:id/one-time-password", async (req, res): Promise<void> => {
 // failed-login audit entries for that username, so a victim locked out by an
 // attacker (or their own typos) can sign in right away.
 router.post("/users/:id/unlock", async (req, res): Promise<void> => {
-  const actorId = req.session?.userId ?? 1;
+  const actorId = getActorUserId(req);
   const [actor] = await db.select().from(systemUsersTable).where(eq(systemUsersTable.id, actorId));
   const [actorRole] = actor
     ? await db.select().from(rolesTable).where(eq(rolesTable.id, actor.roleId))

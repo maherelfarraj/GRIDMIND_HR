@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, and } from "drizzle-orm";
 import { db, documentTemplatesTable, enterpriseDocumentsTable, auditLogsTable } from "@workspace/db";
 
@@ -20,7 +21,7 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(documentTemplatesTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "document_template", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "document_template", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -43,7 +44,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
       .where(eq(documentTemplatesTable.id, parseInt(req.params.id)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "document_template", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "document_template", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -68,11 +69,11 @@ router.post("/:id/generate", async (req, res): Promise<void> => {
       titleAr: template.nameAr + " — " + (employeeId ?? "unknown"),
       classificationLevel: "internal",
       status: "draft",
-      uploadedByUserId: (req as any).session?.userId ?? null,
+      uploadedByUserId: getActorUserId(req),
       tagsJson: extraFields ? JSON.stringify(extraFields) : null,
     }).returning();
 
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "generate", entityType: "enterprise_document", entityId: doc.id, changesJson: JSON.stringify({ templateId: template.id, employeeId, language }) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "generate", entityType: "enterprise_document", entityId: doc.id, changesJson: JSON.stringify({ templateId: template.id, employeeId, language }) });
     res.status(201).json(doc);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

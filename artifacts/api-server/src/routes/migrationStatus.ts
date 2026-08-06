@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, desc } from "drizzle-orm";
 import {
   db,
@@ -51,7 +52,7 @@ router.get("/migration-status", async (req, res): Promise<void> => {
 // ─── POST /migration-status — create item ─────────────────────────────────────
 router.post("/migration-status", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const { migrationCode, titleEn, titleAr, descriptionEn, priority, totalRecords, sourceSystem, isGoLiveBlocker, sortOrder } = req.body;
 
     if (!migrationCode) return void res.status(400).json({ error: "migrationCode is required" });
@@ -95,7 +96,7 @@ router.post("/migration-status", async (req, res): Promise<void> => {
 // ─── PATCH /migration-status/:id — update status/progress ────────────────────
 router.patch("/migration-status/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id, 10);
 
     const [existing] = await db.select().from(migrationStatusTable).where(eq(migrationStatusTable.id, id));
@@ -136,7 +137,7 @@ router.patch("/migration-status/:id", async (req, res): Promise<void> => {
 // ─── POST /migration-status/:id/complete — mark complete ──────────────────────
 router.post("/migration-status/:id/complete", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id, 10);
 
     const [existing] = await db.select().from(migrationStatusTable).where(eq(migrationStatusTable.id, id));

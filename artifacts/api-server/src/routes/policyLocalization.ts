@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import {
   db, auditLogsTable,
   policyLocalesTable, numberingSchemesTable, employmentTypeConfigsTable,
@@ -30,7 +31,7 @@ router.get("/policy-locales", async (req, res): Promise<void> => {
 
 router.post("/policy-locales", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const [row] = await db.insert(policyLocalesTable).values({ ...req.body, orgId: await resolveOrgId(req), updatedByUserId: actorUserId }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "policy_locale", entityId: row.id, entityLabel: `Org ${row.orgId} locale`, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
@@ -47,7 +48,7 @@ router.get("/policy-locales/:id", async (req, res): Promise<void> => {
 
 router.patch("/policy-locales/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [before] = await db.select().from(policyLocalesTable).where(eq(policyLocalesTable.id, id));
     if (!before) return void res.status(404).json({ error: "Not found" });
@@ -59,7 +60,7 @@ router.patch("/policy-locales/:id", async (req, res): Promise<void> => {
 
 router.delete("/policy-locales/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [row] = await db.delete(policyLocalesTable).where(eq(policyLocalesTable.id, id)).returning();
     if (!row) return void res.status(404).json({ error: "Not found" });
@@ -81,7 +82,7 @@ router.get("/numbering-schemes", async (req, res): Promise<void> => {
 
 router.post("/numbering-schemes", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const [row] = await db.insert(numberingSchemesTable).values({ ...req.body, orgId: await resolveOrgId(req) }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "numbering_scheme", entityId: row.id, entityLabel: row.entityType, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
@@ -125,7 +126,7 @@ router.get("/numbering-schemes/:id", async (req, res): Promise<void> => {
 
 router.patch("/numbering-schemes/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [before] = await db.select().from(numberingSchemesTable).where(eq(numberingSchemesTable.id, id));
     if (!before) return void res.status(404).json({ error: "Not found" });
@@ -137,7 +138,7 @@ router.patch("/numbering-schemes/:id", async (req, res): Promise<void> => {
 
 router.delete("/numbering-schemes/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [row] = await db.delete(numberingSchemesTable).where(eq(numberingSchemesTable.id, id)).returning();
     if (!row) return void res.status(404).json({ error: "Not found" });
@@ -161,7 +162,7 @@ router.post("/employment-type-configs", async (req, res): Promise<void> => {
   try {
     const parsed = CreateEmploymentTypeConfigBody.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const [row] = await db.insert(employmentTypeConfigsTable).values({ ...parsed.data, orgId: parsed.data.orgId ?? await resolveOrgId(req) }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "employment_type_config", entityId: row.id, entityLabel: row.labelEn, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
@@ -178,7 +179,7 @@ router.get("/employment-type-configs/:id", async (req, res): Promise<void> => {
 
 router.patch("/employment-type-configs/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [before] = await db.select().from(employmentTypeConfigsTable).where(eq(employmentTypeConfigsTable.id, id));
     if (!before) return void res.status(404).json({ error: "Not found" });
@@ -190,7 +191,7 @@ router.patch("/employment-type-configs/:id", async (req, res): Promise<void> => 
 
 router.delete("/employment-type-configs/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [row] = await db.delete(employmentTypeConfigsTable).where(eq(employmentTypeConfigsTable.id, id)).returning();
     if (!row) return void res.status(404).json({ error: "Not found" });
@@ -212,7 +213,7 @@ router.get("/calendar-configs", async (req, res): Promise<void> => {
 
 router.post("/calendar-configs", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const [row] = await db.insert(calendarConfigsTable).values({ ...req.body, orgId: await resolveOrgId(req), updatedByUserId: actorUserId }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "calendar_config", entityId: row.id, entityLabel: `Org ${row.orgId} calendar`, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
@@ -229,7 +230,7 @@ router.get("/calendar-configs/:id", async (req, res): Promise<void> => {
 
 router.patch("/calendar-configs/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [before] = await db.select().from(calendarConfigsTable).where(eq(calendarConfigsTable.id, id));
     if (!before) return void res.status(404).json({ error: "Not found" });
@@ -241,7 +242,7 @@ router.patch("/calendar-configs/:id", async (req, res): Promise<void> => {
 
 router.delete("/calendar-configs/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [row] = await db.delete(calendarConfigsTable).where(eq(calendarConfigsTable.id, id)).returning();
     if (!row) return void res.status(404).json({ error: "Not found" });
@@ -263,7 +264,7 @@ router.get("/retention-rules", async (req, res): Promise<void> => {
 
 router.post("/retention-rules", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const [row] = await db.insert(retentionRulesTable).values({ ...req.body, orgId: await resolveOrgId(req) }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "retention_rule", entityId: row.id, entityLabel: row.labelEn, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
@@ -280,7 +281,7 @@ router.get("/retention-rules/:id", async (req, res): Promise<void> => {
 
 router.patch("/retention-rules/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [before] = await db.select().from(retentionRulesTable).where(eq(retentionRulesTable.id, id));
     if (!before) return void res.status(404).json({ error: "Not found" });
@@ -292,7 +293,7 @@ router.patch("/retention-rules/:id", async (req, res): Promise<void> => {
 
 router.delete("/retention-rules/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const id = parseInt(req.params.id);
     const [row] = await db.delete(retentionRulesTable).where(eq(retentionRulesTable.id, id)).returning();
     if (!row) return void res.status(404).json({ error: "Not found" });

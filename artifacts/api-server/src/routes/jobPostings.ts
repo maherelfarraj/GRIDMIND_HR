@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, jobPostingsTable, auditLogsTable } from "@workspace/db";
 
@@ -33,7 +34,7 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(jobPostingsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "job_posting", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "job_posting", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -50,7 +51,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(jobPostingsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(jobPostingsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "job_posting", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "job_posting", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -62,7 +63,7 @@ router.post("/:id/publish", async (req, res): Promise<void> => {
       .where(eq(jobPostingsTable.id, parseInt(req.params.id)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "publish", entityType: "job_posting", entityId: row.id, changesJson: JSON.stringify({ status: "published" }) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "publish", entityType: "job_posting", entityId: row.id, changesJson: JSON.stringify({ status: "published" }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -74,7 +75,7 @@ router.post("/:id/close", async (req, res): Promise<void> => {
       .where(eq(jobPostingsTable.id, parseInt(req.params.id)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "close", entityType: "job_posting", entityId: row.id, changesJson: JSON.stringify({ status: "closed" }) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "close", entityType: "job_posting", entityId: row.id, changesJson: JSON.stringify({ status: "closed" }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

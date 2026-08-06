@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, desc, and, sql } from "drizzle-orm";
 import {
   db,
@@ -34,7 +35,7 @@ trainingProgramsRouter.get("/", async (req, res): Promise<void> => {
 trainingProgramsRouter.post("/", validateBody(CreateTrainingProgramBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(trainingProgramsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "training_program", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "training_program", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -51,7 +52,7 @@ trainingProgramsRouter.patch("/:id", validateBody(UpdateTrainingProgramBody), as
   try {
     const [row] = await db.update(trainingProgramsTable).set(req.body).where(eq(trainingProgramsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "training_program", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "training_program", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -87,7 +88,7 @@ trainingCoursesRouter.get("/", async (req, res): Promise<void> => {
 trainingCoursesRouter.post("/", validateBody(CreateTrainingCourseBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(trainingCoursesTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "training_course", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "training_course", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -104,7 +105,7 @@ trainingCoursesRouter.patch("/:id", validateBody(UpdateTrainingCourseBody), asyn
   try {
     const [row] = await db.update(trainingCoursesTable).set({ ...req.body, updatedAt: new Date() }).where(eq(trainingCoursesTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "training_course", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "training_course", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -140,7 +141,7 @@ trainingSessionsRouter.get("/", async (req, res): Promise<void> => {
 trainingSessionsRouter.post("/", validateBody(CreateTrainingSessionBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(trainingSessionsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "training_session", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "training_session", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -157,7 +158,7 @@ trainingSessionsRouter.patch("/:id", validateBody(UpdateTrainingSessionBody), as
   try {
     const [row] = await db.update(trainingSessionsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(trainingSessionsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "training_session", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "training_session", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -194,7 +195,7 @@ courseNominationsRouter.get("/", async (req, res): Promise<void> => {
 courseNominationsRouter.post("/", validateBody(CreateCourseNominationBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(courseNominationsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "course_nomination", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "course_nomination", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -211,7 +212,7 @@ courseNominationsRouter.patch("/:id", validateBody(UpdateCourseNominationBody), 
   try {
     const [row] = await db.update(courseNominationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(courseNominationsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "course_nomination", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "course_nomination", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -247,7 +248,7 @@ trainingAttendanceRouter.get("/", async (req, res): Promise<void> => {
 trainingAttendanceRouter.post("/", validateBody(CreateTrainingAttendanceBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(trainingAttendanceTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "training_attendance", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "training_attendance", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -264,7 +265,7 @@ trainingAttendanceRouter.patch("/:id", validateBody(UpdateTrainingAttendanceReco
   try {
     const [row] = await db.update(trainingAttendanceTable).set({ ...req.body, updatedAt: new Date() }).where(eq(trainingAttendanceTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "training_attendance", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "training_attendance", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -301,7 +302,7 @@ certificationsRouter.get("/", async (req, res): Promise<void> => {
 certificationsRouter.post("/", validateBody(CreateCertificationBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(certificationsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "certification", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "certification", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -318,7 +319,7 @@ certificationsRouter.patch("/:id", validateBody(UpdateCertificationBody), async 
   try {
     const [row] = await db.update(certificationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(certificationsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "certification", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "certification", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -354,7 +355,7 @@ employeeSkillsRouter.get("/", async (req, res): Promise<void> => {
 employeeSkillsRouter.post("/", validateBody(CreateEmployeeSkillBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(employeeSkillsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "employee_skill", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "employee_skill", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -371,7 +372,7 @@ employeeSkillsRouter.patch("/:id", validateBody(UpdateEmployeeSkillBody), async 
   try {
     const [row] = await db.update(employeeSkillsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(employeeSkillsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "employee_skill", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "employee_skill", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

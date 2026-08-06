@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { db, leaveBalancesTable, leaveTypesTable, employeesTable, auditLogsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { ensureLeaveBalance } from "../lib/leaveBalance";
@@ -108,7 +109,7 @@ router.post("/leave-balances/annual-reset", async (req, res): Promise<void> => {
   // Demo mode: default to admin (userId=1) when no session is present.
   // In production, enforce real session middleware before this guard.
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
+    const actorUserId = getActorUserId(req); // demo fallback
     const { year } = req.body;
     if (!year) { res.status(400).json({ error: "year required" }); return; }
     const newYear = parseInt(year, 10);
@@ -188,7 +189,7 @@ router.post("/leave-balances/provision-year", async (req, res): Promise<void> =>
   // Demo mode: default to admin (userId=1) when no session is present.
   // In production, enforce real session middleware before this guard.
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1; // demo fallback
+    const actorUserId = getActorUserId(req); // demo fallback
     const { year } = req.body;
     const targetYear = parseInt(year, 10);
     if (!year || Number.isNaN(targetYear)) {

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, desc } from "drizzle-orm";
 import {
   db,
@@ -62,7 +63,7 @@ router.get("/readiness-scorecard", async (req, res): Promise<void> => {
 // ─── POST /readiness-scorecard/recalculate — MUST come before /:module ────────
 router.post("/readiness-scorecard/recalculate", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const gates = await db.select().from(goLiveGatesTable);
     const gateMap = new Map(gates.map((g: any) => [g.gateCode, g]));
     const now = new Date();

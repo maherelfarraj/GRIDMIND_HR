@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, disciplinaryRecordsTable, commendationRecordsTable, promotionRecommendationsTable, auditLogsTable } from "@workspace/db";
 import {
@@ -40,7 +41,7 @@ disciplinaryRecordsRouter.get("/", async (req, res): Promise<void> => {
 disciplinaryRecordsRouter.post("/", validateBody(CreateDisciplinaryRecordBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(disciplinaryRecordsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "disciplinary_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "disciplinary_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -57,7 +58,7 @@ disciplinaryRecordsRouter.patch("/:id", validateBody(UpdateDisciplinaryRecordBod
   try {
     const [row] = await db.update(disciplinaryRecordsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(disciplinaryRecordsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "disciplinary_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "disciplinary_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -93,7 +94,7 @@ commendationRecordsRouter.get("/", async (req, res): Promise<void> => {
 commendationRecordsRouter.post("/", validateBody(CreateCommendationRecordBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(commendationRecordsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "commendation_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "commendation_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -110,7 +111,7 @@ commendationRecordsRouter.patch("/:id", validateBody(UpdateCommendationRecordBod
   try {
     const [row] = await db.update(commendationRecordsTable).set(req.body).where(eq(commendationRecordsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "commendation_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "commendation_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -147,7 +148,7 @@ promotionRecommendationsRouter.get("/", async (req, res): Promise<void> => {
 promotionRecommendationsRouter.post("/", validateBody(CreatePromotionRecommendationBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(promotionRecommendationsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "promotion_recommendation", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "promotion_recommendation", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -164,7 +165,7 @@ promotionRecommendationsRouter.patch("/:id", validateBody(UpdatePromotionRecomme
   try {
     const [row] = await db.update(promotionRecommendationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(promotionRecommendationsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "promotion_recommendation", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "promotion_recommendation", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

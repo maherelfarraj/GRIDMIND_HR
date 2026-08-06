@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, applicationsTable, auditLogsTable } from "@workspace/db";
 import { CreateApplicationBody, UpdateApplicationBody } from "@workspace/api-zod";
@@ -36,7 +37,7 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/", validateBody(CreateApplicationBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(applicationsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "application", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "application", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -53,7 +54,7 @@ router.patch("/:id", validateBody(UpdateApplicationBody), async (req, res): Prom
   try {
     const [row] = await db.update(applicationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(applicationsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "application", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "application", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -61,11 +62,11 @@ router.patch("/:id", validateBody(UpdateApplicationBody), async (req, res): Prom
 router.post("/:id/shortlist", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(applicationsTable)
-      .set({ status: "shortlisted", shortlistedAt: new Date(), shortlistedByUserId: (req as any).user?.id ?? 0, updatedAt: new Date() })
+      .set({ status: "shortlisted", shortlistedAt: new Date(), shortlistedByUserId: getActorUserId(req), updatedAt: new Date() })
       .where(eq(applicationsTable.id, parseInt(req.params.id as string)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "shortlist", entityType: "application", entityId: row.id, changesJson: JSON.stringify({ status: "shortlisted" }) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "shortlist", entityType: "application", entityId: row.id, changesJson: JSON.stringify({ status: "shortlisted" }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -78,7 +79,7 @@ router.post("/:id/reject", async (req, res): Promise<void> => {
       .where(eq(applicationsTable.id, parseInt(req.params.id as string)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "reject", entityType: "application", entityId: row.id, changesJson: JSON.stringify({ reason }) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "reject", entityType: "application", entityId: row.id, changesJson: JSON.stringify({ reason }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq } from "drizzle-orm";
 import { db, notificationPreferencesTable } from "@workspace/db";
 
@@ -13,7 +14,7 @@ const router = Router();
  * settings (e.g. disabling an admin's lockout alerts).
  */
 function actorId(req: any): number {
-  return req.session?.userId ?? 1;
+  return getActorUserId(req);
 }
 
 const SECURITY_ALERT_CHANNELS = new Set(["in_app", "email", "both"]);

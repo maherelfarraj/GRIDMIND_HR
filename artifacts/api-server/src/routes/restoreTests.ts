@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, desc } from "drizzle-orm";
 import { db, restoreTestResultsTable, auditLogsTable } from "@workspace/db";
 import { runRestoreTest } from "../lib/backupService.js";
@@ -45,7 +46,7 @@ router.get("/restore-tests", async (req, res): Promise<void> => {
 // verifies row counts against the live source, then drops the scratch database.
 router.post("/restore-tests", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = getActorUserId(req);
     const { backupRecordId, notes } = req.body ?? {};
 
     const outcome = await runRestoreTest({

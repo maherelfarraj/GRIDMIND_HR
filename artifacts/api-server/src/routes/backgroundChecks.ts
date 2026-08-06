@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, backgroundChecksTable, auditLogsTable } from "@workspace/db";
 
@@ -33,7 +34,7 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(backgroundChecksTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "background_check", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "background_check", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -50,7 +51,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(backgroundChecksTable).set({ ...req.body, updatedAt: new Date() }).where(eq(backgroundChecksTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "background_check", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "background_check", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

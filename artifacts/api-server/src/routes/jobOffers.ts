@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorUserId } from "../middleware/requireAuth.js";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, jobOffersTable, auditLogsTable } from "@workspace/db";
 
@@ -33,7 +34,7 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(jobOffersTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "job_offer", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "job_offer", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -50,7 +51,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(jobOffersTable).set({ ...req.body, updatedAt: new Date() }).where(eq(jobOffersTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "job_offer", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "job_offer", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -62,7 +63,7 @@ router.post("/:id/send", async (req, res): Promise<void> => {
       .where(eq(jobOffersTable.id, parseInt(req.params.id)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "send", entityType: "job_offer", entityId: row.id, changesJson: JSON.stringify({ status: "sent" }) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "send", entityType: "job_offer", entityId: row.id, changesJson: JSON.stringify({ status: "sent" }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -74,7 +75,7 @@ router.post("/:id/accept", async (req, res): Promise<void> => {
       .where(eq(jobOffersTable.id, parseInt(req.params.id)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "accept", entityType: "job_offer", entityId: row.id, changesJson: JSON.stringify({ status: "accepted" }) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "accept", entityType: "job_offer", entityId: row.id, changesJson: JSON.stringify({ status: "accepted" }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -87,7 +88,7 @@ router.post("/:id/decline", async (req, res): Promise<void> => {
       .where(eq(jobOffersTable.id, parseInt(req.params.id)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "decline", entityType: "job_offer", entityId: row.id, changesJson: JSON.stringify({ reason }) });
+    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "decline", entityType: "job_offer", entityId: row.id, changesJson: JSON.stringify({ reason }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
