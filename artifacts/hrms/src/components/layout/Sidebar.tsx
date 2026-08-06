@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
+import { GridMindIconMark } from '@/components/brand/Logo';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -205,12 +206,11 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
       isMobileOpen && "flex fixed inset-y-0 start-0 z-50"
     )}>
       <div className="h-16 flex items-center px-6 border-b border-sidebar-border relative">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-primary rounded flex items-center justify-center">
-            <ShieldCheck className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="font-bold tracking-wider uppercase text-sm">
-            {t('HRMS Command', 'نظام الموارد')}
+        <div className="flex items-center gap-2.5">
+          <GridMindIconMark size={32} />
+          <span className="font-semibold text-sm tracking-tight leading-none">
+            <span className="text-sidebar-foreground">GridMind</span>
+            <span className="text-[#22C55E]">HR</span>
           </span>
         </div>
         

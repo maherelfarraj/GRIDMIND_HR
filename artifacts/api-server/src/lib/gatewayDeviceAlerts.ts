@@ -121,7 +121,7 @@ async function raiseAlert(
   // SMTP being unconfigured or failing must never break the heartbeat or sweep.
   if (EMAIL_ALERT_TYPES.has(notificationType)) {
     const to = admins.map((a) => a.email);
-    sendSmtpMail({ to, subject: `[HRMS Gateway Alert] ${titleEn}`, text: bodyEn })
+    sendSmtpMail({ to, subject: `[GridMindHR Alert] ${titleEn}`, text: bodyEn })
       .then((result) => {
         if (!result.success) {
           logger.warn(

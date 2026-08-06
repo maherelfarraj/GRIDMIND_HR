@@ -13,13 +13,13 @@ export type Lang = 'en' | 'ar';
 const STORAGE_KEY = 'hrms-mobile-lang';
 
 const strings = {
-  appName: { en: 'HRMS Command', ar: 'قيادة الموارد البشرية' },
+  appName: { en: 'GridMindHR', ar: 'GridMindHR' },
   login: { en: 'Sign In', ar: 'تسجيل الدخول' },
   username: { en: 'Username', ar: 'اسم المستخدم' },
   password: { en: 'Password', ar: 'كلمة المرور' },
   loginHint: {
-    en: 'Use your HRMS Command account',
-    ar: 'استخدم حساب قيادة الموارد البشرية الخاص بك',
+    en: 'Use your GridMindHR account',
+    ar: 'استخدم حساب GridMindHR الخاص بك',
   },
   loginError: { en: 'Invalid credentials', ar: 'بيانات اعتماد غير صالحة' },
   lockoutError: {

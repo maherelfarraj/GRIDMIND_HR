@@ -5,7 +5,8 @@ import { useLanguage } from '@/hooks/use-language';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ShieldCheck, Languages, AlertCircle } from 'lucide-react';
+import { Languages, AlertCircle } from 'lucide-react';
+import { GridMindIconMark } from '@/components/brand/Logo';
 import { cn } from '@/lib/utils';
 
 // Human-friendly wait duration: seconds under a minute, minutes otherwise.
@@ -88,24 +89,23 @@ export default function Login() {
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40"></div>
         
         <div className="relative z-10 flex flex-col items-center justify-center w-full px-16 text-white">
-          <div className="w-24 h-24 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center mb-6 backdrop-blur-sm">
-            <ShieldCheck className="w-12 h-12 text-amber-500" strokeWidth={1.5} />
-          </div>
-          
+          <GridMindIconMark size={88} className="mb-8 drop-shadow-lg" />
+
           <h1 className="text-5xl font-bold tracking-tight mb-4 text-center">
-            HRMS COMMAND
+            <span className="text-white">GridMind</span>
+            <span className="text-[#22C55E]">HR</span>
           </h1>
-          
-          <p className="text-xl text-slate-300 mb-2 text-center">
-            Enterprise Human Resources Management
+
+          <p className="text-lg font-semibold mb-2 text-center tracking-wide text-[#0EA5A3]">
+            People. Insights. Impact.
           </p>
-          <p className="text-xl text-slate-300 mb-12 text-center font-arabic" dir="rtl">
-            إدارة الموارد البشرية المؤسسية
+          <p className="text-base text-slate-400 mb-12 text-center font-arabic" dir="rtl">
+            الأفراد. الرؤى. الأثر.
           </p>
 
           <div className="absolute bottom-12 start-1/2 -translate-x-1/2">
-            <div className="border border-amber-500/40 text-amber-500 px-6 py-2 rounded-md backdrop-blur-sm bg-amber-500/5 text-sm font-mono tracking-wider">
-              CONTROLLED ACCESS
+            <div className="border border-[#0EA5A3]/40 text-[#0EA5A3] px-6 py-2 rounded-md backdrop-blur-sm bg-[#0EA5A3]/5 text-sm tracking-wider whitespace-nowrap">
+              Enterprise HR Platform
             </div>
           </div>
         </div>

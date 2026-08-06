@@ -287,7 +287,7 @@ function StepContent({ stepId }: { stepId: string }) {
             <PartyPopper className="w-10 h-10 text-emerald-400" />
           </div>
           <h3 className="text-2xl font-bold text-white">{t('Setup Complete!', 'اكتمل الإعداد!')}</h3>
-          <p className="text-slate-400 max-w-md mx-auto">{t('Your HRMS is configured and ready. All 13 steps have been completed.', 'تم تكوين نظام الموارد البشرية وهو جاهز. اكتملت جميع الـ 13 خطوة.')}</p>
+          <p className="text-slate-400 max-w-md mx-auto">{t('Your GridMindHR is configured and ready. All 13 steps have been completed.', 'تم تكوين GridMindHR وهو جاهز. اكتملت جميع الـ 13 خطوة.')}</p>
           <div className="flex flex-wrap justify-center gap-2 mt-4">
             {['Org Profile', 'Branding', 'Locale', 'Payroll', 'Work Week', 'Holidays', 'Structure', 'Roles', 'Admins', 'Approvals', 'Devices', 'Backup', 'Security'].map(s => (
               <Badge key={s} className="bg-emerald-100 text-emerald-700">✓ {s}</Badge>
@@ -326,7 +326,7 @@ export default function SetupWizard() {
           <Rocket className="w-8 h-8 text-primary" />
           {t('Setup Wizard', 'معالج الإعداد')}
         </h1>
-        <p className="text-slate-400 mt-1">{t('Configure your HRMS for first use', 'قم بتكوين نظام الموارد البشرية للاستخدام الأول')}</p>
+        <p className="text-slate-400 mt-1">{t('Configure GridMindHR for first use', 'قم بتكوين GridMindHR للاستخدام الأول')}</p>
       </div>
 
       {/* Progress bar */}

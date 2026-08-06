@@ -577,7 +577,7 @@ function LicenseTab() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">{lic.productName ?? 'HRMS'}</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">{lic.productName ?? 'GridMindHR'}</h2>
               <p className="text-sm text-gray-500 mt-1">{t('Issued to','صادر لـ')}: <span className="font-medium">{lic.issuedTo}</span></p>
             </div>
             <Badge className={cn('text-sm px-3 py-1 border-transparent uppercase font-bold', editionCfg[lic.edition] ?? 'bg-gray-100 text-gray-700')}>

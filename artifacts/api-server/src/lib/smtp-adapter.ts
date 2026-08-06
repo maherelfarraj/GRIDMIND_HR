@@ -120,8 +120,8 @@ export async function testSmtpConnection(testRecipient?: string, options: SmtpCo
     const info = await transporter.sendMail({
       from: user!,
       to: recipient,
-      subject: "HRMS integration connection test",
-      text: `This is an automated connection test from the HRMS integration governance module, sent at ${new Date().toISOString()}.`,
+      subject: "GridMindHR integration connection test",
+      text: `This is an automated connection test from the GridMindHR integration governance module, sent at ${new Date().toISOString()}.`,
     });
     return {
       success: true,

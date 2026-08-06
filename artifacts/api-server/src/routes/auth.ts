@@ -66,7 +66,7 @@ async function notifyAdminsOfLockout(username: string, ip: string, scope: string
     if (recipients.length > 0) {
       void sendSmtpMail({
         to: recipients,
-        subject: `[HRMS security] Account lockout: ${username}`,
+        subject: `[GridMindHR] Account lockout: ${username}`,
         text:
           `Repeated failed login attempts triggered a temporary lockout for account "${username}".\n\n` +
           `Account: ${username}\n` +

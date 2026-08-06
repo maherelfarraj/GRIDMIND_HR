@@ -168,8 +168,8 @@ export default function PayrollPayslip() {
                   <Shield className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="font-bold text-lg leading-tight">HRMS Enterprise</p>
-                  <p className="text-slate-300 text-sm">Human Resources Management System</p>
+                  <p className="font-bold text-lg leading-tight">GridMind<span className="text-[#22C55E]">HR</span></p>
+                  <p className="text-slate-300 text-sm">People. Insights. Impact.</p>
                 </div>
               </div>
               {/* Title */}
