@@ -55,6 +55,18 @@ const DEFAULT_MAPPING: Record<string, string> = {
   nid: 'nationalId', email: 'email', start_date: 'hireDate',
 };
 
+/**
+ * Returns true when at least one header matches a known target field or default
+ * mapping key — meaning the sheet looks like a real data sheet.
+ * Returns false when the headers are absent (empty sheet) or none of them
+ * correspond to any known column, which typically means a cover sheet or a
+ * notes sheet with a single merged-cell title.
+ */
+export function hasUsableHeaders(headers: string[]): boolean {
+  if (headers.length === 0) return false;
+  const knownFields = new Set([...EMPLOYEE_FIELDS, ...Object.keys(DEFAULT_MAPPING)]);
+  return headers.some(h => knownFields.has(h));
+}
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     valid: 'bg-emerald-100 text-emerald-700',
@@ -147,6 +159,7 @@ function parseCsvRows(csvText: string, mapping: Record<string, string>): Record<
   });
 }
 
+// hint: Logic changed on both sides. Requires understanding intent of each change.
 function NewImportTab() {
   const { t } = useLanguage();
   const { toast } = useToast();
