@@ -7,6 +7,7 @@ import { validateBody } from "../middleware/validateBody.js";
 
 const router = Router();
 
+// GET /applicants — paginated list with optional type filter
 router.get("/", async (req, res): Promise<void> => {
   try {
     const page = parseInt(req.query.page as string) || 1;
@@ -32,27 +33,45 @@ router.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
+// POST /applicants — create a new applicant
 router.post("/", validateBody(CreateApplicantBody), async (req, res): Promise<void> => {
   try {
+    const actorUserId: number = getActorUserId(req);
     const [row] = await db.insert(applicantsTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "applicant", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({
+      actorUserId, action: "create",
+      entityType: "applicant", entityId: row.id,
+      changesJson: JSON.stringify(req.body),
+    });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
+// GET /applicants/:id — single applicant
 router.get("/:id", async (req, res): Promise<void> => {
   try {
-    const [row] = await db.select().from(applicantsTable).where(eq(applicantsTable.id, parseInt(req.params.id as string)));
+    const id = parseInt(req.params.id as string);
+    const [row] = await db.select().from(applicantsTable).where(eq(applicantsTable.id, id));
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
+// PATCH /applicants/:id — update an applicant
 router.patch("/:id", validateBody(UpdateApplicantBody.partial()), async (req, res): Promise<void> => {
   try {
-    const [row] = await db.update(applicantsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(applicantsTable.id, parseInt(req.params.id as string))).returning();
+    const id = parseInt(req.params.id as string);
+    const actorUserId: number = getActorUserId(req);
+    const [row] = await db.update(applicantsTable)
+      .set({ ...req.body, updatedAt: new Date() })
+      .where(eq(applicantsTable.id, id))
+      .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "applicant", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({
+      actorUserId, action: "update",
+      entityType: "applicant", entityId: id,
+      changesJson: JSON.stringify(req.body),
+    });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

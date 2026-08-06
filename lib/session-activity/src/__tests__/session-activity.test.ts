@@ -6,7 +6,7 @@ import {
   hasMoreActivity,
   nextActivityOffset,
   type ActivityState,
-} from '../session-activity';
+} from '../index';
 import type { AuditLog, GetPrivilegedSessionActivity200 } from '@workspace/api-client-react';
 
 const SERVER_MAX_LIMIT = 200; // clamp enforced by the API

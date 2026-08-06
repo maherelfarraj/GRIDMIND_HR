@@ -7,7 +7,7 @@
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "typecheck": "tsc --build ../../lib/api-client-react && tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc --build ../../lib/api-client-react ../../lib/session-activity && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "eslint src"
   },
@@ -53,6 +53,7 @@
     "@vitejs/plugin-react": "catalog:",
     "@workspace/api-client-react": "workspace:*",
     "@workspace/api-zod": "workspace:*",
+    "@workspace/session-activity": "workspace:*",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "^1.1.1",

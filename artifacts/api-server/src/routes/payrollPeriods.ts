@@ -481,9 +481,10 @@ const router = Router();
 // belongs to a different organization than the active org context.
 router.param("id", async (req, res, next, rawId) => {
   try {
-  const id = parseInt(rawId as string, 10);
+    const id = parseInt(rawId, 10);
     if (!Number.isInteger(id)) { res.status(404).json({ error: "Not found" }); return; }
-    const [row] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
+    const [row] = await db.select({ orgId: payrollPeriodsTable.orgId })
+      .from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
     if (!row || row.orgId !== (await resolveOrgId(req))) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -496,15 +497,15 @@ router.param("id", async (req, res, next, rawId) => {
 router.get("/payroll-periods", async (req, res): Promise<void> => {
   const { status, year } = req.query as Record<string, string>;
   const orgId = await resolveOrgId(req);
-  const conditions: any[] = [eq(payrollPeriodsTable.orgId, orgId)];
-  if (status) conditions.push(eq(payrollPeriodsTable.status, status));
-  if (year) conditions.push(sql`extract(year from ${payrollPeriodsTable.startDate}::date) = ${parseInt(year)}`);
+  const conditions: ReturnType<typeof eq>[] = [eq(payrollPeriodsTable.orgId, orgId)];
+  if (status) conditions.push(eq(payrollPeriodsTable.status, status as typeof payrollPeriodsTable.status._.data));
   const rows = await db
     .select()
     .from(payrollPeriodsTable)
     .where(and(...conditions))
-    .orderBy(payrollPeriodsTable.startDate);
-  res.json(rows);
+    .orderBy(sql`${payrollPeriodsTable.startDate} desc`);
+  const filtered = year ? rows.filter(r => r.startDate.startsWith(year)) : rows;
+  res.json(filtered);
 });
 
 // POST /payroll-periods — create a new payroll period
@@ -518,9 +519,13 @@ router.post("/payroll-periods", async (req, res): Promise<void> => {
   const orgId = await resolveOrgId(req);
   const [created] = await db.insert(payrollPeriodsTable).values({
     orgId,
-    periodCode, nameEn, nameAr,
+    periodCode,
+    nameEn,
+    nameAr,
     periodType: periodType ?? "monthly",
-    startDate, endDate, payDate,
+    startDate,
+    endDate,
+    payDate,
     currency: currency ?? "SAR",
     notes: notes ?? null,
     status: "draft",
@@ -536,15 +541,7 @@ router.post("/payroll-periods", async (req, res): Promise<void> => {
   res.status(201).json(created);
 });
 
-// GET /payroll-periods/:id — single period detail
-router.get("/payroll-periods/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
-  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
-  if (!period) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(period);
-});
-
-// PATCH /payroll-periods/:id — edit nameEn/nameAr/payDate/notes on a non-closed period
+// PATCH /payroll-periods/:id — edit draft period metadata
 router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
   const actorUserId: number = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
@@ -564,16 +561,26 @@ router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
     .set(patch)
     .where(eq(payrollPeriodsTable.id, id))
     .returning();
-  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
   await db.insert(auditLogsTable).values({
     action: "payroll_period.updated",
     entityType: "payroll_period",
-    entityId: updated.id,
-    entityLabel: updated.nameEn,
+    entityId: id,
+    entityLabel: period.nameEn,
     actorUserId,
     changesJson: JSON.stringify(req.body),
   });
   res.json(updated);
+});
+
+// POST /payroll-periods/:id/calculate — run (or re-run) payroll for the period
+router.post("/payroll-periods/:id/calculate", async (req, res): Promise<void> => {
+  const actorUserId: number = getActorUserId(req);
+  const periodId = parseInt(req.params.id, 10);
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
+  if (!period) { res.status(404).json({ error: "Period not found" }); return; }
+  if (period.isClosed) { res.status(400).json({ error: "Period is closed" }); return; }
+  const result = await recalculatePeriodRuns(period, actorUserId);
+  res.json(result);
 });
 
 // Shared payroll run (re)calculation. Used by the calculate endpoint above and
@@ -1013,15 +1020,16 @@ async function periodHasRuns(periodId: number): Promise<boolean> {
 }
 
 // GET /payroll-periods/:id/no-shows — detected no-show days per employee (with excused status)
+// GET /payroll-periods/:id/no-shows — detected no-show days per employee (with excused status)
 router.get("/payroll-periods/:id/no-shows", async (req, res): Promise<void> => {
   const periodId = parseInt(req.params.id, 10);
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }
 
   const allEmployees = await db.select().from(employeesTable).where(eq(employeesTable.orgId, period.orgId ?? 1));
-  const employees = allEmployees.filter(emp =>
-    emp.status === "active" ||
-    (emp.terminationDate && emp.terminationDate >= period.startDate && emp.hireDate <= period.endDate)
+  const employees = allEmployees.filter(e =>
+    e.status === "active" ||
+    (e.terminationDate && e.terminationDate >= period.startDate && e.hireDate <= period.endDate)
   );
   const { punchEvents, attendanceRecords, approvedLeaves } = await loadNoShowInputs(period);
   const weekendDays = await getWeekendDays();
@@ -1136,7 +1144,64 @@ router.post("/payroll-periods/:id/excused-absences", async (req, res): Promise<v
     approvalsReset = wasApproved;
   }
 
-  res.json({ excused: created, recalculated, approvalsReset });
+  const allExcused = await db.select({ date: payrollExcusedAbsencesTable.date })
+    .from(payrollExcusedAbsencesTable)
+    .where(and(
+      eq(payrollExcusedAbsencesTable.payrollPeriodId, periodId),
+      eq(payrollExcusedAbsencesTable.employeeId, emp.id),
+    ));
+  if (await periodHasRuns(periodId)) {
+    await recalculatePeriodRuns(period, actorUserId);
+    recalculated = true;
+    approvalsReset = wasApproved;
+  }
+
+  // Auto-dismiss no-show notifications if all detected days are now excused.
+  const excusedDateSet = new Set(allExcused.map(e => e.date));
+  const remainingUnexcused = noShowDates.filter(d => !excusedDateSet.has(d));
+  await resolveNoShowNotifications(period, emp, remainingUnexcused);
+
+  res.status(201).json({ ...created, recalculated, approvalsReset });
+});
+
+// DELETE /payroll-periods/:id/excused-absences/:excusedId — undo an excusal
+router.delete("/payroll-periods/:id/excused-absences/:excusedId", async (req, res): Promise<void> => {
+  const actorUserId: number = getActorUserId(req);
+  const periodId = parseInt(req.params.id, 10);
+  const excusedId = parseInt(req.params.excusedId, 10);
+
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
+  if (!period) { res.status(404).json({ error: "Period not found" }); return; }
+  if (period.isClosed) { res.status(400).json({ error: "Period is closed; excusals can no longer be changed" }); return; }
+
+  const [row] = await db.select().from(payrollExcusedAbsencesTable).where(and(
+    eq(payrollExcusedAbsencesTable.id, excusedId),
+    eq(payrollExcusedAbsencesTable.payrollPeriodId, periodId),
+  ));
+  if (!row) { res.status(404).json({ error: "Excused absence not found" }); return; }
+
+  await db.delete(payrollExcusedAbsencesTable).where(eq(payrollExcusedAbsencesTable.id, excusedId));
+
+  await db.insert(auditLogsTable).values({
+    action: "payroll.absence_unexcused",
+    entityType: "payroll_period",
+    entityId: periodId,
+    entityLabel: period.nameEn,
+    actorUserId,
+    changesJson: JSON.stringify({ employeeId: row.employeeId, date: row.date }),
+  });
+
+  const wasApproved = period.status === "first_approved" || period.status === "second_approved";
+  let recalculated = false;
+  let approvalsReset = false;
+
+  if (await periodHasRuns(periodId)) {
+    await recalculatePeriodRuns(period, actorUserId);
+    recalculated = true;
+    approvalsReset = wasApproved;
+  }
+
+  res.json({ deleted: true, id: row.id, recalculated, approvalsReset });
 });
 
 // POST /payroll-periods/:id/approve — first/second approval step
@@ -1416,5 +1481,6 @@ router.get("/payroll-periods/:id/ot-summary/departments/:departmentId", async (r
     employees,
   });
 });
+
 
 export default router;
