@@ -375,13 +375,77 @@ router.get("/integration-governance/connection-profiles/:id", async (req, res): 
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// Explicit allowlist for PATCH /connection-profiles/:id.
+// Only fields that an admin may legitimately edit are accepted.
+// Health-monitoring state (consecutiveFailures), governance status, and all
+// last-test-result fields are managed by dedicated endpoints and must not be
+// overwritten via the generic update path.
+const CONNECTION_PROFILE_PATCH_ALLOWLIST = new Set([
+  "profileName",
+  "profileNameAr",
+  "connectionParamsJson",
+  "credentialVaultRefId",
+  "environment",
+  "status",
+  "isHealthMonitoringEnabled",
+  "healthCheckIntervalMinutes",
+  "alertOnFailureCount",
+  "retryEnabled",
+  "retryMaxAttempts",
+  "retryBackoffSeconds",
+  "isAirGapSafe",
+]);
+
 router.patch("/integration-governance/connection-profiles/:id", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
     const id = parseInt(req.params.id);
+
+    // Reject any key that is not on the allowlist.
+    const body = req.body as Record<string, unknown>;
+    const unknown = Object.keys(body).filter(k => !CONNECTION_PROFILE_PATCH_ALLOWLIST.has(k));
+    if (unknown.length > 0) {
+      return void res.status(400).json({ error: `Unknown or read-only field(s): ${unknown.join(", ")}` });
+    }
+
+    // Range-validate numeric health/retry fields when present.
+    if ("healthCheckIntervalMinutes" in body) {
+      const v = body.healthCheckIntervalMinutes;
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 1440) {
+        return void res.status(400).json({ error: "healthCheckIntervalMinutes must be an integer between 1 and 1440" });
+      }
+    }
+    if ("alertOnFailureCount" in body) {
+      const v = body.alertOnFailureCount;
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 100) {
+        return void res.status(400).json({ error: "alertOnFailureCount must be an integer between 1 and 100" });
+      }
+    }
+    if ("retryMaxAttempts" in body) {
+      const v = body.retryMaxAttempts;
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 20) {
+        return void res.status(400).json({ error: "retryMaxAttempts must be an integer between 1 and 20" });
+      }
+    }
+    if ("retryBackoffSeconds" in body) {
+      const v = body.retryBackoffSeconds;
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 3600) {
+        return void res.status(400).json({ error: "retryBackoffSeconds must be an integer between 1 and 3600" });
+      }
+    }
+
     const [before] = await db.select().from(integrationConnectionProfilesTable).where(eq(integrationConnectionProfilesTable.id, id));
     if (!before) return void res.status(404).json({ error: "Not found" });
-    const [row] = await db.update(integrationConnectionProfilesTable).set({ ...req.body, updatedAt: new Date() }).where(eq(integrationConnectionProfilesTable.id, id)).returning();
+
+    // Build the update from only allowed keys to prevent prototype-pollution
+    // or extra keys slipping through if the allowlist check above is bypassed.
+    const patch: Record<string, unknown> = {};
+    for (const key of CONNECTION_PROFILE_PATCH_ALLOWLIST) {
+      if (key in body) patch[key] = body[key];
+    }
+    patch.updatedAt = new Date();
+
+    const [row] = await db.update(integrationConnectionProfilesTable).set(patch as any).where(eq(integrationConnectionProfilesTable.id, id)).returning();
     await db.insert(auditLogsTable).values({ action: "update", entityType: "connection_profile", entityId: id, entityLabel: row.profileName, actorUserId, changesJson: JSON.stringify({ before, after: row }) });
     const warnings: string[] = [];
     if (row.credentialVaultRefId) {
