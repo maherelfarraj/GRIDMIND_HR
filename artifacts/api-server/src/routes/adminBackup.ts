@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { db, backupRecordsTable, auditLogsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
-import { runBackup } from "../lib/backupService.js";
 import { getBackupScheduleStatus } from "../lib/backupScheduler.js";
+import { runBackup, retryOffsiteUploads, retryOffsiteUploadForRecord } from "../lib/backupService.js";
 
 const router = Router();
 
@@ -40,44 +40,8 @@ router.get("/admin/backup-records", async (req, res): Promise<void> => {
 router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
-    const { backupType, notes } = req.body ?? {};
 
-    const record = await runBackup({
-      backupType: backupType ?? "full",
-      initiatedByUserId: actorUserId,
-      notes: notes ?? null,
-    });
-
-    await db.insert(auditLogsTable).values({
-      action: "create",
-      entityType: "backup_record",
-      entityId: record.id,
-      entityLabel: `Backup: ${record.backupType} — ${record.status}`,
-      actorUserId,
-      changesJson: JSON.stringify({
-        backupType: record.backupType,
-        status: record.status,
-        fileSizeBytes: record.fileSizeBytes,
-        checksum: record.checksum,
-        storageLocation: record.storageLocation,
-      }),
-    });
-
-    if (record.status !== "completed") {
-      res.status(500).json({ error: record.errorMessage ?? "Backup failed", record });
-      return;
-    }
-    res.status(201).json(record);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /admin/backup-records — execute a real backup (legacy record-creation
-// endpoint upgraded: this now runs pg_dump instead of just inserting a row).
-router.post("/admin/backup-records", async (req, res): Promise<void> => {
-  try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const result = await retryOffsiteUploads();
     const { backupType, notes } = req.body ?? {};
 
     if (!backupType) {
@@ -85,11 +49,11 @@ router.post("/admin/backup-records", async (req, res): Promise<void> => {
       return;
     }
 
-    const record = await runBackup({
-      backupType,
-      initiatedByUserId: actorUserId,
-      notes: notes ?? null,
-    });
+    const record = await retryOffsiteUploadForRecord(id);
+
+    const status = err.message?.includes("not found") ? 404
+      : err.message?.includes("not eligible") || err.message?.includes("already has") ? 400
+      : 500;
 
     if (record.status !== "completed") {
       res.status(500).json({ error: record.errorMessage ?? "Backup failed", record });
@@ -101,8 +65,24 @@ router.post("/admin/backup-records", async (req, res): Promise<void> => {
   }
 });
 
-// POST /admin/backup-records/:id/verify
-router.post("/admin/backup-records/:id/verify", async (req, res): Promise<void> => {
+// POST /admin/backup-records/retry-offsite — bulk sweep: re-upload all failed/missing offsite copies
+router.post("/admin/backup-records/retry-offsite", async (req, res): Promise<void> => {
+  try {
+    const actorUserId: number = (req as any).session?.userId ?? 1;
+
+    const result = await retryOffsiteUploads();
+    const { backupType, notes } = req.body ?? {};
+
+    if (!backupType) {
+      res.status(400).json({ error: "backupType is required" });
+      return;
+    }
+
+    const record = await retryOffsiteUploadForRecord(id);
+
+    const status = err.message?.includes("not found") ? 404
+      : err.message?.includes("not eligible") || err.message?.includes("already has") ? 400
+      : 500;
   const id = parseInt(req.params.id, 10);
   const { verificationNotes, restoreTestResult } = req.body;
 

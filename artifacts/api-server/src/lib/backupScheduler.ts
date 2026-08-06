@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { logger } from "./logger";
-import { runBackup, pruneExpiredBackups } from "./backupService.js";
+import { runBackup, pruneExpiredBackups, retryOffsiteUploads } from "./backupService.js";
 import {
   createJobFailureAlerter,
   type JobRunResult,
@@ -146,8 +146,8 @@ export type BackupCycleResult = JobRunResult;
 
 /**
  * Runs the backup step through the failure alerter, then runs retention
- * pruning regardless. The `backupFn` parameter is injectable for tests;
- * production callers omit it to use the real backup.
+ * pruning and offsite retry sweep regardless. The `backupFn` parameter is
+ * injectable for tests; production callers omit it to use the real backup.
  *
  * Returns the alerter result (success/consecutiveFailures/alertRaised/
  * recoveryRaised) so tests can assert on alerting behaviour.
@@ -172,13 +172,22 @@ export async function runMonitoredBackupCycle(
     logger.error({ err }, "Backup retention pruning threw");
   }
 
+  try {
+    const retry = await retryOffsiteUploads();
+    if (retry.scanned > 0) {
+      logger.info({ retry }, "Offsite upload retry sweep finished");
+    }
+  } catch (err: any) {
+    logger.error({ err }, "Offsite upload retry sweep threw");
+  }
+
   return result;
 }
 
 /**
  * One scheduled cycle exported for tests that need to drive the full backup
- * + prune path (without injectable backup function). Production code and most
- * tests should use `runMonitoredBackupCycle` directly.
+ * + prune + offsite retry path (without injectable backup function). Production
+ * code and most tests should use `runMonitoredBackupCycle` directly.
  */
 export async function runScheduledBackupCycle(): Promise<void> {
   await runMonitoredBackupCycle();

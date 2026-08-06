@@ -11,6 +11,7 @@ import {
   restoreTestResultsTable,
   type BackupRecord,
 } from "@workspace/db";
+import { eq, desc, sql, and, ne, isNull, or } from "drizzle-orm";
 
 const execFileAsync = promisify(execFile);
 
@@ -263,7 +264,12 @@ export async function pruneExpiredBackups(): Promise<PruneResult> {
   return result;
 }
 
-// ─── Real restore test into a scratch database ─────────────────────────────────
+export interface RetryOffsiteResult {
+  scanned: number;
+  uploaded: number;
+  skipped: number; // local file missing — nothing we can do
+  errors: Array<{ id: number; error: string }>;
+}
 export interface RestoreTestOutcome {
   result: "pass" | "fail";
   restoreTest: typeof restoreTestResultsTable.$inferSelect;
@@ -457,4 +463,137 @@ export async function runRestoreTest(opts: {
     .returning();
 
   return { result, restoreTest, backupRecord: updatedBackup ?? backup };
+}
+
+/**
+ * Retry offsite upload for a single backup record.
+ * Returns the updated record.  Throws if the record is not found or not eligible.
+ */
+export async function retryOffsiteUploadForRecord(
+  backupId: number
+): Promise<BackupRecord> {
+  const [record] = await db
+    .select()
+    .from(backupRecordsTable)
+    .where(eq(backupRecordsTable.id, backupId));
+
+  if (!record) throw new Error(`Backup record ${backupId} not found`);
+  if (record.status !== "completed" && record.status !== "verified") {
+    throw new Error(
+      `Backup record ${backupId} is not eligible for offsite retry (status: ${record.status})`
+    );
+  }
+  if (record.offsiteStatus === "uploaded") {
+    throw new Error(`Backup record ${backupId} already has a successful offsite copy`);
+  }
+
+  if (!record.storageLocation || !fs.existsSync(record.storageLocation)) {
+    // Update the error message to reflect the current state and return as-is.
+    const [updated] = await db
+      .update(backupRecordsTable)
+      .set({
+        offsiteError: "Offsite retry skipped: local backup file no longer exists",
+      })
+      .where(eq(backupRecordsTable.id, backupId))
+      .returning();
+    return updated;
+  }
+
+  try {
+    const uri = await uploadBackupOffsite(record.storageLocation);
+    const [updated] = await db
+      .update(backupRecordsTable)
+      .set({
+        offsiteLocation: uri,
+        offsiteStatus: "uploaded",
+        offsiteError: null,
+        offsiteUploadedAt: new Date(),
+      })
+      .where(eq(backupRecordsTable.id, backupId))
+      .returning();
+    return updated;
+  } catch (err: any) {
+    const errorMsg = `Offsite retry failed: ${String(err?.message || err)}`;
+    const [updated] = await db
+      .update(backupRecordsTable)
+      .set({
+        offsiteStatus: "failed",
+        offsiteError: errorMsg,
+      })
+      .where(eq(backupRecordsTable.id, backupId))
+      .returning();
+    return updated;
+  }
+}
+
+/**
+ * Sweep all completed/verified backups that lack a successful offsite copy and
+ * re-upload any whose local file still exists.
+ */
+export async function retryOffsiteUploads(): Promise<RetryOffsiteResult> {
+  if (!isOffsiteConfigured()) {
+    return { scanned: 0, uploaded: 0, skipped: 0, errors: [] };
+  }
+
+  const candidates = await db
+    .select()
+    .from(backupRecordsTable)
+    .where(
+      and(
+        sql`${backupRecordsTable.status} IN ('completed', 'verified')`,
+        or(
+          ne(backupRecordsTable.offsiteStatus, "uploaded"),
+          isNull(backupRecordsTable.offsiteStatus)
+        )
+      )
+    );
+
+  const result: RetryOffsiteResult = {
+    scanned: candidates.length,
+    uploaded: 0,
+    skipped: 0,
+    errors: [],
+  };
+
+  for (const rec of candidates) {
+    if (!rec.storageLocation || !fs.existsSync(rec.storageLocation)) {
+      result.skipped++;
+      // Update error to surface why we can't retry.
+      await db
+        .update(backupRecordsTable)
+        .set({
+          offsiteError: "Offsite retry skipped: local backup file no longer exists",
+        })
+        .where(eq(backupRecordsTable.id, rec.id))
+        .catch(() => undefined);
+      continue;
+    }
+
+    try {
+      const uri = await uploadBackupOffsite(rec.storageLocation);
+      await db
+        .update(backupRecordsTable)
+        .set({
+          offsiteLocation: uri,
+          offsiteStatus: "uploaded",
+          offsiteError: null,
+          offsiteUploadedAt: new Date(),
+        })
+        .where(eq(backupRecordsTable.id, rec.id));
+      result.uploaded++;
+    } catch (err: any) {
+      const errorMsg = `Offsite retry failed: ${String(err?.message || err)}`;
+      result.errors.push({ id: rec.id, error: errorMsg });
+      await db
+        .update(backupRecordsTable)
+        .set({
+          offsiteStatus: "failed",
+          offsiteError: errorMsg,
+        })
+        .where(eq(backupRecordsTable.id, rec.id))
+        .catch(() => undefined);
+    }
+  }
+
+  return result;
 }
