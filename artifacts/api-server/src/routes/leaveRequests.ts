@@ -20,12 +20,10 @@ const router = Router();
 // belongs to a different organization than the active org context.
 router.param("id", async (req, res, next, rawId) => {
   try {
-  const id = parseInt(req.params.id, 10);
+    const id = parseInt(rawId, 10);
     if (!Number.isInteger(id)) { res.status(404).json({ error: "Not found" }); return; }
-      const [row] = await tx.update(leaveRequestsTable)
-        .set({ status: "submitted", submittedAt: new Date(), updatedAt: new Date() })
-        .where(eq(leaveRequestsTable.id, id))
-        .returning();
+    const [row] = await db.select({ orgId: leaveRequestsTable.orgId })
+      .from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
     if (!row || row.orgId !== (await resolveOrgId(req))) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -100,10 +98,7 @@ router.get("/leave-requests", async (req, res): Promise<void> => {
 
   const orgId = await resolveOrgId(req);
 
-  const conditions: any[] = [
-    eq(leaveRequestsTable.orgId, orgId),
-    or(eq(leaveRequestsTable.status, "approved"), eq(leaveRequestsTable.status, "under_review")) as any,
-  ];
+  const conditions: any[] = [eq(leaveRequestsTable.orgId, orgId)];
   if (employeeId) conditions.push(eq(leaveRequestsTable.employeeId, parseInt(employeeId, 10)));
   if (status) {
     // Support comma-separated status list
@@ -118,7 +113,9 @@ router.get("/leave-requests", async (req, res): Promise<void> => {
   if (startDate) conditions.push(gte(leaveRequestsTable.startDate, startDate));
   if (endDate) conditions.push(lte(leaveRequestsTable.endDate, endDate));
 
-  const requests = await db.select().from(leaveRequestsTable).where(and(...conditions));
+  const requests = await db.select().from(leaveRequestsTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(leaveRequestsTable.createdAt);
 
   const emps = await db.select().from(employeesTable).where(eq(employeesTable.orgId, orgId));
   const types = await db.select().from(leaveTypesTable);
@@ -162,7 +159,7 @@ router.get("/leave-requests", async (req, res): Promise<void> => {
 
 // POST /leave-requests — create a new request (draft)
 router.post("/leave-requests", async (req, res): Promise<void> => {
-  const actorUserId: number = actor.userId;
+  const actorUserId: number = getActorUserId(req);
 
   const {
     employeeId, leaveTypeId, startDate, endDate, totalDays,
@@ -226,7 +223,7 @@ router.get("/leave-requests/:id", async (req, res): Promise<void> => {
 
 // POST /leave-requests/:id/submit — move draft → submitted, check cert + reserve balance
 router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
-  const actorUserId: number = actor.userId;
+  const actorUserId: number = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
   const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
   if (!r) { res.status(404).json({ error: "Not found" }); return; }
@@ -251,75 +248,11 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
   // simultaneous submissions cannot both pass the availability check.
   // ensureLeaveBalance is race-safe (unique constraint + insert-on-conflict),
   // so exactly one row exists before we lock it.
-        const year = new Date(lockedReq.startDate).getFullYear();
+  const year = new Date(r.startDate).getFullYear();
   await ensureLeaveBalance(r.employeeId, r.leaveTypeId, year);
-  const updated = await db.transaction(async (tx) => {
-    // 1. Credit balance back
-    const year = new Date(r.startDate).getFullYear();
-    const [balance] = await tx.select().from(leaveBalancesTable).where(
-      and(
-        eq(leaveBalancesTable.employeeId, r.employeeId),
-        eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
-        eq(leaveBalancesTable.year, year),
-      )
-    ).for("update");
-    if (balance) {
-      const newUsed = Math.max(0, parseFloat(balance.used) - creditedDays);
-      await tx.update(leaveBalancesTable)
-        .set({ used: String(newUsed), updatedAt: new Date() })
-        .where(eq(leaveBalancesTable.id, balance.id));
-    }
-
-    // 2. Restore roster for revoked dates: delete rows created by the approval,
-    //    revert others marked "leave" back to "scheduled"
-    const rosterRows = await tx.select().from(rostersTable).where(
-      and(
-        eq(rostersTable.employeeId, r.employeeId),
-        gte(rostersTable.date, revokedStart),
-        lte(rostersTable.date, revokedEnd),
-      )
-    );
-    for (const row of rosterRows) {
-      if (row.notes === marker) {
-        await tx.delete(rostersTable).where(eq(rostersTable.id, row.id));
-      } else if (row.status === "leave") {
-        await tx.update(rostersTable)
-          .set({ status: "scheduled", notes: `Reverted — leave revoked (${r.requestNumber})`, updatedAt: new Date() })
-          .where(eq(rostersTable.id, row.id));
-      }
-    }
-
-    // 3. Update the request itself
-    const [u] = await tx.update(leaveRequestsTable)
-      .set(isPartial
-        ? { endDate: newEndDate, totalDays: String(remainingDays), updatedAt: new Date() }
-        : { status: "revoked", updatedAt: new Date() })
-      .where(eq(leaveRequestsTable.id, id))
-      .returning();
-
-    // 4. Audit trail
-    await tx.insert(auditLogsTable).values({
-      action: isPartial ? "leave.revoked_partial" : "leave.revoked",
-      entityType: "leave_request",
-      entityId: id,
-      entityLabel: r.requestNumber,
-      actorUserId,
-      changesJson: JSON.stringify({
-        reason,
-        // Attributed to the authenticated actor, never a client-supplied id.
-        revokedByEmployeeId: actor.employeeId ?? null,
-        revokedFrom: revokedStart,
-        revokedTo: revokedEnd,
-        creditedDays,
-        ...(isPartial ? { newEndDate, remainingDays } : {}),
-      }),
-    });
-
-    return u;
-  });
+  let updated: typeof leaveRequestsTable.$inferSelect;
   try {
     updated = await db.transaction(async (tx) => {
-      // Lock the request row first to get the authoritative current status.
       const [lockedReq] = await tx.select().from(leaveRequestsTable)
         .where(eq(leaveRequestsTable.id, id))
         .for("update");
@@ -402,7 +335,7 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
 // Core logic lives in lib/leaveDecision.ts so the /approvals route can share it (Task #13).
 router.post("/leave-requests/:id/decide", async (req, res): Promise<void> => {
   // Only supervisors/HR with the "approvals.decide" permission may decide.
-  const actorUserId: number = actor.userId;
+  let actorUserId: number;
   try {
     ({ userId: actorUserId } = await requireActorPermission(req, DECIDE_PERMISSION));
   } catch (err) {
@@ -437,7 +370,7 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
   const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
   if (!r) { res.status(404).json({ error: "Not found" }); return; }
   // Employees may cancel their own request; anyone else needs approvals.decide.
-  const isOwnRequest = actor.employeeId != null && actor.employeeId === rFull.employeeId;
+  const isOwnRequest = actor.employeeId != null && actor.employeeId === r.employeeId;
   if (!isOwnRequest && !actor.permissions.includes(DECIDE_PERMISSION)) {
     res.status(403).json({ error: "You do not have permission to cancel this request", code: "FORBIDDEN" });
     return;
@@ -452,70 +385,7 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
   //    cancels — or a cancel racing a decide — read a consistent status.
   // 2. Only submitted/under_review requests hold a pending reservation;
   //    draft cancels must NOT touch the balance.
-  const updated = await db.transaction(async (tx) => {
-    // 1. Credit balance back
-    const year = new Date(r.startDate).getFullYear();
-    const [balance] = await tx.select().from(leaveBalancesTable).where(
-      and(
-        eq(leaveBalancesTable.employeeId, r.employeeId),
-        eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
-        eq(leaveBalancesTable.year, year),
-      )
-    ).for("update");
-    if (balance) {
-      const newUsed = Math.max(0, parseFloat(balance.used) - creditedDays);
-      await tx.update(leaveBalancesTable)
-        .set({ used: String(newUsed), updatedAt: new Date() })
-        .where(eq(leaveBalancesTable.id, balance.id));
-    }
-
-    // 2. Restore roster for revoked dates: delete rows created by the approval,
-    //    revert others marked "leave" back to "scheduled"
-    const rosterRows = await tx.select().from(rostersTable).where(
-      and(
-        eq(rostersTable.employeeId, r.employeeId),
-        gte(rostersTable.date, revokedStart),
-        lte(rostersTable.date, revokedEnd),
-      )
-    );
-    for (const row of rosterRows) {
-      if (row.notes === marker) {
-        await tx.delete(rostersTable).where(eq(rostersTable.id, row.id));
-      } else if (row.status === "leave") {
-        await tx.update(rostersTable)
-          .set({ status: "scheduled", notes: `Reverted — leave revoked (${r.requestNumber})`, updatedAt: new Date() })
-          .where(eq(rostersTable.id, row.id));
-      }
-    }
-
-    // 3. Update the request itself
-    const [u] = await tx.update(leaveRequestsTable)
-      .set(isPartial
-        ? { endDate: newEndDate, totalDays: String(remainingDays), updatedAt: new Date() }
-        : { status: "revoked", updatedAt: new Date() })
-      .where(eq(leaveRequestsTable.id, id))
-      .returning();
-
-    // 4. Audit trail
-    await tx.insert(auditLogsTable).values({
-      action: isPartial ? "leave.revoked_partial" : "leave.revoked",
-      entityType: "leave_request",
-      entityId: id,
-      entityLabel: r.requestNumber,
-      actorUserId,
-      changesJson: JSON.stringify({
-        reason,
-        // Attributed to the authenticated actor, never a client-supplied id.
-        revokedByEmployeeId: actor.employeeId ?? null,
-        revokedFrom: revokedStart,
-        revokedTo: revokedEnd,
-        creditedDays,
-        ...(isPartial ? { newEndDate, remainingDays } : {}),
-      }),
-    });
-
-    return u;
-  });
+  let updated: typeof leaveRequestsTable.$inferSelect;
   try {
     updated = await db.transaction(async (tx) => {
       // Lock the request row first to get the authoritative current status.
@@ -596,7 +466,7 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
 // POST /leave-requests/:id/revoke — undo an approved leave (fully or shorten the range)
 router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
   // Only supervisors/HR with the "approvals.decide" permission may revoke.
-  const actor = await getActorInfo(req);
+  let actor: Awaited<ReturnType<typeof requireActorPermission>>;
   try {
     actor = await requireActorPermission(req, DECIDE_PERMISSION);
   } catch (err) {
@@ -732,8 +602,7 @@ router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
 
 // POST /leave-requests/:id/return — record employee's return to work after approved leave
 router.post("/leave-requests/:id/return", async (req, res): Promise<void> => {
-  const actor = await getActorInfo(req);
-  const actorUserId: number = actor.userId;
+  const actorUserId: number = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
   const { returnDate, returnNotes } = req.body;
   const [r] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
@@ -744,7 +613,68 @@ router.post("/leave-requests/:id/return", async (req, res): Promise<void> => {
     .set({ returnedToWork: true, returnDate: returnDate ?? null, returnNotes: returnNotes ?? null, updatedAt: new Date() })
     .where(eq(leaveRequestsTable.id, id))
     .returning();
+
+  await db.insert(auditLogsTable).values({
+    action: "leave.returned",
+    entityType: "leave_request",
+    entityId: id,
+    entityLabel: r.requestNumber,
+    actorUserId,
+    changesJson: JSON.stringify({ returnDate }),
+  });
+
   res.json(await enrichRequest(updated));
+});
+
+// POST /leave-requests/:id/attachments — upload a supporting document (medical cert etc.)
+router.post("/leave-requests/:id/attachments", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+
+  // 404 if request doesn't exist (also enforces org ownership via router.param guard above)
+  const [existing] = await db.select({ id: leaveRequestsTable.id, status: leaveRequestsTable.status })
+    .from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Leave request not found" }); return; }
+
+  // 409 if not a draft — attachments can only be added before submission
+  if (existing.status !== "draft") {
+    res.status(409).json({ error: "Attachments can only be added to draft leave requests", code: "NOT_DRAFT" });
+    return;
+  }
+
+  const { fileName, fileType, fileSize, fileUrl } = req.body;
+  if (!fileName) { res.status(400).json({ error: "fileName required" }); return; }
+  // Only allow safe URL schemes: https, or data: URLs with whitelisted document/image MIME types.
+  if (fileUrl != null) {
+    const safeDataUrl = /^data:(application\/pdf|image\/(png|jpe?g|webp|gif));base64,[A-Za-z0-9+/=]+$/i;
+    const isHttps = /^https:\/\//i.test(fileUrl);
+    if (typeof fileUrl !== "string" || (!isHttps && !safeDataUrl.test(fileUrl))) {
+      res.status(400).json({ error: "fileUrl must be an https URL or a base64 data URL of type pdf/png/jpeg/webp/gif" });
+      return;
+    }
+  }
+  const [att] = await db.insert(leaveAttachmentsTable).values({
+    leaveRequestId: id, fileName, fileType: fileType ?? null,
+    fileSize: fileSize ?? null, fileUrl: fileUrl ?? null,
+  }).returning();
+  res.status(201).json(att);
+});
+
+// GET /leave-requests/:id/attachments/:attachmentId — fetch one attachment including the file payload
+router.get("/leave-requests/:id/attachments/:attachmentId", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const attachmentId = parseInt(req.params.attachmentId, 10);
+
+  if (!Number.isInteger(attachmentId)) {
+    res.status(400).json({ error: "Invalid attachmentId" });
+    return;
+  }
+
+  const [att] = await db.select().from(leaveAttachmentsTable).where(
+    and(eq(leaveAttachmentsTable.id, attachmentId), eq(leaveAttachmentsTable.leaveRequestId, id))
+  );
+  if (!att) { res.status(404).json({ error: "Attachment not found" }); return; }
+
+  res.json(att);
 });
 
 // DELETE /leave-requests/:id/attachments/:attachmentId — remove a wrongly-attached document from a draft

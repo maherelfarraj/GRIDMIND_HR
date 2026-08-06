@@ -1,6 +1,10 @@
 import cron from "node-cron";
 import { logger } from "./logger";
 import { runBackup, pruneExpiredBackups } from "./backupService.js";
+import {
+  createJobFailureAlerter,
+  type JobRunResult,
+} from "./backgroundJobAlerts.js";
 
 // ─── Scheduled backups ─────────────────────────────────────────────────────────
 // A node-cron job runs a full pg_dump backup on a configurable cron expression
@@ -8,6 +12,13 @@ import { runBackup, pruneExpiredBackups } from "./backupService.js";
 // each record's retention_days, marking those records "expired".
 //
 // Set BACKUP_SCHEDULE_ENABLED="false" to disable (dev-only escape hatch).
+//
+// Failure alerting: if the backup fails (record status "failed" or the call
+// throws), an admin-facing notification is raised so gaps in backup coverage
+// are noticed immediately rather than silently accumulating. Repeated failures
+// don't re-alert — the outstanding-alert check (audit-trail-derived) prevents
+// spam. A recovery notice is raised the first time the backup completes
+// successfully again after an alert was outstanding.
 
 const DEFAULT_CRON = "0 2 * * *"; // nightly at 02:00
 
@@ -38,43 +49,139 @@ const status: BackupScheduleStatus = {
   lastPrune: null,
 };
 
+// ─── Failure alerter ──────────────────────────────────────────────────────────
+// Threshold of 1: nightly jobs have no redundant runs. A single missed backup
+// means a day of missing coverage, which is worth an immediate admin alert.
+
+/** Consecutive failures before admins are alerted (1 for nightly jobs). */
+export const BACKUP_FAILURE_ALERT_THRESHOLD = 1;
+
+// Audit-trail markers for the alert/recovery transition.
+export const BACKUP_ALERT_ACTION = "scheduled_backup.alert";
+export const BACKUP_RECOVERED_ACTION = "scheduled_backup.recovered";
+
+const alerter = createJobFailureAlerter({
+  entityType: "scheduled_backup",
+  alertAction: BACKUP_ALERT_ACTION,
+  recoveredAction: BACKUP_RECOVERED_ACTION,
+  // Stable advisory-lock key — unique per job, never reused.
+  lockKey: 0xba4b_bac4,
+  threshold: BACKUP_FAILURE_ALERT_THRESHOLD,
+  logLabel: "Scheduled backup",
+  alertMessage: (failures, lastError) =>
+    `The nightly scheduled backup has failed ${failures} consecutive time${failures !== 1 ? "s" : ""}. ` +
+    `Database backups may be missing. Check the backup admin panel for details. Last error: ${lastError}`,
+  recoveredMessage:
+    "The nightly scheduled backup has recovered and completed successfully. " +
+    "Database backup coverage is restored.",
+  notification: {
+    alertTitleEn: "Nightly backup failed",
+    alertTitleAr: "فشل النسخ الاحتياطي الليلي",
+    alertBodyAr: (failures) =>
+      `فشل النسخ الاحتياطي المجدول ${failures} ${failures !== 1 ? "مرات متتالية" : "مرة"}. ` +
+      `قد تكون النسخ الاحتياطية لقاعدة البيانات مفقودة. تحقق من لوحة إدارة النسخ الاحتياطية للاطلاع على التفاصيل.`,
+    recoveredTitleEn: "Nightly backup recovered",
+    recoveredTitleAr: "عاد النسخ الاحتياطي الليلي إلى العمل",
+    recoveredBodyAr:
+      "اكتمل النسخ الاحتياطي المجدول بنجاح. تمت استعادة تغطية النسخ الاحتياطي لقاعدة البيانات.",
+    actionUrl: "/admin/backups",
+    actionLabelEn: "View backups",
+  },
+});
+
+/** Test-only: reset the in-memory failure streak. */
+export function _resetBackupAlerterForTests(): void {
+  alerter._resetForTests();
+}
+
 export function getBackupScheduleStatus(): BackupScheduleStatus {
   return { ...status };
 }
 
-/** One scheduled cycle: full backup, then retention pruning. Exported for tests. */
-export async function runScheduledBackupCycle(): Promise<void> {
-  status.lastRunAt = new Date().toISOString();
+// ─── Backup step — throws on failure so the alerter can track the streak ──────
+
+type BackupFn = () => Promise<void>;
+
+/**
+ * Runs the backup and updates module-level status. Throws when the backup
+ * fails (record status ≠ "completed", or the call throws) so the alerter's
+ * `runMonitored` can track the consecutive-failure streak.
+ */
+async function defaultBackupFn(): Promise<void> {
+  let record;
   try {
-    const record = await runBackup({
+    record = await runBackup({
       backupType: "full",
       initiatedByUserId: null,
       notes: `Scheduled backup (cron: ${status.cronExpression})`,
     });
-    if (record.status === "completed") {
-      status.lastRunStatus = "completed";
-      status.lastRunError = null;
-      logger.info({ backupRecordId: record.id, fileSizeBytes: record.fileSizeBytes }, "Scheduled backup completed");
-    } else {
-      status.lastRunStatus = "failed";
-      status.lastRunError = record.errorMessage ?? "Backup failed";
-      logger.error({ backupRecordId: record.id, error: record.errorMessage }, "Scheduled backup failed");
-    }
   } catch (err: any) {
     status.lastRunStatus = "failed";
     status.lastRunError = String(err?.message || err);
     logger.error({ err }, "Scheduled backup threw");
+    throw err;
   }
+
+  if (record.status === "completed") {
+    status.lastRunStatus = "completed";
+    status.lastRunError = null;
+    logger.info(
+      { backupRecordId: record.id, fileSizeBytes: record.fileSizeBytes },
+      "Scheduled backup completed",
+    );
+  } else {
+    status.lastRunStatus = "failed";
+    status.lastRunError = record.errorMessage ?? "Backup failed";
+    logger.error(
+      { backupRecordId: record.id, error: record.errorMessage },
+      "Scheduled backup failed",
+    );
+    throw new Error(record.errorMessage ?? "Backup failed");
+  }
+}
+
+// ─── Public cycle API ─────────────────────────────────────────────────────────
+
+export type BackupCycleResult = JobRunResult;
+
+/**
+ * Runs the backup step through the failure alerter, then runs retention
+ * pruning regardless. The `backupFn` parameter is injectable for tests;
+ * production callers omit it to use the real backup.
+ *
+ * Returns the alerter result (success/consecutiveFailures/alertRaised/
+ * recoveryRaised) so tests can assert on alerting behaviour.
+ */
+export async function runMonitoredBackupCycle(
+  backupFn: BackupFn = defaultBackupFn,
+): Promise<BackupCycleResult> {
+  status.lastRunAt = new Date().toISOString();
+  const result = await alerter.runMonitored(backupFn);
 
   try {
     const prune = await pruneExpiredBackups();
-    status.lastPrune = { expired: prune.expired, filesDeleted: prune.filesDeleted, errors: prune.errors.length };
+    status.lastPrune = {
+      expired: prune.expired,
+      filesDeleted: prune.filesDeleted,
+      errors: prune.errors.length,
+    };
     if (prune.expired > 0 || prune.errors.length > 0) {
       logger.info({ prune }, "Backup retention pruning finished");
     }
   } catch (err: any) {
     logger.error({ err }, "Backup retention pruning threw");
   }
+
+  return result;
+}
+
+/**
+ * One scheduled cycle exported for tests that need to drive the full backup
+ * + prune path (without injectable backup function). Production code and most
+ * tests should use `runMonitoredBackupCycle` directly.
+ */
+export async function runScheduledBackupCycle(): Promise<void> {
+  await runMonitoredBackupCycle();
 }
 
 export function startBackupScheduler(): void {
