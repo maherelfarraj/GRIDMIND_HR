@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 import { useLanguage } from '@/hooks/use-language';
@@ -8,6 +8,18 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ShieldCheck, Languages, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// Human-friendly wait duration: seconds under a minute, minutes otherwise.
+function formatRetryDuration(seconds: number, lang: 'en' | 'ar'): string {
+  if (seconds < 60) {
+    return lang === 'ar' ? `${seconds} ثانية` : `${seconds} seconds`;
+  }
+  const minutes = Math.ceil(seconds / 60);
+  if (lang === 'ar') {
+    return minutes === 1 ? 'دقيقة واحدة' : `${minutes} دقائق`;
+  }
+  return minutes === 1 ? '1 minute' : `${minutes} minutes`;
+}
+
 export default function Login() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
@@ -16,6 +28,25 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // Seconds remaining in an active lockout window (null = not locked out).
+  // Drives a live countdown in the error message and disables the login
+  // button until the wait is over.
+  const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState<number | null>(null);
+
+  // Tick the lockout countdown once per second; when it reaches zero, clear
+  // the lockout message and re-enable the login button.
+  useEffect(() => {
+    if (lockoutSecondsLeft === null) return;
+    if (lockoutSecondsLeft <= 0) {
+      setLockoutSecondsLeft(null);
+      setError('');
+      return;
+    }
+    const timer = setTimeout(() => {
+      setLockoutSecondsLeft((s) => (s === null ? null : s - 1));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [lockoutSecondsLeft]);
 
   const { sessionExpired, nextPath } = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
@@ -37,10 +68,13 @@ export default function Login() {
       await login(username, password);
       setLocation(nextPath);
     } catch (err: any) {
-      if (lang === 'ar' && err.errorAr) {
-        setError(err.errorAr);
-      } else {
-        setError(err.message || 'Login failed. Please check your credentials.');
+      const message =
+        lang === 'ar' && err.errorAr
+          ? err.errorAr
+          : err.message || 'Login failed. Please check your credentials.';
+      setError(message);
+      if (typeof err.retryAfterSeconds === 'number' && err.retryAfterSeconds > 0) {
+        setLockoutSecondsLeft(Math.ceil(err.retryAfterSeconds));
       }
     } finally {
       setIsLoading(false);
@@ -114,7 +148,14 @@ export default function Login() {
           {error && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>
+                {error}
+                {lockoutSecondsLeft !== null && lockoutSecondsLeft > 0
+                  ? lang === 'ar'
+                    ? ` يمكنك المحاولة مرة أخرى بعد ${formatRetryDuration(lockoutSecondsLeft, 'ar')}.`
+                    : ` You can try again in ${formatRetryDuration(lockoutSecondsLeft, 'en')}.`
+                  : null}
+              </AlertDescription>
             </Alert>
           )}
 
@@ -154,7 +195,7 @@ export default function Login() {
             <Button
               type="submit"
               className="w-full h-11 text-base font-semibold"
-              disabled={isLoading}
+              disabled={isLoading || (lockoutSecondsLeft !== null && lockoutSecondsLeft > 0)}
             >
               {isLoading ? t('Signing in...', 'جارٍ تسجيل الدخول...') : t('Sign In', 'تسجيل الدخول')}
             </Button>
