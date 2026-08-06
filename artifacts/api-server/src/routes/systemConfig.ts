@@ -16,13 +16,29 @@ const POSITIVE_NUMBER_KEYS = new Set([
 ]);
 
 /**
+ * Parse a pipe-separated enum list from a descriptionEn field.
+ * Returns the list of allowed values when the description looks like
+ * "option1 | option2 | option3", or null when the description doesn't
+ * follow that pattern (meaning no enum constraint applies).
+ */
+function parseEnumOptions(descriptionEn: string | null | undefined): string[] | null {
+  if (!descriptionEn) return null;
+  const trimmed = descriptionEn.trim();
+  // Match only if the whole string is a pipe-separated list of tokens
+  // (no prose, no spaces within tokens).
+  if (!/^[a-z_]+(\s*\|\s*[a-z_]+)+$/.test(trimmed)) return null;
+  return trimmed.split("|").map((s) => s.trim());
+}
+
+/**
  * Validate a raw client-sent value against the config row's valueType.
  * Returns an error message, or null when the value is acceptable.
  */
 function validateConfigValue(
   key: string,
   valueType: string,
-  raw: unknown
+  raw: unknown,
+  descriptionEn?: string | null
 ): string | null {
   const str = String(raw).trim();
   switch (valueType) {
@@ -48,8 +64,14 @@ function validateConfigValue(
         return "must be valid JSON";
       }
     }
-    default:
-      return null; // string — anything goes
+    default: {
+      // string — validate against enum options when the description declares them
+      const allowed = parseEnumOptions(descriptionEn);
+      if (allowed && !allowed.includes(str)) {
+        return `must be one of: ${allowed.join(", ")}`;
+      }
+      return null;
+    }
   }
 }
 
@@ -94,7 +116,7 @@ router.patch("/system-config", async (req, res): Promise<void> => {
     if (!existing) continue;
     if (existing.isReadonly) continue; // skip readonly silently
 
-    const error = validateConfigValue(key, existing.valueType, value);
+    const error = validateConfigValue(key, existing.valueType, value, existing.descriptionEn);
     if (error) {
       errors[key] = error;
     } else {

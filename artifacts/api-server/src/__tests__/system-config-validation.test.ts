@@ -16,6 +16,8 @@ import app from "../app";
 const OT_KEY = "payroll.maxOtSessionHours";
 const WEEKEND_KEY = "payroll.weekendDays";
 const BOOL_KEY = "security.dual_auth_enabled";
+const ORG_TYPE_KEY = "org.type";
+const SEC_LEVEL_KEY = "security.level";
 
 let originalValues: Record<string, string> = {};
 const createdKeys: string[] = [];
@@ -44,7 +46,7 @@ beforeAll(async () => {
     });
     createdKeys.push(OT_KEY);
   }
-  for (const key of [OT_KEY, WEEKEND_KEY, BOOL_KEY]) {
+  for (const key of [OT_KEY, WEEKEND_KEY, BOOL_KEY, ORG_TYPE_KEY, SEC_LEVEL_KEY]) {
     const value = await getValue(key);
     expect(value, `config row ${key} must exist`).toBeDefined();
     originalValues[key] = value!;
@@ -126,5 +128,41 @@ describe("PATCH /api/system-config validation", () => {
     expect(res.body.details[BOOL_KEY]).toBeDefined();
     // Valid key in the same request must not have been persisted.
     expect(await getValue(OT_KEY)).not.toBe("8");
+  });
+
+  // ── Enum-style string settings ────────────────────────────────────────────
+
+  it("rejects an unknown org.type value", async () => {
+    const res = await request(app)
+      .patch("/api/system-config")
+      .send({ [ORG_TYPE_KEY]: "banana" });
+    expect(res.status).toBe(400);
+    expect(res.body.details[ORG_TYPE_KEY]).toMatch(/must be one of/);
+    expect(await getValue(ORG_TYPE_KEY)).toBe(originalValues[ORG_TYPE_KEY]);
+  });
+
+  it("accepts a valid org.type value", async () => {
+    const res = await request(app)
+      .patch("/api/system-config")
+      .send({ [ORG_TYPE_KEY]: "government" });
+    expect(res.status).toBe(200);
+    expect(await getValue(ORG_TYPE_KEY)).toBe("government");
+  });
+
+  it("rejects an unknown security.level value", async () => {
+    const res = await request(app)
+      .patch("/api/system-config")
+      .send({ [SEC_LEVEL_KEY]: "ultra_classified" });
+    expect(res.status).toBe(400);
+    expect(res.body.details[SEC_LEVEL_KEY]).toMatch(/must be one of/);
+    expect(await getValue(SEC_LEVEL_KEY)).toBe(originalValues[SEC_LEVEL_KEY]);
+  });
+
+  it("accepts a valid security.level value", async () => {
+    const res = await request(app)
+      .patch("/api/system-config")
+      .send({ [SEC_LEVEL_KEY]: "top_secret" });
+    expect(res.status).toBe(200);
+    expect(await getValue(SEC_LEVEL_KEY)).toBe("top_secret");
   });
 });
