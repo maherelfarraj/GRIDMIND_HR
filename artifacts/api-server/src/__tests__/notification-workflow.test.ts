@@ -110,3 +110,114 @@ describe("notification workflow", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("notification creation validation", () => {
+  it("POST /api/notifications rejects a payload with missing required fields", async () => {
+    const admin = await adminAgent();
+    const res = await admin
+      .post("/api/notifications")
+      .send({
+        // recipientUserId omitted
+        notificationType: "announcement",
+        // titleEn omitted
+        bodyEn: "Some body text",
+        severity: "info",
+      });
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("errors");
+    expect(Array.isArray(res.body.errors)).toBe(true);
+    // Both missing fields should be called out
+    const msgs: string[] = res.body.errors;
+    expect(msgs.some((m) => /recipientUserId/i.test(m))).toBe(true);
+    expect(msgs.some((m) => /titleEn/i.test(m))).toBe(true);
+  });
+
+  it("POST /api/notifications rejects an invalid notificationType", async () => {
+    const admin = await adminAgent();
+    const res = await admin
+      .post("/api/notifications")
+      .send({
+        recipientUserId: TEST_RECIPIENT_USER_ID,
+        notificationType: "made_up_type",
+        titleEn: "Title",
+        bodyEn: "Body",
+      });
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("errors");
+    const msgs: string[] = res.body.errors;
+    expect(msgs.some((m) => /notificationType/i.test(m))).toBe(true);
+  });
+
+  it("POST /api/notifications rejects an invalid severity", async () => {
+    const admin = await adminAgent();
+    const res = await admin
+      .post("/api/notifications")
+      .send({
+        recipientUserId: TEST_RECIPIENT_USER_ID,
+        notificationType: "announcement",
+        titleEn: "Title",
+        bodyEn: "Body",
+        severity: "critical", // not in the allowed enum
+      });
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("errors");
+    const msgs: string[] = res.body.errors;
+    expect(msgs.some((m) => /severity/i.test(m))).toBe(true);
+  });
+
+  it("POST /api/notifications rejects an oversized titleEn", async () => {
+    const admin = await adminAgent();
+    const res = await admin
+      .post("/api/notifications")
+      .send({
+        recipientUserId: TEST_RECIPIENT_USER_ID,
+        notificationType: "announcement",
+        titleEn: "x".repeat(301), // exceeds 300-char limit
+        bodyEn: "Body",
+        severity: "info",
+      });
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("errors");
+    const msgs: string[] = res.body.errors;
+    expect(msgs.some((m) => /titleEn/i.test(m))).toBe(true);
+  });
+
+  it("POST /api/notifications accepts a valid minimal payload and returns 201", async () => {
+    const admin = await adminAgent();
+    const res = await admin
+      .post("/api/notifications")
+      .send({
+        recipientUserId: TEST_RECIPIENT_USER_ID,
+        notificationType: "system",
+        titleEn: "Valid minimal notification",
+        bodyEn: "Body text.",
+      });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("id");
+    expect(res.body.notificationType).toBe("system");
+    expect(res.body.severity).toBe("info"); // DB default
+    createdNotificationIds.push(res.body.id);
+  });
+
+  it("POST /api/notifications strips unrecognised extra fields", async () => {
+    const admin = await adminAgent();
+    const res = await admin
+      .post("/api/notifications")
+      .send({
+        recipientUserId: TEST_RECIPIENT_USER_ID,
+        notificationType: "announcement",
+        titleEn: "Whitelist test",
+        bodyEn: "Body.",
+        severity: "info",
+        isEscalated: true,        // server-controlled, should be ignored
+        escalatedToUserId: 999,   // server-controlled, should be ignored
+        hackField: "DROP TABLE notifications;",  // unknown field
+      });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("id");
+    // The unknown / server-controlled fields must not be persisted
+    expect(res.body.isEscalated).toBe(false);
+    expect(res.body.escalatedToUserId).toBeNull();
+    createdNotificationIds.push(res.body.id);
+  });
+});

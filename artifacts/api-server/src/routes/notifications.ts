@@ -66,6 +66,131 @@ router.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
+// Valid enum values for notification fields.
+const VALID_NOTIFICATION_TYPES = new Set([
+  "leave_request", "leave_decision", "attendance_correction", "payroll_published",
+  "document_expiry", "cert_expiry", "probation_review", "appraisal_due",
+  "goal_approved", "approval_required", "announcement", "system", "security_alert",
+]);
+const VALID_SEVERITIES = new Set(["info", "success", "warning", "error", "urgent"]);
+
+// Maximum character lengths mirrored from the DB schema.
+const FIELD_LIMITS: Record<string, number> = {
+  notificationType: 40,
+  titleEn: 300,
+  titleAr: 300,
+  bodyEn: 10_000,
+  bodyAr: 10_000,
+  severity: 20,
+  actionUrl: 500,
+};
+
+/**
+ * Validate and extract a safe subset of fields for notification creation.
+ * Returns { data } on success or { errors } on failure.
+ */
+function validateNotificationPayload(
+  body: Record<string, unknown>,
+): { data: Record<string, unknown> } | { errors: string[] } {
+  const errors: string[] = [];
+
+  // ── Required fields ──────────────────────────────────────────────────────
+  const recipientUserId = body.recipientUserId;
+  if (recipientUserId === undefined || recipientUserId === null) {
+    errors.push("recipientUserId is required");
+  } else if (!Number.isInteger(recipientUserId) || (recipientUserId as number) < 1) {
+    errors.push("recipientUserId must be a positive integer");
+  }
+
+  const notificationType = body.notificationType;
+  if (!notificationType) {
+    errors.push("notificationType is required");
+  } else if (typeof notificationType !== "string") {
+    errors.push("notificationType must be a string");
+  } else if (!VALID_NOTIFICATION_TYPES.has(notificationType)) {
+    errors.push(`notificationType must be one of: ${[...VALID_NOTIFICATION_TYPES].join(", ")}`);
+  }
+
+  const titleEn = body.titleEn;
+  if (titleEn === undefined || titleEn === null || titleEn === "") {
+    errors.push("titleEn is required");
+  } else if (typeof titleEn !== "string") {
+    errors.push("titleEn must be a string");
+  } else if (titleEn.length > FIELD_LIMITS.titleEn) {
+    errors.push(`titleEn must not exceed ${FIELD_LIMITS.titleEn} characters`);
+  }
+
+  const bodyEn = body.bodyEn;
+  if (bodyEn === undefined || bodyEn === null || bodyEn === "") {
+    errors.push("bodyEn is required");
+  } else if (typeof bodyEn !== "string") {
+    errors.push("bodyEn must be a string");
+  } else if (bodyEn.length > FIELD_LIMITS.bodyEn) {
+    errors.push(`bodyEn must not exceed ${FIELD_LIMITS.bodyEn} characters`);
+  }
+
+  // ── Optional string fields with length limits ─────────────────────────────
+  const titleAr = body.titleAr;
+  if (titleAr !== undefined && titleAr !== null) {
+    if (typeof titleAr !== "string") {
+      errors.push("titleAr must be a string");
+    } else if (titleAr.length > FIELD_LIMITS.titleAr) {
+      errors.push(`titleAr must not exceed ${FIELD_LIMITS.titleAr} characters`);
+    }
+  }
+
+  const bodyAr = body.bodyAr;
+  if (bodyAr !== undefined && bodyAr !== null) {
+    if (typeof bodyAr !== "string") {
+      errors.push("bodyAr must be a string");
+    } else if (bodyAr.length > FIELD_LIMITS.bodyAr) {
+      errors.push(`bodyAr must not exceed ${FIELD_LIMITS.bodyAr} characters`);
+    }
+  }
+
+  const severity = body.severity;
+  if (severity !== undefined && severity !== null) {
+    if (typeof severity !== "string") {
+      errors.push("severity must be a string");
+    } else if (!VALID_SEVERITIES.has(severity)) {
+      errors.push(`severity must be one of: ${[...VALID_SEVERITIES].join(", ")}`);
+    }
+  }
+
+  const actionUrl = body.actionUrl;
+  if (actionUrl !== undefined && actionUrl !== null) {
+    if (typeof actionUrl !== "string") {
+      errors.push("actionUrl must be a string");
+    } else if (actionUrl.length > FIELD_LIMITS.actionUrl) {
+      errors.push(`actionUrl must not exceed ${FIELD_LIMITS.actionUrl} characters`);
+    }
+  }
+
+  const requiresAction = body.requiresAction;
+  if (requiresAction !== undefined && requiresAction !== null) {
+    if (typeof requiresAction !== "boolean") {
+      errors.push("requiresAction must be a boolean");
+    }
+  }
+
+  if (errors.length > 0) return { errors };
+
+  // ── Build the safe insert payload (whitelist only) ────────────────────────
+  const data: Record<string, unknown> = {
+    recipientUserId: recipientUserId as number,
+    notificationType: notificationType as string,
+    titleEn: titleEn as string,
+    bodyEn: bodyEn as string,
+  };
+  if (titleAr !== undefined && titleAr !== null) data.titleAr = titleAr;
+  if (bodyAr !== undefined && bodyAr !== null) data.bodyAr = bodyAr;
+  if (severity !== undefined && severity !== null) data.severity = severity;
+  if (actionUrl !== undefined && actionUrl !== null) data.actionUrl = actionUrl;
+  if (requiresAction !== undefined && requiresAction !== null) data.requiresAction = requiresAction;
+
+  return { data };
+}
+
 // POST / — create notification. Creation is a privileged operation: system
 // code paths insert directly via the DB layer, so the HTTP surface is
 // admin-only. Without this guard any authenticated caller could spoof
@@ -77,7 +202,14 @@ router.post("/", async (req, res): Promise<void> => {
       res.status(403).json({ error: "Only administrators can create notifications" });
       return;
     }
-    const [row] = await db.insert(notificationsTable).values(req.body).returning();
+
+    const result = validateNotificationPayload(req.body ?? {});
+    if ("errors" in result) {
+      res.status(400).json({ errors: result.errors });
+      return;
+    }
+
+    const [row] = await db.insert(notificationsTable).values(result.data as any).returning();
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
