@@ -187,7 +187,25 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
   const id = parseId(req.params.id);
   const parsed = UpdateUserBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const [user] = await db.update(systemUsersTable).set(parsed.data).where(eq(systemUsersTable.id, id)).returning();
+
+  let user: typeof systemUsersTable.$inferSelect | undefined;
+  try {
+    await db.transaction(async (tx) => {
+      const [updated] = await tx.update(systemUsersTable).set(parsed.data).where(eq(systemUsersTable.id, id)).returning();
+      user = updated;
+      // Deactivating a user must immediately invalidate all their live sessions
+      // so they cannot continue using any endpoint that relies on the session
+      // alone (without a fresh isActive check). Atomic with the row update.
+      if (updated && parsed.data.isActive === false) {
+        await revokeUserSessions(tx, id);
+      }
+    });
+  } catch (err) {
+    console.error("User update failed (rolled back):", err);
+    res.status(500).json({ error: "User update failed. Please try again." });
+    return;
+  }
+
   if (!user) { res.status(404).json({ error: "Not found" }); return; }
   res.json(await buildUserResponse(user));
 });

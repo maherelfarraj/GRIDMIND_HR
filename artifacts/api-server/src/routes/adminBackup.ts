@@ -36,7 +36,7 @@ router.get("/admin/backup-records", async (req, res): Promise<void> => {
   res.json(rows);
 });
 
-// POST /admin/backup-records/run — execute a pg_dump backup
+// POST /admin/backup-records/run — execute a REAL pg_dump backup
 router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
@@ -47,7 +47,7 @@ router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
       return;
     }
 
-    const record = await runBackup({ backupType, initiatedByUserId: actorUserId, notes });
+    const record = await runBackup({ backupType, notes, initiatedByUserId: actorUserId });
 
     await db.insert(auditLogsTable).values({
       action: "create",
@@ -74,7 +74,7 @@ router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
   }
 });
 
-// POST /admin/backup-records — legacy record-creation endpoint (runs pg_dump)
+// POST /admin/backup-records — legacy record-creation endpoint (runs pg_dump).
 router.post("/admin/backup-records", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
@@ -85,7 +85,7 @@ router.post("/admin/backup-records", async (req, res): Promise<void> => {
       return;
     }
 
-    const record = await runBackup({ backupType, initiatedByUserId: actorUserId, notes });
+    const record = await runBackup({ backupType, notes, initiatedByUserId: actorUserId });
 
     if (record.status !== "completed") {
       res.status(500).json({ error: record.errorMessage ?? "Backup failed", record });
