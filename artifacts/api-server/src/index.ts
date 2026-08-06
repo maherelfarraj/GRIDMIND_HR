@@ -1,7 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startHealthMonitor, stopHealthMonitor } from "./lib/health-monitor";
-import { startGatewaySilenceMonitor, stopGatewaySilenceMonitor } from "./lib/gatewayDeviceAlerts";
+import { startGatewaySilenceMonitor, stopGatewaySilenceMonitor, processPepperRotationWindowAlert } from "./lib/gatewayDeviceAlerts";
 import {
   backfillMissedCommandOutcomeNotifications,
   flushDeferredCommandNotificationsWithTimeout,
@@ -286,6 +286,7 @@ async function main() {
               "Gateway pepper rotation complete — all key envelopes are wrapped under the current pepper. Remove GATEWAY_KEY_PEPPER_PREVIOUS to close the rotation window; leaving it set keeps the old pepper live.",
             );
           }
+          return processPepperRotationWindowAlert(status);
         });
       })
       .catch((err) => {

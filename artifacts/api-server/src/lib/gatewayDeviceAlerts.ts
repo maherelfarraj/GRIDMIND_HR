@@ -26,6 +26,13 @@ export const GATEWAY_SILENT_ALERT_TYPE = "gateway_silent";
 export const GATEWAY_BATCH_DISCREPANCY_ALERT_TYPE = "gateway_batch_discrepancy";
 export const GATEWAY_AUTH_FAILED_ALERT_TYPE = "gateway_device_auth_failed";
 export const GATEWAY_UNREACHABLE_ALERT_TYPE = "gateway_device_unreachable";
+
+/**
+ * Raised once per open pepper-rotation window (GATEWAY_KEY_PEPPER_PREVIOUS set
+ * but all envelopes already re-wrapped). Stored with entityType="system_config"
+ * and entityId=0 so it is not tied to any individual gateway registration.
+ */
+export const GATEWAY_PEPPER_WINDOW_OPEN_ALERT_TYPE = "gateway_pepper_window_open";
 /** Connection-test statuses that raise an admin alert. */
 const CONN_ALERT_STATUSES = ["AUTH_FAILED", "UNREACHABLE"] as const;
 type ConnAlertStatus = (typeof CONN_ALERT_STATUSES)[number];
@@ -486,6 +493,108 @@ let silenceTimer: NodeJS.Timeout | null = null;
 
 /** In-progress sweep chain, so shutdown can await it instead of cutting it off mid-write. */
 let inFlightSilenceSweep: Promise<void> | null = null;
+
+/**
+ * System-level sentinel for notifications not tied to a specific gateway
+ * registration. Uses entityType="system_config" and entityId=0.
+ */
+const SYSTEM_ENTITY_TYPE = "system_config";
+const SYSTEM_ENTITY_ID = 0;
+
+/**
+ * Check whether an undismissed pepper-window-open notification already exists.
+ * The alert is global (entityType=system_config, entityId=0), so a single
+ * check covers all admin recipients.
+ */
+async function hasOpenPepperWindowAlert(): Promise<boolean> {
+  const rows = await db
+    .select({ id: notificationsTable.id })
+    .from(notificationsTable)
+    .where(
+      and(
+        eq(notificationsTable.notificationType, GATEWAY_PEPPER_WINDOW_OPEN_ALERT_TYPE),
+        eq(notificationsTable.entityType, SYSTEM_ENTITY_TYPE),
+        eq(notificationsTable.entityId, SYSTEM_ENTITY_ID),
+        eq(notificationsTable.isDismissed, false),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** Auto-resolve (dismiss) any open pepper-window-open notifications. */
+async function resolvePepperWindowAlerts(): Promise<void> {
+  await db
+    .update(notificationsTable)
+    .set({ isDismissed: true, dismissedAt: new Date() })
+    .where(
+      and(
+        eq(notificationsTable.notificationType, GATEWAY_PEPPER_WINDOW_OPEN_ALERT_TYPE),
+        eq(notificationsTable.entityType, SYSTEM_ENTITY_TYPE),
+        eq(notificationsTable.entityId, SYSTEM_ENTITY_ID),
+        eq(notificationsTable.isDismissed, false),
+      ),
+    );
+}
+
+/**
+ * Notify admins once per open pepper-rotation window.
+ *
+ * "Open" means GATEWAY_KEY_PEPPER_PREVIOUS is still set even though all
+ * envelopes have already been re-wrapped under the new pepper (rotationComplete
+ * = true, pendingRewrap = 0). The old pepper stays live and weakens the
+ * rotation until an operator removes the env var.
+ *
+ * Deduplication: the notification is stored with entityType="system_config" /
+ * entityId=0. The function checks for an existing undismissed notification
+ * before inserting, so repeat server starts during the same open window do
+ * not spam admins. Auto-resolves when the window closes (PREVIOUS pepper
+ * removed) or while re-wraps are still pending.
+ *
+ * Never throws — a notification failure must not abort startup.
+ */
+export async function processPepperRotationWindowAlert(status: {
+  windowOpen: boolean;
+  rotationComplete: boolean;
+  pendingRewrap: number;
+}): Promise<void> {
+  try {
+    if (!status.windowOpen) {
+      // Pepper env var removed — close the window; resolve any open alert.
+      await resolvePepperWindowAlerts();
+      return;
+    }
+    if (!status.rotationComplete || status.pendingRewrap > 0) {
+      // Re-wraps still pending — don't alert yet; the window must stay open.
+      return;
+    }
+    // Window is complete-but-open. Alert once per window.
+    if (await hasOpenPepperWindowAlert()) return;
+    const admins = await getAdminUsers();
+    if (!admins.length) return;
+    await db.insert(notificationsTable).values(
+      admins.map(({ id: userId }) => ({
+        recipientUserId: userId,
+        notificationType: GATEWAY_PEPPER_WINDOW_OPEN_ALERT_TYPE,
+        titleEn: "Gateway key rotation window left open",
+        titleAr: "نافذة تدوير مفاتيح البوابة مفتوحة",
+        bodyEn:
+          "All gateway key envelopes have been re-wrapped under the new pepper, but GATEWAY_KEY_PEPPER_PREVIOUS is still set. The old pepper remains live and weakens the rotation. Remove GATEWAY_KEY_PEPPER_PREVIOUS from the server environment to close the window.",
+        bodyAr:
+          "تمت إعادة تغليف جميع مفاتيح البوابة تحت الـ pepper الجديد، لكن GATEWAY_KEY_PEPPER_PREVIOUS لا يزال مضبوطًا. يبقى الـ pepper القديم نشطًا مما يضعف عملية التدوير. أزل GATEWAY_KEY_PEPPER_PREVIOUS من بيئة الخادم لإغلاق النافذة.",
+        severity: "warning",
+        actionUrl: "/integration-governance",
+        actionLabelEn: "View governance status",
+        entityType: SYSTEM_ENTITY_TYPE,
+        entityId: SYSTEM_ENTITY_ID,
+        requiresAction: true,
+      })),
+    );
+    logger.warn("Pepper rotation window left open — admin notification raised");
+  } catch (e) {
+    logger.error({ err: e }, "Failed to process pepper rotation window alert");
+  }
+}
 
 /** Starts the background silent-gateway scheduler. Called from index.ts (not from tests). */
 export function startGatewaySilenceMonitor(): void {
