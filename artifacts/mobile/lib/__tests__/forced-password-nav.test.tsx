@@ -54,6 +54,42 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 vi.mock('expo-secure-store', () => secureStoreMock);
 
+// Extra native modules imported by app/_layout.tsx (needed when RootLayoutNav
+// is imported for the non-tab-screen guard tests below).
+vi.mock('expo-splash-screen', () => ({
+  preventAutoHideAsync: vi.fn(async () => {}),
+  hideAsync: vi.fn(async () => {}),
+}));
+vi.mock('react-native-gesture-handler', () => {
+  const React = require('react');
+  return {
+    GestureHandlerRootView: ({ children }: any) =>
+      React.createElement('div', null, children),
+  };
+});
+vi.mock('react-native-keyboard-controller', () => {
+  const React = require('react');
+  return {
+    KeyboardProvider: ({ children }: any) =>
+      React.createElement('div', null, children),
+  };
+});
+vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
+vi.mock('@expo-google-fonts/inter', () => ({
+  Inter_400Regular: null,
+  Inter_500Medium: null,
+  Inter_600SemiBold: null,
+  Inter_700Bold: null,
+  useFonts: () => [true, null],
+}));
+vi.mock('@/components/ErrorBoundary', () => {
+  const React = require('react');
+  return {
+    ErrorBoundary: ({ children }: any) =>
+      React.createElement('div', null, children),
+  };
+});
+
 vi.mock('react-native', () => {
   const React = require('react');
   const passthrough =
@@ -124,9 +160,14 @@ vi.mock('expo-haptics', () => ({
   notificationAsync: vi.fn(async () => {}),
   NotificationFeedbackType: { Success: 'success', Error: 'error' },
 }));
-vi.mock('react-native-safe-area-context', () => ({
-  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
-}));
+vi.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  return {
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+    SafeAreaProvider: ({ children }: any) =>
+      React.createElement('div', null, children),
+  };
+});
 vi.mock('@/components/KeyboardAwareScrollViewCompat', () => {
   const React = require('react');
   return {
@@ -179,6 +220,7 @@ import {
 import LoginScreen from '../../app/login';
 import TabLayout from '../../app/(tabs)/_layout';
 import ChangePasswordScreen from '../../app/change-password';
+import { RootLayoutNav } from '../../app/_layout';
 
 const PROFILE_KEY = 'hrms-mobile-session';
 
@@ -246,6 +288,7 @@ function redirectHref(): string | null {
 
 beforeEach(() => {
   latestAuth = null;
+  mockPathname = '/(tabs)';
   routerMock.replace.mockClear();
   routerMock.back.mockClear();
   asyncStorageMock.getItem.mockReset();
@@ -526,5 +569,86 @@ describe('successful forced change', () => {
     expect(redirectHref()).toBe('/change-password');
     expect(screen.queryByTestId('tabs-content')).toBeNull();
     expect(screen.queryByTestId('text-change-password-error')).not.toBeNull();
+  });
+});
+
+describe('root layout guard (non-tab screens)', () => {
+  // These tests exercise the guard in RootLayoutNav from app/_layout.tsx,
+  // which is the only barrier protecting non-tab routes (notifications,
+  // devices, admin-users, new-leave, payslip/[id], etc.) from a
+  // mustChangePassword user who arrived via a deep link or a mid-session
+  // admin reset while already on one of those screens.
+
+  it('redirects a mustChangePassword user to /change-password from /notifications', async () => {
+    mockPathname = '/notifications';
+    primeStoredSession({ id: 'u1', username: 'jdoe', mustChangePassword: true });
+    render(
+      <AuthProvider>
+        <Probe />
+        <RootLayoutNav />
+      </AuthProvider>,
+    );
+    await waitFor(() => {
+      expect(redirectHref()).toBe('/change-password');
+    });
+  });
+
+  it('does not redirect a normal user on /notifications', async () => {
+    mockPathname = '/notifications';
+    primeStoredSession({ id: 'u1', username: 'jdoe' });
+    render(
+      <AuthProvider>
+        <Probe />
+        <RootLayoutNav />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(latestAuth?.isLoading).toBe(false));
+    expect(redirectHref()).toBeNull();
+  });
+
+  it('does not redirect a mustChangePassword user already on /change-password', async () => {
+    mockPathname = '/change-password';
+    primeStoredSession({ id: 'u1', username: 'jdoe', mustChangePassword: true });
+    render(
+      <AuthProvider>
+        <Probe />
+        <RootLayoutNav />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(latestAuth?.isLoading).toBe(false));
+    // No redirect loop — the guard exempts /change-password itself.
+    expect(redirectHref()).toBeNull();
+  });
+
+  it('flips the flag mid-session on /notifications and redirects to /change-password', async () => {
+    mockPathname = '/notifications';
+    primeStoredSession({ id: 'u1', username: 'jdoe' });
+    render(
+      <AuthProvider>
+        <Probe />
+        <RootLayoutNav />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(latestAuth?.isLoading).toBe(false));
+    expect(redirectHref()).toBeNull();
+
+    // Simulate mid-session admin reset: next business request returns 403
+    // PASSWORD_CHANGE_REQUIRED which flips the flag via the global handler.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        json403PasswordChangeRequired(String(input)),
+      ),
+    );
+    await act(async () => {
+      await expect(
+        customFetch('https://api.example.com/notifications'),
+      ).rejects.toBeInstanceOf(ApiError);
+    });
+
+    await waitFor(() => {
+      expect(redirectHref()).toBe('/change-password');
+    });
+    expect(latestAuth?.user).toMatchObject({ mustChangePassword: true });
   });
 });

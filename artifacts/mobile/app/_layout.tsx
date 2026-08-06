@@ -5,7 +5,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { AuthProvider } from '@/lib/auth';
+import { AuthProvider, useAuth } from '@/lib/auth';
 import { I18nProvider } from '@/lib/i18n';
 import { setBaseUrl } from '@workspace/api-client-react';
 import {
@@ -15,7 +15,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from '@expo-google-fonts/inter';
-import { Stack } from 'expo-router';
+import { Redirect, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 
 // Expo bundles run outside the web proxy — absolute URL to reach the API.
@@ -26,7 +26,22 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-function RootLayoutNav() {
+// Routes where a mustChangePassword user is legitimately allowed — the guard
+// must never redirect them away from the screens that handle authentication.
+const AUTH_ROUTES = new Set(['/login', '/change-password']);
+
+export function RootLayoutNav() {
+  const { user, isLoading } = useAuth();
+  const pathname = usePathname();
+
+  // Global guard: any authenticated user with mustChangePassword must be sent
+  // to /change-password regardless of which screen they landed on (deep link,
+  // mid-session admin reset, etc.). Tabs have their own identical guard, but
+  // this catches every non-tab route too.
+  if (!isLoading && user?.mustChangePassword && !AUTH_ROUTES.has(pathname)) {
+    return <Redirect href="/change-password" />;
+  }
+
   return (
     <Stack screenOptions={{ headerBackTitle: 'Back', headerShown: false }}>
       <Stack.Screen name="login" />
