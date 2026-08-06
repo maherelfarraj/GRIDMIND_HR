@@ -34,7 +34,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw, Pencil, Trash2 } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw, Pencil, Trash2, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 
 function intTypeIcon(type: string): React.ComponentType<{ className?: string }> {
   const map: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -680,6 +680,33 @@ export default function IntegrationGovernance() {
   const [deleteVaultTarget, setDeleteVaultTarget] = useState<any>(null);
   const [editProfile, setEditProfile] = useState<any>(null);
 
+  // Audit tab — independent state so filters/pagination don't reload the whole page
+  const [auditTabLog, setAuditTabLog] = useState<any[]>([]);
+  const [auditTabTotal, setAuditTabTotal] = useState(0);
+  const [auditTabPage, setAuditTabPage] = useState(1);
+  const [auditTabLoading, setAuditTabLoading] = useState(false);
+  const [auditTabFilters, setAuditTabFilters] = useState<{ eventType: string; profileId: string }>({ eventType: '', profileId: '' });
+  const AUDIT_PAGE_SIZE = 25;
+
+  const loadAuditTab = useCallback(async (filters: { eventType: string; profileId: string }, page: number) => {
+    setAuditTabLoading(true);
+    try {
+      const params: Record<string, any> = { page, pageSize: AUDIT_PAGE_SIZE };
+      if (filters.profileId) params.profileId = parseInt(filters.profileId);
+      if (filters.eventType) params.eventType = filters.eventType;
+      const result: any = await listIntegrationAuditLog(params);
+      setAuditTabLog(Array.isArray(result?.data) ? result.data : []);
+      setAuditTabTotal(typeof result?.total === 'number' ? result.total : 0);
+    } finally { setAuditTabLoading(false); }
+  }, []);
+
+  useEffect(() => { loadAuditTab(auditTabFilters, auditTabPage); }, [auditTabFilters, auditTabPage, loadAuditTab]);
+
+  function applyAuditFilters(filters: { eventType: string; profileId: string }) {
+    setAuditTabFilters(filters);
+    setAuditTabPage(1);
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -1148,10 +1175,65 @@ export default function IntegrationGovernance() {
           </TabsContent>
 
           {/* Audit Log */}
-          <TabsContent value="audit" className="mt-4">
+          <TabsContent value="audit" className="mt-4 space-y-3">
+            {/* Filter bar */}
+            <div className="flex flex-wrap items-end gap-3 p-3 bg-slate-800 border border-slate-700 rounded-lg">
+              <Filter className="w-4 h-4 text-slate-400 mt-1 shrink-0" />
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">{t('Event type', 'نوع الحدث')}</label>
+                <Select value={auditTabFilters.eventType || '__all__'} onValueChange={v => applyAuditFilters({ ...auditTabFilters, eventType: v === '__all__' ? '' : v })}>
+                  <SelectTrigger className="w-44 bg-slate-700 border-slate-600 text-sm h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700">
+                    <SelectItem value="__all__">{t('All types', 'جميع الأنواع')}</SelectItem>
+                    <SelectItem value="test_passed">test_passed</SelectItem>
+                    <SelectItem value="test_failed">test_failed</SelectItem>
+                    <SelectItem value="retry_triggered">retry_triggered</SelectItem>
+                    <SelectItem value="health_alert">health_alert</SelectItem>
+                    <SelectItem value="health_recovered">health_recovered</SelectItem>
+                    <SelectItem value="profile_approved">profile_approved</SelectItem>
+                    <SelectItem value="profile_suspended">profile_suspended</SelectItem>
+                    <SelectItem value="connected">connected</SelectItem>
+                    <SelectItem value="disconnected">disconnected</SelectItem>
+                    <SelectItem value="credentials_rotated">credentials_rotated</SelectItem>
+                    <SelectItem value="data_synced">data_synced</SelectItem>
+                    <SelectItem value="export_sent">export_sent</SelectItem>
+                    <SelectItem value="import_received">import_received</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">{t('Connection profile', 'ملف الاتصال')}</label>
+                <Select value={auditTabFilters.profileId || '__all__'} onValueChange={v => applyAuditFilters({ ...auditTabFilters, profileId: v === '__all__' ? '' : v })}>
+                  <SelectTrigger className="w-52 bg-slate-700 border-slate-600 text-sm h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700">
+                    <SelectItem value="__all__">{t('All profiles', 'جميع الملفات')}</SelectItem>
+                    {profiles.map(p => (
+                      <SelectItem key={p.id} value={String(p.id)}>{localName(p.profileName, p.profileNameAr, lang)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(auditTabFilters.eventType || auditTabFilters.profileId) && (
+                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white h-8 px-2" onClick={() => applyAuditFilters({ eventType: '', profileId: '' })}>
+                  {t('Clear filters', 'مسح الفلاتر')}
+                </Button>
+              )}
+              <div className="ms-auto flex items-center gap-1">
+                <Button variant="outline" size="sm" className="border-slate-600 h-8" onClick={() => loadAuditTab(auditTabFilters, auditTabPage)} disabled={auditTabLoading}>
+                  <RefreshCw className={`w-3.5 h-3.5 ${auditTabLoading ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            </div>
+
             <Card className="bg-slate-800 border-slate-700">
               <CardContent className="p-0">
-                {loading ? <div className="p-4 space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 bg-slate-700" />)}</div> : (
+                {auditTabLoading ? (
+                  <div className="p-4 space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 bg-slate-700" />)}</div>
+                ) : (
                   <Table>
                     <TableHeader><TableRow className="border-slate-700 bg-slate-700/50">
                       <TableHead className="text-slate-300">{t('Event', 'الحدث')}</TableHead>
@@ -1162,41 +1244,72 @@ export default function IntegrationGovernance() {
                       <TableHead className="text-slate-300">{t('When', 'متى')}</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {auditLog.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-slate-400 py-8">{t('No audit events', 'لا توجد أحداث تدقيق')}</TableCell></TableRow>
-                      : auditLog.map(a => (
-                        <TableRow key={a.id} className="border-slate-700 hover:bg-slate-700/30" data-testid={`audit-row-${a.id}`}>
-                          <TableCell className="text-slate-300 font-mono text-xs">
-                            {a.eventType === 'retry_triggered' ? (
-                              <Badge variant="outline" className={`text-xs font-mono ${eventTypeBadge(a.eventType)}`}>
-                                <RotateCcw className="w-3 h-3 me-1" />retry_triggered
-                              </Badge>
-                            ) : a.eventType}
-                          </TableCell>
-                          <TableCell><Badge variant="outline" className={`text-xs ${outcomeBadge(a.outcome)}`}>{a.outcome}</Badge></TableCell>
-                          <TableCell className="text-slate-300 text-sm">{a.profileId ?? '—'}</TableCell>
-                          <TableCell className="text-slate-400 text-sm max-w-48 truncate">{a.message ?? '—'}</TableCell>
-                          <TableCell className="text-slate-300 text-sm" data-testid={`audit-attempts-${a.id}`}>
-                            {(() => {
-                              const n = attemptCount(a);
-                              if (n == null) return <span className="text-slate-500">—</span>;
-                              if (n > 1 && a.eventType === 'test_passed') return (
-                                <Badge variant="outline" className="text-xs bg-emerald-900/40 text-emerald-300 border-emerald-700">
-                                  <RotateCcw className="w-3 h-3 me-1" />{t(`Recovered on attempt ${n}`, `تعافى في المحاولة ${n}`)}
+                      {auditTabLog.length === 0 ? (
+                        <TableRow><TableCell colSpan={6} className="text-center text-slate-400 py-8">
+                          {auditTabFilters.eventType || auditTabFilters.profileId
+                            ? t('No events match the current filters', 'لا توجد أحداث تطابق الفلاتر الحالية')
+                            : t('No audit events', 'لا توجد أحداث تدقيق')}
+                        </TableCell></TableRow>
+                      ) : auditTabLog.map(a => {
+                        const profileLabel = profiles.find(p => p.id === a.profileId);
+                        return (
+                          <TableRow key={a.id} className="border-slate-700 hover:bg-slate-700/30" data-testid={`audit-row-${a.id}`}>
+                            <TableCell className="text-slate-300 font-mono text-xs">
+                              {a.eventType === 'retry_triggered' ? (
+                                <Badge variant="outline" className={`text-xs font-mono ${eventTypeBadge(a.eventType)}`}>
+                                  <RotateCcw className="w-3 h-3 me-1" />retry_triggered
                                 </Badge>
-                              );
-                              return n > 1
-                                ? <span className="text-amber-300">{t(`${n} attempts`, `${n} محاولات`)}</span>
-                                : <span>{t('1 attempt', 'محاولة واحدة')}</span>;
-                            })()}
-                          </TableCell>
-                          <TableCell className="text-slate-400 text-sm whitespace-nowrap">{a.occurredAt ? timeAgo(a.occurredAt) : '—'}</TableCell>
-                        </TableRow>
-                      ))}
+                              ) : a.eventType}
+                            </TableCell>
+                            <TableCell><Badge variant="outline" className={`text-xs ${outcomeBadge(a.outcome)}`}>{a.outcome}</Badge></TableCell>
+                            <TableCell className="text-slate-300 text-sm">
+                              {profileLabel
+                                ? <button className="hover:underline text-blue-300 text-left" onClick={() => applyAuditFilters({ ...auditTabFilters, profileId: String(a.profileId) })}>{localName(profileLabel.profileName, profileLabel.profileNameAr, lang)}</button>
+                                : a.profileId ?? '—'}
+                            </TableCell>
+                            <TableCell className="text-slate-400 text-sm max-w-48 truncate">{a.message ?? '—'}</TableCell>
+                            <TableCell className="text-slate-300 text-sm" data-testid={`audit-attempts-${a.id}`}>
+                              {(() => {
+                                const n = attemptCount(a);
+                                if (n == null) return <span className="text-slate-500">—</span>;
+                                if (n > 1 && a.eventType === 'test_passed') return (
+                                  <Badge variant="outline" className="text-xs bg-emerald-900/40 text-emerald-300 border-emerald-700">
+                                    <RotateCcw className="w-3 h-3 me-1" />{t(`Recovered on attempt ${n}`, `تعافى في المحاولة ${n}`)}
+                                  </Badge>
+                                );
+                                return n > 1
+                                  ? <span className="text-amber-300">{t(`${n} attempts`, `${n} محاولات`)}</span>
+                                  : <span>{t('1 attempt', 'محاولة واحدة')}</span>;
+                              })()}
+                            </TableCell>
+                            <TableCell className="text-slate-400 text-sm whitespace-nowrap">{a.occurredAt ? timeAgo(a.occurredAt) : '—'}</TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
               </CardContent>
             </Card>
+
+            {/* Pagination */}
+            {auditTabTotal > AUDIT_PAGE_SIZE && (
+              <div className="flex items-center justify-between text-sm text-slate-400">
+                <span>
+                  {t(`Showing ${Math.min((auditTabPage - 1) * AUDIT_PAGE_SIZE + 1, auditTabTotal)}–${Math.min(auditTabPage * AUDIT_PAGE_SIZE, auditTabTotal)} of ${auditTabTotal}`,
+                     `عرض ${Math.min((auditTabPage - 1) * AUDIT_PAGE_SIZE + 1, auditTabTotal)}–${Math.min(auditTabPage * AUDIT_PAGE_SIZE, auditTabTotal)} من ${auditTabTotal}`)}
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" className="border-slate-600 h-7 px-2" disabled={auditTabPage <= 1 || auditTabLoading} onClick={() => setAuditTabPage(p => p - 1)}>
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="px-2">{t(`Page ${auditTabPage} of ${Math.ceil(auditTabTotal / AUDIT_PAGE_SIZE)}`, `صفحة ${auditTabPage} من ${Math.ceil(auditTabTotal / AUDIT_PAGE_SIZE)}`)}</span>
+                  <Button variant="outline" size="sm" className="border-slate-600 h-7 px-2" disabled={auditTabPage >= Math.ceil(auditTabTotal / AUDIT_PAGE_SIZE) || auditTabLoading} onClick={() => setAuditTabPage(p => p + 1)}>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 

@@ -14,6 +14,10 @@ profileId?: number | null;
 /**
  * @nullable
  */
+eventType?: string | null;
+/**
+ * @nullable
+ */
 page?: number | null;
 /**
  * @nullable

@@ -11,4 +11,5 @@ export type ListIntegrationAuditLog200 = {
   data: IntegrationAuditLog[];
   page: number;
   pageSize: number;
+  total: number;
 };

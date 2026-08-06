@@ -22,8 +22,7 @@ router.param("id", async (req, res, next, rawId) => {
   try {
     const id = parseInt(rawId, 10);
     if (!Number.isInteger(id)) { res.status(404).json({ error: "Not found" }); return; }
-    const [row] = await db.select({ orgId: leaveRequestsTable.orgId })
-      .from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
+    const [row] = await db.select({ orgId: leaveRequestsTable.orgId }).from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
     if (!row || row.orgId !== (await resolveOrgId(req))) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -250,7 +249,7 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
   // so exactly one row exists before we lock it.
   const year = new Date(r.startDate).getFullYear();
   await ensureLeaveBalance(r.employeeId, r.leaveTypeId, year);
-  let updated: typeof leaveRequestsTable.$inferSelect;
+  let updated: typeof leaveRequestsTable.$inferSelect | undefined;
   try {
     updated = await db.transaction(async (tx) => {
       const [lockedReq] = await tx.select().from(leaveRequestsTable)
@@ -389,7 +388,7 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
   //    cancels — or a cancel racing a decide — read a consistent status.
   // 2. Only submitted/under_review requests hold a pending reservation;
   //    draft cancels must NOT touch the balance.
-  let updated: typeof leaveRequestsTable.$inferSelect;
+  let updated: typeof leaveRequestsTable.$inferSelect | undefined;
   try {
     updated = await db.transaction(async (tx) => {
       // Lock the request row first to get the authoritative current status.
@@ -470,7 +469,7 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
 // POST /leave-requests/:id/revoke — undo an approved leave (fully or shorten the range)
 router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
   // Only supervisors/HR with the "approvals.decide" permission may revoke.
-  let actor: Awaited<ReturnType<typeof requireActorPermission>>;
+  let actor = await getActorInfo(req);
   try {
     actor = await requireActorPermission(req, DECIDE_PERMISSION);
   } catch (err) {

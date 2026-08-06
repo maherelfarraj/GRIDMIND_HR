@@ -2033,7 +2033,7 @@ paths:
   /leave-requests/{id}/attachments/{attachmentId}:
     get:
       tags: [ leave ]
-      summary: Fetch a single leave attachment including its file payload
+      summary: Retrieve a single attachment with full file payload
       operationId: getLeaveAttachment
       parameters:
         - name: id
@@ -10890,6 +10890,7 @@ paths:
       summary: List integration governance audit log entries
       parameters:
         - { name: profileId, in: query, schema: { type: [ "integer", "null" ] } }
+        - { name: eventType, in: query, schema: { type: [ "string", "null" ] } }
         - { name: page, in: query, schema: { type: [ "integer", "null" ] } }
         - { name: pageSize, in: query, schema: { type: [ "integer", "null" ] } }
       responses:
@@ -10906,7 +10907,8 @@ paths:
                       $ref: "#/components/schemas/IntegrationAuditLog"
                   page: { type: number }
                   pageSize: { type: number }
-                required: [ data, page, pageSize ]
+                  total: { type: number }
+                required: [ data, page, pageSize, total ]
 
   /integration-governance/health-checks/run:
     post:
@@ -12061,8 +12063,6 @@ components:
         decisionNote: { type: [ "string", "null" ] }
         dueDate: { type: [ "string", "null" ] }
         metadata: { type: [ "string", "null" ] }
-        entityType: { type: [ "string", "null" ] }
-        entityId: { type: [ "integer", "null" ] }
         createdAt: { type: string }
       required:
         - id
@@ -12086,8 +12086,6 @@ components:
         assignedToUserId: { type: [ "integer", "null" ] }
         dueDate: { type: [ "string", "null" ] }
         metadata: { type: [ "string", "null" ] }
-        entityType: { type: [ "string", "null" ] }
-        entityId: { type: [ "integer", "null" ] }
       required: [ type, titleEn, titleAr, priority, requestedByEmployeeId ]
 
     ApprovalDecision:

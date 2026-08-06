@@ -4,7 +4,7 @@ import {
   integrationCredentialVaultRefsTable, integrationConnectionProfilesTable,
   integrationGovernanceRulesTable, integrationAuditLogTable, systemUsersTable,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 import { resolveOrgId, orgOwnershipGuard } from "../lib/orgContext";
 import { testLdapConnection, type AdapterResult } from "../lib/ldap-adapter.js";
 import { testSmtpConnection } from "../lib/smtp-adapter.js";
@@ -518,18 +518,23 @@ router.delete("/integration-governance/governance-rules/:id", async (req, res): 
 
 router.get("/integration-governance/audit-log", async (req, res): Promise<void> => {
   try {
-    const { profileId, page: pageStr, pageSize: pageSizeStr, eventType } = req.query as Record<string, string>;
-    const page = parseInt(pageStr ?? "1");
-    const pageSize = parseInt(pageSizeStr ?? "50");
+    const { profileId, eventType, page: pageStr, pageSize: pageSizeStr } = req.query as Record<string, string>;
+    const page = Math.max(1, parseInt(pageStr ?? "1") || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(pageSizeStr ?? "50") || 50));
     const offset = (page - 1) * pageSize;
     const conditions: any[] = [];
     if (profileId) conditions.push(eq(integrationAuditLogTable.profileId, parseInt(profileId)));
     if (eventType) conditions.push(eq(integrationAuditLogTable.eventType, eventType));
-    const rows = await db.select().from(integrationAuditLogTable)
-      .where(conditions.length ? and(...conditions) : undefined)
-      .orderBy(desc(integrationAuditLogTable.occurredAt))
-      .limit(pageSize).offset(offset);
-    res.json({ data: rows, page, pageSize });
+    const baseQuery = db.select().from(integrationAuditLogTable);
+    const rows = conditions.length
+      ? await baseQuery.where(and(...conditions)).orderBy(desc(integrationAuditLogTable.occurredAt)).limit(pageSize).offset(offset)
+      : await baseQuery.orderBy(desc(integrationAuditLogTable.occurredAt)).limit(pageSize).offset(offset);
+    // Total count using SQL aggregate — same filters, no data transfer
+    const countQuery = db.select({ total: count() }).from(integrationAuditLogTable);
+    const [{ total }] = conditions.length
+      ? await countQuery.where(and(...conditions))
+      : await countQuery;
+    res.json({ data: rows, page, pageSize, total });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

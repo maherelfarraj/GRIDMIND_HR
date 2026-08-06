@@ -831,8 +831,6 @@ export const ListApprovalsResponseItem = zod.object({
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
   "metadata": zod.string().nullish(),
-  "entityType": zod.string().nullish(),
-  "entityId": zod.number().nullish(),
   "createdAt": zod.string()
 })
 export const ListApprovalsResponse = zod.array(ListApprovalsResponseItem)
@@ -849,9 +847,7 @@ export const CreateApprovalBody = zod.object({
   "requestedByEmployeeId": zod.number(),
   "assignedToUserId": zod.number().nullish(),
   "dueDate": zod.string().nullish(),
-  "metadata": zod.string().nullish(),
-  "entityType": zod.string().nullish(),
-  "entityId": zod.number().nullish()
+  "metadata": zod.string().nullish()
 })
 
 export const CreateApprovalResponse = zod.object({
@@ -869,8 +865,6 @@ export const CreateApprovalResponse = zod.object({
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
   "metadata": zod.string().nullish(),
-  "entityType": zod.string().nullish(),
-  "entityId": zod.number().nullish(),
   "createdAt": zod.string()
 })
 
@@ -897,8 +891,6 @@ export const GetApprovalResponse = zod.object({
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
   "metadata": zod.string().nullish(),
-  "entityType": zod.string().nullish(),
-  "entityId": zod.number().nullish(),
   "createdAt": zod.string()
 })
 
@@ -930,8 +922,6 @@ export const DecideApprovalResponse = zod.object({
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
   "metadata": zod.string().nullish(),
-  "entityType": zod.string().nullish(),
-  "entityId": zod.number().nullish(),
   "createdAt": zod.string()
 })
 
@@ -3157,7 +3147,7 @@ export const AddLeaveAttachmentResponse = zod.object({
 
 
 /**
- * @summary Fetch a single leave attachment including its file payload
+ * @summary Retrieve a single attachment with full file payload
  */
 export const GetLeaveAttachmentParams = zod.object({
   "id": zod.coerce.number(),
@@ -18120,6 +18110,7 @@ export const UpdateGovernanceRuleResponse = zod.object({
  */
 export const ListIntegrationAuditLogQueryParams = zod.object({
   "profileId": zod.coerce.number().int().nullish(),
+  "eventType": zod.coerce.string().nullish(),
   "page": zod.coerce.number().int().nullish(),
   "pageSize": zod.coerce.number().int().nullish()
 })
@@ -18138,7 +18129,8 @@ export const ListIntegrationAuditLogResponse = zod.object({
   "occurredAt": zod.string()
 })),
   "page": zod.number(),
-  "pageSize": zod.number()
+  "pageSize": zod.number(),
+  "total": zod.number()
 })
 
 

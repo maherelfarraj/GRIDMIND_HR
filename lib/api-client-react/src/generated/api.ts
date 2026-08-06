@@ -7902,7 +7902,7 @@ export const getGetLeaveAttachmentUrl = (id: number,
 }
 
 /**
- * @summary Fetch a single leave attachment including its file payload
+ * @summary Retrieve a single attachment with full file payload
  */
 export const getLeaveAttachment = async (id: number,
     attachmentId: number, options?: Parameters<typeof customFetch>[1]): Promise<LeaveAttachment> => {
@@ -7952,7 +7952,7 @@ export type GetLeaveAttachmentQueryError = ErrorType<void>
 
 
 /**
- * @summary Fetch a single leave attachment including its file payload
+ * @summary Retrieve a single attachment with full file payload
  */
 
 export function useGetLeaveAttachment<TData = Awaited<ReturnType<typeof getLeaveAttachment>>, TError = ErrorType<void>>(
