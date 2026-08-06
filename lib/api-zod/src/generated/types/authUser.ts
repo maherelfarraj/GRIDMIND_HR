@@ -16,10 +16,13 @@ export interface AuthUser {
   roleId: number;
   /** @nullable */
   employeeId?: number | null;
+  /** @nullable */
+  orgId?: number | null;
   isActive: boolean;
   mfaEnabled: boolean;
   preferredLanguage: string;
   /** @nullable */
   lastLoginAt?: string | null;
+  canSwitchOrg?: boolean;
   sessionToken?: string;
 }

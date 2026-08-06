@@ -14,6 +14,7 @@ import { recordSecurityEmailOutcome } from "../lib/email-alert-status.js";
 
 import { isAuthEnforced } from "../lib/authMode.js";
 import { revokeUserSessions } from "../lib/sessionRevocation.js";
+import { getUserHomeOrgId } from "../lib/orgContext.js";
 
 const router = Router();
 
@@ -110,6 +111,8 @@ function parseRolePermissions(permissionsJson: string | null | undefined): strin
 }
 async function userResponse(user: typeof systemUsersTable.$inferSelect) {
   const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, user.roleId));
+  // Home org: prefer the direct org_id column, fall back to default.
+  const homeOrgId = user.orgId ?? await getUserHomeOrgId(user.id);
   return {
     id: user.id,
     username: user.username,
@@ -118,12 +121,14 @@ async function userResponse(user: typeof systemUsersTable.$inferSelect) {
     fullNameAr: user.fullNameAr,
     roleId: user.roleId,
     employeeId: user.employeeId,
+    orgId: homeOrgId,
     isActive: user.isActive,
     mfaEnabled: user.mfaEnabled,
     preferredLanguage: user.preferredLanguage,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     mustChangePassword: user.mustChangePassword,
     permissions: parseRolePermissions(role?.permissionsJson),
+    canSwitchOrg: role?.systemRole === true,
   };
 }
 

@@ -25,7 +25,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const { lang, setLang, t } = useLanguage();
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
-  const { orgs, activeOrg, switchOrg } = useOrg();
+  const { orgs, activeOrg, switchOrg, canSwitchOrg } = useOrg();
   const { data: alerts } = useListAlerts();
   const { toast } = useToast();
   const changeMyPassword = useChangeMyPassword();
@@ -95,7 +95,7 @@ export function Header({ onMenuClick }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        {orgs.length > 1 && (
+        {canSwitchOrg && orgs.length > 1 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-9 gap-2 max-w-[220px]" data-testid="button-org-switcher">

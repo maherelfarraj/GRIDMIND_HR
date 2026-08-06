@@ -9,12 +9,14 @@ interface User {
   fullNameAr: string;
   roleId: number;
   employeeId: number | null;
+  orgId: number | null;
   isActive: boolean;
   mfaEnabled: boolean;
   preferredLanguage: string;
   lastLoginAt: string | null;
   mustChangePassword?: boolean;
   permissions?: string[];
+  canSwitchOrg?: boolean;
 }
 
 interface AuthContextType {

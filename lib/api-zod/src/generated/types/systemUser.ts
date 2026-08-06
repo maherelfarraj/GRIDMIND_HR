@@ -16,6 +16,8 @@ export interface SystemUser {
   roleNameEn: string;
   /** @nullable */
   employeeId?: number | null;
+  /** @nullable */
+  orgId?: number | null;
   isActive: boolean;
   /** @nullable */
   lastLoginAt?: string | null;

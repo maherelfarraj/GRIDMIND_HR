@@ -9,6 +9,7 @@ export const systemUsersTable = pgTable("system_users", {
   fullNameEn: text("full_name_en").notNull(),
   fullNameAr: text("full_name_ar").notNull(),
   roleId: integer("role_id").notNull(),
+  orgId: integer("org_id"),
   employeeId: integer("employee_id"),
   isActive: boolean("is_active").notNull().default(true),
   mfaEnabled: boolean("mfa_enabled").notNull().default(false),

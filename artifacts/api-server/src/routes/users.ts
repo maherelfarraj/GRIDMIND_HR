@@ -1,7 +1,8 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db, systemUsersTable, rolesTable, auditLogsTable } from "@workspace/db";
+import { db, systemUsersTable, rolesTable, auditLogsTable, employeesTable } from "@workspace/db";
 import { and, eq, gte, inArray } from "drizzle-orm";
+import { resolveOrgId } from "../lib/orgContext.js";
 import {
   CreateUserBody,
   UpdateUserBody,
@@ -142,7 +143,22 @@ router.post("/users", async (req, res): Promise<void> => {
   }
   const parsed = CreateUserBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const [user] = await db.insert(systemUsersTable).values(parsed.data).returning();
+
+  // Auto-assign home org: derive from the linked employee's org when present,
+  // otherwise use the active org context so the user lands in the right tenant.
+  const data: typeof parsed.data & { orgId?: number | null } = { ...parsed.data };
+  if (data.orgId == null) {
+    if (data.employeeId != null) {
+      const [emp] = await db.select({ orgId: employeesTable.orgId })
+        .from(employeesTable)
+        .where(eq(employeesTable.id, data.employeeId));
+      data.orgId = emp?.orgId ?? await resolveOrgId(req);
+    } else {
+      data.orgId = await resolveOrgId(req);
+    }
+  }
+
+  const [user] = await db.insert(systemUsersTable).values(data).returning();
   res.status(201).json(await buildUserResponse(user));
 });
 

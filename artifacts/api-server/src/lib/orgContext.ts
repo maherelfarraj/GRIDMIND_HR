@@ -142,6 +142,7 @@ async function loadUserOrgAccess(userId: number): Promise<{ homeOrgId: number | 
   let entry = userOrgAccessCache.get(userId);
   if (entry && now - entry.at <= USER_ACCESS_TTL_MS) return entry;
   const [row] = await db.select({
+    orgId: systemUsersTable.orgId,
     employeeId: systemUsersTable.employeeId,
     systemRole: rolesTable.systemRole,
   })
@@ -149,8 +150,10 @@ async function loadUserOrgAccess(userId: number): Promise<{ homeOrgId: number | 
     .leftJoin(rolesTable, eq(systemUsersTable.roleId, rolesTable.id))
     .where(eq(systemUsersTable.id, userId));
   if (!row) return null;
-  let homeOrgId: number | null = null;
-  if (row.employeeId != null) {
+  // Prefer the direct org_id column; fall back to the linked employee's org
+  // for legacy rows that pre-date the column.
+  let homeOrgId: number | null = row.orgId ?? null;
+  if (homeOrgId == null && row.employeeId != null) {
     const [emp] = await db.select({ orgId: employeesTable.orgId }).from(employeesTable)
       .where(eq(employeesTable.id, row.employeeId));
     homeOrgId = emp?.orgId ?? null;

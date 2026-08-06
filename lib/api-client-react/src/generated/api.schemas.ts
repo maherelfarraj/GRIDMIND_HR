@@ -1184,6 +1184,8 @@ export interface SystemUser {
   roleNameEn: string;
   /** @nullable */
   employeeId?: number | null;
+  /** @nullable */
+  orgId?: number | null;
   isActive: boolean;
   /** @nullable */
   lastLoginAt?: string | null;
@@ -4254,11 +4256,14 @@ export interface AuthUser {
   roleId: number;
   /** @nullable */
   employeeId?: number | null;
+  /** @nullable */
+  orgId?: number | null;
   isActive: boolean;
   mfaEnabled: boolean;
   preferredLanguage: string;
   /** @nullable */
   lastLoginAt?: string | null;
+  canSwitchOrg?: boolean;
   sessionToken?: string;
 }
 

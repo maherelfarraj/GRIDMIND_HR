@@ -12488,6 +12488,7 @@ components:
         roleId: { type: number }
         roleNameEn: { type: string }
         employeeId: { type: [ "integer", "null" ] }
+        orgId: { type: [ "integer", "null" ] }
         isActive: { type: boolean }
         lastLoginAt: { type: [ "string", "null" ] }
         mfaEnabled: { type: boolean }
@@ -16248,10 +16249,12 @@ components:
         fullNameAr: { type: [ "string", "null" ] }
         roleId: { type: number }
         employeeId: { type: [ "number", "null" ] }
+        orgId: { type: [ "number", "null" ] }
         isActive: { type: boolean }
         mfaEnabled: { type: boolean }
         preferredLanguage: { type: string }
         lastLoginAt: { type: [ "string", "null" ] }
+        canSwitchOrg: { type: boolean }
         # Present only when the client requests bearer-token transport
         # (x-session-transport: bearer), e.g. the mobile app storing the
         # session token in SecureStore instead of relying on cookies.
