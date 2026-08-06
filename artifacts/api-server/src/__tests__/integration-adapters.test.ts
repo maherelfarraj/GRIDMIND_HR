@@ -770,3 +770,133 @@ describe("Per-profile host resolution: two-profile differentiation (device adapt
     expect(res.body.message).toContain("/ok/health");
   });
 });
+
+// ─── Per-profile host resolution: two-profile differentiation (SMTP) ─────────
+//
+// Two SMTP profiles with different hosts are tested simultaneously. Each /test
+// result message must cite only that profile's own host — not the global env-var
+// host and not the other profile's host. Spanning staging and production
+// environments catches any regression where production profiles are silently
+// re-routed. We also verify the env-var fallback: a profile with no host in
+// connectionParamsJson must fall through to SMTP_HOST.
+
+describe("Per-profile host resolution: two-profile differentiation (SMTP)", () => {
+  const localVaultRefIds: number[] = [];
+  const localProfileIds: number[] = [];
+
+  afterAll(async () => {
+    if (localProfileIds.length) {
+      await db.delete(integrationAuditLogTable)
+        .where(inArray(integrationAuditLogTable.profileId, localProfileIds));
+      await db.delete(integrationConnectionProfilesTable)
+        .where(inArray(integrationConnectionProfilesTable.id, localProfileIds));
+    }
+    if (localVaultRefIds.length) {
+      await db.delete(integrationCredentialVaultRefsTable)
+        .where(inArray(integrationCredentialVaultRefsTable.id, localVaultRefIds));
+    }
+  });
+
+  async function createSmtpProfile(
+    host: string,
+    label: string,
+    environment: "staging" | "production",
+  ) {
+    const [ref] = await db.insert(integrationCredentialVaultRefsTable).values({
+      labelEn: `${label} smtp cred ${Date.now()}`,
+      labelAr: "بيانات اعتماد",
+      credentialType: "smtp",
+      vaultKeyRef: `vault:two_profile_smtp_${label}_${Date.now()}`,
+      status: "active",
+      createdByUserId: 1,
+    }).returning();
+    localVaultRefIds.push(ref.id);
+
+    const [profile] = await db.insert(integrationConnectionProfilesTable).values({
+      profileName: `${label} SMTP ${Date.now()}`,
+      profileNameAr: "ملف SMTP",
+      integrationType: "smtp",
+      environment,
+      // host and user set per-profile so the adapter resolves them from the profile,
+      // not from the global env vars; pass a dummy user/pass so we get past the
+      // "missing settings" guard and reach the actual connection attempt.
+      connectionParamsJson: JSON.stringify({ host, port: 587, user: `test@${host}` }),
+      credentialVaultRefId: ref.id,
+      createdByUserId: 1,
+    }).returning();
+    localProfileIds.push(profile.id);
+    return profile.id;
+  }
+
+  it("staging and production SMTP profiles each hit their own host, not the other's or the global", async () => {
+    // Global host is a distinct third value — must NOT appear in either result.
+    process.env.SMTP_HOST = "global.smtp.should-not-appear.test";
+    process.env.SMTP_USER = "global@example.test";
+    process.env.SMTP_PASS = "global-pass";
+
+    // Alpha is staging, Beta is production — different environments, different hosts.
+    // Both hosts are unresolvable; we only care that each failure message cites its
+    // own host and not the other profile's or the global.
+    const profileAlphaId = await createSmtpProfile("smtp-alpha.mail.test", "alpha", "staging");
+    const profileBetaId  = await createSmtpProfile("smtp-beta.mail.test",  "beta",  "production");
+
+    const [resAlpha, resBeta] = await Promise.all([
+      request(app).post(`/api/integration-governance/connection-profiles/${profileAlphaId}/test`),
+      request(app).post(`/api/integration-governance/connection-profiles/${profileBetaId}/test`),
+    ]);
+
+    expect(resAlpha.status).toBe(200);
+    expect(resBeta.status).toBe(200);
+
+    // Both fail (unresolvable hostnames) but each message must cite its own host.
+    expect(resAlpha.body.success).toBe(false);
+    expect(resAlpha.body.simulated).toBe(false);
+    expect(resAlpha.body.message).toContain("smtp-alpha.mail.test");
+    expect(resAlpha.body.message).not.toContain("smtp-beta.mail.test");
+    expect(resAlpha.body.message).not.toContain("global.smtp.should-not-appear.test");
+
+    expect(resBeta.body.success).toBe(false);
+    expect(resBeta.body.simulated).toBe(false);
+    expect(resBeta.body.message).toContain("smtp-beta.mail.test");
+    expect(resBeta.body.message).not.toContain("smtp-alpha.mail.test");
+    expect(resBeta.body.message).not.toContain("global.smtp.should-not-appear.test");
+  });
+
+  it("SMTP profile without host in connectionParamsJson falls back to global SMTP_HOST", async () => {
+    process.env.SMTP_HOST = "global-fallback.smtp.test";
+    process.env.SMTP_USER = "fallback@example.test";
+    process.env.SMTP_PASS = "fallback-pass";
+
+    const [ref] = await db.insert(integrationCredentialVaultRefsTable).values({
+      labelEn: `Fallback SMTP cred ${Date.now()}`,
+      labelAr: "بيانات اعتماد",
+      credentialType: "smtp",
+      vaultKeyRef: `vault:smtp_fallback_${Date.now()}`,
+      status: "active",
+      createdByUserId: 1,
+    }).returning();
+    localVaultRefIds.push(ref.id);
+
+    const [profile] = await db.insert(integrationConnectionProfilesTable).values({
+      profileName: `Fallback SMTP ${Date.now()}`,
+      profileNameAr: "ملف SMTP احتياطي",
+      integrationType: "smtp",
+      environment: "staging",
+      // No host — adapter must fall back to SMTP_HOST env var.
+      // Include user in params so we don't hit the "missing settings" branch
+      // before reaching the connection attempt.
+      connectionParamsJson: JSON.stringify({ user: "profile-user@example.test" }),
+      credentialVaultRefId: ref.id,
+      createdByUserId: 1,
+    }).returning();
+    localProfileIds.push(profile.id);
+
+    const res = await request(app)
+      .post(`/api/integration-governance/connection-profiles/${profile.id}/test`);
+    expect(res.status).toBe(200);
+    // Failure is expected (unresolvable host), but message must cite the GLOBAL host.
+    expect(res.body.success).toBe(false);
+    expect(res.body.simulated).toBe(false);
+    expect(res.body.message).toContain("global-fallback.smtp.test");
+  });
+});
