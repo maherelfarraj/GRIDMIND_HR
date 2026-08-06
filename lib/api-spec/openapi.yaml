@@ -776,9 +776,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AttendanceRecord"
+                $ref: "#/components/schemas/AttendanceListResponse"
 
   /attendance/daily-summary:
     get:
@@ -12139,6 +12137,22 @@ components:
       required: [ data, total, page, limit ]
 
     # ── Attendance ─────────────────────────────────────────
+    AttendanceListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendanceRecord"
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+      required:
+        - data
+        - total
+        - page
+        - limit
+
     AttendanceRecord:
       type: object
       properties:

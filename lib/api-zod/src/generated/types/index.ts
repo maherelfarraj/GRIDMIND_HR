@@ -58,6 +58,7 @@ export * from './attendanceDailySummary';
 export * from './attendanceDevice';
 export * from './attendanceDeviceInput';
 export * from './attendanceDeviceUpdate';
+export * from './attendanceListResponse';
 export * from './attendanceOverview';
 export * from './attendanceRecord';
 export * from './auditLog';

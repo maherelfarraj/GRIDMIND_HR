@@ -69,10 +69,15 @@ export default function Attendance() {
   const filterDepartmentId = params.get('departmentId') ? Number(params.get('departmentId')) : null;
   const filterDate = params.get('date');
 
+  const [attPage, setAttPage] = useState(1);
+  const PAGE_SIZE = 50;
+
   const { data: departments } = useListDepartments();
   const { data: attendanceData, isLoading: loadingAttendance } = useListAttendance({
     departmentId: filterDepartmentId ?? undefined,
     date: filterDate ?? undefined,
+    page: attPage,
+    limit: PAGE_SIZE,
   });
   const { data: summaryData, isLoading: loadingSummary } = useGetAttendanceDailySummary({
     date: filterDate ?? undefined,
@@ -83,7 +88,7 @@ export default function Attendance() {
     if (filterDepartmentId == null) return null;
     const dept = departments?.find((d) => d.id === filterDepartmentId);
     if (dept) return localName(dept.nameEn, dept.nameAr, lang);
-    const attRow = attendanceData?.find((r) => r.departmentId === filterDepartmentId);
+    const attRow = attendanceData?.data?.find((r) => r.departmentId === filterDepartmentId);
     const sumRow = summaryData?.find((s) => s.departmentId === filterDepartmentId);
     // AttendanceRecord only has departmentNameEn; AttendanceDailySummary has both
     return localName(
@@ -93,10 +98,10 @@ export default function Attendance() {
     ) || `#${filterDepartmentId}`;
   }, [filterDepartmentId, attendanceData, summaryData, lang]);
 
-  const clearFilters = () => navigate('/attendance', { replace: true });
+  const clearFilters = () => { setAttPage(1); navigate('/attendance', { replace: true }); };
 
   const exportCsv = () => {
-    if (!attendanceData || attendanceData.length === 0) return;
+    if (!attendanceData?.data?.length) return;
 
     const isAr = lang === 'ar';
     const headers = isAr
@@ -120,7 +125,7 @@ export default function Attendance() {
         : s;
     };
 
-    const rows = attendanceData.map((r) => [
+    const rows = attendanceData.data.map((r) => [
       escape(localName(r.employeeNameEn, r.employeeNameAr, lang)),
       escape(localName(r.departmentNameEn, departments?.find(d => d.id === r.departmentId)?.nameAr, lang)),
       escape(r.date ?? filterDate ?? ''),
@@ -143,6 +148,7 @@ export default function Attendance() {
   };
 
   const setFilters = (departmentId: number | null, date: string | null) => {
+    setAttPage(1);
     const next = new URLSearchParams();
     if (departmentId != null) next.set('departmentId', String(departmentId));
     if (date) next.set('date', date);
@@ -323,7 +329,7 @@ export default function Attendance() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={exportCsv} disabled={!attendanceData || attendanceData.length === 0}>
+          <Button variant="outline" onClick={exportCsv} disabled={!attendanceData?.data?.length}>
             <Download className="w-4 h-4 me-2" />
             {t('Export Report', 'تصدير التقرير')}
           </Button>
@@ -455,14 +461,14 @@ export default function Attendance() {
                       <TableCell><Skeleton className="h-6 w-24 ms-auto" /></TableCell>
                     </TableRow>
                   ))
-                ) : !attendanceData || attendanceData.length === 0 ? (
+                ) : !attendanceData?.data || attendanceData.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       {t('No attendance records found.', 'لم يتم العثور على سجلات.')}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  attendanceData.map((record) => (
+                  attendanceData.data.map((record) => (
                     <TableRow key={record.id}>
                       <TableCell className="font-medium">
                         {localName(record.employeeNameEn, record.employeeNameAr, lang)}
@@ -487,6 +493,34 @@ export default function Attendance() {
                 </TableBody>
               </Table>
               </div>
+              {attendanceData && attendanceData.total > PAGE_SIZE && (
+                <div className="px-4 py-3 border-t flex items-center justify-between text-sm text-muted-foreground">
+                  <span>
+                    {t('Showing', 'عرض')} {((attPage - 1) * PAGE_SIZE) + 1}–{Math.min(attPage * PAGE_SIZE, attendanceData.total)} {t('of', 'من')} {attendanceData.total}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={attPage <= 1}
+                      onClick={() => setAttPage(p => p - 1)}
+                    >
+                      {t('Previous', 'السابق')}
+                    </Button>
+                    <span className="px-1">
+                      {t('Page', 'صفحة')} {attPage} / {Math.ceil(attendanceData.total / PAGE_SIZE)}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={attPage >= Math.ceil(attendanceData.total / PAGE_SIZE)}
+                      onClick={() => setAttPage(p => p + 1)}
+                    >
+                      {t('Next', 'التالي')}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -498,12 +532,12 @@ export default function Attendance() {
               Array.from({ length: 6 }).map((_, i) => (
                 <Card key={i}><CardContent className="p-4"><Skeleton className="h-24 w-full" /></CardContent></Card>
               ))
-            ) : !attendanceData || attendanceData.length === 0 ? (
+            ) : !attendanceData?.data || attendanceData.data.length === 0 ? (
               <div className="col-span-full text-center py-12 text-muted-foreground">
                 {t('No attendance records found.', 'لم يتم العثور على سجلات.')}
               </div>
             ) : (
-              attendanceData.map((record) => {
+              attendanceData.data.map((record) => {
                 const initials = (localName(record.employeeNameEn, record.employeeNameAr, lang))
                   .split(' ')
                   .map(n => n[0])

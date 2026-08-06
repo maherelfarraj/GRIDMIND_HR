@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction, RequestHandler } from "express";
+import type { RequestHandler } from "express";
 import { type ZodObject, type ZodRawShape, type UnknownKeysParam, type ZodTypeAny, ZodIssueCode } from "zod";
 
 /**
@@ -12,17 +12,26 @@ import { type ZodObject, type ZodRawShape, type UnknownKeysParam, type ZodTypeAn
  *   downstream handlers can insert/update it wholesale without worrying
  *   about extra keys slipping through.
  *
+ * Generic over the route params type so subsequent handlers in the same
+ * route retain properly-typed req.params (e.g. req.params.id stays string).
+ *
  * Usage:
  *   router.post("/", validateBody(CreateFooBody), async (req, res) => { … });
  *   router.patch("/:id", validateBody(UpdateFooBody), async (req, res) => { … });
  */
-export function validateBody(
+export function validateBody<
+  P extends Record<string, string> = Record<string, string>,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery extends Record<string, any> = Record<string, any>,
+  LocalsObj extends Record<string, any> = Record<string, any>,
+>(
   schema: ZodObject<ZodRawShape, UnknownKeysParam, ZodTypeAny>,
-): RequestHandler {
+): RequestHandler<P, ResBody, ReqBody, ReqQuery, LocalsObj> {
   // Build the strict variant once at registration time, not per request.
   const strict = schema.strict();
 
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req, res, next): void => {
     const result = strict.safeParse(req.body);
     if (!result.success) {
       // Surface unrecognized-key errors with the field names so callers can
@@ -38,13 +47,13 @@ export function validateBody(
         res.status(400).json({
           error: "Request body contains unrecognized fields",
           unknownFields,
-        });
+        } as any);
         return;
       }
-      res.status(400).json({ error: result.error.message });
+      res.status(400).json({ error: result.error.message } as any);
       return;
     }
-    req.body = result.data;
+    req.body = result.data as ReqBody;
     next();
   };
 }

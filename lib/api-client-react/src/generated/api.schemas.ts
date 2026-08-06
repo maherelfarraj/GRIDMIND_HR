@@ -824,6 +824,12 @@ export interface AttendanceRecord {
   createdAt?: string;
 }
 
+export interface AttendanceListResponse {
+  data: AttendanceRecord[];
+  total: number;
+  page: number;
+  limit: number;
+}
 export interface AttendanceDailySummary {
   departmentId: number;
   departmentNameEn: string;

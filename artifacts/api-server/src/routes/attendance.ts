@@ -22,19 +22,22 @@ router.get("/attendance", async (req, res): Promise<void> => {
   const limit = q.limit ?? 50;
   const offset = (page - 1) * limit;
 
-  const records = await db.select().from(attendanceRecordsTable)
-    .where(and(...conditions))
-    .orderBy(sql`${attendanceRecordsTable.date} desc, ${attendanceRecordsTable.id} desc`)
-    .limit(limit).offset(offset);
+  const [records, [{ total }], emps, depts, devices] = await Promise.all([
+    db.select().from(attendanceRecordsTable)
+      .where(and(...conditions))
+      .orderBy(sql`${attendanceRecordsTable.date} desc, ${attendanceRecordsTable.id} desc`)
+      .limit(limit).offset(offset),
+    db.select({ total: count() }).from(attendanceRecordsTable).where(and(...conditions)),
+    db.select().from(employeesTable),
+    db.select().from(departmentsTable),
+    db.select().from(attendanceDevicesTable),
+  ]);
 
-  const emps = await db.select().from(employeesTable);
-  const depts = await db.select().from(departmentsTable);
-  const devices = await db.select().from(attendanceDevicesTable);
   const empMap = Object.fromEntries(emps.map((e) => [e.id, e]));
   const deptMap = Object.fromEntries(depts.map((d) => [d.id, d]));
   const deviceMap = Object.fromEntries(devices.map((d) => [d.id, d]));
 
-  const result = records.map((r) => {
+  const data = records.map((r) => {
     const emp = empMap[r.employeeId];
     return {
       id: r.id,
@@ -55,7 +58,7 @@ router.get("/attendance", async (req, res): Promise<void> => {
       notes: r.notes ?? null,
     };
   });
-  res.json(result);
+  res.json({ data, total: Number(total), page, limit });
 });
 
 router.get("/attendance/daily-summary", async (req, res): Promise<void> => {

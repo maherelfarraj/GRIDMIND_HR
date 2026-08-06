@@ -986,8 +986,8 @@ export const ListAttendanceQueryParams = zod.object({
   "page": zod.coerce.number().int().nullish(),
   "limit": zod.coerce.number().int().nullish()
 })
-
-export const ListAttendanceResponseItem = zod.object({
+export const ListAttendanceResponse = zod.object({
+  "data": zod.array(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeId": zod.number(),
@@ -1006,8 +1006,11 @@ export const ListAttendanceResponseItem = zod.object({
   "workingHours": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date().optional()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
 })
-export const ListAttendanceResponse = zod.array(ListAttendanceResponseItem)
 
 /**
  * @summary Daily attendance summary by department
@@ -18793,4 +18796,3 @@ export const UpsertOrganizationBrandingResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
-

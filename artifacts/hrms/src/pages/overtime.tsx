@@ -67,21 +67,28 @@ export default function Overtime() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [ruleForm, setRuleForm] = useState({ ...defaultRuleForm });
+  // otPage paginates the client-side–filtered OT records, not the raw attendance fetch.
+  const [otPage, setOtPage] = useState(1);
+  const OT_PAGE_SIZE = 25;
   const search = useSearch();
   const [, navigate] = useLocation();
   const filterDepartmentId = (() => {
     const v = new URLSearchParams(search).get('departmentId');
     return v ? Number(v) : null;
   })();
-  const clearFilter = () => navigate('/overtime', { replace: true });
+  const clearFilter = () => { setOtPage(1); navigate('/overtime', { replace: true }); };
 
   const { data: rules, isLoading: loadingRules } = useListOvertimeRules() as {
     data: OvertimeRule[] | undefined;
     isLoading: boolean;
   };
 
+  // Fetch a large batch so OT filtering is accurate across all records.
+  // otPage drives client-side pagination of the filtered OT subset only.
   const { data: attendanceData, isLoading: loadingAttendance } = useListAttendance({
     departmentId: filterDepartmentId ?? undefined,
+    page: 1,
+    limit: 500,
   });
 
   const createRule = useCreateOvertimeRule({
@@ -98,13 +105,16 @@ export default function Overtime() {
     },
   });
 
-  // OT Records
-  const otRecords = attendanceData?.filter(r => (r.overtimeMinutes ?? 0) > 0) ?? [];
+  // OT Records — all from the fetched batch, filtered client-side.
+  const otRecords = attendanceData?.data?.filter(r => (r.overtimeMinutes ?? 0) > 0) ?? [];
+  // Client-side pagination over the OT subset so counts are OT-specific.
+  const otTotalPages = Math.max(1, Math.ceil(otRecords.length / OT_PAGE_SIZE));
+  const pagedOtRecords = otRecords.slice((otPage - 1) * OT_PAGE_SIZE, otPage * OT_PAGE_SIZE);
 
   const filterDepartmentName = useMemo(() => {
     if (filterDepartmentId == null) return null;
     return (
-      attendanceData?.find(r => r.departmentId === filterDepartmentId)?.departmentNameEn ??
+      attendanceData?.data?.find(r => r.departmentId === filterDepartmentId)?.departmentNameEn ??
       rules?.find(r => r.departmentId === filterDepartmentId)?.departmentNameEn ??
       `#${filterDepartmentId}`
     );
@@ -316,14 +326,14 @@ export default function Overtime() {
                         <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       </TableRow>
                     ))
-                  ) : otRecords.length === 0 ? (
+                  ) : pagedOtRecords.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
                         {t('No overtime records found.', 'لم يتم العثور على سجلات وقت إضافي.')}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    otRecords.map(record => (
+                    pagedOtRecords.map(record => (
                       <TableRow key={record.id}>
                         <TableCell className="font-medium">
                           {localName(record.employeeNameEn, record.employeeNameAr, lang)}
@@ -355,6 +365,34 @@ export default function Overtime() {
                   )}
                 </TableBody>
               </Table>
+              {otRecords.length > OT_PAGE_SIZE && (
+                <div className="px-4 py-3 border-t flex items-center justify-between text-sm text-muted-foreground">
+                  <span>
+                    {t('Showing', 'عرض')} {((otPage - 1) * OT_PAGE_SIZE) + 1}–{Math.min(otPage * OT_PAGE_SIZE, otRecords.length)} {t('of', 'من')} {otRecords.length} {t('OT records', 'سجلات وقت إضافي')}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={otPage <= 1}
+                      onClick={() => setOtPage(p => p - 1)}
+                    >
+                      {t('Previous', 'السابق')}
+                    </Button>
+                    <span className="px-1">
+                      {t('Page', 'صفحة')} {otPage} / {otTotalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={otPage >= otTotalPages}
+                      onClick={() => setOtPage(p => p + 1)}
+                    >
+                      {t('Next', 'التالي')}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
