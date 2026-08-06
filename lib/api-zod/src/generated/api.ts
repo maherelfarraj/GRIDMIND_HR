@@ -18001,7 +18001,8 @@ export const DeleteCredentialVaultRefParams = zod.object({
 })
 
 export const DeleteCredentialVaultRefResponse = zod.object({
-  "success": zod.boolean()
+  "success": zod.boolean(),
+  "unlinkedProfileCount": zod.number().describe('Number of connection profiles whose credentialVaultRefId was nulled out')
 })
 
 

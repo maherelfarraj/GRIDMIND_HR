@@ -107,10 +107,60 @@ router.delete("/integration-governance/credential-vault-refs/:id", async (req, r
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
     const id = parseInt(req.params.id);
-    const [row] = await db.delete(integrationCredentialVaultRefsTable).where(eq(integrationCredentialVaultRefsTable.id, id)).returning();
+
+    // Confirm the vault ref exists before opening a transaction.
+    const [row] = await db.select().from(integrationCredentialVaultRefsTable).where(eq(integrationCredentialVaultRefsTable.id, id));
     if (!row) return void res.status(404).json({ error: "Not found" });
-    await db.insert(auditLogsTable).values({ action: "delete", entityType: "credential_vault_ref", entityId: id, entityLabel: row.labelEn, actorUserId, changesJson: JSON.stringify({ deleted: row }) });
-    res.json({ success: true });
+
+    // All mutations run in a single transaction: unlink affected profiles,
+    // write per-profile audit rows, delete the ref, write the delete audit row.
+    // Any failure rolls back the entire operation — no partial state is possible.
+    const unlinkedProfileCount = await db.transaction(async (tx) => {
+      // Null out credentialVaultRefId on every profile that referenced this ref.
+      const affectedProfiles = await tx
+        .update(integrationConnectionProfilesTable)
+        .set({ credentialVaultRefId: null, updatedAt: new Date() })
+        .where(eq(integrationConnectionProfilesTable.credentialVaultRefId, id))
+        .returning();
+
+      // Audit each unlinked profile individually so the trail is queryable.
+      for (const profile of affectedProfiles) {
+        await tx.insert(auditLogsTable).values({
+          action: "unlink",
+          entityType: "connection_profile",
+          entityId: profile.id,
+          entityLabel: profile.profileName,
+          actorUserId,
+          changesJson: JSON.stringify({
+            reason: "credential_vault_ref_deleted",
+            deletedVaultRefId: id,
+            deletedVaultRefLabel: row.labelEn,
+            before: { credentialVaultRefId: id },
+            after: { credentialVaultRefId: null },
+          }),
+        });
+      }
+
+      // Delete the vault ref itself.
+      await tx.delete(integrationCredentialVaultRefsTable).where(eq(integrationCredentialVaultRefsTable.id, id));
+
+      // Audit the deletion, recording which profiles were unlinked.
+      await tx.insert(auditLogsTable).values({
+        action: "delete",
+        entityType: "credential_vault_ref",
+        entityId: id,
+        entityLabel: row.labelEn,
+        actorUserId,
+        changesJson: JSON.stringify({
+          deleted: row,
+          unlinkedProfileIds: affectedProfiles.map(p => p.id),
+        }),
+      });
+
+      return affectedProfiles.length;
+    });
+
+    res.json({ success: true, unlinkedProfileCount });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

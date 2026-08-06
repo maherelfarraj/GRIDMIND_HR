@@ -8,4 +8,6 @@
 
 export type DeleteCredentialVaultRef200 = {
   success: boolean;
+  /** Number of connection profiles whose credentialVaultRefId was nulled out */
+  unlinkedProfileCount: number;
 };

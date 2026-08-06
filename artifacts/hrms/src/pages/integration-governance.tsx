@@ -784,8 +784,17 @@ export default function IntegrationGovernance() {
   async function deleteVaultRef() {
     if (!deleteVaultTarget) return;
     try {
-      await deleteCredentialVaultRef(deleteVaultTarget.id);
+      const data: any = await deleteCredentialVaultRef(deleteVaultTarget.id);
       toast({ title: t('Vault ref deleted', 'تم حذف مرجع الخزنة') });
+      if (data && typeof data.unlinkedProfileCount === 'number' && data.unlinkedProfileCount > 0) {
+        toast({
+          title: t('Profiles unlinked', 'تم إلغاء ربط الملفات'),
+          description: t(
+            `${data.unlinkedProfileCount} connection profile${data.unlinkedProfileCount === 1 ? '' : 's'} lost their credential ref and now show "No credential".`,
+            `${data.unlinkedProfileCount} ملف اتصال فقد مرجع بيانات اعتماده وأصبح يظهر "لا يوجد اعتماد".`,
+          ),
+        });
+      }
       setDeleteVaultTarget(null);
       load();
     } catch { toast({ title: t('Error', 'خطأ'), variant: 'destructive' }); }
@@ -951,6 +960,12 @@ export default function IntegrationGovernance() {
                               ? t(`Monitored · every ${p.healthCheckIntervalMinutes ?? 15}m`, `مراقب · كل ${p.healthCheckIntervalMinutes ?? 15} د`)
                               : t('Monitoring off', 'المراقبة متوقفة')}
                           </Badge>
+                          {p.credentialVaultRefId == null && (
+                            <Badge variant="outline" className="text-xs text-slate-400 border-slate-600 bg-slate-700/40" data-testid={`profile-no-credential-${p.id}`}>
+                              <ShieldCheck className="w-3 h-3 me-1 opacity-40" />
+                              {t('No credential', 'لا يوجد اعتماد')}
+                            </Badge>
+                          )}
                           {(p.consecutiveFailures ?? 0) > 0 && (
                             <Badge variant="outline" className={`text-xs ${(p.consecutiveFailures >= (p.alertOnFailureCount ?? 3)) ? 'text-red-300 border-red-700 bg-red-900/30' : 'text-amber-300 border-amber-700 bg-amber-900/30'}`}>
                               <AlertTriangle className="w-3 h-3 me-1" />

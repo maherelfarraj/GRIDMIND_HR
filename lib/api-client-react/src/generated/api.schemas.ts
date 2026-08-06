@@ -8464,6 +8464,8 @@ export type SuspendConnectionProfileBody = {
 
 export type DeleteCredentialVaultRef200 = {
   success: boolean;
+  /** Number of connection profiles whose credentialVaultRefId was nulled out */
+  unlinkedProfileCount: number;
 };
 
 export type ListGovernanceRulesParams = {

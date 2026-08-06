@@ -10781,7 +10781,8 @@ paths:
                 type: object
                 properties:
                   success: { type: boolean }
-                required: [ success ]
+                  unlinkedProfileCount: { type: integer, description: "Number of connection profiles whose credentialVaultRefId was nulled out" }
+                required: [ success, unlinkedProfileCount ]
         "404":
           description: Not found
 
