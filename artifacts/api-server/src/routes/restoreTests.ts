@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { eq, desc } from "drizzle-orm";
 import { db, restoreTestResultsTable, auditLogsTable } from "@workspace/db";
 import { runRestoreTest } from "../lib/backupService.js";
@@ -46,7 +46,8 @@ router.get("/restore-tests", async (req, res): Promise<void> => {
 // verifies row counts against the live source, then drops the scratch database.
 router.post("/restore-tests", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const { backupRecordId, notes } = req.body ?? {};
 
     const outcome = await runRestoreTest({

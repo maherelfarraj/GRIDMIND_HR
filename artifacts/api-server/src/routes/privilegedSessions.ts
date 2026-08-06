@@ -3,6 +3,7 @@ import { db, privilegedSessionsTable, systemUsersTable, rolesTable, auditLogsTab
 import { eq, and, isNull, isNotNull, desc, gte, lte, sql, type SQL } from "drizzle-orm";
 import { getActorUserId } from "../middleware/requireAuth.js";
 import { isAuthEnforced } from "../lib/authMode.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 
 const router = Router();
 
@@ -168,6 +169,8 @@ router.get("/privileged-sessions/:id/activity", requireSecurityOfficer, async (r
 // POST /privileged-sessions/:id/review — mark a session reviewed.
 // Reviewer identity comes from the authenticated session, never the body.
 router.post("/privileged-sessions/:id/review", requireSecurityOfficer, async (req: AuthedRequest, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseInt(String(req.params.id), 10);
   const { outcome, notes } = req.body;
 

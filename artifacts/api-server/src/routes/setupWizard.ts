@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { db, setupWizardProgressTable, auditLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -43,7 +43,11 @@ router.get("/setup/wizard", async (req, res): Promise<void> => {
 // PATCH /setup/wizard — update currentStep, completedSteps, answersJson
 router.patch("/setup/wizard", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) {
+      res.status(403).json({ error: "Insufficient privileges to update setup wizard" });
+      return;
+    }
     const { currentStep, completedSteps, answersJson } = req.body;
 
     const rows = await db.select().from(setupWizardProgressTable).limit(1);
@@ -98,7 +102,11 @@ router.patch("/setup/wizard", async (req, res): Promise<void> => {
 // POST /setup/wizard/complete — mark isComplete=true
 router.post("/setup/wizard/complete", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) {
+      res.status(403).json({ error: "Insufficient privileges to complete setup wizard" });
+      return;
+    }
 
     const rows = await db.select().from(setupWizardProgressTable).limit(1);
     if (rows.length === 0) {
@@ -139,7 +147,11 @@ router.post("/setup/wizard/complete", async (req, res): Promise<void> => {
 // POST /setup/wizard/reset — reset to initial state
 router.post("/setup/wizard/reset", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) {
+      res.status(403).json({ error: "Insufficient privileges to reset setup wizard" });
+      return;
+    }
 
     const rows = await db.select().from(setupWizardProgressTable).limit(1);
     if (rows.length === 0) {

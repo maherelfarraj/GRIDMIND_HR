@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, breakGlassAccessTable, privilegedSessionsTable, systemUsersTable, auditLogsTable } from "@workspace/db";
 import { eq, and, isNull } from "drizzle-orm";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 
 const router = Router();
 
@@ -33,6 +33,9 @@ router.get("/break-glass", async (req, res): Promise<void> => {
 
 // POST /break-glass
 router.post("/break-glass", async (req, res): Promise<void> => {
+  const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+
   const { userId, resourceType, justification, ttlMinutes, ...rest } = req.body;
 
   if (!userId || !resourceType || !justification) {
@@ -68,7 +71,7 @@ router.post("/break-glass", async (req, res): Promise<void> => {
 
   // Log to audit
   await db.insert(auditLogsTable).values({
-    actorUserId: getActorUserId(req),
+    actorUserId,
     action: "privileged_session.opened",
     entityType: "privileged_session",
     entityId: session.id,
@@ -76,7 +79,7 @@ router.post("/break-glass", async (req, res): Promise<void> => {
     changesJson: JSON.stringify({ breakGlassAccessId: newRecord.id, userId: newRecord.userId }),
   });
   await db.insert(auditLogsTable).values({
-    actorUserId: getActorUserId(req),
+    actorUserId,
     action: "break_glass.granted",
     entityType: "break_glass_access",
     entityId: newRecord.id,
@@ -89,6 +92,9 @@ router.post("/break-glass", async (req, res): Promise<void> => {
 
 // POST /break-glass/:id/revoke
 router.post("/break-glass/:id/revoke", async (req, res): Promise<void> => {
+  const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+
   const id = parseInt(req.params.id, 10);
   const { reason, revokedByUserId } = req.body;
 
@@ -125,7 +131,7 @@ router.post("/break-glass/:id/revoke", async (req, res): Promise<void> => {
 
   for (const s of closedSessions) {
     await db.insert(auditLogsTable).values({
-      actorUserId: getActorUserId(req),
+      actorUserId,
       action: "privileged_session.closed",
       entityType: "privileged_session",
       entityId: s.id,
@@ -136,7 +142,7 @@ router.post("/break-glass/:id/revoke", async (req, res): Promise<void> => {
 
   // Log to audit
   await db.insert(auditLogsTable).values({
-    actorUserId: getActorUserId(req),
+    actorUserId,
     action: "break_glass.revoked",
     entityType: "break_glass_access",
     entityId: id,

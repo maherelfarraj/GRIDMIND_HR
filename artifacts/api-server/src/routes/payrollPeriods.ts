@@ -481,7 +481,7 @@ const router = Router();
 // belongs to a different organization than the active org context.
 router.param("id", async (req, res, next, rawId) => {
   try {
-    const id = parseInt(rawId, 10);
+  const id = parseInt(rawId as string, 10);
     if (!Number.isInteger(id)) { res.status(404).json({ error: "Not found" }); return; }
     const [row] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
     if (!row || row.orgId !== (await resolveOrgId(req))) {
@@ -496,11 +496,14 @@ router.param("id", async (req, res, next, rawId) => {
 router.get("/payroll-periods", async (req, res): Promise<void> => {
   const { status, year } = req.query as Record<string, string>;
   const orgId = await resolveOrgId(req);
-  let rows = await db.select().from(payrollPeriodsTable)
-    .where(eq(payrollPeriodsTable.orgId, orgId))
+  const conditions: any[] = [eq(payrollPeriodsTable.orgId, orgId)];
+  if (status) conditions.push(eq(payrollPeriodsTable.status, status));
+  if (year) conditions.push(sql`extract(year from ${payrollPeriodsTable.startDate}::date) = ${parseInt(year)}`);
+  const rows = await db
+    .select()
+    .from(payrollPeriodsTable)
+    .where(and(...conditions))
     .orderBy(payrollPeriodsTable.startDate);
-  if (status) rows = rows.filter(r => r.status === status);
-  if (year) rows = rows.filter(r => r.startDate.startsWith(year));
   res.json(rows);
 });
 
@@ -515,13 +518,9 @@ router.post("/payroll-periods", async (req, res): Promise<void> => {
   const orgId = await resolveOrgId(req);
   const [created] = await db.insert(payrollPeriodsTable).values({
     orgId,
-    periodCode,
-    nameEn,
-    nameAr,
+    periodCode, nameEn, nameAr,
     periodType: periodType ?? "monthly",
-    startDate,
-    endDate,
-    payDate,
+    startDate, endDate, payDate,
     currency: currency ?? "SAR",
     notes: notes ?? null,
     status: "draft",
@@ -550,7 +549,10 @@ router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
   const actorUserId: number = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
-  if (!period) { res.status(404).json({ error: "Not found" }); return; }
+  if (!period || period.orgId !== (await resolveOrgId(req))) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   if (period.isClosed) { res.status(400).json({ error: "Cannot edit a closed payroll period" }); return; }
   const { nameEn, nameAr, payDate, notes } = req.body;
   const patch: Record<string, unknown> = { updatedAt: new Date() };
@@ -562,11 +564,12 @@ router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
     .set(patch)
     .where(eq(payrollPeriodsTable.id, id))
     .returning();
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
   await db.insert(auditLogsTable).values({
     action: "payroll_period.updated",
     entityType: "payroll_period",
-    entityId: id,
-    entityLabel: period.nameEn,
+    entityId: updated.id,
+    entityLabel: updated.nameEn,
     actorUserId,
     changesJson: JSON.stringify(req.body),
   });
@@ -1015,8 +1018,11 @@ router.get("/payroll-periods/:id/no-shows", async (req, res): Promise<void> => {
   const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
   if (!period) { res.status(404).json({ error: "Period not found" }); return; }
 
-  const employees = await db.select().from(employeesTable)
-    .where(and(eq(employeesTable.status, "active"), eq(employeesTable.orgId, period.orgId ?? await resolveOrgId(req))));
+  const allEmployees = await db.select().from(employeesTable).where(eq(employeesTable.orgId, period.orgId ?? 1));
+  const employees = allEmployees.filter(emp =>
+    emp.status === "active" ||
+    (emp.terminationDate && emp.terminationDate >= period.startDate && emp.hireDate <= period.endDate)
+  );
   const { punchEvents, attendanceRecords, approvedLeaves } = await loadNoShowInputs(period);
   const weekendDays = await getWeekendDays();
   const holidayRows = await loadHolidayRows(period.orgId ?? await resolveOrgId(req));

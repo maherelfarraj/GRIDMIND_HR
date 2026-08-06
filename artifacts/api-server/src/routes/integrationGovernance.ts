@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import {
   db, auditLogsTable,
   integrationCredentialVaultRefsTable, integrationConnectionProfilesTable,
@@ -76,7 +76,8 @@ router.get("/integration-governance/credential-vault-refs", async (req, res): Pr
 
 router.post("/integration-governance/credential-vault-refs", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const [row] = await db.insert(integrationCredentialVaultRefsTable).values({
       ...req.body, createdByUserId: req.body.createdByUserId ?? actorUserId,
     }).returning();
@@ -96,7 +97,8 @@ router.get("/integration-governance/credential-vault-refs/:id", async (req, res)
 
 router.patch("/integration-governance/credential-vault-refs/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id);
     const [before] = await db.select().from(integrationCredentialVaultRefsTable).where(eq(integrationCredentialVaultRefsTable.id, id));
     if (!before) return void res.status(404).json({ error: "Not found" });
@@ -109,7 +111,8 @@ router.patch("/integration-governance/credential-vault-refs/:id", async (req, re
 
 router.delete("/integration-governance/credential-vault-refs/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id);
 
     // Confirm the vault ref exists before opening a transaction.
@@ -194,7 +197,8 @@ router.get("/integration-governance/connection-profiles", async (req, res): Prom
 
 router.post("/integration-governance/connection-profiles", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const [row] = await db.insert(integrationConnectionProfilesTable).values({
       ...req.body,
       orgId: await resolveOrgId(req), createdByUserId: req.body.createdByUserId ?? actorUserId,
@@ -212,7 +216,8 @@ router.post("/integration-governance/connection-profiles", async (req, res): Pro
 // POST /integration-governance/connection-profiles/:id/test — static before /:id
 router.post("/integration-governance/connection-profiles/:id/test", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id);
     const [profile] = await db.select().from(integrationConnectionProfilesTable).where(eq(integrationConnectionProfilesTable.id, id));
     if (!profile) return void res.status(404).json({ error: "Not found" });
@@ -311,6 +316,8 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
 // health-monitor sweep (same logic the background scheduler runs every minute).
 router.post("/integration-governance/health-checks/run", async (req, res): Promise<void> => {
   try {
+    const { isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     // force=true ignores the per-profile interval (checks every monitored profile now)
     const result = await runHealthChecksOnce({ force: req.body?.force === true });
     res.json(result);
@@ -320,7 +327,8 @@ router.post("/integration-governance/health-checks/run", async (req, res): Promi
 // POST /integration-governance/connection-profiles/:id/approve
 router.post("/integration-governance/connection-profiles/:id/approve", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id);
     const [row] = await db.update(integrationConnectionProfilesTable).set({
       governanceStatus: "approved",
@@ -345,7 +353,8 @@ router.post("/integration-governance/connection-profiles/:id/approve", async (re
 // POST /integration-governance/connection-profiles/:id/suspend
 router.post("/integration-governance/connection-profiles/:id/suspend", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id);
     const [row] = await db.update(integrationConnectionProfilesTable).set({
       governanceStatus: "suspended", status: "disabled", updatedAt: new Date(),
@@ -402,7 +411,8 @@ const CONNECTION_PROFILE_PATCH_ALLOWLIST = new Set([
 
 router.patch("/integration-governance/connection-profiles/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id);
 
     // Reject any key that is not on the allowlist.
@@ -462,7 +472,8 @@ router.patch("/integration-governance/connection-profiles/:id", async (req, res)
 
 router.delete("/integration-governance/connection-profiles/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id);
     const [row] = await db.delete(integrationConnectionProfilesTable).where(eq(integrationConnectionProfilesTable.id, id)).returning();
     if (!row) return void res.status(404).json({ error: "Not found" });
@@ -488,7 +499,8 @@ router.get("/integration-governance/governance-rules", async (req, res): Promise
 
 router.post("/integration-governance/governance-rules", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const [row] = await db.insert(integrationGovernanceRulesTable).values({ ...req.body, orgId: await resolveOrgId(req) }).returning();
     await db.insert(auditLogsTable).values({ action: "create", entityType: "governance_rule", entityId: row.id, entityLabel: row.titleEn, actorUserId, changesJson: JSON.stringify({ after: row }) });
     res.status(201).json(row);
@@ -497,7 +509,8 @@ router.post("/integration-governance/governance-rules", async (req, res): Promis
 
 router.patch("/integration-governance/governance-rules/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id);
     const [before] = await db.select().from(integrationGovernanceRulesTable).where(eq(integrationGovernanceRulesTable.id, id));
     if (!before) return void res.status(404).json({ error: "Not found" });
@@ -509,7 +522,8 @@ router.patch("/integration-governance/governance-rules/:id", async (req, res): P
 
 router.delete("/integration-governance/governance-rules/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id);
     const [row] = await db.delete(integrationGovernanceRulesTable).where(eq(integrationGovernanceRulesTable.id, id)).returning();
     if (!row) return void res.status(404).json({ error: "Not found" });

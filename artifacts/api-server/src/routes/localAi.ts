@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { eq, desc, and, sql, like, or } from "drizzle-orm";
 import {
   db,
@@ -67,7 +67,8 @@ router.get("/ai/config", async (req, res): Promise<void> => {
 // ─── PATCH /ai/config ─────────────────────────────────────────────────────────
 router.patch("/ai/config", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const [row] = await db.update(aiConfigTable)
       .set({ ...req.body, updatedAt: new Date(), updatedByUserId: actorUserId })
       .where(eq(aiConfigTable.id, 1))
@@ -88,7 +89,8 @@ router.patch("/ai/config", async (req, res): Promise<void> => {
 // ─── POST /ai/policy-search ───────────────────────────────────────────────────
 router.post("/ai/policy-search", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const { query, limit: limitParam } = req.body as { query: string; limit?: number };
     const limit = limitParam ?? 5;
     const start = Date.now();
@@ -153,7 +155,8 @@ router.post("/ai/policy-search", async (req, res): Promise<void> => {
 // ─── POST /ai/report-query ────────────────────────────────────────────────────
 router.post("/ai/report-query", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const { query, context } = req.body as { query: string; context?: string };
     const start = Date.now();
     const cfg = await getAiConfig();
@@ -242,7 +245,8 @@ router.post("/ai/report-query", async (req, res): Promise<void> => {
 // ─── POST /ai/classify-document ───────────────────────────────────────────────
 router.post("/ai/classify-document", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const { documentId, title, content } = req.body as { documentId?: number; title: string; content?: string };
     const start = Date.now();
     const cfg = await getAiConfig();
@@ -300,7 +304,8 @@ router.post("/ai/classify-document", async (req, res): Promise<void> => {
 // ─── POST /ai/explain-anomaly ─────────────────────────────────────────────────
 router.post("/ai/explain-anomaly", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const { anomalyType, entityId, metrics } = req.body as {
       anomalyType: "attendance_high" | "overtime_spike" | "payroll_variance" | "leave_exposure";
       entityId?: number;
@@ -434,7 +439,8 @@ router.get("/ai/permissions", async (req, res): Promise<void> => {
 // ─── PATCH /ai/permissions/:id ────────────────────────────────────────────────
 router.patch("/ai/permissions/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id);
     const [row] = await db.update(aiPermissionsTable)
       .set({ ...req.body, grantedByUserId: actorUserId, grantedAt: new Date() })

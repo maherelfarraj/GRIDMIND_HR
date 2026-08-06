@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { db, systemConfigTable } from "@workspace/db";
 import { eq, and, asc } from "drizzle-orm";
 
@@ -96,6 +97,11 @@ router.get("/system-config", async (req, res): Promise<void> => {
 
 // PATCH /system-config — body is object like { "org.type": "military", "sec.level": "restricted" }
 router.patch("/system-config", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) {
+    res.status(403).json({ error: "Insufficient privileges to update system configuration" });
+    return;
+  }
   const updates = req.body as Record<string, string>;
   if (!updates || typeof updates !== "object") {
     res.status(400).json({ error: "Body must be an object of key-value pairs" });

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { randomUUID } from "crypto";
 import {
   db,
@@ -56,7 +56,8 @@ router.get("/diagnostics", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/diagnostics/run", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const runId = randomUUID();
     const runAt = new Date();
 
@@ -336,7 +337,8 @@ router.get("/diagnostics/readiness", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/diagnostics/readiness/run", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
 
     const checks = await db.select().from(environmentReadinessChecksTable);
     if (checks.length === 0) {
@@ -407,7 +409,8 @@ router.post("/diagnostics/readiness/run", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.patch("/diagnostics/readiness/:id/override", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id, 10);
     const { overrideReason } = req.body;
 
@@ -456,7 +459,8 @@ router.get("/diagnostics/updates", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/diagnostics/updates", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const { version, buildNumber, releaseChannel, packageFilename, fileSizeBytes, checksum, manifestJson, releaseNotesEn, releaseNotesAr } = req.body;
 
     if (!version) return void res.status(400).json({ error: "version is required" });
@@ -497,7 +501,8 @@ router.post("/diagnostics/updates", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.patch("/diagnostics/updates/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id, 10);
     const { status, verifySignature } = req.body;
 
@@ -570,7 +575,8 @@ router.get("/diagnostics/deployment-checklist", async (req, res): Promise<void> 
 // ─────────────────────────────────────────────────────────────────────────────
 router.patch("/diagnostics/deployment-checklist/:itemCode", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const { itemCode } = req.params;
     const { status, statusNotes } = req.body;
 

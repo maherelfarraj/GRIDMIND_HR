@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, overtimeRulesTable, departmentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 
 const router = Router();
 
@@ -30,6 +31,8 @@ router.get("/overtime-rules", async (req, res): Promise<void> => {
 });
 
 router.post("/overtime-rules", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const { nameEn, nameAr, departmentId, maxDailyMinutes, maxWeeklyMinutes,
           multiplierWeekday, multiplierWeekend, multiplierHoliday,
           requiresApproval, effectiveFrom, effectiveTo, notes } = req.body;
@@ -63,6 +66,8 @@ router.get("/overtime-rules/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/overtime-rules/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseInt(req.params.id, 10);
   const updates = req.body;
   const [rule] = await db.update(overtimeRulesTable).set(updates)
@@ -72,6 +77,8 @@ router.patch("/overtime-rules/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/overtime-rules/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseInt(req.params.id, 10);
   await db.delete(overtimeRulesTable).where(eq(overtimeRulesTable.id, id));
   res.status(204).end();

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { eq, and, desc, sql } from "drizzle-orm";
 import {
   db,
@@ -35,7 +35,8 @@ router.get("/uat-scripts", async (req, res): Promise<void> => {
 // POST /uat-scripts — create script
 router.post("/uat-scripts", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const { scriptCode, titleEn, titleAr, targetRole, module, orgTypeApplicability, estimatedMinutes, prerequisitesEn, stepsJson, acceptanceCriteriaJson, relatedGateCodes, version } = req.body;
 
     if (!scriptCode) return void res.status(400).json({ error: "scriptCode is required" });
@@ -96,7 +97,8 @@ router.get("/uat-scripts/:id", async (req, res): Promise<void> => {
 // PATCH /uat-scripts/:id
 router.patch("/uat-scripts/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id, 10);
 
     const [existing] = await db.select().from(uatScriptsTable).where(eq(uatScriptsTable.id, id));
@@ -136,7 +138,8 @@ router.patch("/uat-scripts/:id", async (req, res): Promise<void> => {
 // DELETE /uat-scripts/:id — soft delete
 router.delete("/uat-scripts/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id, 10);
 
     const [existing] = await db.select().from(uatScriptsTable).where(eq(uatScriptsTable.id, id));
@@ -191,7 +194,8 @@ router.get("/uat-test-runs/summary", async (req, res): Promise<void> => {
 // POST /uat-test-runs — start a run
 router.post("/uat-test-runs", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const { scriptId, testerUserId, testerRole, testerNameEn, browserInfo, environment } = req.body;
 
     if (!scriptId) return void res.status(400).json({ error: "scriptId is required" });
@@ -286,7 +290,8 @@ router.get("/uat-test-runs/:id", async (req, res): Promise<void> => {
 // PATCH /uat-test-runs/:id/steps/:stepNumber — update step result
 router.patch("/uat-test-runs/:id/steps/:stepNumber", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const runId = parseInt(req.params.id, 10);
     const stepNumber = parseInt(req.params.stepNumber, 10);
     const { result, actualResultEn, notes, defectId } = req.body;
@@ -344,7 +349,8 @@ router.patch("/uat-test-runs/:id/steps/:stepNumber", async (req, res): Promise<v
 // POST /uat-test-runs/:id/complete — finalize run
 router.post("/uat-test-runs/:id/complete", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id, 10);
 
     const [run] = await db.select().from(uatTestRunsTable).where(eq(uatTestRunsTable.id, id));

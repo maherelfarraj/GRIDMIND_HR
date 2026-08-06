@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, militaryRanksTable } from "@workspace/db";
 import { eq, and, asc } from "drizzle-orm";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 
 const router = Router();
 
@@ -21,6 +22,8 @@ router.get("/military-ranks", async (req, res): Promise<void> => {
 
 // POST /military-ranks
 router.post("/military-ranks", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const { rankCode, nameEn, nameAr, abbreviationEn, abbreviationAr, ...rest } = req.body;
 
   if (!rankCode || !nameEn || !nameAr || !abbreviationEn || !abbreviationAr) {
@@ -49,6 +52,8 @@ router.get("/military-ranks/:id", async (req, res): Promise<void> => {
 
 // PATCH /military-ranks/:id
 router.patch("/military-ranks/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseInt(req.params.id, 10);
   const [row] = await db
     .update(militaryRanksTable)
@@ -65,6 +70,8 @@ router.patch("/military-ranks/:id", async (req, res): Promise<void> => {
 
 // DELETE /military-ranks/:id
 router.delete("/military-ranks/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseInt(req.params.id, 10);
   const [row] = await db
     .delete(militaryRanksTable)

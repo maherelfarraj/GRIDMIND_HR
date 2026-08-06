@@ -11,7 +11,8 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { CreateDeviceBody, UpdateDeviceBody } from "@workspace/api-zod";
-import { requireAuth, getActorUserId } from "../middleware/requireAuth.js";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { deviceConnectivityVerdict, effectiveSilenceThresholdMs } from "../lib/gatewayDeviceAlerts.js";
 import { notifyCommandOutcomes, DEVICE_COMMAND_TTL_MS } from "../lib/deviceCommandNotifications.js";
 export { DEVICE_COMMAND_TTL_MS };
@@ -126,6 +127,8 @@ router.get("/devices", async (req, res): Promise<void> => {
 });
 
 router.post("/devices", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const parsed = CreateDeviceBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [device] = await db.insert(attendanceDevicesTable).values(parsed.data).returning();
@@ -140,6 +143,8 @@ router.get("/devices/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/devices/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseId(req.params.id);
   const parsed = UpdateDeviceBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -149,6 +154,8 @@ router.patch("/devices/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/devices/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseId(req.params.id);
   await db.delete(attendanceDevicesTable).where(eq(attendanceDevicesTable.id, id));
   res.status(204).end();
@@ -291,6 +298,8 @@ router.use("/devices/:id/commands", requireDeviceCommandSession);
 // POST /devices/:id/restart — queue a RESTART command for the device's gateway.
 // The gateway picks it up in its next heartbeat and acks the outcome.
 router.post("/devices/:id/restart", async (req, res): Promise<void> => {
+  const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseId(req.params.id);
   const [device] = await db.select().from(attendanceDevicesTable).where(eq(attendanceDevicesTable.id, id));
   if (!device) { res.status(404).json({ error: "Not found" }); return; }
@@ -327,8 +336,6 @@ router.post("/devices/:id/restart", async (req, res): Promise<void> => {
     });
     return;
   }
-
-  const actorUserId = getActorUserId(req);
   const [command] = await db
     .insert(deviceCommandsTable)
     .values({ deviceId: id, registrationId: reg.id, command: "RESTART", requestedByUserId: actorUserId })

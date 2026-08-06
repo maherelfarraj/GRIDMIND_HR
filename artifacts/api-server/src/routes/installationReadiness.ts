@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { eq, asc } from "drizzle-orm";
 import { db, installationReadinessTable, auditLogsTable } from "@workspace/db";
 
@@ -17,6 +17,8 @@ router.get("/", async (req, res): Promise<void> => {
 // POST /run — MUST be registered BEFORE /:id
 router.post("/run", async (req, res): Promise<void> => {
   try {
+    const { isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const checks = await db.select().from(installationReadinessTable).orderBy(asc(installationReadinessTable.sortOrder));
     const now = new Date();
     const results = [];
@@ -40,13 +42,15 @@ router.post("/run", async (req, res): Promise<void> => {
 // PATCH /:id — update individual check result
 router.patch("/:id", async (req, res): Promise<void> => {
   try {
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const id = parseInt(req.params.id);
     const [row] = await db.update(installationReadinessTable)
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(installationReadinessTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "installation_readiness", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId, action: "update", entityType: "installation_readiness", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

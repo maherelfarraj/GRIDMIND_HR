@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, deviceEmployeeMappingsTable, attendanceDevicesTable, employeesTable, systemUsersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 
 const router = Router();
 
@@ -54,6 +55,8 @@ router.get("/devices/:id/mappings", async (req, res): Promise<void> => {
 
 // POST create mapping
 router.post("/devices/:id/mappings", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const deviceId = parseInt(req.params.id);
   const { employeeId, accessLevel, biometricType, enrolledAt, enrolledByUserId, notes } = req.body;
   if (!employeeId) { res.status(400).json({ error: "employeeId required" }); return; }
@@ -71,6 +74,8 @@ router.post("/devices/:id/mappings", async (req, res): Promise<void> => {
 
 // DELETE remove mapping
 router.delete("/devices/:id/mappings/:employeeId", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const deviceId = parseInt(req.params.id);
   const employeeId = parseInt(req.params.employeeId);
   await db.delete(deviceEmployeeMappingsTable).where(

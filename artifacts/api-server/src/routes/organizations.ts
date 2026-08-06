@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { db, organizationsTable, organizationBrandingTable, policyLocalesTable, calendarConfigsTable, auditLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -21,7 +21,9 @@ router.get("/organizations", async (req, res): Promise<void> => {
 // POST /organizations
 router.post("/organizations", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) return void res.status(403).json({ error: "Insufficient privileges" });
+
     const { nameEn, nameAr, orgCode, orgType, ...rest } = req.body;
     if (!nameEn || !nameAr || !orgCode) {
       return void res.status(400).json({ error: "nameEn, nameAr, orgCode are required" });
@@ -68,7 +70,9 @@ router.get("/organizations/:id/employees-count", async (req, res): Promise<void>
 // POST /organizations/:id/activate
 router.post("/organizations/:id/activate", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) return void res.status(403).json({ error: "Insufficient privileges" });
+
     const id = parseInt(req.params.id, 10);
     const [org] = await db
       .update(organizationsTable)
@@ -111,7 +115,9 @@ router.get("/organizations/:id", async (req, res): Promise<void> => {
 // PATCH /organizations/:id
 router.patch("/organizations/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) return void res.status(403).json({ error: "Insufficient privileges" });
+
     const id = parseInt(req.params.id, 10);
     const [before] = await db.select().from(organizationsTable).where(eq(organizationsTable.id, id));
     if (!before) return void res.status(404).json({ error: "Organization not found" });
@@ -140,7 +146,9 @@ router.patch("/organizations/:id", async (req, res): Promise<void> => {
 // DELETE /organizations/:id — soft-delete (archived)
 router.delete("/organizations/:id", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) return void res.status(403).json({ error: "Insufficient privileges" });
+
     const id = parseInt(req.params.id, 10);
     const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.id, id));
     if (!org) return void res.status(404).json({ error: "Organization not found" });

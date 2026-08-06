@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { db, branchServersTable, syncQueueTable, backupRecordsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 
@@ -12,6 +13,11 @@ router.get("/admin/branch-servers", async (req, res): Promise<void> => {
 
 // POST /admin/branch-servers
 router.post("/admin/branch-servers", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) {
+    res.status(403).json({ error: "Insufficient privileges to manage branch servers" });
+    return;
+  }
   const { serverCode, nameEn, nameAr, ...rest } = req.body;
 
   if (!serverCode || !nameEn || !nameAr) {
@@ -40,6 +46,11 @@ router.get("/admin/branch-servers/:id", async (req, res): Promise<void> => {
 
 // PATCH /admin/branch-servers/:id
 router.patch("/admin/branch-servers/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) {
+    res.status(403).json({ error: "Insufficient privileges to manage branch servers" });
+    return;
+  }
   const id = parseInt(req.params.id, 10);
   const [row] = await db
     .update(branchServersTable)
@@ -71,6 +82,11 @@ router.get("/admin/sync-queue", async (req, res): Promise<void> => {
 
 // POST /admin/sync-queue/:id/resolve
 router.post("/admin/sync-queue/:id/resolve", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) {
+    res.status(403).json({ error: "Insufficient privileges to resolve sync queue entries" });
+    return;
+  }
   const id = parseInt(req.params.id, 10);
   const { resolution, notes, resolvedByUserId } = req.body;
 

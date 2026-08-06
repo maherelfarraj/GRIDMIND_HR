@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { eq, and, asc, sql } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { db, reportDefinitionsTable, reportOutputsTable, auditLogsTable } from "@workspace/db";
 import { CreateReportDefinitionBody, UpdateReportDefinitionBody } from "@workspace/api-zod";
 import { validateBody } from "../middleware/validateBody.js";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 
 const router = Router();
 
@@ -22,17 +22,26 @@ router.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-// POST / — create (set isSystemReport:false for user-created)
-router.post("/", validateBody(CreateReportDefinitionBody), async (req, res): Promise<void> => {
-  try {
-    const userId = getActorUserId(req);
-    const [row] = await db.insert(reportDefinitionsTable)
-      .values({ ...req.body, isSystemReport: false, createdByUserId: userId })
-      .returning();
-    await db.insert(auditLogsTable).values({ action: "create", entityType: "report_definition", entityId: row.id, actorUserId: userId, changesJson: JSON.stringify(req.body) });
-    res.status(201).json(row);
-  } catch (e) { res.status(500).json({ error: String(e) }); }
-});
+// POST / — create (admin-only; set isSystemReport:false for user-created)
+router.post("/",
+  async (req, res, next) => {
+    try {
+      const { isAdmin } = await getActorAdminStatus(req);
+      if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+      next();
+    } catch (e) { res.status(500).json({ error: String(e) }); }
+  },
+  validateBody(CreateReportDefinitionBody),
+  async (req, res): Promise<void> => {
+    try {
+      const { actorId: userId } = await getActorAdminStatus(req);
+      const [row] = await db.insert(reportDefinitionsTable)
+        .values({ ...req.body, isSystemReport: false, createdByUserId: userId })
+        .returning();
+      await db.insert(auditLogsTable).values({ action: "create", entityType: "report_definition", entityId: row.id, actorUserId: userId, changesJson: JSON.stringify(req.body) });
+      res.status(201).json(row);
+    } catch (e) { res.status(500).json({ error: String(e) }); }
+  });
 
 // GET /:id — get
 router.get("/:id", async (req, res): Promise<void> => {
@@ -44,9 +53,20 @@ router.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-// PATCH /:id — update (block if isSystemReport and trying to change reportType)
-router.patch("/:id", validateBody(UpdateReportDefinitionBody.partial()), async (req, res): Promise<void> => {
+// PATCH /:id — update (admin-only; block if isSystemReport and trying to change reportType)
+router.patch("/:id",
+  async (req, res, next) => {
+    try {
+      const { isAdmin } = await getActorAdminStatus(req);
+      if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+      next();
+    } catch (e) { res.status(500).json({ error: String(e) }); }
+  },
+  validateBody(UpdateReportDefinitionBody.partial()),
+  async (req, res): Promise<void> => {
   try {
+    const { actorId: patchUserId } = await getActorAdminStatus(req);
+
     const id = parseInt(req.params.id as string);
     const [existing] = await db.select().from(reportDefinitionsTable).where(eq(reportDefinitionsTable.id, id));
     if (!existing) { res.status(404).json({ error: "Not found" }); return; }
@@ -60,20 +80,21 @@ router.patch("/:id", validateBody(UpdateReportDefinitionBody.partial()), async (
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(reportDefinitionsTable.id, id))
       .returning();
-    const patchUserId = getActorUserId(req);
     await db.insert(auditLogsTable).values({ action: "update", entityType: "report_definition", entityId: row.id, actorUserId: patchUserId, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-// POST /:id/run — run report and produce output
+// POST /:id/run — run report and produce output (admin-only)
 router.post("/:id/run", async (req, res): Promise<void> => {
   try {
+    const { actorId: userId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+
     const id = parseInt(req.params.id as string);
     const [def] = await db.select().from(reportDefinitionsTable).where(eq(reportDefinitionsTable.id, id));
     if (!def) { res.status(404).json({ error: "Report definition not found" }); return; }
 
-    const userId = getActorUserId(req);
     const { filtersJson, exportFormat, language } = req.body;
     const fmt = exportFormat ?? "pdf";
     const now = new Date();
@@ -95,13 +116,7 @@ router.post("/:id/run", async (req, res): Promise<void> => {
     const fileName = def.nameEn.replace(/\s+/g, "_") + "_" + Date.now() + "." + fmt;
 
     const [completed] = await db.update(reportOutputsTable)
-      .set({
-        status: "ready",
-        generationCompletedAt: new Date(),
-        rowCount,
-        storagePath,
-        fileName,
-      })
+      .set({ status: "ready", generationCompletedAt: new Date(), rowCount, storagePath, fileName })
       .where(eq(reportOutputsTable.id, output.id))
       .returning();
 

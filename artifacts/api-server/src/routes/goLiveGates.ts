@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { resolveHolidaysForDisplay } from "../lib/holidays";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
 import {
@@ -372,7 +372,8 @@ router.get("/go-live-gates", async (req, res): Promise<void> => {
 // ─── POST /go-live-gates/evaluate — run all automated evaluations ──────────────
 router.post("/go-live-gates/evaluate", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const now = new Date();
     const results: any[] = [];
 
@@ -448,7 +449,8 @@ router.get("/go-live-gates/:gateCode", async (req, res): Promise<void> => {
 // ─── PATCH /go-live-gates/:gateCode — update status/notes manually ────────────
 router.patch("/go-live-gates/:gateCode", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const { gateCode } = req.params;
     const { status, notes, blockerDescriptionEn, remediationEn } = req.body;
 
@@ -488,7 +490,8 @@ router.patch("/go-live-gates/:gateCode", async (req, res): Promise<void> => {
 // ─── POST /go-live-gates/:gateCode/override ───────────────────────────────────
 router.post("/go-live-gates/:gateCode/override", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const { gateCode } = req.params;
     const { reason } = req.body;
 

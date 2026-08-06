@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { db, licenseRecordsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { createHash } from "crypto";
@@ -31,6 +32,11 @@ router.get("/admin/license", async (req, res): Promise<void> => {
 
 // POST /admin/license
 router.post("/admin/license", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) {
+    res.status(403).json({ error: "Insufficient privileges to manage licenses" });
+    return;
+  }
   const { licenseKey, issuedTo, validationMethod, ...rest } = req.body;
 
   if (!licenseKey) {

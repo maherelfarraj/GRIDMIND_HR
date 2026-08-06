@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, mobilizationStatusesTable, employeesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 
 const router = Router();
 
@@ -35,6 +36,8 @@ router.get("/mobilization-statuses", async (req, res): Promise<void> => {
 
 // POST /mobilization-statuses — upsert by employeeId
 router.post("/mobilization-statuses", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const { employeeId, status, ...rest } = req.body;
 
   if (!employeeId || !status) {
@@ -70,6 +73,8 @@ router.post("/mobilization-statuses", async (req, res): Promise<void> => {
 
 // PATCH /mobilization-statuses/:id
 router.patch("/mobilization-statuses/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseInt(req.params.id, 10);
   const [row] = await db
     .update(mobilizationStatusesTable)

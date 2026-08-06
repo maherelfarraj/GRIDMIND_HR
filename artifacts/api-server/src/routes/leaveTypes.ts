@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { db, leaveTypesTable, auditLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -11,7 +11,8 @@ router.get("/leave-types", async (_req, res): Promise<void> => {
 });
 
 router.post("/leave-types", async (req, res): Promise<void> => {
-  const actorUserId = getActorUserId(req);
+  const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const {
     codeEn, nameEn, nameAr, descriptionEn, descriptionAr, category,
     defaultDaysPerYear, accrualFrequency, accrualAmount, maxCarryoverDays,
@@ -58,7 +59,8 @@ router.get("/leave-types/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/leave-types/:id", async (req, res): Promise<void> => {
-  const actorUserId = getActorUserId(req);
+  const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseInt(req.params.id, 10);
   const {
     nameEn, nameAr, descriptionEn, descriptionAr, category,
@@ -90,6 +92,8 @@ router.patch("/leave-types/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/leave-types/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseInt(req.params.id, 10);
   await db.delete(leaveTypesTable).where(eq(leaveTypesTable.id, id));
   res.status(204).end();

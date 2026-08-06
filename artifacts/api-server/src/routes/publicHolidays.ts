@@ -4,6 +4,7 @@ import { eq, or, isNull } from "drizzle-orm";
 import { resolveOrgId } from "../lib/orgContext";
 import { resolveHolidaysForDisplay } from "../lib/holidays";
 import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 
 const router = Router();
 
@@ -53,6 +54,8 @@ router.get("/public-holidays", async (req, res): Promise<void> => {
 });
 
 router.post("/public-holidays", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const { nameEn, nameAr, date, year, isRecurring, applicableTo, notes } = req.body;
   if (!nameEn || !nameAr || !date || !year) {
     res.status(400).json({ error: "nameEn, nameAr, date, year are required" });
@@ -69,6 +72,8 @@ router.post("/public-holidays", async (req, res): Promise<void> => {
 });
 
 router.patch("/public-holidays/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseInt(req.params.id, 10);
   const [own] = await db.select({ orgId: publicHolidaysTable.orgId }).from(publicHolidaysTable).where(eq(publicHolidaysTable.id, id));
   if (!own || (own.orgId !== null && own.orgId !== (await resolveOrgId(req)))) { res.status(404).json({ error: "Not found" }); return; }
@@ -82,6 +87,8 @@ router.patch("/public-holidays/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/public-holidays/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
   const id = parseInt(req.params.id, 10);
   const [own] = await db.select({ orgId: publicHolidaysTable.orgId }).from(publicHolidaysTable).where(eq(publicHolidaysTable.id, id));
   if (!own || (own.orgId !== null && own.orgId !== (await resolveOrgId(req)))) { res.status(404).json({ error: "Not found" }); return; }

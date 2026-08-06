@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { db, rolesTable, systemUsersTable } from "@workspace/db";
 import { eq, count } from "drizzle-orm";
 import { CreateRoleBody, UpdateRoleBody } from "@workspace/api-zod";
@@ -76,6 +77,8 @@ router.get("/roles", async (req, res): Promise<void> => {
 });
 
 router.post("/roles", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges to manage roles" }); return; }
   const parsed = CreateRoleBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [role] = await db.insert(rolesTable).values({
@@ -95,6 +98,8 @@ router.get("/roles/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/roles/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges to manage roles" }); return; }
   const id = parseId(req.params.id);
   const parsed = UpdateRoleBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -109,6 +114,8 @@ router.patch("/roles/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/roles/:id", async (req, res): Promise<void> => {
+  const { isAdmin } = await getActorAdminStatus(req);
+  if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges to manage roles" }); return; }
   const id = parseId(req.params.id);
   await db.delete(rolesTable).where(eq(rolesTable.id, id));
   res.status(204).end();

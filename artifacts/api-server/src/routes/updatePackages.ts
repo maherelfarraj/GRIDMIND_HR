@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { eq } from "drizzle-orm";
 import { db, updatePackagesTable, deploymentEventsTable, auditLogsTable } from "@workspace/db";
 
@@ -13,11 +13,13 @@ router.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-// POST / — register new package
+// POST / — register new package (Super Administrator only)
 router.post("/", async (req, res): Promise<void> => {
   try {
+    const { actorId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges to manage update packages" }); return; }
     const [row] = await db.insert(updatePackagesTable).values(req.body).returning();
-    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "update_package", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: actorId, action: "create", entityType: "update_package", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
@@ -32,40 +34,46 @@ router.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-// PATCH /:id — update status
+// PATCH /:id — update status (Super Administrator only)
 router.patch("/:id", async (req, res): Promise<void> => {
   try {
+    const { actorId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges to manage update packages" }); return; }
     const id = parseInt(req.params.id);
     const [row] = await db.update(updatePackagesTable)
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(updatePackagesTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "update", entityType: "update_package", entityId: row.id, changesJson: JSON.stringify(req.body) });
+    await db.insert(auditLogsTable).values({ actorUserId: actorId, action: "update", entityType: "update_package", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-// POST /:id/verify — set signatureVerified:true
+// POST /:id/verify — set signatureVerified:true (Super Administrator only)
 router.post("/:id/verify", async (req, res): Promise<void> => {
   try {
+    const { actorId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges to manage update packages" }); return; }
     const id = parseInt(req.params.id);
     const [row] = await db.update(updatePackagesTable)
       .set({ signatureVerified: true, verifiedAt: new Date(), status: "verified", updatedAt: new Date() })
       .where(eq(updatePackagesTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "verify", entityType: "update_package", entityId: id, changesJson: JSON.stringify({ signatureVerified: true }) });
+    await db.insert(auditLogsTable).values({ actorUserId: actorId, action: "verify", entityType: "update_package", entityId: id, changesJson: JSON.stringify({ signatureVerified: true }) });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-// POST /:id/install — install package
+// POST /:id/install — install package (Super Administrator only)
 router.post("/:id/install", async (req, res): Promise<void> => {
   try {
+    const { actorId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges to manage update packages" }); return; }
     const id = parseInt(req.params.id);
     const { confirmedByUserId } = req.body;
-    const userId = confirmedByUserId ?? getActorUserId(req);
+    const userId = confirmedByUserId ?? actorId;
 
     const [pkg] = await db.select().from(updatePackagesTable).where(eq(updatePackagesTable.id, id));
     if (!pkg) { res.status(404).json({ error: "Not found" }); return; }
@@ -84,7 +92,7 @@ router.post("/:id/install", async (req, res): Promise<void> => {
       detailsJson: JSON.stringify({ packageId: id, packageVersion: pkg.packageVersion }),
     });
 
-    await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "install", entityType: "update_package", entityId: id, changesJson: JSON.stringify({ status: "installed", userId }) });
+    await db.insert(auditLogsTable).values({ actorUserId: actorId, action: "install", entityType: "update_package", entityId: id, changesJson: JSON.stringify({ status: "installed", userId }) });
     res.json({ ...row, simulated: true });
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });

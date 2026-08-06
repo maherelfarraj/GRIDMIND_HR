@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getActorUserId } from "../middleware/requireAuth.js";
+import { getActorAdminStatus } from "../lib/adminAuth.js";
 import { db, backupRecordsTable, auditLogsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getBackupScheduleStatus } from "../lib/backupScheduler.js";
@@ -45,7 +45,11 @@ router.get("/admin/backup-records", async (req, res): Promise<void> => {
 // POST /admin/backup-records/run — execute a REAL pg_dump backup
 router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
   try {
-    const actorUserId = getActorUserId(req);
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) {
+      res.status(403).json({ error: "Insufficient privileges to run backups" });
+      return;
+    }
     const { backupType, notes } = req.body ?? {};
     if (!backupType) {
       res.status(400).json({ error: "backupType is required" });
@@ -81,6 +85,11 @@ router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
 // POST /admin/backup-records/retry-offsite — bulk sweep: re-upload all failed/missing offsite copies
 router.post("/admin/backup-records/retry-offsite", async (req, res): Promise<void> => {
   try {
+    const { isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) {
+      res.status(403).json({ error: "Insufficient privileges to retry offsite uploads" });
+      return;
+    }
     const result = await retryOffsiteUploads();
     res.json(result);
   } catch (err: any) {
@@ -91,6 +100,11 @@ router.post("/admin/backup-records/retry-offsite", async (req, res): Promise<voi
 // POST /admin/backup-records/:id/retry-offsite — retry offsite upload for a single record
 router.post("/admin/backup-records/:id/retry-offsite", async (req, res): Promise<void> => {
   try {
+    const { isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) {
+      res.status(403).json({ error: "Insufficient privileges to verify backup records" });
+      return;
+    }
     const id = parseInt(req.params.id, 10);
     const record = await retryOffsiteUploadForRecord(id);
     res.json(record);
@@ -102,9 +116,14 @@ router.post("/admin/backup-records/:id/retry-offsite", async (req, res): Promise
   }
 });
 
-// POST /admin/backup-records/:id/verify — mark a backup as verified
-router.post("/admin/backup-records/:id/verify", async (req, res): Promise<void> => {
+// PATCH /admin/backup-records/:id/verify — mark a backup as verified
+router.patch("/admin/backup-records/:id/verify", async (req, res): Promise<void> => {
   try {
+    const { isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) {
+      res.status(403).json({ error: "Insufficient privileges to verify backup records" });
+      return;
+    }
     const id = parseInt(req.params.id, 10);
     const { verificationNotes, restoreTestResult } = req.body ?? {};
     const [row] = await db
