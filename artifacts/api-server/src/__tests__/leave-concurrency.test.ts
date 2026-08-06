@@ -463,3 +463,102 @@ describe("concurrent first-time submissions with no existing balance row (Task #
     expect(rows.filter((r) => r.status === "draft")).toHaveLength(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task #166 — draft-cancel must not release any pending days.
+// A draft request has never touched the pending counter, so cancelling it
+// must leave the balance completely unchanged.
+// ---------------------------------------------------------------------------
+let draftCxlEmployeeId: number;
+let draftCxlLeaveTypeId: number;
+let draftCxlBalanceId: number;
+const draftCxlRequestIds: number[] = [];
+const DRAFT_CXL_UNIQ = `T166-${Date.now()}`;
+
+async function cleanupDraftCancel() {
+  if (draftCxlRequestIds.length) {
+    await db.delete(auditLogsTable).where(
+      and(eq(auditLogsTable.entityType, "leave_request"), inArray(auditLogsTable.entityId, draftCxlRequestIds)),
+    );
+    await db.delete(leaveApprovalStepsTable).where(inArray(leaveApprovalStepsTable.leaveRequestId, draftCxlRequestIds));
+    await db.delete(leaveAttachmentsTable).where(inArray(leaveAttachmentsTable.leaveRequestId, draftCxlRequestIds));
+    await db.delete(leaveRequestsTable).where(inArray(leaveRequestsTable.id, draftCxlRequestIds));
+  }
+  if (draftCxlBalanceId) await db.delete(leaveBalancesTable).where(eq(leaveBalancesTable.id, draftCxlBalanceId));
+  if (draftCxlEmployeeId) await db.delete(rostersTable).where(eq(rostersTable.employeeId, draftCxlEmployeeId));
+  if (draftCxlLeaveTypeId) await db.delete(leaveTypesTable).where(eq(leaveTypesTable.id, draftCxlLeaveTypeId));
+  if (draftCxlEmployeeId) await db.delete(employeesTable).where(eq(employeesTable.id, draftCxlEmployeeId));
+}
+
+beforeAll(async () => {
+  const [dept] = await db.select().from(departmentsTable).limit(1);
+  const [emp] = await db.insert(employeesTable).values({
+    employeeNumber: DRAFT_CXL_UNIQ,
+    firstNameEn: "DraftCancel", lastNameEn: "Test",
+    firstNameAr: "اختبار", lastNameAr: "مسودة",
+    nationalId: DRAFT_CXL_UNIQ,
+    jobTitleEn: "Tester", jobTitleAr: "مختبر",
+    departmentId: dept?.id ?? 1,
+    roleId: 1,
+    email: `${DRAFT_CXL_UNIQ.toLowerCase()}@test.local`,
+    hireDate: "2020-01-01",
+    nationality: "SA",
+    status: "active",
+  }).returning();
+  draftCxlEmployeeId = emp.id;
+
+  const [lt] = await db.insert(leaveTypesTable).values({
+    codeEn: DRAFT_CXL_UNIQ.slice(0, 20),
+    nameEn: `Annual (${DRAFT_CXL_UNIQ})`, nameAr: "سنوية",
+    category: "general",
+  }).returning();
+  draftCxlLeaveTypeId = lt.id;
+
+  // The balance has 2 pending days from a *different* submitted request; the
+  // draft we create here must never touch this counter.
+  const [bal] = await db.insert(leaveBalancesTable).values({
+    employeeId: draftCxlEmployeeId, leaveTypeId: draftCxlLeaveTypeId, year: YEAR,
+    openingBalance: "10", accrued: "0", used: "0", pending: "2",
+    adjustment: "0", carriedOver: "0",
+  }).returning();
+  draftCxlBalanceId = bal.id;
+
+  // One draft request — never submitted, so no pending reservation.
+  const [req] = await db.insert(leaveRequestsTable).values({
+    requestNumber: `${DRAFT_CXL_UNIQ}-0`,
+    employeeId: draftCxlEmployeeId, leaveTypeId: draftCxlLeaveTypeId,
+    startDate: `${YEAR}-08-05`, endDate: `${YEAR}-08-07`,
+    totalDays: "3",
+    status: "draft",
+    currentStepNumber: 1,
+    totalApprovalSteps: 2,
+  } as any).returning();
+  draftCxlRequestIds.push(req.id);
+});
+
+afterAll(async () => {
+  await cleanupDraftCancel();
+});
+
+describe("draft cancellation must not release pending balance (Task #166)", () => {
+  it("cancels a draft request and leaves the pending counter unchanged", async () => {
+    const res = await fetch(`${baseUrl}/leave-requests/${draftCxlRequestIds[0]}/cancel`, { method: "POST" });
+    expect(res.status).toBe(200);
+
+    const body = await res.json() as any;
+    expect(body.status).toBe("cancelled");
+
+    // The pending counter must remain exactly as it was before the cancel.
+    const [bal] = await db.select().from(leaveBalancesTable).where(eq(leaveBalancesTable.id, draftCxlBalanceId));
+    expect(parseFloat(bal.pending)).toBe(2);
+  });
+
+  it("returns 409 when cancelling the same draft a second time", async () => {
+    const res = await fetch(`${baseUrl}/leave-requests/${draftCxlRequestIds[0]}/cancel`, { method: "POST" });
+    expect([400, 409]).toContain(res.status);
+
+    // Pending still untouched after the failed second cancel.
+    const [bal] = await db.select().from(leaveBalancesTable).where(eq(leaveBalancesTable.id, draftCxlBalanceId));
+    expect(parseFloat(bal.pending)).toBe(2);
+  });
+});

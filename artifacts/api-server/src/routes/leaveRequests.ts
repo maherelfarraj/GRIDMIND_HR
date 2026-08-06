@@ -378,20 +378,32 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
     return;
   }
 
-  // Task #179: run the cancel atomically. The status change is a conditional
-  // claim (WHERE status still cancellable) so two concurrent cancels — or a
-  // cancel racing a decide — can't both win and release the pending
-  // reservation twice.
+  // Task #179: run the cancel atomically.
+  // 1. Lock the request row (SELECT … FOR UPDATE) so that two concurrent
+  //    cancels — or a cancel racing a decide — read a consistent status.
+  // 2. Only submitted/under_review requests hold a pending reservation;
+  //    draft cancels must NOT touch the balance.
   let updated: typeof leaveRequestsTable.$inferSelect;
   try {
     updated = await db.transaction(async (tx) => {
+      // Lock the request row first to get the authoritative current status.
+      const [lockedReq] = await tx.select().from(leaveRequestsTable)
+        .where(eq(leaveRequestsTable.id, id))
+        .for("update");
+
+      if (!lockedReq || !["draft", "submitted", "under_review"].includes(lockedReq.status)) {
+        throw Object.assign(
+          new Error("Request was already decided or cancelled"),
+          { httpStatus: 409 },
+        );
+      }
+
+      // Flip status to cancelled atomically.
       const [claimed] = await tx.update(leaveRequestsTable)
         .set({ status: "cancelled", updatedAt: new Date() })
-        .where(and(
-          eq(leaveRequestsTable.id, id),
-          inArray(leaveRequestsTable.status, ["draft", "submitted", "under_review"]),
-        ))
+        .where(eq(leaveRequestsTable.id, id))
         .returning();
+
       if (!claimed) {
         throw Object.assign(
           new Error("Request was already decided or cancelled"),
@@ -399,18 +411,27 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
         );
       }
 
-      // Release the pending reservation in a single atomic conditional update;
-      // GREATEST keeps pending from going negative.
-      if (parseFloat(r.totalDays) > 0) {
-        const year = new Date(r.startDate).getFullYear();
+      // Only submitted / under_review requests reserved days in the pending
+      // counter.  Draft requests never touched it, so don't release anything.
+      if (["submitted", "under_review"].includes(lockedReq.status) && parseFloat(lockedReq.totalDays) > 0) {
+        const year = new Date(lockedReq.startDate).getFullYear();
+        // Lock the balance row too before mutating it.
+        await tx.select().from(leaveBalancesTable)
+          .where(and(
+            eq(leaveBalancesTable.employeeId, lockedReq.employeeId),
+            eq(leaveBalancesTable.leaveTypeId, lockedReq.leaveTypeId),
+            eq(leaveBalancesTable.year, year),
+          ))
+          .for("update");
+        // GREATEST keeps pending from going negative on any unexpected state.
         await tx.update(leaveBalancesTable)
           .set({
-            pending: sql`GREATEST(${leaveBalancesTable.pending} - ${r.totalDays}::numeric, 0)`,
+            pending: sql`GREATEST(${leaveBalancesTable.pending} - ${lockedReq.totalDays}::numeric, 0)`,
             updatedAt: new Date(),
           })
           .where(and(
-            eq(leaveBalancesTable.employeeId, r.employeeId),
-            eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
+            eq(leaveBalancesTable.employeeId, lockedReq.employeeId),
+            eq(leaveBalancesTable.leaveTypeId, lockedReq.leaveTypeId),
             eq(leaveBalancesTable.year, year),
           ));
       }
