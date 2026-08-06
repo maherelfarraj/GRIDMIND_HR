@@ -50,7 +50,7 @@ router.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-router.patch("/:id", validateBody(UpdateApplicationBody), async (req, res): Promise<void> => {
+router.patch("/:id", validateBody(UpdateApplicationBody.partial()), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(applicationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(applicationsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -62,7 +62,7 @@ router.patch("/:id", validateBody(UpdateApplicationBody), async (req, res): Prom
 router.post("/:id/shortlist", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(applicationsTable)
-      .set({ status: "shortlisted", shortlistedAt: new Date(), shortlistedByUserId: getActorUserId(req), updatedAt: new Date() })
+      .set({ status: "shortlisted", updatedAt: new Date() })
       .where(eq(applicationsTable.id, parseInt(req.params.id as string)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }

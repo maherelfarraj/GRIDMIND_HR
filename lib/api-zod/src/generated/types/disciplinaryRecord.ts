@@ -20,6 +20,7 @@ export interface DisciplinaryRecord {
   descriptionEn?: string;
   /** @nullable */
   descriptionAr?: string | null;
+  severity?: string;
   category?: string;
   /** @nullable */
   expiryDate?: string | null;

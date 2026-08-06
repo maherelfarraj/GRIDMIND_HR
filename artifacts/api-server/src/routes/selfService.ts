@@ -54,7 +54,7 @@ employeeRequestsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-employeeRequestsRouter.patch("/:id", validateBody(UpdateEmployeeRequestBody), async (req, res): Promise<void> => {
+employeeRequestsRouter.patch("/:id", validateBody(UpdateEmployeeRequestBody.partial()), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(employeeRequestsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(employeeRequestsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -119,7 +119,7 @@ announcementsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-announcementsRouter.patch("/:id", validateBody(UpdateAnnouncementBody), async (req, res): Promise<void> => {
+announcementsRouter.patch("/:id", validateBody(UpdateAnnouncementBody.partial()), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(announcementsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(announcementsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -185,7 +185,7 @@ approvalDelegationsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-approvalDelegationsRouter.patch("/:id", validateBody(UpdateApprovalDelegationBody), async (req, res): Promise<void> => {
+approvalDelegationsRouter.patch("/:id", validateBody(UpdateApprovalDelegationBody.partial()), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(approvalDelegationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(approvalDelegationsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }

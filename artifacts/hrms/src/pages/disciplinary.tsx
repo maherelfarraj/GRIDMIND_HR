@@ -9,6 +9,7 @@ import {
   useListPromotionRecommendations,
   useCreatePromotionRecommendation,
   useListEmployees,
+  type DisciplinaryRecordInputSeverity,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,7 +47,7 @@ function NewDisciplinaryDialog({ open, onClose }: { open: boolean; onClose: () =
   const { data: empData } = useListEmployees({ limit: 500 } as any);
   const { mutate, isPending } = useCreateDisciplinaryRecord();
   const [form, setForm] = useState({
-    employeeId: '', incidentDate: '', incidentType: '', description: '', actionTaken: '',
+    employeeId: '', incidentDate: '', incidentType: '', severity: 'minor', description: '', actionTaken: '',
   });
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -59,6 +60,7 @@ function NewDisciplinaryDialog({ open, onClose }: { open: boolean; onClose: () =
       data: {
         employeeId: parseInt(form.employeeId),
         incidentDate: form.incidentDate,
+        severity: (form.severity || undefined) as DisciplinaryRecordInputSeverity | undefined,
         category: form.incidentType,
         descriptionEn: form.description || '',
         actionType: form.actionTaken || null,
@@ -69,7 +71,7 @@ function NewDisciplinaryDialog({ open, onClose }: { open: boolean; onClose: () =
         qc.invalidateQueries({ queryKey: ['/api/disciplinary-records'] });
         toast({ title: t('Record created', 'تم إنشاء السجل') });
         onClose();
-        setForm({ employeeId: '', incidentDate: '', incidentType: '', description: '', actionTaken: '' });
+        setForm({ employeeId: '', incidentDate: '', incidentType: '', severity: 'minor', description: '', actionTaken: '' });
       },
       onError: (e: any) => toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' }),
     });
@@ -90,6 +92,15 @@ function NewDisciplinaryDialog({ open, onClose }: { open: boolean; onClose: () =
           </Select>
           <Input type="date" value={form.incidentDate} onChange={e => set('incidentDate', e.target.value)} />
           <Input placeholder={t('Incident Type', 'نوع الحادثة')} value={form.incidentType} onChange={e => set('incidentType', e.target.value)} />
+          <Select value={form.severity} onValueChange={v => set('severity', v)}>
+            <SelectTrigger><SelectValue placeholder={t('Severity', 'الخطورة')} /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="minor">{t('Minor', 'طفيف')}</SelectItem>
+              <SelectItem value="moderate">{t('Moderate', 'متوسط')}</SelectItem>
+              <SelectItem value="major">{t('Major', 'جسيم')}</SelectItem>
+              <SelectItem value="gross_misconduct">{t('Gross Misconduct', 'إخلال جسيم')}</SelectItem>
+            </SelectContent>
+          </Select>
           <Textarea placeholder={t('Description', 'الوصف')} value={form.description} onChange={e => set('description', e.target.value)} rows={3} />
           <Textarea placeholder={t('Action Taken', 'الإجراء المتخذ')} value={form.actionTaken} onChange={e => set('actionTaken', e.target.value)} rows={2} />
         </div>
@@ -210,6 +221,7 @@ export default function Disciplinary() {
                     <TableHead>{t('Employee', 'الموظف')}</TableHead>
                     <TableHead>{t('Date', 'التاريخ')}</TableHead>
                     <TableHead>{t('Type', 'النوع')}</TableHead>
+                    <TableHead>{t('Severity', 'الخطورة')}</TableHead>
                     <TableHead>{t('Category', 'الفئة')}</TableHead>
                     <TableHead>{t('Status', 'الحالة')}</TableHead>
                     <TableHead>{t('Description', 'الوصف')}</TableHead>
@@ -217,16 +229,21 @@ export default function Disciplinary() {
                 </TableHeader>
                 <TableBody>
                   {discLoading ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t('Loading...', 'جارٍ التحميل...')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('Loading...', 'جارٍ التحميل...')}</TableCell></TableRow>
                   ) : discRecords.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t('No disciplinary records', 'لا توجد سجلات تأديبية')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('No disciplinary records', 'لا توجد سجلات تأديبية')}</TableCell></TableRow>
                   ) : discRecords.map(r => (
                     <TableRow key={r.id}>
                       <TableCell>#{r.employeeId}</TableCell>
                       <TableCell>{fmtDate(r.incidentDate)}</TableCell>
                       <TableCell className="capitalize">{r.actionType ?? '—'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={cn('capitalize text-xs', SEVERITY_COLORS[r.category ?? ''] ?? '')}>
+                        <Badge variant="outline" className={cn('capitalize text-xs', SEVERITY_COLORS[(r as any).severity ?? ''] ?? '')}>
+                          {((r as any).severity ?? '—').replace('_', ' ')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize text-xs">
                           {(r.category ?? '—').replace('_', ' ')}
                         </Badge>
                       </TableCell>

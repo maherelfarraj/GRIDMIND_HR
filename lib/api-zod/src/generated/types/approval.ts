@@ -26,10 +26,10 @@ export interface Approval {
   /** @nullable */
   dueDate?: string | null;
   /** @nullable */
-  metadata?: string | null;
-  /** @nullable */
   entityType?: string | null;
   /** @nullable */
   entityId?: number | null;
+  /** @nullable */
+  metadata?: string | null;
   createdAt: string;
 }

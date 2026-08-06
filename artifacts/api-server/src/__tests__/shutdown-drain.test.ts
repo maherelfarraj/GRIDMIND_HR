@@ -66,7 +66,7 @@ describe("graceful shutdown drain (spawned built server)", () => {
       // test is wasted work since the output is identical each time.
       execSync("node ./build.mjs", { cwd: serverRoot, stdio: "ignore" });
     },
-    { timeout: 120_000 },
+    120_000,
   );
 
   it(

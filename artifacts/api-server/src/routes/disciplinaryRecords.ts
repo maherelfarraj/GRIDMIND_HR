@@ -54,7 +54,7 @@ disciplinaryRecordsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-disciplinaryRecordsRouter.patch("/:id", validateBody(UpdateDisciplinaryRecordBody), async (req, res): Promise<void> => {
+disciplinaryRecordsRouter.patch("/:id", validateBody(UpdateDisciplinaryRecordBody.partial()), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(disciplinaryRecordsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(disciplinaryRecordsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -107,7 +107,7 @@ commendationRecordsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-commendationRecordsRouter.patch("/:id", validateBody(UpdateCommendationRecordBody), async (req, res): Promise<void> => {
+commendationRecordsRouter.patch("/:id", validateBody(UpdateCommendationRecordBody.partial()), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(commendationRecordsTable).set(req.body).where(eq(commendationRecordsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -161,7 +161,7 @@ promotionRecommendationsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-promotionRecommendationsRouter.patch("/:id", validateBody(UpdatePromotionRecommendationBody), async (req, res): Promise<void> => {
+promotionRecommendationsRouter.patch("/:id", validateBody(UpdatePromotionRecommendationBody.partial()), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(promotionRecommendationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(promotionRecommendationsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }

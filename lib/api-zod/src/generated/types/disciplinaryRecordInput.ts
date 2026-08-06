@@ -5,12 +5,18 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+import type { DisciplinaryRecordInputSeverity } from './disciplinaryRecordInputSeverity';
 
 export interface DisciplinaryRecordInput {
   employeeId: number;
   incidentDate: string;
+  /** @nullable */
+  actionDate?: string | null;
+  severity?: DisciplinaryRecordInputSeverity;
   category: string;
   descriptionEn: string;
+  /** @nullable */
+  descriptionAr?: string | null;
   /** @nullable */
   actionType?: string | null;
   status?: string;

@@ -1,5 +1,14 @@
-import type { RequestHandler } from "express";
-import { type ZodObject, type ZodRawShape, type UnknownKeysParam, type ZodTypeAny, ZodIssueCode } from "zod";
+import type { Request, Response, NextFunction } from "express";
+
+type StrictableSchema = {
+  strict(): {
+    safeParse(data: unknown): {
+      success: boolean;
+      data?: unknown;
+      error?: { message: string; issues: Array<{ code: string; keys?: string[] }> };
+    };
+  };
+};
 
 /**
  * Express middleware factory that validates req.body against a Zod object
@@ -12,48 +21,36 @@ import { type ZodObject, type ZodRawShape, type UnknownKeysParam, type ZodTypeAn
  *   downstream handlers can insert/update it wholesale without worrying
  *   about extra keys slipping through.
  *
- * Generic over the route params type so subsequent handlers in the same
- * route retain properly-typed req.params (e.g. req.params.id stays string).
- *
  * Usage:
  *   router.post("/", validateBody(CreateFooBody), async (req, res) => { … });
- *   router.patch("/:id", validateBody(UpdateFooBody), async (req, res) => { … });
+ *   router.patch("/:id", validateBody(UpdateFooBody.partial()), async (req, res) => { … });
  */
-export function validateBody<
-  P extends Record<string, string> = Record<string, string>,
-  ResBody = any,
-  ReqBody = any,
-  ReqQuery extends Record<string, any> = Record<string, any>,
-  LocalsObj extends Record<string, any> = Record<string, any>,
->(
-  schema: ZodObject<ZodRawShape, UnknownKeysParam, ZodTypeAny>,
-): RequestHandler<P, ResBody, ReqBody, ReqQuery, LocalsObj> {
+export function validateBody(schema: StrictableSchema) {
   // Build the strict variant once at registration time, not per request.
   const strict = schema.strict();
 
-  return (req, res, next): void => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     const result = strict.safeParse(req.body);
     if (!result.success) {
       // Surface unrecognized-key errors with the field names so callers can
       // fix typos immediately rather than debugging silent data loss.
       const unknownFields: string[] = [];
-      for (const issue of result.error.issues) {
-        if (issue.code === ZodIssueCode.unrecognized_keys) {
-          // The zod issue type for unrecognized_keys always carries `keys`.
-          unknownFields.push(...(issue as { code: string; keys: string[] }).keys);
+      for (const issue of result.error!.issues) {
+        if (issue.code === "unrecognized_keys" && issue.keys) {
+          unknownFields.push(...issue.keys);
         }
       }
       if (unknownFields.length > 0) {
         res.status(400).json({
           error: "Request body contains unrecognized fields",
           unknownFields,
-        } as any);
+        });
         return;
       }
-      res.status(400).json({ error: result.error.message } as any);
+      res.status(400).json({ error: result.error!.message });
       return;
     }
-    req.body = result.data as ReqBody;
+    req.body = result.data;
     next();
   };
 }

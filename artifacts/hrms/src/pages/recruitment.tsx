@@ -14,6 +14,7 @@ import {
   useListEmployees,
   type Employee,
   type Department,
+  type JobRequisitionInputPriority,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -68,7 +69,7 @@ function NewRequisitionDialog({ open, onClose }: { open: boolean; onClose: () =>
 
   const [form, setForm] = useState({
     title: '', departmentId: '', requestedBy: '', numberOfPositions: '1',
-    justification: '',
+    priority: 'medium', justification: '',
   });
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
@@ -84,6 +85,7 @@ function NewRequisitionDialog({ open, onClose }: { open: boolean; onClose: () =>
         departmentId: parseInt(form.departmentId),
         requestedByEmployeeId: parseInt(form.requestedBy),
         headcount: parseInt(form.numberOfPositions) || 1,
+        priority: (form.priority || undefined) as JobRequisitionInputPriority | undefined,
         justification: form.justification || null,
         status: 'draft',
       },
@@ -92,7 +94,7 @@ function NewRequisitionDialog({ open, onClose }: { open: boolean; onClose: () =>
         qc.invalidateQueries({ queryKey: ['/api/job-requisitions'] });
         toast({ title: t('Requisition created', 'تم إنشاء الطلب') });
         onClose();
-        setForm({ title: '', departmentId: '', requestedBy: '', numberOfPositions: '1', justification: '' });
+        setForm({ title: '', departmentId: '', requestedBy: '', numberOfPositions: '1', priority: 'medium', justification: '' });
       },
       onError: (e: any) => toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' }),
     });
@@ -120,6 +122,15 @@ function NewRequisitionDialog({ open, onClose }: { open: boolean; onClose: () =>
             <SelectContent>{emps.map(e => <SelectItem key={e.id} value={String(e.id)}>{localFullName(e.firstNameEn, e.lastNameEn, e.firstNameAr, e.lastNameAr, lang)}</SelectItem>)}</SelectContent>
           </Select>
           <Input type="number" min="1" placeholder={t('No. of Positions', 'عدد المناصب')} value={form.numberOfPositions} onChange={e => set('numberOfPositions', e.target.value)} />
+          <Select value={form.priority} onValueChange={v => set('priority', v)}>
+            <SelectTrigger><SelectValue placeholder={t('Priority', 'الأولوية')} /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low">{t('Low', 'منخفضة')}</SelectItem>
+              <SelectItem value="medium">{t('Medium', 'متوسطة')}</SelectItem>
+              <SelectItem value="high">{t('High', 'عالية')}</SelectItem>
+              <SelectItem value="urgent">{t('Urgent', 'عاجلة')}</SelectItem>
+            </SelectContent>
+          </Select>
           <Textarea placeholder={t('Justification', 'المبرر')} value={form.justification} onChange={e => set('justification', e.target.value)} rows={3} />
         </div>
         <DialogFooter>
@@ -268,6 +279,7 @@ export default function Recruitment() {
                   <TableRow>
                     <TableHead>{t('Title', 'المسمى')}</TableHead>
                     <TableHead>{t('Positions', 'المناصب')}</TableHead>
+                    <TableHead>{t('Priority', 'الأولوية')}</TableHead>
                     <TableHead>{t('Type', 'النوع')}</TableHead>
                     <TableHead>{t('Status', 'الحالة')}</TableHead>
                     <TableHead>{t('Target Start', 'تاريخ البدء المستهدف')}</TableHead>
@@ -276,13 +288,23 @@ export default function Recruitment() {
                 </TableHeader>
                 <TableBody>
                   {reqLoading ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t('Loading...', 'جارٍ التحميل...')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('Loading...', 'جارٍ التحميل...')}</TableCell></TableRow>
                   ) : filteredReqs.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t('No requisitions found', 'لا توجد طلبات')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('No requisitions found', 'لا توجد طلبات')}</TableCell></TableRow>
                   ) : filteredReqs.map(r => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{r.jobTitleEn ?? '—'}</TableCell>
                       <TableCell>{r.headcount ?? '—'}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cn('capitalize text-xs',
+                          (r as any).priority === 'urgent' ? 'border-red-400 text-red-600' :
+                          (r as any).priority === 'high' ? 'border-orange-400 text-orange-600' :
+                          (r as any).priority === 'low' ? 'border-slate-400 text-slate-500' :
+                          'border-blue-400 text-blue-600'
+                        )}>
+                          {(r as any).priority ?? 'medium'}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize">
                           {r.requisitionType?.replace('_', ' ') ?? '—'}

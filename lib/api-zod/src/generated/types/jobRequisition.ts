@@ -43,5 +43,7 @@ export interface JobRequisition {
   rejectionReason?: string | null;
   /** @nullable */
   closedAt?: Date | null;
+  /** @nullable */
+  priority?: string | null;
   organizationType?: string;
 }

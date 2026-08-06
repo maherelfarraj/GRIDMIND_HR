@@ -51,7 +51,7 @@ router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
       res.status(400).json({ error: "backupType is required" });
       return;
     }
-    const record = await retryOffsiteUploadForRecord(id);
+    const record = await runBackup({ backupType, initiatedByUserId: actorUserId, notes });
     if (record.status !== "completed") {
       res.status(500).json({ error: record.errorMessage ?? "Backup failed", record });
       return;

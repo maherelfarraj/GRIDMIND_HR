@@ -5,12 +5,18 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+import type { JobRequisitionInputPriority } from './jobRequisitionInputPriority';
 
 export interface JobRequisitionInput {
+  /** @nullable */
+  requisitionNumber?: string | null;
   jobTitleEn: string;
+  /** @nullable */
+  jobTitleAr?: string | null;
   departmentId: number;
   requestedByEmployeeId: number;
   headcount: number;
+  priority?: JobRequisitionInputPriority;
   /** @nullable */
   justification?: string | null;
   /** @nullable */

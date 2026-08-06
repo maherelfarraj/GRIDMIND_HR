@@ -830,9 +830,9 @@ export const ListApprovalsResponseItem = zod.object({
   "decidedAt": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
-  "metadata": zod.string().nullish(),
   "entityType": zod.string().nullish(),
   "entityId": zod.number().nullish(),
+  "metadata": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const ListApprovalsResponse = zod.array(ListApprovalsResponseItem)
@@ -868,9 +868,9 @@ export const CreateApprovalResponse = zod.object({
   "decidedAt": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
-  "metadata": zod.string().nullish(),
   "entityType": zod.string().nullish(),
   "entityId": zod.number().nullish(),
+  "metadata": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
@@ -896,9 +896,9 @@ export const GetApprovalResponse = zod.object({
   "decidedAt": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
-  "metadata": zod.string().nullish(),
   "entityType": zod.string().nullish(),
   "entityId": zod.number().nullish(),
+  "metadata": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
@@ -929,9 +929,9 @@ export const DecideApprovalResponse = zod.object({
   "decidedAt": zod.string().nullish(),
   "decisionNote": zod.string().nullish(),
   "dueDate": zod.string().nullish(),
-  "metadata": zod.string().nullish(),
   "entityType": zod.string().nullish(),
   "entityId": zod.number().nullish(),
+  "metadata": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
@@ -6528,6 +6528,7 @@ export const ListJobRequisitionsResponse = zod.object({
   "approvedAt": zod.coerce.date().nullish(),
   "rejectionReason": zod.string().nullish(),
   "closedAt": zod.coerce.date().nullish(),
+  "priority": zod.string().nullish(),
   "organizationType": zod.string().optional()
 })),
   "total": zod.number(),
@@ -6535,15 +6536,18 @@ export const ListJobRequisitionsResponse = zod.object({
   "limit": zod.number()
 })
 
-
 /**
  * @summary Create job requisition
  */
+export const createJobRequisitionBodyPriorityDefault = `medium`;
 export const CreateJobRequisitionBody = zod.object({
+  "requisitionNumber": zod.string().nullish(),
   "jobTitleEn": zod.string(),
+  "jobTitleAr": zod.string().nullish(),
   "departmentId": zod.number(),
   "requestedByEmployeeId": zod.number(),
   "headcount": zod.number(),
+  "priority": zod.enum(['low', 'medium', 'high', 'urgent']).default(createJobRequisitionBodyPriorityDefault),
   "justification": zod.string().nullish(),
   "targetStartDate": zod.string().nullish(),
   "status": zod.string().optional()
@@ -6575,6 +6579,7 @@ export const CreateJobRequisitionResponse = zod.object({
   "approvedAt": zod.coerce.date().nullish(),
   "rejectionReason": zod.string().nullish(),
   "closedAt": zod.coerce.date().nullish(),
+  "priority": zod.string().nullish(),
   "organizationType": zod.string().optional()
 })
 
@@ -6612,6 +6617,7 @@ export const GetJobRequisitionResponse = zod.object({
   "approvedAt": zod.coerce.date().nullish(),
   "rejectionReason": zod.string().nullish(),
   "closedAt": zod.coerce.date().nullish(),
+  "priority": zod.string().nullish(),
   "organizationType": zod.string().optional()
 })
 
@@ -6623,11 +6629,15 @@ export const UpdateJobRequisitionParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updateJobRequisitionBodyPriorityDefault = `medium`;
 export const UpdateJobRequisitionBody = zod.object({
+  "requisitionNumber": zod.string().nullish(),
   "jobTitleEn": zod.string(),
+  "jobTitleAr": zod.string().nullish(),
   "departmentId": zod.number(),
   "requestedByEmployeeId": zod.number(),
   "headcount": zod.number(),
+  "priority": zod.enum(['low', 'medium', 'high', 'urgent']).default(updateJobRequisitionBodyPriorityDefault),
   "justification": zod.string().nullish(),
   "targetStartDate": zod.string().nullish(),
   "status": zod.string().optional()
@@ -6659,6 +6669,7 @@ export const UpdateJobRequisitionResponse = zod.object({
   "approvedAt": zod.coerce.date().nullish(),
   "rejectionReason": zod.string().nullish(),
   "closedAt": zod.coerce.date().nullish(),
+  "priority": zod.string().nullish(),
   "organizationType": zod.string().optional()
 })
 
@@ -9669,6 +9680,7 @@ export const ListDisciplinaryRecordsResponse = zod.object({
   "actionDate": zod.string().optional(),
   "descriptionEn": zod.string().optional(),
   "descriptionAr": zod.string().nullish(),
+  "severity": zod.string().optional(),
   "category": zod.string().optional(),
   "expiryDate": zod.string().nullish(),
   "issuedByEmployeeId": zod.number().optional(),
@@ -9687,15 +9699,18 @@ export const ListDisciplinaryRecordsResponse = zod.object({
   "limit": zod.number()
 })
 
-
 /**
  * @summary Create disciplinary record
  */
+export const createDisciplinaryRecordBodySeverityDefault = `minor`;
 export const CreateDisciplinaryRecordBody = zod.object({
   "employeeId": zod.number(),
   "incidentDate": zod.string(),
+  "actionDate": zod.string().nullish(),
+  "severity": zod.enum(['minor', 'moderate', 'major', 'gross_misconduct']).default(createDisciplinaryRecordBodySeverityDefault),
   "category": zod.string(),
   "descriptionEn": zod.string(),
+  "descriptionAr": zod.string().nullish(),
   "actionType": zod.string().nullish(),
   "status": zod.string().optional(),
   "issuedByEmployeeId": zod.number().nullish(),
@@ -9714,6 +9729,7 @@ export const CreateDisciplinaryRecordResponse = zod.object({
   "actionDate": zod.string().optional(),
   "descriptionEn": zod.string().optional(),
   "descriptionAr": zod.string().nullish(),
+  "severity": zod.string().optional(),
   "category": zod.string().optional(),
   "expiryDate": zod.string().nullish(),
   "issuedByEmployeeId": zod.number().optional(),
@@ -9748,6 +9764,7 @@ export const GetDisciplinaryRecordResponse = zod.object({
   "actionDate": zod.string().optional(),
   "descriptionEn": zod.string().optional(),
   "descriptionAr": zod.string().nullish(),
+  "severity": zod.string().optional(),
   "category": zod.string().optional(),
   "expiryDate": zod.string().nullish(),
   "issuedByEmployeeId": zod.number().optional(),
@@ -9770,11 +9787,15 @@ export const UpdateDisciplinaryRecordParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updateDisciplinaryRecordBodySeverityDefault = `minor`;
 export const UpdateDisciplinaryRecordBody = zod.object({
   "employeeId": zod.number(),
   "incidentDate": zod.string(),
+  "actionDate": zod.string().nullish(),
+  "severity": zod.enum(['minor', 'moderate', 'major', 'gross_misconduct']).default(updateDisciplinaryRecordBodySeverityDefault),
   "category": zod.string(),
   "descriptionEn": zod.string(),
+  "descriptionAr": zod.string().nullish(),
   "actionType": zod.string().nullish(),
   "status": zod.string().optional(),
   "issuedByEmployeeId": zod.number().nullish(),
@@ -9793,6 +9814,7 @@ export const UpdateDisciplinaryRecordResponse = zod.object({
   "actionDate": zod.string().optional(),
   "descriptionEn": zod.string().optional(),
   "descriptionAr": zod.string().nullish(),
+  "severity": zod.string().optional(),
   "category": zod.string().optional(),
   "expiryDate": zod.string().nullish(),
   "issuedByEmployeeId": zod.number().optional(),

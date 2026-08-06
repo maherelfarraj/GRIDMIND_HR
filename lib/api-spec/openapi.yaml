@@ -2047,7 +2047,7 @@ paths:
   /leave-requests/{id}/attachments/{attachmentId}:
     get:
       tags: [ leave ]
-      summary: Retrieve a single attachment with full file payload
+      summary: Retrieve full attachment record including file payload
       operationId: getLeaveAttachment
       parameters:
         - name: id
@@ -2060,7 +2060,7 @@ paths:
           schema: { type: number }
       responses:
         "200":
-          description: Attachment with file payload
+          description: Attachment record with fileUrl
           content:
             application/json:
               schema: { $ref: "#/components/schemas/LeaveAttachment" }
@@ -10952,8 +10952,7 @@ paths:
                       $ref: "#/components/schemas/IntegrationAuditLog"
                   page: { type: number }
                   pageSize: { type: number }
-                  total: { type: number }
-                required: [ data, page, pageSize, total ]
+                required: [ data, page, pageSize ]
 
   /integration-governance/health-checks/run:
     post:
@@ -12107,9 +12106,9 @@ components:
         decidedAt: { type: [ "string", "null" ] }
         decisionNote: { type: [ "string", "null" ] }
         dueDate: { type: [ "string", "null" ] }
-        metadata: { type: [ "string", "null" ] }
         entityType: { type: [ "string", "null" ] }
         entityId: { type: [ "integer", "null" ] }
+        metadata: { type: [ "string", "null" ] }
         createdAt: { type: string }
       required:
         - id
@@ -14335,6 +14334,10 @@ components:
             - string
             - "null"
           format: date-time
+        priority:
+          type:
+            - string
+            - "null"
         organizationType:
           type: string
       required: [ id, departmentId, status, createdAt, updatedAt ]
@@ -14342,10 +14345,16 @@ components:
     JobRequisitionInput:
       type: object
       properties:
+        requisitionNumber: { type: [ "string", "null" ] }
         jobTitleEn: { type: string }
+        jobTitleAr: { type: [ "string", "null" ] }
         departmentId: { type: number }
         requestedByEmployeeId: { type: number }
         headcount: { type: number }
+        priority:
+          type: string
+          enum: [ low, medium, high, urgent ]
+          default: medium
         justification: { type: [ "string", "null" ] }
         targetStartDate: { type: [ "string", "null" ] }
         status: { type: string }
@@ -15676,6 +15685,8 @@ components:
           type:
             - string
             - "null"
+        severity:
+          type: string
         category:
           type: string
         expiryDate:
@@ -15724,8 +15735,14 @@ components:
       properties:
         employeeId: { type: number }
         incidentDate: { type: string }
+        actionDate: { type: [ "string", "null" ] }
+        severity:
+          type: string
+          enum: [ minor, moderate, major, gross_misconduct ]
+          default: minor
         category: { type: string }
         descriptionEn: { type: string }
+        descriptionAr: { type: [ "string", "null" ] }
         actionType: { type: [ "string", "null" ] }
         status: { type: string }
         issuedByEmployeeId: { type: [ "number", "null" ] }

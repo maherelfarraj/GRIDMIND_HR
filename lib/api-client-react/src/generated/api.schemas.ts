@@ -732,11 +732,11 @@ export interface Approval {
   /** @nullable */
   dueDate?: string | null;
   /** @nullable */
-  metadata?: string | null;
-  /** @nullable */
   entityType?: string | null;
   /** @nullable */
   entityId?: number | null;
+  /** @nullable */
+  metadata?: string | null;
   createdAt: string;
 }
 
@@ -2815,14 +2815,22 @@ export interface JobRequisition {
   rejectionReason?: string | null;
   /** @nullable */
   closedAt?: string | null;
+  /** @nullable */
+  priority?: string | null;
   organizationType?: string;
 }
 
+export type JobRequisitionInputPriority = typeof JobRequisitionInputPriority[keyof typeof JobRequisitionInputPriority];
 export interface JobRequisitionInput {
+  /** @nullable */
+  requisitionNumber?: string | null;
   jobTitleEn: string;
+  /** @nullable */
+  jobTitleAr?: string | null;
   departmentId: number;
   requestedByEmployeeId: number;
   headcount: number;
+  priority?: JobRequisitionInputPriority;
   /** @nullable */
   justification?: string | null;
   /** @nullable */
@@ -3761,6 +3769,7 @@ export interface DisciplinaryRecord {
   descriptionEn?: string;
   /** @nullable */
   descriptionAr?: string | null;
+  severity?: string;
   category?: string;
   /** @nullable */
   expiryDate?: string | null;
@@ -3783,11 +3792,17 @@ export interface DisciplinaryRecord {
   dualAuthRequestId?: number | null;
 }
 
+export type DisciplinaryRecordInputSeverity = typeof DisciplinaryRecordInputSeverity[keyof typeof DisciplinaryRecordInputSeverity];
 export interface DisciplinaryRecordInput {
   employeeId: number;
   incidentDate: string;
+  /** @nullable */
+  actionDate?: string | null;
+  severity?: DisciplinaryRecordInputSeverity;
   category: string;
   descriptionEn: string;
+  /** @nullable */
+  descriptionAr?: string | null;
   /** @nullable */
   actionType?: string | null;
   status?: string;
@@ -8586,7 +8601,6 @@ export type ListIntegrationAuditLog200 = {
   data: IntegrationAuditLog[];
   page: number;
   pageSize: number;
-  total: number;
 };
 
 export type RunIntegrationHealthChecksBody = {
@@ -8704,6 +8718,13 @@ export type CreateOrgReportTemplateBody = { [key: string]: unknown };
 
 export type UpsertOrganizationBrandingBody = { [key: string]: unknown };
 
+export const DisciplinaryRecordInputSeverity = {
+  minor: 'minor',
+  moderate: 'moderate',
+  major: 'major',
+  gross_misconduct: 'gross_misconduct',
+} as const;
+
 export interface PayrollPeriodOtDepartmentBreakdown {
   /** @nullable */
   departmentId: number | null;
@@ -8716,3 +8737,10 @@ export interface PayrollPeriodOtDepartmentBreakdown {
   /** Per-employee OT pay split by weekday/weekend/holiday, sorted by premium (weekend + holiday) OT descending */
   employees: PayrollPeriodOtEmployee[];
 }
+
+export const JobRequisitionInputPriority = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  urgent: 'urgent',
+} as const;

@@ -10,6 +10,8 @@ export const disciplinaryRecordsTable = pgTable("disciplinary_records", {
   actionDate: varchar("action_date", { length: 10 }).notNull(),
   descriptionEn: text("description_en").notNull(),
   descriptionAr: text("description_ar"),
+  // "minor" | "moderate" | "major" | "gross_misconduct"
+  severity: varchar("severity", { length: 30 }).notNull().default("minor"),
   // "attendance" | "conduct" | "performance" | "policy_violation" | "insubordination" | "other"
   category: varchar("category", { length: 30 }).notNull().default("conduct"),
   // "pending" | "active" | "appealed" | "overturned" | "expired"

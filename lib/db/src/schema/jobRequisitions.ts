@@ -23,6 +23,8 @@ export const jobRequisitionsTable = pgTable("job_requisitions", {
   currency: varchar("currency", { length: 3 }).notNull().default("SAR"),
   targetStartDate: varchar("target_start_date", { length: 10 }),
   justification: text("justification"),
+  // "low" | "medium" | "high" | "urgent"
+  priority: varchar("priority", { length: 20 }).notNull().default("medium"),
   // "draft" | "submitted" | "approved" | "rejected" | "on_hold" | "closed" | "filled"
   status: varchar("status", { length: 20 }).notNull().default("draft"),
   requestedByEmployeeId: integer("requested_by_employee_id").notNull(),
