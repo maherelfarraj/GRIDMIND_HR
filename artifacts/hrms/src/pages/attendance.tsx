@@ -92,6 +92,53 @@ export default function Attendance() {
 
   const clearFilters = () => navigate('/attendance', { replace: true });
 
+  const exportCsv = () => {
+    if (!attendanceData || attendanceData.length === 0) return;
+
+    const isAr = lang === 'ar';
+    const headers = isAr
+      ? ['الموظف', 'القسم', 'التاريخ', 'دخول', 'خروج', 'الحالة', 'الجهاز']
+      : ['Employee', 'Department', 'Date', 'Check In', 'Check Out', 'Status', 'Device'];
+
+    const statusLabel = (status: string) => {
+      const map: Record<string, [string, string]> = {
+        present: ['Present', 'حاضر'],
+        absent: ['Absent', 'غائب'],
+        late: ['Late', 'متأخر'],
+        on_leave: ['Leave', 'إجازة'],
+      };
+      return isAr ? (map[status]?.[1] ?? status) : (map[status]?.[0] ?? status);
+    };
+
+    const escape = (v: string | null | undefined) => {
+      const s = v ?? '';
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+
+    const rows = attendanceData.map((r) => [
+      escape(localName(r.employeeNameEn, r.employeeNameAr, lang)),
+      escape(localName(r.departmentNameEn, departments?.find(d => d.id === r.departmentId)?.nameAr, lang)),
+      escape(r.date ?? filterDate ?? ''),
+      escape(r.checkInTime ?? ''),
+      escape(r.checkOutTime ?? ''),
+      escape(statusLabel(r.status)),
+      escape(r.deviceName ?? ''),
+    ]);
+
+    const csv = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
+    const bom = '\uFEFF'; // UTF-8 BOM for Arabic compatibility in Excel
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const datePart = filterDate ?? new Date().toISOString().split('T')[0];
+    a.download = `attendance-${datePart}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const setFilters = (departmentId: number | null, date: string | null) => {
     const next = new URLSearchParams();
     if (departmentId != null) next.set('departmentId', String(departmentId));
@@ -281,7 +328,7 @@ export default function Attendance() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={exportCsv} disabled={!attendanceData || attendanceData.length === 0}>
             <Download className="w-4 h-4 me-2" />
             {t('Export Report', 'تصدير التقرير')}
           </Button>
