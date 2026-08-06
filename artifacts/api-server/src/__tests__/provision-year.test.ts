@@ -53,9 +53,9 @@ describe("POST /leave-balances/provision-year", () => {
 
     const newBal = await getBalance(TEST_EMPLOYEE_ID, f.annualTypeId, PROV_YEAR);
     expect(newBal).toBeDefined();
-    // ensureLeaveBalance semantics: entitlement lands in `accrued`, opening 0.
-    expect(parseFloat(newBal.accrued)).toBeCloseTo(10); // defaultDaysPerYear
-    expect(parseFloat(newBal.openingBalance)).toBeCloseTo(0);
+    // Convention: entitlement always lands in openingBalance; accrued is for mid-year accumulation.
+    expect(parseFloat(newBal.openingBalance)).toBeCloseTo(10); // defaultDaysPerYear
+    expect(parseFloat(newBal.accrued)).toBeCloseTo(0);
     expect(parseFloat(newBal.carriedOver)).toBeCloseTo(5); // min(8 available, 5 max)
     expect(parseFloat(newBal.used)).toBeCloseTo(0);
     expect(parseFloat(newBal.pending)).toBeCloseTo(0);
