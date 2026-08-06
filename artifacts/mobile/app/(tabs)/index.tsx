@@ -30,16 +30,19 @@ import {
   useListNotifications,
   useListPayrollPeriods,
   useListPayrollRuns,
+  useListPublicHolidays,
 } from '@workspace/api-client-react';
 import type {
   LeaveBalance,
   LeaveRequestSummary,
   PayrollRunSummary,
+  PublicHoliday,
 } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 const CURRENT_YEAR = 2026;
+const TODAY = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
 function statusColor(
   status: string,
@@ -129,6 +132,59 @@ function BalanceCard({ balance }: { balance: LeaveBalance }) {
   );
 }
 
+function HolidayRow({ holiday }: { holiday: PublicHoliday }) {
+  const colors = useColors();
+  const { lang, t } = useI18n();
+  const name =
+    lang === 'ar' && holiday.nameAr ? holiday.nameAr : holiday.nameEn;
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+      }}
+    >
+      <View style={{ flex: 1, marginEnd: 12 }}>
+        <Text
+          style={{
+            color: colors.foreground,
+            fontSize: 14,
+            fontFamily: 'Inter_500Medium',
+          }}
+          numberOfLines={1}
+        >
+          {name}
+        </Text>
+        {holiday.isRecurring && (
+          <Text
+            style={{
+              color: colors.mutedForeground,
+              fontSize: 11,
+              fontFamily: 'Inter_400Regular',
+              marginTop: 2,
+            }}
+          >
+            {t('recurringHolidayNote')}
+          </Text>
+        )}
+      </View>
+      <Text
+        style={{
+          color: colors.primary,
+          fontSize: 13,
+          fontFamily: 'Inter_600SemiBold',
+        }}
+      >
+        {holiday.date}
+      </Text>
+    </View>
+  );
+}
+
 function EmployeeContent({ employeeId }: { employeeId: number }) {
   const colors = useColors();
   const { t, lang } = useI18n();
@@ -141,6 +197,10 @@ function EmployeeContent({ employeeId }: { employeeId: number }) {
   const requests = useListLeaveRequests({ employeeId });
   const runs = useListPayrollRuns({ employeeId });
   const periods = useListPayrollPeriods();
+  const holidaysQuery = useListPublicHolidays({
+    year: CURRENT_YEAR,
+    scope: 'mine',
+  });
 
   const isLoading =
     balances.isLoading || requests.isLoading || runs.isLoading;
@@ -151,7 +211,14 @@ function EmployeeContent({ employeeId }: { employeeId: number }) {
     requests.refetch();
     runs.refetch();
     periods.refetch();
+    holidaysQuery.refetch();
   };
+
+  // Upcoming holidays: today or later, sorted by date, capped at 5
+  const upcomingHolidays = (holidaysQuery.data ?? [])
+    .filter((h) => h.date >= TODAY)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 5);
 
   if (isLoading) return <LoadingView />;
   if (isError) return <ErrorView onRetry={refetchAll} />;
@@ -203,6 +270,26 @@ function EmployeeContent({ employeeId }: { employeeId: number }) {
           onPress={() => router.push('/new-leave')}
         />
       </View>
+
+      <SectionTitle>{t('upcomingHolidays')}</SectionTitle>
+      {upcomingHolidays.length === 0 ? (
+        <EmptyState icon="sun" message={t('noUpcomingHolidays')} />
+      ) : (
+        <Card style={{ paddingVertical: 0 }}>
+          {upcomingHolidays.map((h, idx) => (
+            <View
+              key={h.id}
+              style={
+                idx === upcomingHolidays.length - 1
+                  ? { overflow: 'hidden', borderRadius: 12 }
+                  : undefined
+              }
+            >
+              <HolidayRow holiday={h} />
+            </View>
+          ))}
+        </Card>
+      )}
 
       <SectionTitle>{t('myLeaveRequests')}</SectionTitle>
       {recentRequests.length === 0 ? (
