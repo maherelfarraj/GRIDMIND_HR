@@ -3,6 +3,7 @@ import { db, gatewayRegistrationsTable, notificationsTable, systemUsersTable, ro
 import { logger } from "./logger.js";
 import { expireStaleDeviceCommandsOnce, backfillMissedCommandOutcomeNotifications } from "./deviceCommandNotifications.js";
 import { sendSmtpMail } from "./smtp-adapter.js";
+import { createJobFailureAlerter, JOB_FAILURE_ALERT_THRESHOLD, type JobRunResult } from "./backgroundJobAlerts.js";
 
 /**
  * Gateway device warning notifications.
@@ -534,6 +535,72 @@ let silenceTimer: NodeJS.Timeout | null = null;
 /** In-progress sweep chain, so shutdown can await it instead of cutting it off mid-write. */
 let inFlightSilenceSweep: Promise<void> | null = null;
 
+// ---------------------------------------------------------------------------
+// Sweep-loop failure alerting
+// ---------------------------------------------------------------------------
+
+/** Consecutive sweep-loop failures before security officers are alerted. */
+export const GATEWAY_SILENCE_SWEEP_FAILURE_ALERT_THRESHOLD = JOB_FAILURE_ALERT_THRESHOLD;
+
+/** Audit action written when the silence-sweep failure alert is raised. */
+export const GATEWAY_SILENCE_SWEEP_ALERT_ACTION = "gateway_silence_sweep.alert";
+
+/** Audit action written when the silence sweep recovers. */
+export const GATEWAY_SILENCE_SWEEP_RECOVERED_ACTION = "gateway_silence_sweep.recovered";
+
+const silenceSweepAlerter = createJobFailureAlerter({
+  entityType: "gateway_silence_sweep",
+  alertAction: GATEWAY_SILENCE_SWEEP_ALERT_ACTION,
+  recoveredAction: GATEWAY_SILENCE_SWEEP_RECOVERED_ACTION,
+  // Unique app-defined advisory-lock key for this loop
+  // (distinct from the health-monitor key 0x4ea1_7451 and the privileged-session sweeper).
+  lockKey: 0x2b9f_6d84,
+  threshold: GATEWAY_SILENCE_SWEEP_FAILURE_ALERT_THRESHOLD,
+  logLabel: "Gateway silence sweep",
+  alertMessage: (failures, lastError) =>
+    `The background gateway silence checker has failed ${failures} consecutive times. ` +
+    `Silent gateways (power loss, network outage, crashed service) are no longer being detected, ` +
+    `so punch-collection outages may go unnoticed. Last error: ${lastError}`,
+  recoveredMessage:
+    "The background gateway silence checker has recovered and is running again. " +
+    "Silent gateway detection is active once more.",
+  notification: {
+    alertTitleEn: "Gateway silence checker is failing",
+    alertTitleAr: "توقف فاحص صمت البوابات عن العمل",
+    alertBodyAr: (failures) =>
+      `فشل فاحص صمت البوابات في الخلفية ${failures} مرات متتالية. لم يعد يتم اكتشاف البوابات الصامتة، لذا قد تمر انقطاعات جمع البصمات دون ملاحظة.`,
+    recoveredTitleEn: "Gateway silence checker recovered",
+    recoveredTitleAr: "عاد فاحص صمت البوابات إلى العمل",
+    recoveredBodyAr:
+      "عاد فاحص صمت البوابات في الخلفية إلى العمل وبات يكتشف البوابات الصامتة مرة أخرى.",
+    actionUrl: "/attendance-gateway",
+    actionLabelEn: "View gateway status",
+  },
+});
+
+/** Test-only: reset the silence-sweep failure streak between test cases. */
+export function _resetSilenceSweepStateForTests(): void {
+  silenceSweepAlerter._resetForTests();
+}
+
+export type SilenceSweepRunResult = JobRunResult;
+
+/**
+ * Runs one monitored silence sweep: executes `runGatewaySilenceSweepOnce` and
+ * updates the sweep-loop failure streak / alert state. Exported so tests can
+ * drive it directly; `sweepFn` is injectable to simulate failures.
+ */
+export async function runMonitoredGatewaySilenceSweep(
+  sweepFn: () => Promise<void> = async () => {
+    const r = await runGatewaySilenceSweepOnce();
+    if (r.alertsRaised > 0 || r.resolved > 0) {
+      logger.info(r, "Gateway silence sweep completed");
+    }
+  },
+): Promise<SilenceSweepRunResult> {
+  return silenceSweepAlerter.runMonitored(sweepFn);
+}
+
 /**
  * System-level sentinel for notifications not tied to a specific gateway
  * registration. Uses entityType="system_config" and entityId=0.
@@ -642,13 +709,9 @@ export function startGatewaySilenceMonitor(): void {
   silenceTimer = setInterval(() => {
     if (silenceSweeping) return; // never overlap sweeps
     silenceSweeping = true;
-    inFlightSilenceSweep = runGatewaySilenceSweepOnce()
-      .then((r) => {
-        if (r.alertsRaised > 0 || r.resolved > 0) {
-          logger.info(r, "Gateway silence sweep completed");
-        }
-      })
-      .catch((err) => logger.error({ err }, "Gateway silence sweep failed"))
+    inFlightSilenceSweep = runMonitoredGatewaySilenceSweep()
+      .then(() => undefined)
+      .catch((err) => logger.error({ err }, "Gateway silence sweep failed unexpectedly"))
       // Server-side command expiry: stale restart commands must expire (and
       // notify their requester) even when nobody has the device page open.
       .then(() => expireStaleDeviceCommandsOnce())
