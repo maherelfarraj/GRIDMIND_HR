@@ -8,6 +8,7 @@ import {
   useListPayrollPeriods,
   useGetPayrollPeriod,
   useGetPayrollPeriodOtSummary,
+  useGetPayrollPeriodOtDepartment,
   useCreatePayrollPeriod,
   useCalculatePayrollPeriod,
   useApprovePayrollPeriod,
@@ -649,6 +650,19 @@ function PeriodDetail({
   const { data: runs, isLoading: loadingRuns } = useListPayrollRuns({ periodId });
   const { data: otSummary } = useGetPayrollPeriodOtSummary(periodId);
 
+  // Department drill-down — set when the user clicks a bar in the OT chart
+  const [selectedOtDept, setSelectedOtDept] = useState<{
+    departmentId: number | null;
+    deptKey: string; // "null" or the numeric id as string, used as the URL param
+    nameEn: string;
+    nameAr: string;
+  } | null>(null);
+
+  const { data: otDeptBreakdown, isLoading: loadingOtDept } = useGetPayrollPeriodOtDepartment(
+    periodId,
+    selectedOtDept?.deptKey ?? '',
+  );
+
   const [approvalDialog, setApprovalDialog] = useState<null | 'first' | 'second'>(null);
   const [closeDialog, setCloseDialog] = useState(false);
 
@@ -1032,8 +1046,8 @@ function PeriodDetail({
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
                     {t(
-                      'Sorted by premium (weekend + holiday) overtime, so the departments driving premium OT costs come first.',
-                      'مرتبة حسب العمل الإضافي المميز (عطلة نهاية الأسبوع + العطلات الرسمية)، بحيث تظهر الإدارات الأكثر تكلفة أولاً.'
+                      'Sorted by premium (weekend + holiday) overtime. Click a bar to see the employee breakdown.',
+                      'مرتبة حسب العمل الإضافي المميز. انقر على شريط لعرض تفصيل الموظفين.'
                     )}
                   </p>
                 </CardHeader>
@@ -1042,11 +1056,30 @@ function PeriodDetail({
                     <BarChart
                       data={otSummary.byDepartment.map(d => ({
                         dept: localName(d.departmentNameEn, d.departmentNameAr, lang),
+                        deptKey: d.departmentId === null ? 'null' : String(d.departmentId),
+                        nameEn: d.departmentNameEn,
+                        nameAr: d.departmentNameAr,
+                        departmentId: d.departmentId,
                         weekday: parseFloat(d.weekday),
                         weekend: parseFloat(d.weekend),
                         holiday: parseFloat(d.holiday),
                       }))}
                       margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
+                      style={{ cursor: 'pointer' }}
+                      onClick={(data) => {
+                        if (!data?.activePayload?.[0]) return;
+                        const entry = data.activePayload[0].payload as {
+                          deptKey: string; nameEn: string; nameAr: string; departmentId: number | null;
+                        };
+                        setSelectedOtDept(prev =>
+                          prev?.deptKey === entry.deptKey ? null : {
+                            departmentId: entry.departmentId,
+                            deptKey: entry.deptKey,
+                            nameEn: entry.nameEn,
+                            nameAr: entry.nameAr,
+                          }
+                        );
+                      }}
                     >
                       <XAxis dataKey="dept" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
@@ -1068,6 +1101,90 @@ function PeriodDetail({
                       </span>
                     ))}
                   </div>
+
+                  {/* Employee drill-down — shown when a department bar is clicked */}
+                  {selectedOtDept && (
+                    <div className="mt-4 border rounded-lg overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b">
+                        <div className="flex items-center gap-2">
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">
+                            {localName(selectedOtDept.nameEn, selectedOtDept.nameAr, lang)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            — {t('Employee OT breakdown', 'تفصيل العمل الإضافي للموظفين')}
+                          </span>
+                        </div>
+                        <button
+                          className="text-xs text-muted-foreground hover:text-foreground underline decoration-dotted"
+                          onClick={() => setSelectedOtDept(null)}
+                        >
+                          {t('Close', 'إغلاق')}
+                        </button>
+                      </div>
+                      {loadingOtDept ? (
+                        <div className="p-3 space-y-2">
+                          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8" />)}
+                        </div>
+                      ) : !otDeptBreakdown || otDeptBreakdown.employees.length === 0 ? (
+                        <p className="p-4 text-sm text-muted-foreground text-center">
+                          {t('No overtime records for this department in this period.', 'لا توجد سجلات عمل إضافي لهذه الإدارة في هذه الفترة.')}
+                        </p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>{t('Employee', 'الموظف')}</TableHead>
+                              <TableHead className="text-right">{t('Weekday OT', 'إضافي أيام الأسبوع')}</TableHead>
+                              <TableHead className="text-right">{t('Weekend OT', 'إضافي نهاية الأسبوع')}</TableHead>
+                              <TableHead className="text-right">{t('Holiday OT', 'إضافي عطلات')}</TableHead>
+                              <TableHead className="text-right">{t('Total', 'الإجمالي')}</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {otDeptBreakdown.employees.map(emp => (
+                              <TableRow key={emp.employeeId}>
+                                <TableCell>
+                                  <div className="font-medium text-sm">
+                                    {localName(emp.employeeNameEn, emp.employeeNameAr, lang)}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">{emp.employeeNumber}</div>
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-sm text-slate-500">
+                                  {fmtMoneyShort(emp.weekday)}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-sm text-amber-600">
+                                  {fmtMoneyShort(emp.weekend)}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-sm text-red-600">
+                                  {fmtMoneyShort(emp.holiday)}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-sm font-medium">
+                                  {fmtMoneyShort(emp.total)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {/* Department totals row */}
+                            <TableRow className="bg-muted/30 font-semibold">
+                              <TableCell className="text-sm">{t('Department Total', 'إجمالي الإدارة')}</TableCell>
+                              <TableCell className="text-right font-mono text-sm text-slate-600">
+                                {fmtMoneyShort(otDeptBreakdown.weekday)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-sm text-amber-700">
+                                {fmtMoneyShort(otDeptBreakdown.weekend)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-sm text-red-700">
+                                {fmtMoneyShort(otDeptBreakdown.holiday)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-sm">
+                                {fmtMoneyShort(otDeptBreakdown.total)}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}

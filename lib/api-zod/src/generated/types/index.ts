@@ -506,6 +506,8 @@ export * from './payrollNoShowReport';
 export * from './payrollPeriod';
 export * from './payrollPeriodInput';
 export * from './payrollPeriodOtDepartment';
+export * from './payrollPeriodOtDepartmentBreakdown';
+export * from './payrollPeriodOtEmployee';
 export * from './payrollPeriodOtSummary';
 export * from './payrollRunDetail';
 export * from './payrollRunLine';

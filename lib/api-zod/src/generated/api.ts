@@ -1459,7 +1459,6 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
-
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1500,7 +1499,6 @@ export const UnlockUserResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
-
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -3915,7 +3913,13 @@ export const GetPayrollPeriodOtSummaryResponse = zod.object({
 })).describe('Per-department OT pay split by bucket, sorted by premium (weekend + holiday) OT descending')
 })
 
-
+/**
+ * @summary Per-employee OT pay breakdown for one department in a payroll period
+ */
+export const GetPayrollPeriodOtDepartmentParams = zod.object({
+  "id": zod.coerce.number(),
+  "departmentId": zod.coerce.string().describe('Numeric department ID, or the string \"null\" for employees with no department assigned')
+})
 /**
  * @summary List detected no-show days per employee for a payroll period
  */
@@ -18794,3 +18798,22 @@ export const UpsertOrganizationBrandingResponse = zod.object({
 })
 
 
+export const GetPayrollPeriodOtDepartmentResponse = zod.object({
+  "departmentId": zod.number().nullable(),
+  "departmentNameEn": zod.string(),
+  "departmentNameAr": zod.string(),
+  "weekday": zod.string(),
+  "weekend": zod.string(),
+  "holiday": zod.string(),
+  "total": zod.string(),
+  "employees": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "employeeNameEn": zod.string(),
+  "employeeNameAr": zod.string(),
+  "weekday": zod.string(),
+  "weekend": zod.string(),
+  "holiday": zod.string(),
+  "total": zod.string()
+})).describe('Per-employee OT pay split by weekday\/weekend\/holiday, sorted by premium (weekend + holiday) OT descending')
+})

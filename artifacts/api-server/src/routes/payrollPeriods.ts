@@ -481,7 +481,7 @@ const router = Router();
 // belongs to a different organization than the active org context.
 router.param("id", async (req, res, next, rawId) => {
   try {
-    const id = parseInt(rawId, 10);
+  const id = parseInt(req.params.id, 10);
     if (!Number.isInteger(id)) { res.status(404).json({ error: "Not found" }); return; }
     const [row] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
     if (!row || row.orgId !== (await resolveOrgId(req))) {
@@ -496,9 +496,18 @@ router.param("id", async (req, res, next, rawId) => {
 router.get("/payroll-periods", async (req, res): Promise<void> => {
   const { status, year } = req.query as Record<string, string>;
   const orgId = await resolveOrgId(req);
-  let rows = await db.select().from(payrollPeriodsTable)
-    .where(eq(payrollPeriodsTable.orgId, orgId))
-    .orderBy(payrollPeriodsTable.startDate);
+  const rows = await db
+    .select({
+      codeEn: payrollRunLinesTable.codeEn,
+      total: sql<string>`coalesce(sum(${payrollRunLinesTable.amount}), 0)`,
+    })
+    .from(payrollRunLinesTable)
+    .innerJoin(payrollRunsTable, eq(payrollRunLinesTable.payrollRunId, payrollRunsTable.id))
+    .where(and(
+      eq(payrollRunsTable.payrollPeriodId, id),
+      sql`${payrollRunLinesTable.codeEn} in ('OT_WEEKDAY', 'OT_WEEKEND', 'OT_HOLIDAY')`,
+    ))
+    .groupBy(payrollRunLinesTable.codeEn);
   if (status) rows = rows.filter(r => r.status === status);
   if (year) rows = rows.filter(r => r.startDate.startsWith(year));
   res.json(rows);
@@ -513,18 +522,12 @@ router.post("/payroll-periods", async (req, res): Promise<void> => {
     return;
   }
   const orgId = await resolveOrgId(req);
-  const [created] = await db.insert(payrollPeriodsTable).values({
-    orgId,
-    periodCode,
-    nameEn,
-    nameAr,
-    periodType: periodType ?? "monthly",
-    startDate,
-    endDate,
-    payDate,
-    currency: currency ?? "SAR",
-    notes: notes ?? null,
-    status: "draft",
+  const [created] = await db.insert(payrollExcusedAbsencesTable).values({
+    payrollPeriodId: periodId,
+    employeeId: emp.id,
+    date,
+    reason: String(reason).trim(),
+    excusedByUserId: actorUserId,
   }).returning();
   res.status(201).json(created);
 });
@@ -533,6 +536,8 @@ router.post("/payroll-periods", async (req, res): Promise<void> => {
 router.get("/payroll-periods/:id/ot-summary", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const [p] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
+
+  const rawDeptId = req.params.departmentId;
   if (!p) { res.status(404).json({ error: "Not found" }); return; }
 
   const rows = await db
@@ -581,15 +586,18 @@ router.get("/payroll-periods/:id/ot-summary", async (req, res): Promise<void> =>
   }>();
   for (const r of deptRows) {
     const key = r.departmentId ?? null;
-    let entry = deptMap.get(key);
+    let entry = empMap.get(r.employeeId);
     if (!entry) {
       entry = {
-        departmentId: key,
-        departmentNameEn: r.departmentNameEn ?? "Unassigned",
-        departmentNameAr: r.departmentNameAr ?? "غير محدد",
+        employeeId: r.employeeId,
+        employeeNumber: r.employeeNumber,
+        firstNameEn: r.firstNameEn,
+        lastNameEn: r.lastNameEn,
+        firstNameAr: r.firstNameAr,
+        lastNameAr: r.lastNameAr,
         weekday: 0, weekend: 0, holiday: 0,
       };
-      deptMap.set(key, entry);
+      empMap.set(r.employeeId, entry);
     }
     const amount = parseFloat(r.total);
     if (r.codeEn === "OT_WEEKDAY") entry.weekday += amount;
@@ -624,7 +632,7 @@ router.get("/payroll-periods/:id/ot-summary", async (req, res): Promise<void> =>
 router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
   const actorUserId: number = getActorUserId(req);
   const id = parseInt(req.params.id, 10);
-  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, periodId));
   if (!period) { res.status(404).json({ error: "Not found" }); return; }
   if (period.isClosed) { res.status(400).json({ error: "Cannot edit a closed payroll period" }); return; }
   const { nameEn, nameAr, payDate, notes } = req.body;
@@ -634,8 +642,8 @@ router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
   if (payDate !== undefined) patch.payDate = payDate;
   if (notes !== undefined) patch.notes = notes;
   const [updated] = await db.update(payrollPeriodsTable)
-    .set(patch)
-    .where(eq(payrollPeriodsTable.id, id))
+    .set(updateData)
+    .where(eq(payrollPeriodsTable.id, periodId))
     .returning();
   res.json(updated);
 });
@@ -1084,6 +1092,8 @@ router.get("/payroll-periods/:id/no-shows", async (req, res): Promise<void> => {
 
   const employees = await db.select().from(employeesTable)
     .where(and(eq(employeesTable.status, "active"), eq(employeesTable.orgId, period.orgId ?? await resolveOrgId(req))));
+
+  let deptWeekday = 0, deptWeekend = 0, deptHoliday = 0;
   const { punchEvents, attendanceRecords, approvedLeaves } = await loadNoShowInputs(period);
   const weekendDays = await getWeekendDays();
   const holidayRows = await loadHolidayRows(period.orgId ?? await resolveOrgId(req));
@@ -1279,3 +1289,47 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
 });
 
 export default router;
+
+    const [dept] = await db.select({ nameEn: departmentsTable.nameEn, nameAr: departmentsTable.nameAr })
+      .from(departmentsTable).where(eq(departmentsTable.id, deptId));
+
+  type EmpEntry = { employeeId: number; employeeNumber: string; firstNameEn: string; lastNameEn: string; firstNameAr: string; lastNameAr: string; weekday: number; weekend: number; holiday: number };
+
+  let departmentNameEn = "Unassigned";
+
+  let departmentNameAr = "غير محدد";
+
+  const empMap = new Map<number, EmpEntry>();
+
+  const deptId: number | null = rawDeptId === "null" ? null : parseInt(rawDeptId, 10);
+
+  const empRows = await db
+    .select({
+      employeeId: employeesTable.id,
+      employeeNumber: employeesTable.employeeNumber,
+      firstNameEn: employeesTable.firstNameEn,
+      lastNameEn: employeesTable.lastNameEn,
+      firstNameAr: employeesTable.firstNameAr,
+      lastNameAr: employeesTable.lastNameAr,
+      codeEn: payrollRunLinesTable.codeEn,
+      total: sql<string>`coalesce(sum(${payrollRunLinesTable.amount}), 0)`,
+    })
+    .from(payrollRunLinesTable)
+    .innerJoin(payrollRunsTable, eq(payrollRunLinesTable.payrollRunId, payrollRunsTable.id))
+    .innerJoin(employeesTable, eq(payrollRunsTable.employeeId, employeesTable.id))
+    .where(and(
+      eq(payrollRunsTable.payrollPeriodId, id),
+      sql`${payrollRunLinesTable.codeEn} in ('OT_WEEKDAY', 'OT_WEEKEND', 'OT_HOLIDAY')`,
+      deptId === null
+        ? isNull(employeesTable.departmentId)
+        : eq(employeesTable.departmentId, deptId),
+    ))
+    .groupBy(
+      employeesTable.id,
+      employeesTable.employeeNumber,
+      employeesTable.firstNameEn,
+      employeesTable.lastNameEn,
+      employeesTable.firstNameAr,
+      employeesTable.lastNameAr,
+      payrollRunLinesTable.codeEn,
+    );

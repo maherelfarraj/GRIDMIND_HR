@@ -1730,6 +1730,16 @@ export interface PayrollPeriodOtSummary {
   byDepartment: PayrollPeriodOtDepartment[];
 }
 
+export interface PayrollPeriodOtEmployee {
+  employeeId: number;
+  employeeNumber: string;
+  employeeNameEn: string;
+  employeeNameAr: string;
+  weekday: string;
+  weekend: string;
+  holiday: string;
+  total: string;
+}
 export interface PayrollNoShowDay {
   date: string;
   excused: boolean;
@@ -8693,3 +8703,16 @@ templateType?: string | null;
 export type CreateOrgReportTemplateBody = { [key: string]: unknown };
 
 export type UpsertOrganizationBrandingBody = { [key: string]: unknown };
+
+export interface PayrollPeriodOtDepartmentBreakdown {
+  /** @nullable */
+  departmentId: number | null;
+  departmentNameEn: string;
+  departmentNameAr: string;
+  weekday: string;
+  weekend: string;
+  holiday: string;
+  total: string;
+  /** Per-employee OT pay split by weekday/weekend/holiday, sorted by premium (weekend + holiday) OT descending */
+  employees: PayrollPeriodOtEmployee[];
+}

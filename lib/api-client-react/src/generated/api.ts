@@ -462,6 +462,7 @@ import type {
   PayrollNoShowReport,
   PayrollPeriod,
   PayrollPeriodInput,
+  PayrollPeriodOtDepartmentBreakdown,
   PayrollPeriodOtSummary,
   PayrollRunDetail,
   PayrollRunPatch,
@@ -9928,6 +9929,88 @@ export function useGetPayrollPeriodOtSummary<TData = Awaited<ReturnType<typeof g
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPayrollPeriodOtSummaryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPayrollPeriodOtDepartmentUrl = (id: number,
+    departmentId: string,) => {
+
+
+
+
+  return `/api/payroll-periods/${id}/ot-summary/departments/${departmentId}`
+}
+
+/**
+ * @summary Per-employee OT pay breakdown for one department in a payroll period
+ */
+export const getPayrollPeriodOtDepartment = async (id: number,
+    departmentId: string, options?: Parameters<typeof customFetch>[1]): Promise<PayrollPeriodOtDepartmentBreakdown> => {
+
+  return customFetch<PayrollPeriodOtDepartmentBreakdown>(getGetPayrollPeriodOtDepartmentUrl(id,departmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollPeriodOtDepartmentQueryKey = (id: number,
+    departmentId: string,) => {
+    return [
+    `/api/payroll-periods/${id}/ot-summary/departments/${departmentId}`
+    ] as const;
+    }
+
+
+export const getGetPayrollPeriodOtDepartmentQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollPeriodOtDepartment>>, TError = ErrorType<void>>(id: number,
+    departmentId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollPeriodOtDepartment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollPeriodOtDepartmentQueryKey(id,departmentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollPeriodOtDepartment>>> = ({ signal }) => getPayrollPeriodOtDepartment(id,departmentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && departmentId !== null && departmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollPeriodOtDepartment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollPeriodOtDepartmentQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollPeriodOtDepartment>>>
+export type GetPayrollPeriodOtDepartmentQueryError = ErrorType<void>
+
+
+/**
+ * @summary Per-employee OT pay breakdown for one department in a payroll period
+ */
+
+export function useGetPayrollPeriodOtDepartment<TData = Awaited<ReturnType<typeof getPayrollPeriodOtDepartment>>, TError = ErrorType<void>>(
+ id: number,
+    departmentId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollPeriodOtDepartment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollPeriodOtDepartmentQueryOptions(id,departmentId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

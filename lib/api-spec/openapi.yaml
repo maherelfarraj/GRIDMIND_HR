@@ -2536,6 +2536,30 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PayrollPeriodOtSummary" }
 
+  /payroll-periods/{id}/ot-summary/departments/{departmentId}:
+    get:
+      tags: [ payroll ]
+      summary: Per-employee OT pay breakdown for one department in a payroll period
+      operationId: getPayrollPeriodOtDepartment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: departmentId
+          in: path
+          required: true
+          description: Numeric department ID, or the string "null" for employees with no department assigned
+          schema: { type: string }
+      responses:
+        "200":
+          description: Per-employee OT split by weekday/weekend/holiday for the department
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayrollPeriodOtDepartmentBreakdown" }
+        "404":
+          description: Period not found
+
   /payroll-periods/{id}/no-shows:
     get:
       tags: [ payroll ]
@@ -13177,6 +13201,35 @@ components:
         holiday: { type: string }
         total: { type: string }
       required: [ departmentId, departmentNameEn, departmentNameAr, weekday, weekend, holiday, total ]
+
+    PayrollPeriodOtEmployee:
+      type: object
+      properties:
+        employeeId: { type: number }
+        employeeNumber: { type: string }
+        employeeNameEn: { type: string }
+        employeeNameAr: { type: string }
+        weekday: { type: string }
+        weekend: { type: string }
+        holiday: { type: string }
+        total: { type: string }
+      required: [ employeeId, employeeNumber, employeeNameEn, employeeNameAr, weekday, weekend, holiday, total ]
+
+    PayrollPeriodOtDepartmentBreakdown:
+      type: object
+      properties:
+        departmentId: { type: [ "number", "null" ] }
+        departmentNameEn: { type: string }
+        departmentNameAr: { type: string }
+        weekday: { type: string }
+        weekend: { type: string }
+        holiday: { type: string }
+        total: { type: string }
+        employees:
+          type: array
+          description: Per-employee OT pay split by weekday/weekend/holiday, sorted by premium (weekend + holiday) OT descending
+          items: { $ref: "#/components/schemas/PayrollPeriodOtEmployee" }
+      required: [ departmentId, departmentNameEn, departmentNameAr, weekday, weekend, holiday, total, employees ]
 
     PayrollNoShowDay:
       type: object
