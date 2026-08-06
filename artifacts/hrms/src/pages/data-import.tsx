@@ -29,7 +29,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Upload, RotateCcw, Trash2 } from 'lucide-react';
+import { Upload, RotateCcw, Trash2, Clock } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const IMPORT_TYPES = [
@@ -691,6 +691,15 @@ function HistoryTab() {
   );
 }
 
+/** Number of days without use after which a template is considered stale. */
+const STALE_THRESHOLD_DAYS = 90;
+
+function isTemplateStale(tpl: ImportMappingTemplate): boolean {
+  if (!tpl.lastUsedAt) return true; // never used
+  const daysSinceUse = (Date.now() - new Date(tpl.lastUsedAt).getTime()) / (1000 * 60 * 60 * 24);
+  return daysSinceUse >= STALE_THRESHOLD_DAYS;
+}
+
 function TemplatesTab() {
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -708,28 +717,75 @@ function TemplatesTab() {
     }
   }
 
+  // Split into active and stale groups; within each group sort by usage count descending.
+  const activeTemplates = templates.filter(tpl => !isTemplateStale(tpl))
+    .sort((a, b) => (b.usageCount ?? 0) - (a.usageCount ?? 0));
+  const staleTemplates = templates.filter(tpl => isTemplateStale(tpl))
+    .sort((a, b) => {
+      // Never-used (no lastUsedAt) floats to the top of the stale group.
+      if (!a.lastUsedAt && !b.lastUsedAt) return (b.usageCount ?? 0) - (a.usageCount ?? 0);
+      if (!a.lastUsedAt) return -1;
+      if (!b.lastUsedAt) return 1;
+      // Otherwise oldest-used first.
+      return new Date(a.lastUsedAt).getTime() - new Date(b.lastUsedAt).getTime();
+    });
+  const sorted = [...activeTemplates, ...staleTemplates];
+
+  function renderCard(tpl: ImportMappingTemplate) {
+    const stale = isTemplateStale(tpl);
+    return (
+      <div
+        key={tpl.id}
+        className={`flex items-center justify-between p-3 rounded border ${stale ? 'bg-amber-950/30 border-amber-700/50' : 'bg-slate-800 border-slate-700'}`}
+        data-testid={`template-card-${tpl.id}`}
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-white font-medium">{tpl.name}</span>
+            {stale && (
+              <Badge
+                className="bg-amber-600/20 text-amber-400 border border-amber-600/40 text-xs px-1.5 py-0 gap-1 flex items-center"
+                data-testid={`badge-stale-${tpl.id}`}
+              >
+                <Clock className="w-3 h-3" />
+                {t('Stale', 'قديم')}
+              </Badge>
+            )}
+          </div>
+          <div className="text-slate-400 text-xs mt-0.5">{t('Type:', 'النوع:')} {tpl.importType}</div>
+          <div className="text-slate-400 text-xs mt-0.5" data-testid={`text-template-usage-${tpl.id}`}>
+            {tpl.usageCount === 0
+              ? t('Never used', 'لم يُستخدم أبدًا')
+              : `${t('Used', 'استُخدم')} ${tpl.usageCount} ${t(tpl.usageCount === 1 ? 'time' : 'times', tpl.usageCount === 1 ? 'مرة' : 'مرات')}${tpl.lastUsedAt ? ` — ${t('last used', 'آخر استخدام')} ${new Date(tpl.lastUsedAt).toLocaleDateString()}` : ''}`}
+          </div>
+        </div>
+        <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 shrink-0" onClick={() => handleDelete(tpl)}>
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {isLoading ? (
         <div className="text-center py-8 text-slate-400">{t('Loading…', 'جاري التحميل…')}</div>
       ) : templates.length === 0 ? (
         <div className="text-center py-8 text-slate-400">{t('No saved templates.', 'لا توجد قوالب محفوظة.')}</div>
-      ) : templates.map(tpl => (
-        <div key={tpl.id} className="flex items-center justify-between p-3 bg-slate-800 border border-slate-700 rounded">
-          <div>
-            <div className="text-white font-medium">{tpl.name}</div>
-            <div className="text-slate-400 text-xs mt-0.5">{t('Type:', 'النوع:')} {tpl.importType}</div>
-            <div className="text-slate-400 text-xs mt-0.5" data-testid={`text-template-usage-${tpl.id}`}>
-              {tpl.usageCount === 0
-                ? t('Never used', 'لم يُستخدم أبدًا')
-                : `${t('Used', 'استُخدم')} ${tpl.usageCount} ${t(tpl.usageCount === 1 ? 'time' : 'times', tpl.usageCount === 1 ? 'مرة' : 'مرات')}${tpl.lastUsedAt ? ` — ${t('last used', 'آخر استخدام')} ${new Date(tpl.lastUsedAt).toLocaleDateString()}` : ''}`}
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300" onClick={() => handleDelete(tpl)}>
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      ))}
+      ) : (
+        <>
+          {staleTemplates.length > 0 && (
+            <p className="text-amber-400/80 text-xs flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              {t(
+                `${staleTemplates.length} ${staleTemplates.length === 1 ? 'template has' : 'templates have'} not been used in ${STALE_THRESHOLD_DAYS}+ days and may be safe to delete.`,
+                `${staleTemplates.length} ${staleTemplates.length === 1 ? 'قالب لم يُستخدم' : 'قوالب لم تُستخدم'} منذ ${STALE_THRESHOLD_DAYS}+ يومًا وقد يكون من الآمن حذفها.`,
+              )}
+            </p>
+          )}
+          {sorted.map(renderCard)}
+        </>
+      )}
     </div>
   );
 }
