@@ -11,7 +11,7 @@ import { testLdapConnection, type AdapterResult } from "../lib/ldap-adapter.js";
 import { testSmtpConnection } from "../lib/smtp-adapter.js";
 import { testDeviceConnection } from "../lib/device-adapter.js";
 import { runHealthChecksOnce, raiseHealthRecoveryIfAlerted } from "../lib/health-monitor.js";
-import { resolveProfileConnection } from "../lib/profile-connection.js";
+import { resolveProfileConnection, resolveProfileTarget } from "../lib/profile-connection.js";
 import { getSecurityEmailDeliveryStatus, emailAlertStatusReady } from "../lib/email-alert-status.js";
 import { getPepperRotationStatus } from "./attendanceGateway.js";
 
@@ -191,7 +191,12 @@ router.get("/integration-governance/connection-profiles", async (req, res): Prom
     const rows = conditions.length
       ? await baseQuery.where(and(...conditions)).orderBy(desc(integrationConnectionProfilesTable.createdAt))
       : await baseQuery.orderBy(desc(integrationConnectionProfilesTable.createdAt));
-    res.json(rows.map(r => ({ ...r.profile, lastTestedByNameEn: r.lastTestedByNameEn, lastTestedByNameAr: r.lastTestedByNameAr })));
+    res.json(rows.map(r => ({
+      ...r.profile,
+      lastTestedByNameEn: r.lastTestedByNameEn,
+      lastTestedByNameAr: r.lastTestedByNameAr,
+      resolvedTarget: resolveProfileTarget(r.profile),
+    })));
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -235,6 +240,20 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
     let latencyMs: number;
     let simulated: boolean;
 
+    // Resolve the effective target up-front (synchronous, no DB) so it can be
+    // appended to the stored message and returned in the response regardless of
+    // whether the profile is suspended or which adapter ran.
+    const resolvedTarget = resolveProfileTarget(profile);
+
+    // Build a short human-readable suffix for the stored message so that
+    // lastTestMessage (shown on the card and in the detail dialog) always tells
+    // the admin which endpoint was actually contacted.
+    function targetSuffix(): string {
+      if (resolvedTarget.baseUrl) return ` (target: ${resolvedTarget.baseUrl})`;
+      if (resolvedTarget.host) return ` (target: ${resolvedTarget.host}:${resolvedTarget.port})`;
+      return "";
+    }
+
     if (profile.governanceStatus === "suspended") {
       success = false;
       message = "Profile is suspended";
@@ -265,13 +284,13 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
       }
       if (result) {
         success = result.success;
-        message = result.message;
+        message = result.message + targetSuffix();
         latencyMs = result.latencyMs;
         simulated = false;
       } else {
         // No real adapter for this integration type yet — simulated (air-gap safe).
         success = true;
-        message = "Connection test simulated successfully (no real adapter for this integration type)";
+        message = "Connection test simulated successfully (no real adapter for this integration type)" + targetSuffix();
         latencyMs = Math.floor(Math.random() * 200) + 50;
         simulated = true;
       }
@@ -308,7 +327,7 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req, 
       await raiseHealthRecoveryIfAlerted(profile, { message, latencyMs, simulated, actorUserId });
     }
 
-    res.json({ success, message, latencyMs, simulated, testedAt: testedAt.toISOString() });
+    res.json({ success, message, latencyMs, simulated, testedAt: testedAt.toISOString(), resolvedTarget });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -384,7 +403,12 @@ router.get("/integration-governance/connection-profiles/:id", async (req, res): 
       .leftJoin(systemUsersTable, eq(integrationConnectionProfilesTable.lastTestedByUserId, systemUsersTable.id))
       .where(eq(integrationConnectionProfilesTable.id, parseInt(req.params.id)));
     if (!r) return void res.status(404).json({ error: "Not found" });
-    res.json({ ...r.profile, lastTestedByNameEn: r.lastTestedByNameEn, lastTestedByNameAr: r.lastTestedByNameAr });
+    res.json({
+      ...r.profile,
+      lastTestedByNameEn: r.lastTestedByNameEn,
+      lastTestedByNameAr: r.lastTestedByNameAr,
+      resolvedTarget: resolveProfileTarget(r.profile),
+    });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

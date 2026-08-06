@@ -7,16 +7,7 @@
  */
 
 export type ListConnectionProfilesParams = {
-/**
- * @nullable
- */
-orgId?: number | null;
-/**
- * @nullable
- */
-governanceStatus?: string | null;
-/**
- * @nullable
- */
-integrationType?: string | null;
+orgId?: number;
+governanceStatus?: string;
+integrationType?: string;
 };

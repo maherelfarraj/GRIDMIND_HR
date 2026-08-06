@@ -7,6 +7,6 @@
  */
 
 export type TestConnectionProfileBody = {
-  /** @nullable */
-  testRecipient?: string | null;
+  /** Required for smtp profiles — email address to send the test message to. */
+  testRecipient?: string;
 };

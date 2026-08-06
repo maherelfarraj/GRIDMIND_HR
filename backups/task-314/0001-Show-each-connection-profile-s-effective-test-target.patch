@@ -1,0 +1,458 @@
+From 3bf86f249013df9090785df9b4cca8d10cec4a46 Mon Sep 17 00:00:00 2001
+From: Replit Agent <agent@replit.com>
+Date: Wed, 5 Aug 2026 11:33:50 +0000
+Subject: [PATCH] Show each connection profile's effective test target
+ (host/port or baseUrl, with global-default fallback indicator) on the
+ governance page, and include the resolved target in connection test messages
+ and API responses
+
+Replit-Commit-Author: Agent
+---
+ .../api-server/src/lib/profile-connection.ts  |  85 ++++++++
+ .../src/routes/integrationGovernance.ts       |  36 +++-
+ .../hrms/src/pages/integration-governance.tsx |  29 ++-
+ lib/api-spec/openapi.yaml                     | 198 ++++++++++++++++++
+ 4 files changed, 341 insertions(+), 7 deletions(-)
+
+diff --git a/artifacts/api-server/src/lib/profile-connection.ts b/artifacts/api-server/src/lib/profile-connection.ts
+index 0611fc5..cd89072 100644
+--- a/artifacts/api-server/src/lib/profile-connection.ts
++++ b/artifacts/api-server/src/lib/profile-connection.ts
+@@ -18,6 +18,91 @@ export interface ProfileConnectionOptions {
+   device?: DeviceConnectionOptions;
+ }
+ 
++/**
++ * The effective connection target for a profile — host/port for LDAP/SMTP,
++ * baseUrl for attendance devices. usingGlobalDefault is true when the profile's
++ * connectionParamsJson had no host/baseUrl and the value came from a process.env
++ * fallback. This is computed without a DB call (vault refs only carry credentials,
++ * not addresses) so it is safe to call for every row in a list response.
++ */
++export interface ProfileResolvedTarget {
++  /** Hostname (LDAP, SMTP) or null (attendance_device uses baseUrl, other types). */
++  host: string | null;
++  /** Port string (LDAP, SMTP) or null. */
++  port: string | null;
++  /** Base URL (attendance_device) or null. */
++  baseUrl: string | null;
++  /** True when the host/baseUrl came from a global env-var fallback rather than the profile's own params. */
++  usingGlobalDefault: boolean;
++}
++
++/**
++ * Derive the effective connection target from a profile's connectionParamsJson
++ * and global env-var fallbacks — without hitting the DB or loading credentials.
++ * Safe to call for every profile in a list response.
++ */
++export function resolveProfileTarget(
++  profile: Pick<IntegrationConnectionProfile, "integrationType" | "connectionParamsJson">,
++): ProfileResolvedTarget {
++  let params: Record<string, any> = {};
++  try {
++    params = JSON.parse(profile.connectionParamsJson || "{}");
++  } catch {
++    /* malformed JSON — treat as empty */
++  }
++
++  switch (profile.integrationType) {
++    case "ldap":
++    case "active_directory": {
++      const profileHost: string | undefined = params.host;
++      const profilePort: string | undefined = params.port != null ? String(params.port) : undefined;
++      const envHost = process.env.LDAP_HOST;
++      const envPort = process.env.LDAP_PORT ?? "389";
++      const host = profileHost || envHost || null;
++      const port = profilePort || envPort;
++      return {
++        host,
++        port: host ? port : null,
++        baseUrl: null,
++        usingGlobalDefault: !profileHost && !!envHost,
++      };
++    }
++    case "smtp": {
++      const profileHost: string | undefined = params.host;
++      const profilePort: string | undefined = params.port != null ? String(params.port) : undefined;
++      const envHost = process.env.SMTP_HOST;
++      const envPort = process.env.SMTP_PORT ?? "587";
++      const host = profileHost || envHost || null;
++      const port = profilePort || envPort;
++      return {
++        host,
++        port: host ? port : null,
++        baseUrl: null,
++        usingGlobalDefault: !profileHost && !!envHost,
++      };
++    }
++    case "attendance_device": {
++      const profileBaseUrl: string | undefined = params.baseUrl;
++      const profileHost: string | undefined = params.host;
++      const profilePort: string | undefined = params.port != null ? String(params.port) : undefined;
++      const envBaseUrl = process.env.DEVICE_API_URL;
++      if (profileBaseUrl) {
++        return { host: null, port: null, baseUrl: profileBaseUrl, usingGlobalDefault: false };
++      }
++      if (profileHost) {
++        const synthesized = `http://${profileHost}${profilePort ? `:${profilePort}` : ""}`;
++        return { host: null, port: null, baseUrl: synthesized, usingGlobalDefault: false };
++      }
++      if (envBaseUrl) {
++        return { host: null, port: null, baseUrl: envBaseUrl, usingGlobalDefault: true };
++      }
++      return { host: null, port: null, baseUrl: null, usingGlobalDefault: false };
++    }
++    default:
++      return { host: null, port: null, baseUrl: null, usingGlobalDefault: false };
++  }
++}
++
+ /**
+  * Parses the profile's connectionParamsJson and resolves any linked credential
+  * vault ref (reading the key/secret from process.env). Returns an object with
+diff --git a/artifacts/api-server/src/routes/integrationGovernance.ts b/artifacts/api-server/src/routes/integrationGovernance.ts
+index cb04f80..e79629a 100644
+--- a/artifacts/api-server/src/routes/integrationGovernance.ts
++++ b/artifacts/api-server/src/routes/integrationGovernance.ts
+@@ -9,7 +9,7 @@ import { testLdapConnection, type AdapterResult } from "../lib/ldap-adapter.js";
+ import { testSmtpConnection } from "../lib/smtp-adapter.js";
+ import { testDeviceConnection } from "../lib/device-adapter.js";
+ import { runHealthChecksOnce, raiseHealthRecoveryIfAlerted } from "../lib/health-monitor.js";
+-import { resolveProfileConnection } from "../lib/profile-connection.js";
++import { resolveProfileConnection, resolveProfileTarget } from "../lib/profile-connection.js";
+ import { getSecurityEmailDeliveryStatus } from "../lib/email-alert-status.js";
+ import { getPepperRotationStatus } from "./attendanceGateway.js";
+ 
+@@ -105,7 +105,12 @@ router.get("/integration-governance/connection-profiles", async (req, res): Prom
+     const rows = conditions.length
+       ? await baseQuery.where(and(...conditions)).orderBy(desc(integrationConnectionProfilesTable.createdAt))
+       : await baseQuery.orderBy(desc(integrationConnectionProfilesTable.createdAt));
+-    res.json(rows.map(r => ({ ...r.profile, lastTestedByNameEn: r.lastTestedByNameEn, lastTestedByNameAr: r.lastTestedByNameAr })));
++    res.json(rows.map(r => ({
++      ...r.profile,
++      lastTestedByNameEn: r.lastTestedByNameEn,
++      lastTestedByNameAr: r.lastTestedByNameAr,
++      resolvedTarget: resolveProfileTarget(r.profile),
++    })));
+   } catch (err: any) { res.status(500).json({ error: err.message }); }
+ });
+ 
+@@ -141,6 +146,20 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req,
+     let latencyMs: number;
+     let simulated: boolean;
+ 
++    // Resolve the effective target up-front (synchronous, no DB) so it can be
++    // appended to the stored message and returned in the response regardless of
++    // whether the profile is suspended or which adapter ran.
++    const resolvedTarget = resolveProfileTarget(profile);
++
++    // Build a short human-readable suffix for the stored message so that
++    // lastTestMessage (shown on the card and in the detail dialog) always tells
++    // the admin which endpoint was actually contacted.
++    function targetSuffix(): string {
++      if (resolvedTarget.baseUrl) return ` (target: ${resolvedTarget.baseUrl})`;
++      if (resolvedTarget.host) return ` (target: ${resolvedTarget.host}:${resolvedTarget.port})`;
++      return "";
++    }
++
+     if (profile.governanceStatus === "suspended") {
+       success = false;
+       message = "Profile is suspended";
+@@ -171,13 +190,13 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req,
+       }
+       if (result) {
+         success = result.success;
+-        message = result.message;
++        message = result.message + targetSuffix();
+         latencyMs = result.latencyMs;
+         simulated = false;
+       } else {
+         // No real adapter for this integration type yet — simulated (air-gap safe).
+         success = true;
+-        message = "Connection test simulated successfully (no real adapter for this integration type)";
++        message = "Connection test simulated successfully (no real adapter for this integration type)" + targetSuffix();
+         latencyMs = Math.floor(Math.random() * 200) + 50;
+         simulated = true;
+       }
+@@ -214,7 +233,7 @@ router.post("/integration-governance/connection-profiles/:id/test", async (req,
+       await raiseHealthRecoveryIfAlerted(profile, { message, latencyMs, simulated, actorUserId });
+     }
+ 
+-    res.json({ success, message, latencyMs, simulated, testedAt: testedAt.toISOString() });
++    res.json({ success, message, latencyMs, simulated, testedAt: testedAt.toISOString(), resolvedTarget });
+   } catch (err: any) { res.status(500).json({ error: err.message }); }
+ });
+ 
+@@ -286,7 +305,12 @@ router.get("/integration-governance/connection-profiles/:id", async (req, res):
+       .leftJoin(systemUsersTable, eq(integrationConnectionProfilesTable.lastTestedByUserId, systemUsersTable.id))
+       .where(eq(integrationConnectionProfilesTable.id, parseInt(req.params.id)));
+     if (!r) return void res.status(404).json({ error: "Not found" });
+-    res.json({ ...r.profile, lastTestedByNameEn: r.lastTestedByNameEn, lastTestedByNameAr: r.lastTestedByNameAr });
++    res.json({
++      ...r.profile,
++      lastTestedByNameEn: r.lastTestedByNameEn,
++      lastTestedByNameAr: r.lastTestedByNameAr,
++      resolvedTarget: resolveProfileTarget(r.profile),
++    });
+   } catch (err: any) { res.status(500).json({ error: err.message }); }
+ });
+ 
+diff --git a/artifacts/hrms/src/pages/integration-governance.tsx b/artifacts/hrms/src/pages/integration-governance.tsx
+index 5817797..7bf6d92 100644
+--- a/artifacts/hrms/src/pages/integration-governance.tsx
++++ b/artifacts/hrms/src/pages/integration-governance.tsx
+@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
+ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+-import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw } from 'lucide-react';
++import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw, Globe } from 'lucide-react';
+ 
+ function intTypeIcon(type: string): React.ComponentType<{ className?: string }> {
+   const map: Record<string, React.ComponentType<{ className?: string }>> = {
+@@ -629,6 +629,33 @@ export default function IntegrationGovernance() {
+                             </Badge>
+                           )}
+                         </div>
++                        {/* Resolved target — shown before Test is pressed so the admin knows which
++                            endpoint will be contacted. Hidden for suspended profiles (test is blocked). */}
++                        {p.governanceStatus !== 'suspended' && (() => {
++                          const rt = p.resolvedTarget as { host: string | null; port: string | null; baseUrl: string | null; usingGlobalDefault: boolean } | undefined;
++                          if (!rt) return null;
++                          const target = rt.baseUrl ?? (rt.host ? `${rt.host}:${rt.port}` : null);
++                          if (!target) {
++                            return (
++                              <p className="text-[11px] flex items-center gap-1 text-amber-400" data-testid={`profile-target-${p.id}`}>
++                                <AlertTriangle className="w-3 h-3 shrink-0" />
++                                {t('No host configured', 'لم يُكوَّن مضيف')}
++                              </p>
++                            );
++                          }
++                          return (
++                            <p className="text-[11px] flex items-center gap-1 text-slate-400" data-testid={`profile-target-${p.id}`}>
++                              <Globe className="w-3 h-3 shrink-0 text-slate-500" />
++                              <span>{t('Will test:', 'سيختبر:')}</span>
++                              <span className="font-mono text-slate-300">{target}</span>
++                              {rt.usingGlobalDefault && (
++                                <Badge variant="outline" className="text-[10px] px-1 py-0 text-slate-400 border-slate-600">
++                                  {t('global default', 'افتراضي عام')}
++                                </Badge>
++                              )}
++                            </p>
++                          );
++                        })()}
+                         {p.lastTestResult && (
+                           <div className={`rounded-md border p-2 space-y-1 ${p.lastTestResult === 'success' ? 'border-emerald-800/60 bg-emerald-900/20' : 'border-red-800/60 bg-red-900/20'}`}>
+                             <div className="flex items-center gap-1.5 flex-wrap">
+diff --git a/lib/api-spec/openapi.yaml b/lib/api-spec/openapi.yaml
+index 7929b53..c9d4f7d 100644
+--- a/lib/api-spec/openapi.yaml
++++ b/lib/api-spec/openapi.yaml
+@@ -8664,6 +8664,204 @@ paths:
+             application/json:
+               schema: { $ref: '#/components/schemas/IntegrationEvent' }
+ 
++  # ── PHASE 7B-II — INTEGRATION GOVERNANCE ─────────────────────────────────
++
++  # resolvedTarget is a server-computed envelope (not a DB column) describing the
++  # effective host/port or baseUrl the profile will contact when tested. It is
++  # returned by the list and detail GET endpoints, and by the test POST endpoint.
++  # It is NOT added to the IntegrationConnectionProfile component schema (which
++  # tracks stored columns only); instead it is declared inline here.
++
++  /integration-governance/connection-profiles:
++    get:
++      operationId: listConnectionProfiles
++      tags: [ IntegrationGovernance ]
++      summary: List connection profiles with resolved effective target per profile
++      parameters:
++        - { name: orgId, in: query, schema: { type: integer } }
++        - { name: governanceStatus, in: query, schema: { type: string } }
++        - { name: integrationType, in: query, schema: { type: string } }
++      responses:
++        '200':
++          description: OK
++          content:
++            application/json:
++              schema:
++                type: array
++                items:
++                  allOf:
++                    - { $ref: '#/components/schemas/IntegrationConnectionProfile' }
++                    - type: object
++                      properties:
++                        lastTestedByNameEn: { type: [ "string", "null" ] }
++                        lastTestedByNameAr: { type: [ "string", "null" ] }
++                        resolvedTarget:
++                          type: object
++                          description: Effective connection endpoint resolved from connectionParamsJson and env-var fallbacks. Not stored — computed per request.
++                          properties:
++                            host:
++                              type: [ "string", "null" ]
++                              description: "Hostname for LDAP/SMTP profiles; null for attendance_device (uses baseUrl)."
++                            port:
++                              type: [ "string", "null" ]
++                              description: "Port string for LDAP/SMTP profiles; null when host is null."
++                            baseUrl:
++                              type: [ "string", "null" ]
++                              description: "Full base URL for attendance_device profiles; null for others."
++                            usingGlobalDefault:
++                              type: boolean
++                              description: "True when the host/baseUrl came from a process.env fallback rather than the profile's own connectionParamsJson."
++                          required: [ host, port, baseUrl, usingGlobalDefault ]
++    post:
++      operationId: createConnectionProfile
++      tags: [ IntegrationGovernance ]
++      summary: Create a new connection profile
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema: { $ref: '#/components/schemas/IntegrationConnectionProfile' }
++      responses:
++        '201':
++          description: Created
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/IntegrationConnectionProfile' }
++
++  /integration-governance/connection-profiles/{id}:
++    parameters:
++      - { name: id, in: path, required: true, schema: { type: integer } }
++    get:
++      operationId: getConnectionProfile
++      tags: [ IntegrationGovernance ]
++      summary: Get a single connection profile with resolved effective target
++      responses:
++        '200':
++          description: OK
++          content:
++            application/json:
++              schema:
++                allOf:
++                  - { $ref: '#/components/schemas/IntegrationConnectionProfile' }
++                  - type: object
++                    properties:
++                      lastTestedByNameEn: { type: [ "string", "null" ] }
++                      lastTestedByNameAr: { type: [ "string", "null" ] }
++                      resolvedTarget:
++                        type: object
++                        description: Effective connection endpoint resolved from connectionParamsJson and env-var fallbacks.
++                        properties:
++                          host: { type: [ "string", "null" ] }
++                          port: { type: [ "string", "null" ] }
++                          baseUrl: { type: [ "string", "null" ] }
++                          usingGlobalDefault: { type: boolean }
++                        required: [ host, port, baseUrl, usingGlobalDefault ]
++        '404': { description: Not found }
++    patch:
++      operationId: updateConnectionProfile
++      tags: [ IntegrationGovernance ]
++      summary: Update a connection profile
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema: { $ref: '#/components/schemas/IntegrationConnectionProfile' }
++      responses:
++        '200':
++          description: OK
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/IntegrationConnectionProfile' }
++        '404': { description: Not found }
++    delete:
++      operationId: deleteConnectionProfile
++      tags: [ IntegrationGovernance ]
++      summary: Delete a connection profile
++      responses:
++        '200':
++          description: OK
++          content:
++            application/json:
++              schema:
++                type: object
++                properties:
++                  success: { type: boolean }
++        '404': { description: Not found }
++
++  /integration-governance/connection-profiles/{id}/test:
++    parameters:
++      - { name: id, in: path, required: true, schema: { type: integer } }
++    post:
++      operationId: testConnectionProfile
++      tags: [ IntegrationGovernance ]
++      summary: Run a live connection test for the profile
++      requestBody:
++        content:
++          application/json:
++            schema:
++              type: object
++              properties:
++                testRecipient:
++                  type: string
++                  description: "Required for smtp profiles — email address to send the test message to."
++      responses:
++        '200':
++          description: OK
++          content:
++            application/json:
++              schema:
++                type: object
++                properties:
++                  success: { type: boolean }
++                  message:
++                    type: string
++                    description: "Human-readable result including the resolved target host appended as (target: host:port) or (target: baseUrl)."
++                  latencyMs: { type: integer }
++                  simulated: { type: boolean }
++                  testedAt: { type: string, format: date-time }
++                  resolvedTarget:
++                    type: object
++                    description: The effective endpoint that was contacted (or would have been, for suspended/simulated profiles).
++                    properties:
++                      host: { type: [ "string", "null" ] }
++                      port: { type: [ "string", "null" ] }
++                      baseUrl: { type: [ "string", "null" ] }
++                      usingGlobalDefault: { type: boolean }
++                    required: [ host, port, baseUrl, usingGlobalDefault ]
++                required: [ success, message, latencyMs, simulated, testedAt ]
++        '400': { description: Invalid request body (e.g. malformed testRecipient) }
++        '404': { description: Not found }
++
++  /integration-governance/connection-profiles/{id}/approve:
++    parameters:
++      - { name: id, in: path, required: true, schema: { type: integer } }
++    post:
++      operationId: approveConnectionProfile
++      tags: [ IntegrationGovernance ]
++      summary: Approve a pending connection profile
++      responses:
++        '200':
++          description: OK
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/IntegrationConnectionProfile' }
++        '404': { description: Not found }
++
++  /integration-governance/connection-profiles/{id}/suspend:
++    parameters:
++      - { name: id, in: path, required: true, schema: { type: integer } }
++    post:
++      operationId: suspendConnectionProfile
++      tags: [ IntegrationGovernance ]
++      summary: Suspend a connection profile
++      responses:
++        '200':
++          description: OK
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/IntegrationConnectionProfile' }
++        '404': { description: Not found }
++
+   # ── PHASE 7C — LOCAL AI LAYER ──────────────────────────────────────────────
+ 
+   /ai/config:
+-- 
+2.50.1
+

@@ -15171,6 +15171,323 @@ export const GetIntegrationEventResponse = zod.object({
 
 
 /**
+ * @summary List connection profiles with resolved effective target per profile
+ */
+export const ListConnectionProfilesQueryParams = zod.object({
+  "orgId": zod.coerce.number().int().optional(),
+  "governanceStatus": zod.coerce.string().optional(),
+  "integrationType": zod.coerce.string().optional()
+})
+
+export const ListConnectionProfilesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+}).and(zod.object({
+  "lastTestedByNameEn": zod.string().nullish(),
+  "lastTestedByNameAr": zod.string().nullish(),
+  "resolvedTarget": zod.object({
+  "host": zod.string().nullable().describe('Hostname for LDAP\/SMTP profiles; null for attendance_device (uses baseUrl).'),
+  "port": zod.string().nullable().describe('Port string for LDAP\/SMTP profiles; null when host is null.'),
+  "baseUrl": zod.string().nullable().describe('Full base URL for attendance_device profiles; null for others.'),
+  "usingGlobalDefault": zod.boolean().describe('True when the host\/baseUrl came from a process.env fallback rather than the profile\'s own connectionParamsJson.')
+}).optional().describe('Effective connection endpoint resolved from connectionParamsJson and env-var fallbacks. Not stored — computed per request.')
+}))
+export const ListConnectionProfilesResponse = zod.array(ListConnectionProfilesResponseItem)
+
+
+/**
+ * @summary Create a new connection profile
+ */
+export const CreateConnectionProfileBody = zod.record(zod.string(), zod.unknown())
+
+export const CreateConnectionProfileResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Get a single connection profile with resolved effective target
+ */
+export const GetConnectionProfileParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetConnectionProfileResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+}).and(zod.object({
+  "lastTestedByNameEn": zod.string().nullish(),
+  "lastTestedByNameAr": zod.string().nullish(),
+  "resolvedTarget": zod.object({
+  "host": zod.string().nullable(),
+  "port": zod.string().nullable(),
+  "baseUrl": zod.string().nullable(),
+  "usingGlobalDefault": zod.boolean()
+}).optional().describe('Effective connection endpoint resolved from connectionParamsJson and env-var fallbacks.')
+}))
+
+
+/**
+ * @summary Update a connection profile
+ */
+export const UpdateConnectionProfileParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateConnectionProfileBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdateConnectionProfileResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Delete a connection profile
+ */
+export const DeleteConnectionProfileParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteConnectionProfileResponse = zod.object({
+  "success": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Run a live connection test for the profile
+ */
+export const TestConnectionProfileParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const TestConnectionProfileBody = zod.object({
+  "testRecipient": zod.string().optional().describe('Required for smtp profiles — email address to send the test message to.')
+})
+
+export const TestConnectionProfileResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string().describe('Human-readable result including the resolved target host appended as (target: host:port) or (target: baseUrl).'),
+  "latencyMs": zod.number(),
+  "simulated": zod.boolean(),
+  "testedAt": zod.coerce.date(),
+  "resolvedTarget": zod.object({
+  "host": zod.string().nullable(),
+  "port": zod.string().nullable(),
+  "baseUrl": zod.string().nullable(),
+  "usingGlobalDefault": zod.boolean()
+}).optional().describe('The effective endpoint that was contacted (or would have been, for suspended\/simulated profiles).')
+})
+
+
+/**
+ * @summary Approve a pending connection profile
+ */
+export const ApproveConnectionProfileParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ApproveConnectionProfileResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Suspend a connection profile
+ */
+export const SuspendConnectionProfileParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const SuspendConnectionProfileResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.number().nullish(),
+  "connectorId": zod.number().nullish(),
+  "profileName": zod.string(),
+  "profileNameAr": zod.string(),
+  "integrationType": zod.string(),
+  "environment": zod.string(),
+  "connectionParamsJson": zod.string(),
+  "credentialVaultRefId": zod.number().nullish(),
+  "status": zod.string(),
+  "lastTestResult": zod.string().nullish(),
+  "lastTestMessage": zod.string().nullish(),
+  "lastTestedAt": zod.string().nullish(),
+  "lastTestedByUserId": zod.number().nullish(),
+  "lastTestLatencyMs": zod.number().nullish(),
+  "lastTestSimulated": zod.boolean().nullish(),
+  "isHealthMonitoringEnabled": zod.boolean(),
+  "healthCheckIntervalMinutes": zod.number(),
+  "consecutiveFailures": zod.number(),
+  "alertOnFailureCount": zod.number(),
+  "retryEnabled": zod.boolean(),
+  "retryMaxAttempts": zod.number(),
+  "retryBackoffSeconds": zod.number(),
+  "isAirGapSafe": zod.boolean(),
+  "governanceStatus": zod.string(),
+  "approvedByUserId": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "approvalNotes": zod.string().nullish(),
+  "createdByUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "warnings": zod.array(zod.string()).optional()
+})
+
+
+/**
  * @summary Get local AI configuration
  */
 export const GetAiConfigResponse = zod.object({
@@ -17688,307 +18005,6 @@ export const DecideAttendanceCorrectionResponse = zod.object({
   "requestedByName": zod.string().nullish(),
   "reviewedByName": zod.string().nullish()
 }))
-
-
-/**
- * @summary List integration connection profiles
- */
-export const ListConnectionProfilesQueryParams = zod.object({
-  "orgId": zod.coerce.number().int().nullish(),
-  "governanceStatus": zod.coerce.string().nullish(),
-  "integrationType": zod.coerce.string().nullish()
-})
-
-export const ListConnectionProfilesResponseItem = zod.object({
-  "id": zod.number(),
-  "orgId": zod.number().nullish(),
-  "connectorId": zod.number().nullish(),
-  "profileName": zod.string(),
-  "profileNameAr": zod.string(),
-  "integrationType": zod.string(),
-  "environment": zod.string(),
-  "connectionParamsJson": zod.string(),
-  "credentialVaultRefId": zod.number().nullish(),
-  "status": zod.string(),
-  "lastTestResult": zod.string().nullish(),
-  "lastTestMessage": zod.string().nullish(),
-  "lastTestedAt": zod.string().nullish(),
-  "lastTestedByUserId": zod.number().nullish(),
-  "lastTestLatencyMs": zod.number().nullish(),
-  "lastTestSimulated": zod.boolean().nullish(),
-  "isHealthMonitoringEnabled": zod.boolean(),
-  "healthCheckIntervalMinutes": zod.number(),
-  "consecutiveFailures": zod.number(),
-  "alertOnFailureCount": zod.number(),
-  "retryEnabled": zod.boolean(),
-  "retryMaxAttempts": zod.number(),
-  "retryBackoffSeconds": zod.number(),
-  "isAirGapSafe": zod.boolean(),
-  "governanceStatus": zod.string(),
-  "approvedByUserId": zod.number().nullish(),
-  "approvedAt": zod.string().nullish(),
-  "approvalNotes": zod.string().nullish(),
-  "createdByUserId": zod.number().nullish(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string(),
-  "warnings": zod.array(zod.string()).optional()
-})
-export const ListConnectionProfilesResponse = zod.array(ListConnectionProfilesResponseItem)
-
-
-/**
- * @summary Create a connection profile
- */
-export const CreateConnectionProfileBody = zod.record(zod.string(), zod.unknown())
-
-export const CreateConnectionProfileResponse = zod.object({
-  "id": zod.number(),
-  "orgId": zod.number().nullish(),
-  "connectorId": zod.number().nullish(),
-  "profileName": zod.string(),
-  "profileNameAr": zod.string(),
-  "integrationType": zod.string(),
-  "environment": zod.string(),
-  "connectionParamsJson": zod.string(),
-  "credentialVaultRefId": zod.number().nullish(),
-  "status": zod.string(),
-  "lastTestResult": zod.string().nullish(),
-  "lastTestMessage": zod.string().nullish(),
-  "lastTestedAt": zod.string().nullish(),
-  "lastTestedByUserId": zod.number().nullish(),
-  "lastTestLatencyMs": zod.number().nullish(),
-  "lastTestSimulated": zod.boolean().nullish(),
-  "isHealthMonitoringEnabled": zod.boolean(),
-  "healthCheckIntervalMinutes": zod.number(),
-  "consecutiveFailures": zod.number(),
-  "alertOnFailureCount": zod.number(),
-  "retryEnabled": zod.boolean(),
-  "retryMaxAttempts": zod.number(),
-  "retryBackoffSeconds": zod.number(),
-  "isAirGapSafe": zod.boolean(),
-  "governanceStatus": zod.string(),
-  "approvedByUserId": zod.number().nullish(),
-  "approvedAt": zod.string().nullish(),
-  "approvalNotes": zod.string().nullish(),
-  "createdByUserId": zod.number().nullish(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string(),
-  "warnings": zod.array(zod.string()).optional()
-})
-
-
-/**
- * @summary Get a connection profile
- */
-export const GetConnectionProfileParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const GetConnectionProfileResponse = zod.object({
-  "id": zod.number(),
-  "orgId": zod.number().nullish(),
-  "connectorId": zod.number().nullish(),
-  "profileName": zod.string(),
-  "profileNameAr": zod.string(),
-  "integrationType": zod.string(),
-  "environment": zod.string(),
-  "connectionParamsJson": zod.string(),
-  "credentialVaultRefId": zod.number().nullish(),
-  "status": zod.string(),
-  "lastTestResult": zod.string().nullish(),
-  "lastTestMessage": zod.string().nullish(),
-  "lastTestedAt": zod.string().nullish(),
-  "lastTestedByUserId": zod.number().nullish(),
-  "lastTestLatencyMs": zod.number().nullish(),
-  "lastTestSimulated": zod.boolean().nullish(),
-  "isHealthMonitoringEnabled": zod.boolean(),
-  "healthCheckIntervalMinutes": zod.number(),
-  "consecutiveFailures": zod.number(),
-  "alertOnFailureCount": zod.number(),
-  "retryEnabled": zod.boolean(),
-  "retryMaxAttempts": zod.number(),
-  "retryBackoffSeconds": zod.number(),
-  "isAirGapSafe": zod.boolean(),
-  "governanceStatus": zod.string(),
-  "approvedByUserId": zod.number().nullish(),
-  "approvedAt": zod.string().nullish(),
-  "approvalNotes": zod.string().nullish(),
-  "createdByUserId": zod.number().nullish(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string(),
-  "warnings": zod.array(zod.string()).optional()
-})
-
-
-/**
- * @summary Update a connection profile
- */
-export const UpdateConnectionProfileParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const UpdateConnectionProfileBody = zod.record(zod.string(), zod.unknown())
-
-export const UpdateConnectionProfileResponse = zod.object({
-  "id": zod.number(),
-  "orgId": zod.number().nullish(),
-  "connectorId": zod.number().nullish(),
-  "profileName": zod.string(),
-  "profileNameAr": zod.string(),
-  "integrationType": zod.string(),
-  "environment": zod.string(),
-  "connectionParamsJson": zod.string(),
-  "credentialVaultRefId": zod.number().nullish(),
-  "status": zod.string(),
-  "lastTestResult": zod.string().nullish(),
-  "lastTestMessage": zod.string().nullish(),
-  "lastTestedAt": zod.string().nullish(),
-  "lastTestedByUserId": zod.number().nullish(),
-  "lastTestLatencyMs": zod.number().nullish(),
-  "lastTestSimulated": zod.boolean().nullish(),
-  "isHealthMonitoringEnabled": zod.boolean(),
-  "healthCheckIntervalMinutes": zod.number(),
-  "consecutiveFailures": zod.number(),
-  "alertOnFailureCount": zod.number(),
-  "retryEnabled": zod.boolean(),
-  "retryMaxAttempts": zod.number(),
-  "retryBackoffSeconds": zod.number(),
-  "isAirGapSafe": zod.boolean(),
-  "governanceStatus": zod.string(),
-  "approvedByUserId": zod.number().nullish(),
-  "approvedAt": zod.string().nullish(),
-  "approvalNotes": zod.string().nullish(),
-  "createdByUserId": zod.number().nullish(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string(),
-  "warnings": zod.array(zod.string()).optional()
-})
-
-
-/**
- * @summary Delete a connection profile
- */
-export const DeleteConnectionProfileParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const DeleteConnectionProfileResponse = zod.object({
-  "success": zod.boolean()
-})
-
-
-/**
- * @summary Test a connection profile
- */
-export const TestConnectionProfileParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const TestConnectionProfileBody = zod.object({
-  "testRecipient": zod.string().nullish()
-})
-
-export const TestConnectionProfileResponse = zod.object({
-  "success": zod.boolean(),
-  "message": zod.string(),
-  "latencyMs": zod.number(),
-  "simulated": zod.boolean(),
-  "testedAt": zod.string()
-})
-
-
-/**
- * @summary Approve a connection profile
- */
-export const ApproveConnectionProfileParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const ApproveConnectionProfileBody = zod.object({
-  "approvalNotes": zod.string().nullish()
-})
-
-export const ApproveConnectionProfileResponse = zod.object({
-  "id": zod.number(),
-  "orgId": zod.number().nullish(),
-  "connectorId": zod.number().nullish(),
-  "profileName": zod.string(),
-  "profileNameAr": zod.string(),
-  "integrationType": zod.string(),
-  "environment": zod.string(),
-  "connectionParamsJson": zod.string(),
-  "credentialVaultRefId": zod.number().nullish(),
-  "status": zod.string(),
-  "lastTestResult": zod.string().nullish(),
-  "lastTestMessage": zod.string().nullish(),
-  "lastTestedAt": zod.string().nullish(),
-  "lastTestedByUserId": zod.number().nullish(),
-  "lastTestLatencyMs": zod.number().nullish(),
-  "lastTestSimulated": zod.boolean().nullish(),
-  "isHealthMonitoringEnabled": zod.boolean(),
-  "healthCheckIntervalMinutes": zod.number(),
-  "consecutiveFailures": zod.number(),
-  "alertOnFailureCount": zod.number(),
-  "retryEnabled": zod.boolean(),
-  "retryMaxAttempts": zod.number(),
-  "retryBackoffSeconds": zod.number(),
-  "isAirGapSafe": zod.boolean(),
-  "governanceStatus": zod.string(),
-  "approvedByUserId": zod.number().nullish(),
-  "approvedAt": zod.string().nullish(),
-  "approvalNotes": zod.string().nullish(),
-  "createdByUserId": zod.number().nullish(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string(),
-  "warnings": zod.array(zod.string()).optional()
-})
-
-
-/**
- * @summary Suspend a connection profile
- */
-export const SuspendConnectionProfileParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const SuspendConnectionProfileBody = zod.object({
-  "reason": zod.string().nullish()
-})
-
-export const SuspendConnectionProfileResponse = zod.object({
-  "id": zod.number(),
-  "orgId": zod.number().nullish(),
-  "connectorId": zod.number().nullish(),
-  "profileName": zod.string(),
-  "profileNameAr": zod.string(),
-  "integrationType": zod.string(),
-  "environment": zod.string(),
-  "connectionParamsJson": zod.string(),
-  "credentialVaultRefId": zod.number().nullish(),
-  "status": zod.string(),
-  "lastTestResult": zod.string().nullish(),
-  "lastTestMessage": zod.string().nullish(),
-  "lastTestedAt": zod.string().nullish(),
-  "lastTestedByUserId": zod.number().nullish(),
-  "lastTestLatencyMs": zod.number().nullish(),
-  "lastTestSimulated": zod.boolean().nullish(),
-  "isHealthMonitoringEnabled": zod.boolean(),
-  "healthCheckIntervalMinutes": zod.number(),
-  "consecutiveFailures": zod.number(),
-  "alertOnFailureCount": zod.number(),
-  "retryEnabled": zod.boolean(),
-  "retryMaxAttempts": zod.number(),
-  "retryBackoffSeconds": zod.number(),
-  "isAirGapSafe": zod.boolean(),
-  "governanceStatus": zod.string(),
-  "approvedByUserId": zod.number().nullish(),
-  "approvedAt": zod.string().nullish(),
-  "approvalNotes": zod.string().nullish(),
-  "createdByUserId": zod.number().nullish(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string(),
-  "warnings": zod.array(zod.string()).optional()
-})
 
 
 /**

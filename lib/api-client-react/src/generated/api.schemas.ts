@@ -7896,6 +7896,103 @@ export type ListIntegrationEvents200 = {
   limit?: number;
 };
 
+export type ListConnectionProfilesParams = {
+orgId?: number;
+governanceStatus?: string;
+integrationType?: string;
+};
+
+/**
+ * Effective connection endpoint resolved from connectionParamsJson and env-var fallbacks. Not stored — computed per request.
+ */
+export type ListConnectionProfiles200ItemResolvedTarget = {
+  /**
+     * Hostname for LDAP/SMTP profiles; null for attendance_device (uses baseUrl).
+     * @nullable
+     */
+  host: string | null;
+  /**
+     * Port string for LDAP/SMTP profiles; null when host is null.
+     * @nullable
+     */
+  port: string | null;
+  /**
+     * Full base URL for attendance_device profiles; null for others.
+     * @nullable
+     */
+  baseUrl: string | null;
+  /** True when the host/baseUrl came from a process.env fallback rather than the profile's own connectionParamsJson. */
+  usingGlobalDefault: boolean;
+};
+
+export type ListConnectionProfiles200Item = IntegrationConnectionProfile & ({
+  /** @nullable */
+  lastTestedByNameEn?: string | null;
+  /** @nullable */
+  lastTestedByNameAr?: string | null;
+  /** Effective connection endpoint resolved from connectionParamsJson and env-var fallbacks. Not stored — computed per request. */
+  resolvedTarget?: ListConnectionProfiles200ItemResolvedTarget;
+});
+
+export type CreateConnectionProfileBody = { [key: string]: unknown };
+
+/**
+ * Effective connection endpoint resolved from connectionParamsJson and env-var fallbacks.
+ */
+export type GetConnectionProfile200ResolvedTarget = {
+  /** @nullable */
+  host: string | null;
+  /** @nullable */
+  port: string | null;
+  /** @nullable */
+  baseUrl: string | null;
+  usingGlobalDefault: boolean;
+};
+
+export type GetConnectionProfile200 = IntegrationConnectionProfile & ({
+  /** @nullable */
+  lastTestedByNameEn?: string | null;
+  /** @nullable */
+  lastTestedByNameAr?: string | null;
+  /** Effective connection endpoint resolved from connectionParamsJson and env-var fallbacks. */
+  resolvedTarget?: GetConnectionProfile200ResolvedTarget;
+});
+
+export type UpdateConnectionProfileBody = { [key: string]: unknown };
+
+export type DeleteConnectionProfile200 = {
+  success?: boolean;
+};
+
+export type TestConnectionProfileBody = {
+  /** Required for smtp profiles — email address to send the test message to. */
+  testRecipient?: string;
+};
+
+/**
+ * The effective endpoint that was contacted (or would have been, for suspended/simulated profiles).
+ */
+export type TestConnectionProfile200ResolvedTarget = {
+  /** @nullable */
+  host: string | null;
+  /** @nullable */
+  port: string | null;
+  /** @nullable */
+  baseUrl: string | null;
+  usingGlobalDefault: boolean;
+};
+
+export type TestConnectionProfile200 = {
+  success: boolean;
+  /** Human-readable result including the resolved target host appended as (target: host:port) or (target: baseUrl). */
+  message: string;
+  latencyMs: number;
+  simulated: boolean;
+  testedAt: string;
+  /** The effective endpoint that was contacted (or would have been, for suspended/simulated profiles). */
+  resolvedTarget?: TestConnectionProfile200ResolvedTarget;
+};
+
 export type AiPolicySearchBody = {
   query: string;
   limit?: number;
@@ -8543,52 +8640,6 @@ export type DecideAttendanceCorrectionBody = {
   reviewNote?: string | null;
   /** @nullable */
   reviewedByUserId?: number | null;
-};
-
-export type ListConnectionProfilesParams = {
-/**
- * @nullable
- */
-orgId?: number | null;
-/**
- * @nullable
- */
-governanceStatus?: string | null;
-/**
- * @nullable
- */
-integrationType?: string | null;
-};
-
-export type CreateConnectionProfileBody = { [key: string]: unknown };
-
-export type UpdateConnectionProfileBody = { [key: string]: unknown };
-
-export type DeleteConnectionProfile200 = {
-  success: boolean;
-};
-
-export type TestConnectionProfileBody = {
-  /** @nullable */
-  testRecipient?: string | null;
-};
-
-export type TestConnectionProfile200 = {
-  success: boolean;
-  message: string;
-  latencyMs: number;
-  simulated: boolean;
-  testedAt: string;
-};
-
-export type ApproveConnectionProfileBody = {
-  /** @nullable */
-  approvalNotes?: string | null;
-};
-
-export type SuspendConnectionProfileBody = {
-  /** @nullable */
-  reason?: string | null;
 };
 
 export type DeleteCredentialVaultRef200 = {

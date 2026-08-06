@@ -57,7 +57,6 @@ import type {
   ApprovalInboxItem,
   ApprovalInboxItemInput,
   ApprovalInput,
-  ApproveConnectionProfileBody,
   ApprovePolicyChangeRequestBody,
   AttendanceCorrectionView,
   AttendanceDailySummary,
@@ -222,6 +221,7 @@ import type {
   GetAnalyticsVacanciesParams,
   GetAttendanceDailySummaryParams,
   GetConfigPackage200,
+  GetConnectionProfile200,
   GetConnectorHealthParams,
   GetDiagnostics200,
   GetEmployeeAttendanceParams,
@@ -322,6 +322,7 @@ import type {
   ListCompetencies200,
   ListCompetencyFrameworks200,
   ListConfigPackagesParams,
+  ListConnectionProfiles200Item,
   ListConnectionProfilesParams,
   ListCourseNominations200,
   ListCourseNominationsParams,
@@ -554,7 +555,6 @@ import type {
   SuccessionCandidateInput,
   SuccessionPool,
   SuccessionPoolInput,
-  SuspendConnectionProfileBody,
   SyncQueueEntry,
   SyncStatusSummary,
   SystemConfig,
@@ -35770,6 +35770,595 @@ export function useGetIntegrationEvent<TData = Awaited<ReturnType<typeof getInte
 
 
 
+export const getListConnectionProfilesUrl = (params?: ListConnectionProfilesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/integration-governance/connection-profiles?${stringifiedParams}` : `/api/integration-governance/connection-profiles`
+}
+
+/**
+ * @summary List connection profiles with resolved effective target per profile
+ */
+export const listConnectionProfiles = async (params?: ListConnectionProfilesParams, options?: Parameters<typeof customFetch>[1]): Promise<ListConnectionProfiles200Item[]> => {
+
+  return customFetch<ListConnectionProfiles200Item[]>(getListConnectionProfilesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListConnectionProfilesQueryKey = (params?: ListConnectionProfilesParams,) => {
+    return [
+    `/api/integration-governance/connection-profiles`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListConnectionProfilesQueryOptions = <TData = Awaited<ReturnType<typeof listConnectionProfiles>>, TError = ErrorType<unknown>>(params?: ListConnectionProfilesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listConnectionProfiles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListConnectionProfilesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listConnectionProfiles>>> = ({ signal }) => listConnectionProfiles(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listConnectionProfiles>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListConnectionProfilesQueryResult = NonNullable<Awaited<ReturnType<typeof listConnectionProfiles>>>
+export type ListConnectionProfilesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List connection profiles with resolved effective target per profile
+ */
+
+export function useListConnectionProfiles<TData = Awaited<ReturnType<typeof listConnectionProfiles>>, TError = ErrorType<unknown>>(
+ params?: ListConnectionProfilesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listConnectionProfiles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListConnectionProfilesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateConnectionProfileUrl = () => {
+
+
+
+
+  return `/api/integration-governance/connection-profiles`
+}
+
+/**
+ * @summary Create a new connection profile
+ */
+export const createConnectionProfile = async (createConnectionProfileBody: CreateConnectionProfileBody, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationConnectionProfile> => {
+
+  return customFetch<IntegrationConnectionProfile>(getCreateConnectionProfileUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createConnectionProfileBody)
+  }
+);}
+
+
+
+
+
+export const getCreateConnectionProfileMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createConnectionProfile>>, TError,{data: BodyType<CreateConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createConnectionProfile>>, TError,{data: BodyType<CreateConnectionProfileBody>}, TContext> => {
+
+const mutationKey = ['createConnectionProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createConnectionProfile>>, {data: BodyType<CreateConnectionProfileBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createConnectionProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof createConnectionProfile>>>
+    export type CreateConnectionProfileMutationBody = BodyType<CreateConnectionProfileBody>
+    export type CreateConnectionProfileMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a new connection profile
+ */
+export const useCreateConnectionProfile = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createConnectionProfile>>, TError,{data: BodyType<CreateConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createConnectionProfile>>,
+        TError,
+        {data: BodyType<CreateConnectionProfileBody>},
+        TContext
+      > => {
+      return useMutation(getCreateConnectionProfileMutationOptions(options));
+    }
+
+export const getGetConnectionProfileUrl = (id: number,) => {
+
+
+
+
+  return `/api/integration-governance/connection-profiles/${id}`
+}
+
+/**
+ * @summary Get a single connection profile with resolved effective target
+ */
+export const getConnectionProfile = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<GetConnectionProfile200> => {
+
+  return customFetch<GetConnectionProfile200>(getGetConnectionProfileUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetConnectionProfileQueryKey = (id: number,) => {
+    return [
+    `/api/integration-governance/connection-profiles/${id}`
+    ] as const;
+    }
+
+
+export const getGetConnectionProfileQueryOptions = <TData = Awaited<ReturnType<typeof getConnectionProfile>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConnectionProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetConnectionProfileQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getConnectionProfile>>> = ({ signal }) => getConnectionProfile(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getConnectionProfile>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetConnectionProfileQueryResult = NonNullable<Awaited<ReturnType<typeof getConnectionProfile>>>
+export type GetConnectionProfileQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a single connection profile with resolved effective target
+ */
+
+export function useGetConnectionProfile<TData = Awaited<ReturnType<typeof getConnectionProfile>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConnectionProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetConnectionProfileQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateConnectionProfileUrl = (id: number,) => {
+
+
+
+
+  return `/api/integration-governance/connection-profiles/${id}`
+}
+
+/**
+ * @summary Update a connection profile
+ */
+export const updateConnectionProfile = async (id: number,
+    updateConnectionProfileBody: UpdateConnectionProfileBody, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationConnectionProfile> => {
+
+  return customFetch<IntegrationConnectionProfile>(getUpdateConnectionProfileUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateConnectionProfileBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateConnectionProfileMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateConnectionProfile>>, TError,{id: number;data: BodyType<UpdateConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateConnectionProfile>>, TError,{id: number;data: BodyType<UpdateConnectionProfileBody>}, TContext> => {
+
+const mutationKey = ['updateConnectionProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateConnectionProfile>>, {id: number;data: BodyType<UpdateConnectionProfileBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateConnectionProfile(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof updateConnectionProfile>>>
+    export type UpdateConnectionProfileMutationBody = BodyType<UpdateConnectionProfileBody>
+    export type UpdateConnectionProfileMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a connection profile
+ */
+export const useUpdateConnectionProfile = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateConnectionProfile>>, TError,{id: number;data: BodyType<UpdateConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateConnectionProfile>>,
+        TError,
+        {id: number;data: BodyType<UpdateConnectionProfileBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateConnectionProfileMutationOptions(options));
+    }
+
+export const getDeleteConnectionProfileUrl = (id: number,) => {
+
+
+
+
+  return `/api/integration-governance/connection-profiles/${id}`
+}
+
+/**
+ * @summary Delete a connection profile
+ */
+export const deleteConnectionProfile = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<DeleteConnectionProfile200> => {
+
+  return customFetch<DeleteConnectionProfile200>(getDeleteConnectionProfileUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteConnectionProfileMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteConnectionProfile>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteConnectionProfile>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteConnectionProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteConnectionProfile>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteConnectionProfile(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof deleteConnectionProfile>>>
+
+    export type DeleteConnectionProfileMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a connection profile
+ */
+export const useDeleteConnectionProfile = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteConnectionProfile>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteConnectionProfile>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteConnectionProfileMutationOptions(options));
+    }
+
+export const getTestConnectionProfileUrl = (id: number,) => {
+
+
+
+
+  return `/api/integration-governance/connection-profiles/${id}/test`
+}
+
+/**
+ * @summary Run a live connection test for the profile
+ */
+export const testConnectionProfile = async (id: number,
+    testConnectionProfileBody?: TestConnectionProfileBody, options?: Parameters<typeof customFetch>[1]): Promise<TestConnectionProfile200> => {
+
+  return customFetch<TestConnectionProfile200>(getTestConnectionProfileUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(testConnectionProfileBody)
+  }
+);}
+
+
+
+
+
+export const getTestConnectionProfileMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testConnectionProfile>>, TError,{id: number;data?: BodyType<TestConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof testConnectionProfile>>, TError,{id: number;data?: BodyType<TestConnectionProfileBody>}, TContext> => {
+
+const mutationKey = ['testConnectionProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof testConnectionProfile>>, {id: number;data?: BodyType<TestConnectionProfileBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  testConnectionProfile(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TestConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof testConnectionProfile>>>
+    export type TestConnectionProfileMutationBody = BodyType<TestConnectionProfileBody> | undefined
+    export type TestConnectionProfileMutationError = ErrorType<void>
+
+    /**
+ * @summary Run a live connection test for the profile
+ */
+export const useTestConnectionProfile = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testConnectionProfile>>, TError,{id: number;data?: BodyType<TestConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof testConnectionProfile>>,
+        TError,
+        {id: number;data?: BodyType<TestConnectionProfileBody>},
+        TContext
+      > => {
+      return useMutation(getTestConnectionProfileMutationOptions(options));
+    }
+
+export const getApproveConnectionProfileUrl = (id: number,) => {
+
+
+
+
+  return `/api/integration-governance/connection-profiles/${id}/approve`
+}
+
+/**
+ * @summary Approve a pending connection profile
+ */
+export const approveConnectionProfile = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationConnectionProfile> => {
+
+  return customFetch<IntegrationConnectionProfile>(getApproveConnectionProfileUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveConnectionProfileMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveConnectionProfile>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveConnectionProfile>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approveConnectionProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveConnectionProfile>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approveConnectionProfile(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof approveConnectionProfile>>>
+
+    export type ApproveConnectionProfileMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve a pending connection profile
+ */
+export const useApproveConnectionProfile = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveConnectionProfile>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveConnectionProfile>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApproveConnectionProfileMutationOptions(options));
+    }
+
+export const getSuspendConnectionProfileUrl = (id: number,) => {
+
+
+
+
+  return `/api/integration-governance/connection-profiles/${id}/suspend`
+}
+
+/**
+ * @summary Suspend a connection profile
+ */
+export const suspendConnectionProfile = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationConnectionProfile> => {
+
+  return customFetch<IntegrationConnectionProfile>(getSuspendConnectionProfileUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSuspendConnectionProfileMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendConnectionProfile>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof suspendConnectionProfile>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['suspendConnectionProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suspendConnectionProfile>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  suspendConnectionProfile(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SuspendConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof suspendConnectionProfile>>>
+
+    export type SuspendConnectionProfileMutationError = ErrorType<void>
+
+    /**
+ * @summary Suspend a connection profile
+ */
+export const useSuspendConnectionProfile = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendConnectionProfile>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof suspendConnectionProfile>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getSuspendConnectionProfileMutationOptions(options));
+    }
+
 export const getGetAiConfigUrl = () => {
 
 
@@ -41612,597 +42201,6 @@ export const useDecideAttendanceCorrection = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDecideAttendanceCorrectionMutationOptions(options));
-    }
-
-export const getListConnectionProfilesUrl = (params?: ListConnectionProfilesParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/integration-governance/connection-profiles?${stringifiedParams}` : `/api/integration-governance/connection-profiles`
-}
-
-/**
- * @summary List integration connection profiles
- */
-export const listConnectionProfiles = async (params?: ListConnectionProfilesParams, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationConnectionProfile[]> => {
-
-  return customFetch<IntegrationConnectionProfile[]>(getListConnectionProfilesUrl(params),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getListConnectionProfilesQueryKey = (params?: ListConnectionProfilesParams,) => {
-    return [
-    `/api/integration-governance/connection-profiles`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-
-export const getListConnectionProfilesQueryOptions = <TData = Awaited<ReturnType<typeof listConnectionProfiles>>, TError = ErrorType<unknown>>(params?: ListConnectionProfilesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listConnectionProfiles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getListConnectionProfilesQueryKey(params);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listConnectionProfiles>>> = ({ signal }) => listConnectionProfiles(params, { signal, ...requestOptions });
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listConnectionProfiles>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type ListConnectionProfilesQueryResult = NonNullable<Awaited<ReturnType<typeof listConnectionProfiles>>>
-export type ListConnectionProfilesQueryError = ErrorType<unknown>
-
-
-/**
- * @summary List integration connection profiles
- */
-
-export function useListConnectionProfiles<TData = Awaited<ReturnType<typeof listConnectionProfiles>>, TError = ErrorType<unknown>>(
- params?: ListConnectionProfilesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listConnectionProfiles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getListConnectionProfilesQueryOptions(params,options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
-export const getCreateConnectionProfileUrl = () => {
-
-
-
-
-  return `/api/integration-governance/connection-profiles`
-}
-
-/**
- * @summary Create a connection profile
- */
-export const createConnectionProfile = async (createConnectionProfileBody: CreateConnectionProfileBody, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationConnectionProfile> => {
-
-  return customFetch<IntegrationConnectionProfile>(getCreateConnectionProfileUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(createConnectionProfileBody)
-  }
-);}
-
-
-
-
-
-export const getCreateConnectionProfileMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createConnectionProfile>>, TError,{data: BodyType<CreateConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createConnectionProfile>>, TError,{data: BodyType<CreateConnectionProfileBody>}, TContext> => {
-
-const mutationKey = ['createConnectionProfile'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createConnectionProfile>>, {data: BodyType<CreateConnectionProfileBody>}> = (props) => {
-          const {data} = props ?? {};
-
-          return  createConnectionProfile(data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CreateConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof createConnectionProfile>>>
-    export type CreateConnectionProfileMutationBody = BodyType<CreateConnectionProfileBody>
-    export type CreateConnectionProfileMutationError = ErrorType<unknown>
-
-    /**
- * @summary Create a connection profile
- */
-export const useCreateConnectionProfile = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createConnectionProfile>>, TError,{data: BodyType<CreateConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof createConnectionProfile>>,
-        TError,
-        {data: BodyType<CreateConnectionProfileBody>},
-        TContext
-      > => {
-      return useMutation(getCreateConnectionProfileMutationOptions(options));
-    }
-
-export const getGetConnectionProfileUrl = (id: number,) => {
-
-
-
-
-  return `/api/integration-governance/connection-profiles/${id}`
-}
-
-/**
- * @summary Get a connection profile
- */
-export const getConnectionProfile = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationConnectionProfile> => {
-
-  return customFetch<IntegrationConnectionProfile>(getGetConnectionProfileUrl(id),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getGetConnectionProfileQueryKey = (id: number,) => {
-    return [
-    `/api/integration-governance/connection-profiles/${id}`
-    ] as const;
-    }
-
-
-export const getGetConnectionProfileQueryOptions = <TData = Awaited<ReturnType<typeof getConnectionProfile>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConnectionProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetConnectionProfileQueryKey(id);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getConnectionProfile>>> = ({ signal }) => getConnectionProfile(id, { signal, ...requestOptions });
-
-
-
-
-
-   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getConnectionProfile>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type GetConnectionProfileQueryResult = NonNullable<Awaited<ReturnType<typeof getConnectionProfile>>>
-export type GetConnectionProfileQueryError = ErrorType<void>
-
-
-/**
- * @summary Get a connection profile
- */
-
-export function useGetConnectionProfile<TData = Awaited<ReturnType<typeof getConnectionProfile>>, TError = ErrorType<void>>(
- id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConnectionProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getGetConnectionProfileQueryOptions(id,options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
-export const getUpdateConnectionProfileUrl = (id: number,) => {
-
-
-
-
-  return `/api/integration-governance/connection-profiles/${id}`
-}
-
-/**
- * @summary Update a connection profile
- */
-export const updateConnectionProfile = async (id: number,
-    updateConnectionProfileBody: UpdateConnectionProfileBody, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationConnectionProfile> => {
-
-  return customFetch<IntegrationConnectionProfile>(getUpdateConnectionProfileUrl(id),
-  {
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(updateConnectionProfileBody)
-  }
-);}
-
-
-
-
-
-export const getUpdateConnectionProfileMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateConnectionProfile>>, TError,{id: number;data: BodyType<UpdateConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateConnectionProfile>>, TError,{id: number;data: BodyType<UpdateConnectionProfileBody>}, TContext> => {
-
-const mutationKey = ['updateConnectionProfile'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateConnectionProfile>>, {id: number;data: BodyType<UpdateConnectionProfileBody>}> = (props) => {
-          const {id,data} = props ?? {};
-
-          return  updateConnectionProfile(id,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdateConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof updateConnectionProfile>>>
-    export type UpdateConnectionProfileMutationBody = BodyType<UpdateConnectionProfileBody>
-    export type UpdateConnectionProfileMutationError = ErrorType<void>
-
-    /**
- * @summary Update a connection profile
- */
-export const useUpdateConnectionProfile = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateConnectionProfile>>, TError,{id: number;data: BodyType<UpdateConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof updateConnectionProfile>>,
-        TError,
-        {id: number;data: BodyType<UpdateConnectionProfileBody>},
-        TContext
-      > => {
-      return useMutation(getUpdateConnectionProfileMutationOptions(options));
-    }
-
-export const getDeleteConnectionProfileUrl = (id: number,) => {
-
-
-
-
-  return `/api/integration-governance/connection-profiles/${id}`
-}
-
-/**
- * @summary Delete a connection profile
- */
-export const deleteConnectionProfile = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<DeleteConnectionProfile200> => {
-
-  return customFetch<DeleteConnectionProfile200>(getDeleteConnectionProfileUrl(id),
-  {
-    ...options,
-    method: 'DELETE'
-
-
-  }
-);}
-
-
-
-
-
-export const getDeleteConnectionProfileMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteConnectionProfile>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteConnectionProfile>>, TError,{id: number}, TContext> => {
-
-const mutationKey = ['deleteConnectionProfile'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteConnectionProfile>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
-
-          return  deleteConnectionProfile(id,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeleteConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof deleteConnectionProfile>>>
-
-    export type DeleteConnectionProfileMutationError = ErrorType<unknown>
-
-    /**
- * @summary Delete a connection profile
- */
-export const useDeleteConnectionProfile = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteConnectionProfile>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof deleteConnectionProfile>>,
-        TError,
-        {id: number},
-        TContext
-      > => {
-      return useMutation(getDeleteConnectionProfileMutationOptions(options));
-    }
-
-export const getTestConnectionProfileUrl = (id: number,) => {
-
-
-
-
-  return `/api/integration-governance/connection-profiles/${id}/test`
-}
-
-/**
- * @summary Test a connection profile
- */
-export const testConnectionProfile = async (id: number,
-    testConnectionProfileBody?: TestConnectionProfileBody, options?: Parameters<typeof customFetch>[1]): Promise<TestConnectionProfile200> => {
-
-  return customFetch<TestConnectionProfile200>(getTestConnectionProfileUrl(id),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(testConnectionProfileBody)
-  }
-);}
-
-
-
-
-
-export const getTestConnectionProfileMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testConnectionProfile>>, TError,{id: number;data?: BodyType<TestConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof testConnectionProfile>>, TError,{id: number;data?: BodyType<TestConnectionProfileBody>}, TContext> => {
-
-const mutationKey = ['testConnectionProfile'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof testConnectionProfile>>, {id: number;data?: BodyType<TestConnectionProfileBody>}> = (props) => {
-          const {id,data} = props ?? {};
-
-          return  testConnectionProfile(id,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type TestConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof testConnectionProfile>>>
-    export type TestConnectionProfileMutationBody = BodyType<TestConnectionProfileBody> | undefined
-    export type TestConnectionProfileMutationError = ErrorType<unknown>
-
-    /**
- * @summary Test a connection profile
- */
-export const useTestConnectionProfile = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testConnectionProfile>>, TError,{id: number;data?: BodyType<TestConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof testConnectionProfile>>,
-        TError,
-        {id: number;data?: BodyType<TestConnectionProfileBody>},
-        TContext
-      > => {
-      return useMutation(getTestConnectionProfileMutationOptions(options));
-    }
-
-export const getApproveConnectionProfileUrl = (id: number,) => {
-
-
-
-
-  return `/api/integration-governance/connection-profiles/${id}/approve`
-}
-
-/**
- * @summary Approve a connection profile
- */
-export const approveConnectionProfile = async (id: number,
-    approveConnectionProfileBody?: ApproveConnectionProfileBody, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationConnectionProfile> => {
-
-  return customFetch<IntegrationConnectionProfile>(getApproveConnectionProfileUrl(id),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(approveConnectionProfileBody)
-  }
-);}
-
-
-
-
-
-export const getApproveConnectionProfileMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveConnectionProfile>>, TError,{id: number;data?: BodyType<ApproveConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof approveConnectionProfile>>, TError,{id: number;data?: BodyType<ApproveConnectionProfileBody>}, TContext> => {
-
-const mutationKey = ['approveConnectionProfile'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveConnectionProfile>>, {id: number;data?: BodyType<ApproveConnectionProfileBody>}> = (props) => {
-          const {id,data} = props ?? {};
-
-          return  approveConnectionProfile(id,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ApproveConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof approveConnectionProfile>>>
-    export type ApproveConnectionProfileMutationBody = BodyType<ApproveConnectionProfileBody> | undefined
-    export type ApproveConnectionProfileMutationError = ErrorType<unknown>
-
-    /**
- * @summary Approve a connection profile
- */
-export const useApproveConnectionProfile = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveConnectionProfile>>, TError,{id: number;data?: BodyType<ApproveConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof approveConnectionProfile>>,
-        TError,
-        {id: number;data?: BodyType<ApproveConnectionProfileBody>},
-        TContext
-      > => {
-      return useMutation(getApproveConnectionProfileMutationOptions(options));
-    }
-
-export const getSuspendConnectionProfileUrl = (id: number,) => {
-
-
-
-
-  return `/api/integration-governance/connection-profiles/${id}/suspend`
-}
-
-/**
- * @summary Suspend a connection profile
- */
-export const suspendConnectionProfile = async (id: number,
-    suspendConnectionProfileBody?: SuspendConnectionProfileBody, options?: Parameters<typeof customFetch>[1]): Promise<IntegrationConnectionProfile> => {
-
-  return customFetch<IntegrationConnectionProfile>(getSuspendConnectionProfileUrl(id),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(suspendConnectionProfileBody)
-  }
-);}
-
-
-
-
-
-export const getSuspendConnectionProfileMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendConnectionProfile>>, TError,{id: number;data?: BodyType<SuspendConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof suspendConnectionProfile>>, TError,{id: number;data?: BodyType<SuspendConnectionProfileBody>}, TContext> => {
-
-const mutationKey = ['suspendConnectionProfile'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suspendConnectionProfile>>, {id: number;data?: BodyType<SuspendConnectionProfileBody>}> = (props) => {
-          const {id,data} = props ?? {};
-
-          return  suspendConnectionProfile(id,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type SuspendConnectionProfileMutationResult = NonNullable<Awaited<ReturnType<typeof suspendConnectionProfile>>>
-    export type SuspendConnectionProfileMutationBody = BodyType<SuspendConnectionProfileBody> | undefined
-    export type SuspendConnectionProfileMutationError = ErrorType<unknown>
-
-    /**
- * @summary Suspend a connection profile
- */
-export const useSuspendConnectionProfile = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendConnectionProfile>>, TError,{id: number;data?: BodyType<SuspendConnectionProfileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof suspendConnectionProfile>>,
-        TError,
-        {id: number;data?: BodyType<SuspendConnectionProfileBody>},
-        TContext
-      > => {
-      return useMutation(getSuspendConnectionProfileMutationOptions(options));
     }
 
 export const getGetSecurityEmailStatusUrl = () => {

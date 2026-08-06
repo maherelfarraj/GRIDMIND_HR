@@ -7,5 +7,5 @@
  */
 
 export type DeleteConnectionProfile200 = {
-  success: boolean;
+  success?: boolean;
 };

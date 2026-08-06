@@ -5,11 +5,15 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+import type { TestConnectionProfile200ResolvedTarget } from './testConnectionProfile200ResolvedTarget';
 
 export type TestConnectionProfile200 = {
   success: boolean;
+  /** Human-readable result including the resolved target host appended as (target: host:port) or (target: baseUrl). */
   message: string;
   latencyMs: number;
   simulated: boolean;
-  testedAt: string;
+  testedAt: Date;
+  /** The effective endpoint that was contacted (or would have been, for suspended/simulated profiles). */
+  resolvedTarget?: TestConnectionProfile200ResolvedTarget;
 };

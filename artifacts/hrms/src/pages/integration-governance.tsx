@@ -34,7 +34,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw, Pencil, Trash2, ChevronLeft, ChevronRight, Filter, Server } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw, Pencil, Trash2, ChevronLeft, ChevronRight, Filter, Server, Globe } from 'lucide-react';
 
 /**
  * Task #314 — Resolve the effective connection target that will be probed when
@@ -1075,6 +1075,33 @@ export default function IntegrationGovernance() {
                             </Badge>
                           )}
                         </div>
+                        {/* Resolved target — shown before Test is pressed so the admin knows which
+                            endpoint will be contacted. Hidden for suspended profiles (test is blocked). */}
+                        {p.governanceStatus !== 'suspended' && (() => {
+                          const rt = p.resolvedTarget as { host: string | null; port: string | null; baseUrl: string | null; usingGlobalDefault: boolean } | undefined;
+                          if (!rt) return null;
+                          const target = rt.baseUrl ?? (rt.host ? `${rt.host}:${rt.port}` : null);
+                          if (!target) {
+                            return (
+                              <p className="text-[11px] flex items-center gap-1 text-amber-400" data-testid={`profile-target-${p.id}`}>
+                                <AlertTriangle className="w-3 h-3 shrink-0" />
+                                {t('No host configured', 'لم يُكوَّن مضيف')}
+                              </p>
+                            );
+                          }
+                          return (
+                            <p className="text-[11px] flex items-center gap-1 text-slate-400" data-testid={`profile-target-${p.id}`}>
+                              <Globe className="w-3 h-3 shrink-0 text-slate-500" />
+                              <span>{t('Will test:', 'سيختبر:')}</span>
+                              <span className="font-mono text-slate-300">{target}</span>
+                              {rt.usingGlobalDefault && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 text-slate-400 border-slate-600">
+                                  {t('global default', 'افتراضي عام')}
+                                </Badge>
+                              )}
+                            </p>
+                          );
+                        })()}
                         {p.lastTestResult && (
                           <div className={`rounded-md border p-2 space-y-1 ${p.lastTestResult === 'success' ? 'border-emerald-800/60 bg-emerald-900/20' : 'border-red-800/60 bg-red-900/20'}`}>
                             <div className="flex items-center gap-1.5 flex-wrap">

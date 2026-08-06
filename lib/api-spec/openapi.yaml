@@ -8820,6 +8820,204 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/IntegrationEvent' }
 
+  # ── PHASE 7B-II — INTEGRATION GOVERNANCE ─────────────────────────────────
+
+  # resolvedTarget is a server-computed envelope (not a DB column) describing the
+  # effective host/port or baseUrl the profile will contact when tested. It is
+  # returned by the list and detail GET endpoints, and by the test POST endpoint.
+  # It is NOT added to the IntegrationConnectionProfile component schema (which
+  # tracks stored columns only); instead it is declared inline here.
+
+  /integration-governance/connection-profiles:
+    get:
+      operationId: listConnectionProfiles
+      tags: [ IntegrationGovernance ]
+      summary: List connection profiles with resolved effective target per profile
+      parameters:
+        - { name: orgId, in: query, schema: { type: integer } }
+        - { name: governanceStatus, in: query, schema: { type: string } }
+        - { name: integrationType, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - { $ref: '#/components/schemas/IntegrationConnectionProfile' }
+                    - type: object
+                      properties:
+                        lastTestedByNameEn: { type: [ "string", "null" ] }
+                        lastTestedByNameAr: { type: [ "string", "null" ] }
+                        resolvedTarget:
+                          type: object
+                          description: Effective connection endpoint resolved from connectionParamsJson and env-var fallbacks. Not stored — computed per request.
+                          properties:
+                            host:
+                              type: [ "string", "null" ]
+                              description: "Hostname for LDAP/SMTP profiles; null for attendance_device (uses baseUrl)."
+                            port:
+                              type: [ "string", "null" ]
+                              description: "Port string for LDAP/SMTP profiles; null when host is null."
+                            baseUrl:
+                              type: [ "string", "null" ]
+                              description: "Full base URL for attendance_device profiles; null for others."
+                            usingGlobalDefault:
+                              type: boolean
+                              description: "True when the host/baseUrl came from a process.env fallback rather than the profile's own connectionParamsJson."
+                          required: [ host, port, baseUrl, usingGlobalDefault ]
+    post:
+      operationId: createConnectionProfile
+      tags: [ IntegrationGovernance ]
+      summary: Create a new connection profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationConnectionProfile' }
+
+  /integration-governance/connection-profiles/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      operationId: getConnectionProfile
+      tags: [ IntegrationGovernance ]
+      summary: Get a single connection profile with resolved effective target
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/IntegrationConnectionProfile' }
+                  - type: object
+                    properties:
+                      lastTestedByNameEn: { type: [ "string", "null" ] }
+                      lastTestedByNameAr: { type: [ "string", "null" ] }
+                      resolvedTarget:
+                        type: object
+                        description: Effective connection endpoint resolved from connectionParamsJson and env-var fallbacks.
+                        properties:
+                          host: { type: [ "string", "null" ] }
+                          port: { type: [ "string", "null" ] }
+                          baseUrl: { type: [ "string", "null" ] }
+                          usingGlobalDefault: { type: boolean }
+                        required: [ host, port, baseUrl, usingGlobalDefault ]
+        '404': { description: Not found }
+    patch:
+      operationId: updateConnectionProfile
+      tags: [ IntegrationGovernance ]
+      summary: Update a connection profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationConnectionProfile' }
+        '404': { description: Not found }
+    delete:
+      operationId: deleteConnectionProfile
+      tags: [ IntegrationGovernance ]
+      summary: Delete a connection profile
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+        '404': { description: Not found }
+
+  /integration-governance/connection-profiles/{id}/test:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      operationId: testConnectionProfile
+      tags: [ IntegrationGovernance ]
+      summary: Run a live connection test for the profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                testRecipient:
+                  type: string
+                  description: "Required for smtp profiles — email address to send the test message to."
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message:
+                    type: string
+                    description: "Human-readable result including the resolved target host appended as (target: host:port) or (target: baseUrl)."
+                  latencyMs: { type: integer }
+                  simulated: { type: boolean }
+                  testedAt: { type: string, format: date-time }
+                  resolvedTarget:
+                    type: object
+                    description: The effective endpoint that was contacted (or would have been, for suspended/simulated profiles).
+                    properties:
+                      host: { type: [ "string", "null" ] }
+                      port: { type: [ "string", "null" ] }
+                      baseUrl: { type: [ "string", "null" ] }
+                      usingGlobalDefault: { type: boolean }
+                    required: [ host, port, baseUrl, usingGlobalDefault ]
+                required: [ success, message, latencyMs, simulated, testedAt ]
+        '400': { description: Invalid request body (e.g. malformed testRecipient) }
+        '404': { description: Not found }
+
+  /integration-governance/connection-profiles/{id}/approve:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      operationId: approveConnectionProfile
+      tags: [ IntegrationGovernance ]
+      summary: Approve a pending connection profile
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationConnectionProfile' }
+        '404': { description: Not found }
+
+  /integration-governance/connection-profiles/{id}/suspend:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      operationId: suspendConnectionProfile
+      tags: [ IntegrationGovernance ]
+      summary: Suspend a connection profile
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationConnectionProfile' }
+        '404': { description: Not found }
+
   # ── PHASE 7C — LOCAL AI LAYER ──────────────────────────────────────────────
 
   /ai/config:
@@ -10614,175 +10812,6 @@ paths:
                 $ref: "#/components/schemas/AttendanceCorrectionView"
         "404":
           description: Not found
-
-  # ─── Integration Governance ─────────────────────────────────
-  /integration-governance/connection-profiles:
-    get:
-      operationId: listConnectionProfiles
-      tags: [ DeploymentOps ]
-      summary: List integration connection profiles
-      parameters:
-        - { name: orgId, in: query, schema: { type: [ "integer", "null" ] } }
-        - { name: governanceStatus, in: query, schema: { type: [ "string", "null" ] } }
-        - { name: integrationType, in: query, schema: { type: [ "string", "null" ] } }
-      responses:
-        "200":
-          description: Profiles
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/IntegrationConnectionProfile"
-    post:
-      operationId: createConnectionProfile
-      tags: [ DeploymentOps ]
-      summary: Create a connection profile
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-      responses:
-        "201":
-          description: Created profile
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IntegrationConnectionProfile"
-
-  /integration-governance/connection-profiles/{id}:
-    get:
-      operationId: getConnectionProfile
-      tags: [ DeploymentOps ]
-      summary: Get a connection profile
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: number } }
-      responses:
-        "200":
-          description: Profile
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IntegrationConnectionProfile"
-        "404":
-          description: Not found
-    patch:
-      operationId: updateConnectionProfile
-      tags: [ DeploymentOps ]
-      summary: Update a connection profile
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: number } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-      responses:
-        "200":
-          description: Updated profile
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IntegrationConnectionProfile"
-        "404":
-          description: Not found
-    delete:
-      operationId: deleteConnectionProfile
-      tags: [ DeploymentOps ]
-      summary: Delete a connection profile
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: number } }
-      responses:
-        "200":
-          description: Deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success: { type: boolean }
-                required: [ success ]
-
-  /integration-governance/connection-profiles/{id}/test:
-    post:
-      operationId: testConnectionProfile
-      tags: [ DeploymentOps ]
-      summary: Test a connection profile
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: number } }
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                testRecipient: { type: [ "string", "null" ] }
-      responses:
-        "200":
-          description: Test result
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success: { type: boolean }
-                  message: { type: string }
-                  latencyMs: { type: number }
-                  simulated: { type: boolean }
-                  testedAt: { type: string }
-                required: [ success, message, latencyMs, simulated, testedAt ]
-
-  /integration-governance/connection-profiles/{id}/approve:
-    post:
-      operationId: approveConnectionProfile
-      tags: [ DeploymentOps ]
-      summary: Approve a connection profile
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: number } }
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                approvalNotes: { type: [ "string", "null" ] }
-      responses:
-        "200":
-          description: Approved profile
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IntegrationConnectionProfile"
-
-  /integration-governance/connection-profiles/{id}/suspend:
-    post:
-      operationId: suspendConnectionProfile
-      tags: [ DeploymentOps ]
-      summary: Suspend a connection profile
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: number } }
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                reason: { type: [ "string", "null" ] }
-      responses:
-        "200":
-          description: Suspended profile
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IntegrationConnectionProfile"
 
   /integration-governance/security-email-status:
     get:
