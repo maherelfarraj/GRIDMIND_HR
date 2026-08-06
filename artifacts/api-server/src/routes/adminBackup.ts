@@ -51,7 +51,23 @@ router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
       res.status(400).json({ error: "backupType is required" });
       return;
     }
-    const record = await runBackup({ backupType, initiatedByUserId: actorUserId, notes });
+    const record = await runBackup({ backupType, notes, initiatedByUserId: actorUserId });
+
+    await db.insert(auditLogsTable).values({
+      action: "create",
+      entityType: "backup_record",
+      entityId: record.id,
+      entityLabel: `Backup: ${record.backupType} — ${record.status}`,
+      actorUserId,
+      changesJson: JSON.stringify({
+        backupType: record.backupType,
+        status: record.status,
+        fileSizeBytes: record.fileSizeBytes,
+        checksum: record.checksum,
+        storageLocation: record.storageLocation,
+      }),
+    });
+
     if (record.status !== "completed") {
       res.status(500).json({ error: record.errorMessage ?? "Backup failed", record });
       return;

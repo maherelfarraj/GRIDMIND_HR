@@ -18,7 +18,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import { count, eq, gt } from "drizzle-orm";
-import { db, auditLogsTable, employeesTable, publicHolidaysTable } from "@workspace/db";
+import { db, auditLogsTable, employeesTable, publicHolidaysTable, systemUsersTable } from "@workspace/db";
 import app from "../app";
 
 const prevPilotAuth = process.env.PILOT_AUTH;
@@ -28,12 +28,29 @@ const createdEmployeeIds: number[] = [];
 const createdHolidayIds: number[] = [];
 const suffix = Date.now();
 
+let savedAdminId: number;
+let savedMustChangePassword: boolean;
+
 async function auditRowCount(): Promise<number> {
   const [row] = await db.select({ n: count() }).from(auditLogsTable);
   return row.n;
 }
 
 beforeAll(async () => {
+  // Save and clear must_change_password so enforcePasswordChange middleware
+  // doesn't block authenticated requests with 403 PASSWORD_CHANGE_REQUIRED.
+  const [admin] = await db
+    .select({ id: systemUsersTable.id, mustChangePassword: systemUsersTable.mustChangePassword })
+    .from(systemUsersTable)
+    .where(eq(systemUsersTable.username, "admin"));
+  savedAdminId = admin.id;
+  savedMustChangePassword = admin.mustChangePassword;
+  if (admin.mustChangePassword) {
+    await db.update(systemUsersTable)
+      .set({ mustChangePassword: false })
+      .where(eq(systemUsersTable.id, admin.id));
+  }
+
   // Establish a real logged-in session while auth is relaxed…
   process.env.PILOT_AUTH = "false";
   const login = await agent
@@ -47,6 +64,12 @@ beforeAll(async () => {
 afterAll(async () => {
   if (prevPilotAuth === undefined) delete process.env.PILOT_AUTH;
   else process.env.PILOT_AUTH = prevPilotAuth;
+
+  // Restore admin's original must_change_password flag.
+  await db.update(systemUsersTable)
+    .set({ mustChangePassword: savedMustChangePassword })
+    .where(eq(systemUsersTable.id, savedAdminId))
+    .catch(() => {});
 
   for (const id of createdEmployeeIds) {
     await db.delete(employeesTable).where(eq(employeesTable.id, id)).catch(() => {});

@@ -32,19 +32,19 @@ router.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-router.get("/:id", async (req, res): Promise<void> => {
-  try {
-    const [row] = await db.select().from(applicantsTable).where(eq(applicantsTable.id, parseInt(req.params.id as string)));
-    if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    res.json(row);
-  } catch (e) { res.status(500).json({ error: String(e) }); }
-});
-
 router.post("/", validateBody(CreateApplicantBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(applicantsTable).values(req.body).returning();
     await db.insert(auditLogsTable).values({ actorUserId: getActorUserId(req), action: "create", entityType: "applicant", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.status(201).json(row);
+  } catch (e) { res.status(500).json({ error: String(e) }); }
+});
+
+router.get("/:id", async (req, res): Promise<void> => {
+  try {
+    const [row] = await db.select().from(applicantsTable).where(eq(applicantsTable.id, parseInt(req.params.id as string)));
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
