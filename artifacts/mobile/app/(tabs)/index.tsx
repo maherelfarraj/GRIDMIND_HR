@@ -29,6 +29,7 @@ import {
   useListLeaveRequests,
   useListPayrollPeriods,
   useListPayrollRuns,
+  useListPrivilegedSessions,
   useListPublicHolidays,
 } from '@workspace/api-client-react';
 import type {
@@ -493,7 +494,13 @@ function SessionReviewButton() {
   const me = useGetUser(user?.id ?? 0, {
     query: { enabled: !!user?.id },
   } as any);
-  if (!canViewPrivilegedSessions(me.data?.roleNameEn)) return null;
+  const canView = canViewPrivilegedSessions(me.data?.roleNameEn);
+  const sessions = useListPrivilegedSessions(undefined, {
+    query: { enabled: canView },
+  } as any);
+  const pendingCount = (sessions.data ?? []).filter((s) => !s.reviewedAt).length;
+
+  if (!canView) return null;
 
   return (
     <Pressable
@@ -502,7 +509,36 @@ function SessionReviewButton() {
       style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 8 })}
       accessibilityLabel={t('sessionReview')}
     >
-      <Feather name="shield" size={20} color={colors.mutedForeground} />
+      <View>
+        <Feather name="shield" size={20} color={colors.mutedForeground} />
+        {pendingCount > 0 ? (
+          <View
+            testID="session-review-pending-badge"
+            style={{
+              position: 'absolute',
+              top: -4,
+              end: -6,
+              minWidth: 15,
+              height: 15,
+              borderRadius: 8,
+              paddingHorizontal: 3,
+              backgroundColor: colors.primary,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text
+              style={{
+                color: colors.primaryForeground,
+                fontSize: 9,
+                fontFamily: 'Inter_700Bold',
+              }}
+            >
+              {pendingCount > 99 ? '99+' : pendingCount}
+            </Text>
+          </View>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
