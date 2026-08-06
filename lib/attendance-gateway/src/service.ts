@@ -633,6 +633,53 @@ export class GatewayService {
   }
 
   /**
+   * Operator discard: permanently remove a terminal batch from the encrypted
+   * spool once its punches have been recovered via another path (e.g. CSV
+   * export → re-import).
+   *
+   * Safety gate: unless `force` is set, the method first asks the HR core to
+   * confirm it holds this batch at the expected punch count. If the server
+   * returns anything other than OK (MISSING_ON_SERVER, COUNT_MISMATCH, or a
+   * network error), the discard is refused — the operator must either fix the
+   * discrepancy or pass `force: true` to override.
+   *
+   * Returns:
+   *  { ok: true, punchCount }                       — batch discarded
+   *  { ok: false, reason: "NOT_FOUND" }             — unknown or non-terminal
+   *  { ok: false, reason: "NOT_CONFIRMED",
+   *    serverStatus: string }                        — server check failed
+   */
+  async discardBatch(
+    batchUuid: string,
+    opts?: { force?: boolean },
+  ): Promise<
+    | { ok: true; punchCount: number }
+    | { ok: false; reason: "NOT_FOUND" }
+    | { ok: false; reason: "NOT_CONFIRMED"; serverStatus: string }
+  > {
+    const batch = await this.queue.read(batchUuid);
+    if (!batch || !batch.terminal) return { ok: false, reason: "NOT_FOUND" };
+
+    if (!opts?.force) {
+      try {
+        const { status, body } = await this.hr.reconcile([{ batchUuid: batch.batchUuid, eventCount: batch.punches.length }]);
+        if (status !== 200 || !Array.isArray(body.results) || body.results.length === 0) {
+          return { ok: false, reason: "NOT_CONFIRMED", serverStatus: `reconcile failed with HTTP ${status}` };
+        }
+        const result = body.results[0];
+        if (result.status !== "OK") {
+          return { ok: false, reason: "NOT_CONFIRMED", serverStatus: result.status };
+        }
+      } catch (e) {
+        return { ok: false, reason: "NOT_CONFIRMED", serverStatus: e instanceof Error ? e.message : String(e) };
+      }
+    }
+
+    await this.queue.remove(batchUuid);
+    return { ok: true, punchCount: batch.punches.length };
+  }
+
+  /**
    * sdk_present: adapters expose sdkInfo() when they load a native vendor
    * SDK; otherwise infer from the connection test (an adapter that flags
    * requiresVendorSdk on failure is telling us the SDK layer is missing).

@@ -909,6 +909,132 @@ describe("terminal batch export (last-resort CSV recovery)", () => {
   });
 });
 
+describe("terminal batch discard (operator retirement after confirmed recovery)", () => {
+  it("full flow: export → import → confirm (reconcile OK) → discard removes the batch from spool", async () => {
+    // Build an isolated gateway that cannot reach the HR core directly.
+    const dir = path.join(os.tmpdir(), `gw-discard-${Date.now()}`);
+    const queue = new EncryptedQueue(dir, "test-queue-key");
+    await queue.init();
+    const deadFetch: typeof fetch = (async () => { throw new Error("network unreachable"); }) as typeof fetch;
+    const hr = new HrClient({ hrApiUrl: "/api", gatewayId: registrationId, signingKey, fetchImpl: deadFetch });
+    const adapter = new SimulatorAdapter([DEVICE_USER_ID], () => new Date("2030-06-15T08:00:00Z"));
+    const service = new GatewayService(queue, hr, adapter, { maxAttempts: 1, baseBackoffMs: 0 });
+    const token = "discard-operator-token";
+    const local = buildLocalApi({ service, adapter, adminToken: token });
+
+    // Spool a batch and let it go terminal.
+    const polled = await service.pollOnce();
+    expect(polled.queued).toBe(2);
+    await service.flush(); // exhausts maxAttempts → terminal
+    const stored = await queue.read(polled.batchUuid!);
+    expect(stored!.terminal).toBe(true);
+
+    // Export the stuck batch as CSV.
+    const exportRes = await request(local)
+      .get(`/terminal-batches/${polled.batchUuid}/export`)
+      .set("x-gateway-admin-token", token);
+    expect(exportRes.status).toBe(200);
+    const csv = exportRes.text;
+
+    // Re-import via a CSV-adapter gateway that CAN reach the HR core.
+    const csvDir = path.join(os.tmpdir(), `gw-discard-csv-${Date.now()}`);
+    const csvQueue = new EncryptedQueue(csvDir, "test-queue-key");
+    await csvQueue.init();
+    const { CsvAdapter } = await import("../../../../lib/attendance-gateway/src/adapters/csv.js");
+    const csvAdapter = new CsvAdapter();
+    const liveHr = new HrClient({ hrApiUrl: "/api", gatewayId: registrationId, signingKey, fetchImpl: supertestFetch() });
+    const csvService = new GatewayService(csvQueue, liveHr, csvAdapter);
+    const csvLocal = buildLocalApi({ service: csvService, adapter: csvAdapter, adminToken: token });
+    const imported = await request(csvLocal)
+      .post("/import-csv")
+      .set("x-gateway-admin-token", token)
+      .send({ content: csv });
+    expect(imported.status).toBe(200);
+    expect(imported.body.queued).toBe(2);
+    expect(imported.body.flush.sent).toBe(1);
+
+    // Build a live service (same queue, live HR client) for the refusal and
+    // force-discard checks. The original batch UUID was never delivered to the
+    // server (the gateway used deadFetch), so reconcile returns MISSING_ON_SERVER.
+    const liveService = new GatewayService(queue, liveHr, adapter, { maxAttempts: 1, baseBackoffMs: 0 });
+    const liveLocal = buildLocalApi({ service: liveService, adapter, adminToken: token });
+
+    // Safety gate: server returns MISSING_ON_SERVER → discard is refused (409).
+    const refusedRes = await request(liveLocal)
+      .delete(`/terminal-batches/${polled.batchUuid}`)
+      .set("x-gateway-admin-token", token);
+    expect(refusedRes.status).toBe(409);
+    expect(refusedRes.body.serverStatus).toMatch(/MISSING_ON_SERVER/i);
+
+    // The batch is still in the spool after the refusal.
+    expect(await queue.read(polled.batchUuid!)).not.toBeNull();
+
+    // Force-discard overrides the safety gate and removes the batch.
+    const forceRes = await request(liveLocal)
+      .delete(`/terminal-batches/${polled.batchUuid}?force=true`)
+      .set("x-gateway-admin-token", token);
+    expect(forceRes.status).toBe(200);
+    expect(forceRes.body.ok).toBe(true);
+    expect(forceRes.body.punchCount).toBe(2);
+
+    // Batch is gone from the spool.
+    expect(await queue.read(polled.batchUuid!)).toBeNull();
+    expect((await service.listTerminalBatches()).find((b) => b.batchUuid === polled.batchUuid)).toBeUndefined();
+
+    // cleanup: rows delivered by the CSV re-import
+    const [b] = await db
+      .select()
+      .from(punchImportBatchesTable)
+      .where(eq(punchImportBatchesTable.batchUuid, imported.body.batchUuid));
+    createdBatchIds.push(b.id);
+    await db.delete(punchEventsTable).where(eq(punchEventsTable.importBatchId, b.id));
+    await db.delete(attendanceRecordsTable).where(eq(attendanceRecordsTable.date, "2030-06-15"));
+  });
+
+  it("discard requires the operator token — anonymous delete is 401", async () => {
+    const dir = path.join(os.tmpdir(), `gw-discard-auth-${Date.now()}`);
+    const queue = new EncryptedQueue(dir, "test-queue-key");
+    await queue.init();
+    const adapter = new SimulatorAdapter([DEVICE_USER_ID]);
+    const hr = new HrClient({ hrApiUrl: "/api", gatewayId: registrationId, signingKey, fetchImpl: supertestFetch() });
+    const service = new GatewayService(queue, hr, adapter);
+    const local = buildLocalApi({ service, adapter, adminToken: "auth-test-token" });
+    const fakeUuid = randomUUID();
+    // No token → 401
+    expect((await request(local).delete(`/terminal-batches/${fakeUuid}`)).status).toBe(401);
+    // Wrong token → 401
+    expect((await request(local).delete(`/terminal-batches/${fakeUuid}`).set("x-gateway-admin-token", "wrong")).status).toBe(401);
+  });
+
+  it("discard of an unknown or non-terminal batch returns 404", async () => {
+    const dir = path.join(os.tmpdir(), `gw-discard-404-${Date.now()}`);
+    const queue = new EncryptedQueue(dir, "test-queue-key");
+    await queue.init();
+    const adapter = new SimulatorAdapter([DEVICE_USER_ID]);
+    const hr = new HrClient({ hrApiUrl: "/api", gatewayId: registrationId, signingKey, fetchImpl: supertestFetch() });
+    const service = new GatewayService(queue, hr, adapter);
+    const token = "404-test-token";
+    const local = buildLocalApi({ service, adapter, adminToken: token });
+
+    // Completely unknown uuid
+    const unknownRes = await request(local)
+      .delete(`/terminal-batches/${randomUUID()}`)
+      .set("x-gateway-admin-token", token);
+    expect(unknownRes.status).toBe(404);
+
+    // Pending (not yet terminal) batch — export and discard are both refused.
+    const polled = await service.pollOnce();
+    if (polled.batchUuid) {
+      const pendingRes = await request(local)
+        .delete(`/terminal-batches/${polled.batchUuid}`)
+        .set("x-gateway-admin-token", token);
+      expect(pendingRes.status).toBe(404);
+      // clean up the pending batch
+      await queue.remove(polled.batchUuid);
+    }
+  });
+});
+
 describe("local operator API security", () => {
   it("mutating endpoints require the operator token; reads stay loopback-open", async () => {
     const dir = path.join(os.tmpdir(), `gw-local-${Date.now()}`);

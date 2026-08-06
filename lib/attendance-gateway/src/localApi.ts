@@ -87,6 +87,35 @@ export function buildLocalApi(opts: { service: GatewayService; adapter: DeviceAd
     }
   });
 
+  // Operator discard: permanently retire a terminal batch once its punches have
+  // been confirmed on the server (e.g. via CSV export → re-import). Requires
+  // the operator token — this is a destructive, irreversible spool operation.
+  // By default the endpoint first reconciles with the server and refuses when
+  // the batch/punches are not confirmed (409). Pass ?force=true to skip the
+  // safety check and discard unconditionally (e.g. punches already verified
+  // out-of-band, or the server is temporarily unreachable).
+  app.delete("/terminal-batches/:uuid", requireOperatorToken, async (req, res) => {
+    const force = req.query.force === "true" || req.query.force === "1";
+    try {
+      const result = await service.discardBatch(req.params.uuid, { force });
+      if (!result.ok) {
+        if (result.reason === "NOT_FOUND") {
+          res.status(404).json({ error: "unknown or non-terminal batchUuid" });
+          return;
+        }
+        // NOT_CONFIRMED — server has not confirmed receipt; surface reason.
+        res.status(409).json({
+          error: "server has not confirmed receipt of this batch; pass ?force=true to discard anyway",
+          serverStatus: result.serverStatus,
+        });
+        return;
+      }
+      res.json({ ok: true, batchUuid: req.params.uuid, punchCount: result.punchCount });
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
   app.post("/flush", requireOperatorToken, async (_req, res) => { res.json(await service.flush()); });
   // Operator requeue: reset attempts/terminal so the next flush retries the batch.
   app.post("/requeue", requireOperatorToken, async (req, res) => {
