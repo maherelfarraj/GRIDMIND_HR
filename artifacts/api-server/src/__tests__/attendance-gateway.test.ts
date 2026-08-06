@@ -34,7 +34,7 @@ import path from "path";
 
 // Gateway-side pieces run in-process against the supertest app via a fetch shim.
 import { EncryptedQueue } from "../../../../lib/attendance-gateway/src/queue.js";
-import { runScheduler } from "../../../../lib/attendance-gateway/src/scheduler.js";
+import { runScheduler, MIN_NUDGE_INTERVAL_MS } from "../../../../lib/attendance-gateway/src/scheduler.js";
 import { HrClient } from "../../../../lib/attendance-gateway/src/hrClient.js";
 import { GatewayService } from "../../../../lib/attendance-gateway/src/service.js";
 import { deriveSigningKey } from "../../../../lib/attendance-gateway/src/signing.js";
@@ -1306,6 +1306,94 @@ describe("end-to-end timing: nudge delivers a fresh connection-test result withi
       .where(eq(gatewayRegistrationsTable.id, registrationId));
     expect(afterTick2.connTestRequestedAt).toBeNull(); // flag cleared ✓
   }, 5_000);
+
+  /**
+   * Full scheduler loop integration — proves the nudge fires within
+   * nudgeIntervalMs and delivers a fresh result without manual tick() calls.
+   *
+   * Setup:
+   *  - connTestRequestedAt is planted in the DB slightly in the future so the
+   *    very first scheduler tick is guaranteed stale (connectionTestRunAt <
+   *    connTestRequestedAt) and the scheduler switches to nudge cadence.
+   *  - POLL_INTERVAL_MS is deliberately long (60 s) — without the nudge the
+   *    test would never complete within the timeout.
+   *  - nudgeIntervalMs is set to MIN_NUDGE_INTERVAL_MS (5 s floor) so the
+   *    nudge fires as soon as the scheduler allows.
+   *
+   * Expected timeline (≈ 6–8 s total):
+   *  t=0   scheduler starts; first tick fires immediately
+   *  t≈0   tick 1 — connectionTestRunAt < connTestRequestedAt → stale
+   *               → server returns testRequested:true, scheduler arms nudge
+   *  t≈5 s tick 2 (nudge) — connectionTestRunAt >> connTestRequestedAt → fresh
+   *               → server clears flag, returns testRequested:false
+   *  assertion: connTestRequestedAt IS NULL within 2× nudgeIntervalMs
+   */
+  it("running scheduler delivers fresh result within nudgeIntervalMs (POLL_INTERVAL_MS >> nudge)", async () => {
+    const dir = path.join(os.tmpdir(), `gw-e2e-sched-${Date.now()}`);
+    const queue = new EncryptedQueue(dir, "test-queue-key");
+    await queue.init();
+
+    const POLL_INTERVAL_MS = 60_000; // long — nudge is the only way to finish in time
+    const nudgeIntervalMs = MIN_NUDGE_INTERVAL_MS; // 5 s (the floor)
+
+    const hr = new HrClient({ hrApiUrl: "/api", gatewayId: registrationId, signingKey, fetchImpl: supertestFetch() });
+    const service = new GatewayService(queue, hr, new SimulatorAdapter([]));
+
+    // Plant connTestRequestedAt slightly in the future so tick 1 is stale.
+    // connectionTestRunAt is captured at the very start of tick(), before any
+    // async work, so even a fast first tick sees: runAt < requestedAt → stale.
+    const STALE_OFFSET_MS = 150;
+    const testRequestedAt = new Date(Date.now() + STALE_OFFSET_MS);
+    await db
+      .update(gatewayRegistrationsTable)
+      .set({ connTestRequestedAt: testRequestedAt })
+      .where(eq(gatewayRegistrationsTable.id, registrationId));
+
+    // Instrument tick results so we can prove tick 1 was stale before the
+    // nudge tick cleared the flag.
+    const tickResults: Array<{ testRequested: boolean }> = [];
+    const instrumentedTick = async () => {
+      const result = await service.tick();
+      tickResults.push({ testRequested: result.testRequested });
+      return result;
+    };
+
+    const startMs = Date.now();
+    const scheduler = runScheduler(instrumentedTick, POLL_INTERVAL_MS, nudgeIntervalMs);
+
+    try {
+      // Poll until the DB flag is cleared. The nudge fires within nudgeIntervalMs
+      // after tick 1 reports testRequested:true; allow nudgeIntervalMs + 3 s
+      // of HTTP/scheduling overhead as the hard deadline.
+      const deadlineMs = startMs + nudgeIntervalMs + 3_000;
+      let cleared = false;
+      while (Date.now() < deadlineMs) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        const [row] = await db
+          .select({ connTestRequestedAt: gatewayRegistrationsTable.connTestRequestedAt })
+          .from(gatewayRegistrationsTable)
+          .where(eq(gatewayRegistrationsTable.id, registrationId));
+        if (row.connTestRequestedAt === null) {
+          cleared = true;
+          break;
+        }
+      }
+
+      // Tick 1 must have seen the request as pending (stale result).
+      expect(tickResults[0]?.testRequested).toBe(true); // tick 1 was stale → nudge armed ✓
+      expect(cleared).toBe(true); // nudge delivered a fresh result in time ✓
+      const elapsedMs = Date.now() - startMs;
+      // Must have finished well within a single long poll cycle (60 s).
+      expect(elapsedMs).toBeLessThan(POLL_INTERVAL_MS);
+    } finally {
+      scheduler.stop();
+      // Ensure no dangling connTestRequestedAt leaks into subsequent tests.
+      await db
+        .update(gatewayRegistrationsTable)
+        .set({ connTestRequestedAt: null })
+        .where(eq(gatewayRegistrationsTable.id, registrationId));
+    }
+  }, 15_000); // 15 s: nudge fires at ≈5 s, +3 s overhead margin = 8 s typical
 });
 
 describe("revocation", () => {
