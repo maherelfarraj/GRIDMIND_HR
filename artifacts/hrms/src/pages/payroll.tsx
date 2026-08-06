@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearch } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';
 import { useAuth } from '@/hooks/use-auth';
@@ -337,12 +338,31 @@ function CloseConfirmDialog({
 
 // ─── No-Show Review Card ──────────────────────────────────────────────────────
 
-function NoShowsCard({ periodId, isClosed, periodStatus }: { periodId: number; isClosed: boolean; periodStatus: PeriodStatus }) {
+function NoShowsCard({
+  periodId,
+  isClosed,
+  periodStatus,
+  scrollToCard,
+  highlightEmployees,
+}: {
+  periodId: number;
+  isClosed: boolean;
+  periodStatus: PeriodStatus;
+  scrollToCard?: boolean;
+  highlightEmployees?: Set<string>;
+}) {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const { data: report, isLoading } = useListPayrollPeriodNoShows(periodId);
+
+  // Scroll this card into view when coming from a deep-link notification.
+  useEffect(() => {
+    if (!scrollToCard || isLoading) return;
+    cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [scrollToCard, isLoading]);
 
   const [excuseTarget, setExcuseTarget] = useState<null | { employeeId: number; employeeName: string; date: string }>(null);
   const [reason, setReason] = useState('');
@@ -409,7 +429,7 @@ function NoShowsCard({ periodId, isClosed, periodStatus }: { periodId: number; i
   if (!isLoading && employees.length === 0) return null;
 
   return (
-    <Card>
+    <Card ref={cardRef}>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <UserX className="h-4 w-4 text-amber-500" />
@@ -448,8 +468,10 @@ function NoShowsCard({ periodId, isClosed, periodStatus }: { periodId: number; i
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {employees.map(emp => (
-                  <TableRow key={emp.employeeId}>
+                {employees.map(emp => {
+                  const isHighlighted = highlightEmployees?.has(emp.employeeNumber) ?? false;
+                  return (
+                  <TableRow key={emp.employeeId} className={cn(isHighlighted && 'ring-2 ring-inset ring-amber-400 bg-amber-50/60 dark:bg-amber-950/20')}>
                     <TableCell className="align-top">
                       <div className="font-medium text-sm">
                         {localName(emp.employeeNameEn, emp.employeeNameAr, lang)}
@@ -506,7 +528,8 @@ function NoShowsCard({ periodId, isClosed, periodStatus }: { periodId: number; i
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -606,9 +629,13 @@ function NoShowsCard({ periodId, isClosed, periodStatus }: { periodId: number; i
 function PeriodDetail({
   periodId,
   onBack,
+  scrollToNoShows,
+  highlightEmployees,
 }: {
   periodId: number;
   onBack: () => void;
+  scrollToNoShows?: boolean;
+  highlightEmployees?: Set<string>;
 }) {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
@@ -850,7 +877,13 @@ function PeriodDetail({
         </div>
 
         {/* No-show review */}
-        <NoShowsCard periodId={period.id} isClosed={isClosed} periodStatus={period.status as PeriodStatus} />
+        <NoShowsCard
+          periodId={period.id}
+          isClosed={isClosed}
+          periodStatus={period.status as PeriodStatus}
+          scrollToCard={scrollToNoShows}
+          highlightEmployees={highlightEmployees}
+        />
 
         {/* Employee runs table */}
         <Card>
@@ -1079,11 +1112,27 @@ const STATUS_TABS: { value: StatusTab; label: [string, string] }[] = [
 
 export default function Payroll() {
   const { t, lang } = useLanguage();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const urlPeriodId = params.get('period') ? Number(params.get('period')) : null;
+  const urlTab = params.get('tab') ?? null;
+  const urlEmployees: Set<string> = new Set(
+    (params.get('employees') ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  );
+
+  const [selectedId, setSelectedId] = useState<number | null>(urlPeriodId);
   const [statusTab, setStatusTab] = useState<StatusTab>('all');
   const [newPeriodOpen, setNewPeriodOpen] = useState(false);
 
   const { data: periods, isLoading } = useListPayrollPeriods();
+
+  // Once the period list loads, ensure the URL-specified period is selected even
+  // if it isn't in the default "all" tab filter (e.g. a closed period).
+  useEffect(() => {
+    if (!urlPeriodId || !periods) return;
+    const found = periods.find(p => p.id === urlPeriodId);
+    if (found) setSelectedId(urlPeriodId);
+  }, [urlPeriodId, periods]);
 
   const filtered = (periods ?? []).filter(p => {
     if (statusTab === 'all') return true;
@@ -1189,6 +1238,8 @@ export default function Payroll() {
                 key={selectedId}
                 periodId={selectedId}
                 onBack={() => setSelectedId(null)}
+                scrollToNoShows={urlTab === 'noshows'}
+                highlightEmployees={urlEmployees.size > 0 ? urlEmployees : undefined}
               />
             ) : (
               <div className="hidden md:flex flex-col items-center justify-center h-full text-muted-foreground gap-3">

@@ -368,7 +368,7 @@ async function notifyHrNoShowDigest(
         bodyEn: `Payroll calculation for ${period.nameEn} detected unexcused no-show day(s) for: ${listEn}. Pay will be deducted for these days unless they are excused before the period is approved and closed.`,
         bodyAr: `رصدت عملية احتساب الرواتب لفترة ${period.nameAr} أيام غياب بدون عذر للموظفين: ${listAr}. سيتم خصم الأجر عن هذه الأيام ما لم يتم عذرها قبل اعتماد الفترة وإغلاقها.`,
         severity: "warning",
-        actionUrl: "/payroll",
+        actionUrl: `/payroll?period=${period.id}&tab=noshows&employees=${encodeURIComponent(newEntries.map(e => e.emp.employeeNumber).join(","))}`,
         actionLabelEn: "Review no-show days",
         entityType: "payroll_period",
         entityId: period.id,
