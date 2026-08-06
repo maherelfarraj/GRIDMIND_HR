@@ -168,6 +168,7 @@ function NewImportTab() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [templateName, setTemplateName] = useState('');
+  const [confirmDuplicateName, setConfirmDuplicateName] = useState(false);
 
   const sourceCols = parseCsvHeaders(csvText);
   const submitting = createJobMut.isPending || confirmMut.isPending || executeMut.isPending;
@@ -335,6 +336,7 @@ function NewImportTab() {
 
   function handleSaveTemplate() {
     setTemplateName(`${importType} mapping ${new Date().toISOString().slice(0, 10)}`);
+    setConfirmDuplicateName(false);
     setSaveDialogOpen(true);
   }
 
@@ -500,42 +502,74 @@ function NewImportTab() {
         )}
       </div>
 
-      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-        <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t('Save Mapping Template', 'حفظ قالب التعيين')}</DialogTitle>
-          </DialogHeader>
-          <div>
-            <Label htmlFor="template-name" className="text-slate-300">{t('Template Name', 'اسم القالب')}</Label>
-            <Input
-              id="template-name"
-              className="mt-1 bg-slate-700 border-slate-600 text-white"
-              value={templateName}
-              onChange={e => setTemplateName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && templateName.trim() && !createTemplateMut.isPending) handleConfirmSaveTemplate(); }}
-              autoFocus
-              data-testid="input-template-name"
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              className="border-slate-600 text-slate-300"
-              onClick={() => setSaveDialogOpen(false)}
-            >
-              {t('Cancel', 'إلغاء')}
-            </Button>
-            <Button
-              className="bg-primary hover:bg-primary/90"
-              onClick={handleConfirmSaveTemplate}
-              disabled={!templateName.trim() || createTemplateMut.isPending}
-              data-testid="button-confirm-save-template"
-            >
-              {createTemplateMut.isPending ? t('Saving…', 'جاري الحفظ…') : t('Save', 'حفظ')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {(() => {
+        const isDuplicateName = !!templateName.trim() &&
+          typeTemplates.some(tpl => tpl.name.trim().toLowerCase() === templateName.trim().toLowerCase());
+        const canSave = !!templateName.trim() && !createTemplateMut.isPending &&
+          (!isDuplicateName || confirmDuplicateName);
+        return (
+          <Dialog open={saveDialogOpen} onOpenChange={open => { setSaveDialogOpen(open); if (!open) setConfirmDuplicateName(false); }}>
+            <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>{t('Save Mapping Template', 'حفظ قالب التعيين')}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="template-name" className="text-slate-300">{t('Template Name', 'اسم القالب')}</Label>
+                  <Input
+                    id="template-name"
+                    className={`mt-1 bg-slate-700 border-slate-600 text-white ${isDuplicateName ? 'border-amber-500 focus-visible:ring-amber-500' : ''}`}
+                    value={templateName}
+                    onChange={e => { setTemplateName(e.target.value); setConfirmDuplicateName(false); }}
+                    onKeyDown={e => { if (e.key === 'Enter' && canSave) handleConfirmSaveTemplate(); }}
+                    autoFocus
+                    data-testid="input-template-name"
+                  />
+                </div>
+                {isDuplicateName && (
+                  <div className="rounded bg-amber-900/40 border border-amber-600 p-3 space-y-2" data-testid="duplicate-name-warning">
+                    <p className="text-amber-300 text-sm">
+                      {t(
+                        `A template named "${templateName.trim()}" already exists for this import type. Saving will create a second template with the same name, which will be hard to distinguish in the picker.`,
+                        `يوجد قالب باسم "${templateName.trim()}" لهذا نوع الاستيراد بالفعل. سيؤدي الحفظ إلى إنشاء قالب ثانٍ بنفس الاسم مما يصعّب التمييز بينهما في القائمة.`,
+                      )}
+                    </p>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="accent-amber-400"
+                        checked={confirmDuplicateName}
+                        onChange={e => setConfirmDuplicateName(e.target.checked)}
+                        data-testid="checkbox-confirm-duplicate-name"
+                      />
+                      <span className="text-amber-200 text-sm">
+                        {t('I understand — save anyway', 'أفهم — احفظ على أي حال')}
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  className="border-slate-600 text-slate-300"
+                  onClick={() => { setSaveDialogOpen(false); setConfirmDuplicateName(false); }}
+                >
+                  {t('Cancel', 'إلغاء')}
+                </Button>
+                <Button
+                  className="bg-primary hover:bg-primary/90"
+                  onClick={handleConfirmSaveTemplate}
+                  disabled={!canSave}
+                  data-testid="button-confirm-save-template"
+                >
+                  {createTemplateMut.isPending ? t('Saving…', 'جاري الحفظ…') : t('Save', 'حفظ')}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {job && (
         <Card className="bg-slate-800 border-slate-700">
