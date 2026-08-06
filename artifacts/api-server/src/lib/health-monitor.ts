@@ -97,6 +97,36 @@ async function getAdminUserIds(): Promise<number[]> {
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
+ * Minimal counting semaphore.  acquire() blocks until a permit is available;
+ * release() returns a permit and immediately wakes the oldest waiter (if any).
+ */
+class Semaphore {
+  private available: number;
+  private readonly queue: Array<() => void> = [];
+
+  constructor(permits: number) {
+    this.available = permits;
+  }
+
+  acquire(): Promise<void> {
+    if (this.available > 0) {
+      this.available--;
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => this.queue.push(resolve));
+  }
+
+  release(): void {
+    const next = this.queue.shift();
+    if (next) {
+      next(); // transfer the permit directly to the oldest waiter
+    } else {
+      this.available++;
+    }
+  }
+}
+
+/**
  * Atomically claims and closes an outstanding health alert for a profile.
  *
  * The alerted state is derived from the audit trail (its most recent
@@ -207,9 +237,15 @@ export async function raiseHealthRecoveryIfAlerted(
  * retryMaxAttempts with retryBackoffSeconds between attempts. Each retry
  * logs a "retry_triggered" integration audit event. Only if every attempt
  * fails does the sweep count the check as a failure.
+ *
+ * `yieldDuringWait` is called instead of a plain sleep during backoff so the
+ * caller's concurrency-pool slot is released for the duration of the wait and
+ * other profiles can use it.  This prevents a pool full of retrying profiles
+ * from starving healthy ones.
  */
 async function runConnectionTestWithRetry(
   profile: IntegrationConnectionProfile,
+  yieldDuringWait: YieldDuringWait,
 ): Promise<{ success: boolean; message: string; latencyMs: number; simulated: boolean; attempts: number }> {
   let attempt = await runConnectionTest(profile);
   let attempts = 1;
@@ -235,7 +271,10 @@ async function runConnectionTestWithRetry(
     });
     logger.info({ profileId: profile.id, retry, maxRetries }, "Health check retry triggered");
 
-    if (backoffMs > 0) await sleep(backoffMs);
+    // Release the pool slot during the backoff wait so other profiles are not
+    // blocked behind this sleep.  The slot is re-acquired before the next
+    // connection attempt.
+    if (backoffMs > 0) await yieldDuringWait(backoffMs);
     attempt = await runConnectionTest(profile);
     attempts += 1;
     if (attempt.success) break;
@@ -253,25 +292,43 @@ async function runConnectionTestWithRetry(
 export const HEALTH_CHECK_CONCURRENCY_LIMIT = 5;
 
 /**
+ * Callback supplied to each worker that lets it temporarily release its pool
+ * slot while waiting (e.g. during a retry backoff), then re-acquire before
+ * continuing.  Releasing during the wait lets other profiles use the slot
+ * instead of queuing behind a backoff sleep.
+ */
+type YieldDuringWait = (ms: number) => Promise<void>;
+
+/**
  * Runs `worker` over every item with at most `limit` invocations in flight.
  * Preserves result order; the worker must not throw (callers wrap errors).
+ *
+ * Each worker receives a `yieldDuringWait(ms)` callback it can call while
+ * sleeping (e.g. between retry attempts).  The callback releases the semaphore
+ * permit for the duration of the sleep so other items can use the freed slot,
+ * then re-acquires before returning.  This prevents a few slow-retrying items
+ * from starving the rest of the pool.
  */
 async function mapWithConcurrency<T, R>(
   items: readonly T[],
   limit: number,
-  worker: (item: T) => Promise<R>,
+  worker: (item: T, yieldDuringWait: YieldDuringWait) => Promise<R>,
 ): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-  const runners = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
-    while (true) {
-      const index = nextIndex++;
-      if (index >= items.length) return;
-      results[index] = await worker(items[index]);
-    }
-  });
-  await Promise.all(runners);
-  return results;
+  const sem = new Semaphore(Math.max(1, limit));
+  return Promise.all(
+    items.map(async (item) => {
+      await sem.acquire();
+      try {
+        return await worker(item, async (ms: number) => {
+          sem.release();      // free the slot for the duration of the wait
+          await sleep(ms);
+          await sem.acquire(); // re-acquire before resuming work
+        });
+      } finally {
+        sem.release();
+      }
+    }),
+  );
 }
 
 function isDue(profile: IntegrationConnectionProfile, now: Date): boolean {
@@ -307,9 +364,9 @@ export async function runHealthChecksOnce(
   const settled = await mapWithConcurrency(
     due,
     HEALTH_CHECK_CONCURRENCY_LIMIT,
-    async (profile): Promise<HealthCheckOutcome | null> => {
+    async (profile, yieldDuringWait): Promise<HealthCheckOutcome | null> => {
       try {
-        return await checkProfile(profile, now);
+        return await checkProfile(profile, now, yieldDuringWait);
       } catch (err) {
         logger.error({ err, profileId: profile.id }, "Health check failed for profile");
         return null;
@@ -333,9 +390,10 @@ export async function runHealthChecksOnce(
 async function checkProfile(
   profile: IntegrationConnectionProfile,
   now: Date,
+  yieldDuringWait: YieldDuringWait,
 ): Promise<HealthCheckOutcome> {
   {
-    const { success, message, latencyMs, simulated, attempts } = await runConnectionTestWithRetry(profile);
+    const { success, message, latencyMs, simulated, attempts } = await runConnectionTestWithRetry(profile, yieldDuringWait);
     const consecutiveFailures = success ? 0 : profile.consecutiveFailures + 1;
     // Alert exactly when the streak reaches the threshold (avoid re-alerting
     // on every subsequent failed sweep).

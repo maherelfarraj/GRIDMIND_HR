@@ -1356,7 +1356,3 @@ router.post("/payroll-periods/:id/close", async (req, res): Promise<void> => {
 });
 
 export default router;
-
-  const excusedSet = new Set(allExcused.map(r => r.date));
-
-  const remainingUnexcused = noShowDates.filter(d => !excusedSet.has(d));

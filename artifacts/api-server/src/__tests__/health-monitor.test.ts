@@ -449,42 +449,60 @@ describe("connection health monitor", () => {
     for (const count of perRecipient.values()) expect(count).toBe(1);
   });
 
-  it("a slow-retrying profile does not delay health checks for other profiles", async () => {
-    // Slow profile: ldap fails every attempt (no LDAP env), 2 retries with a
-    // 1s backoff each → its check takes ~2s. Normal profile: simulated
-    // success, near-instant. Checks run concurrently, so the normal profile
-    // must be persisted long before the slow one finishes its backoffs.
-    const slow = await createProfile({
-      integrationType: "ldap",
-      retryEnabled: true,
-      retryMaxAttempts: 2,
-      retryBackoffSeconds: 1,
-      alertOnFailureCount: 99,
-    });
+  it("a pool full of slow-retrying profiles does not delay health checks for other profiles", async () => {
+    // Fill every concurrency slot with a slow profile: ldap fails every
+    // attempt (no LDAP env), 2 retries × 1 s backoff = ~2 s per profile.
+    // Without the yield-during-backoff fix, all HEALTH_CHECK_CONCURRENCY_LIMIT
+    // slots would be occupied for the full ~2 s and the healthy profile would
+    // have to wait.  With the fix, each slow profile releases its slot while
+    // sleeping, so the healthy profile acquires a slot and finishes within ms.
+    const slowCount = HEALTH_CHECK_CONCURRENCY_LIMIT; // exactly fills the pool
+    const slowProfiles = await Promise.all(
+      Array.from({ length: slowCount }, () =>
+        createProfile({
+          integrationType: "ldap",
+          retryEnabled: true,
+          retryMaxAttempts: 2,
+          retryBackoffSeconds: 1,
+          alertOnFailureCount: 99,
+        }),
+      ),
+    );
     const normal = await createProfile({ integrationType: "internal_api" });
+
+    // Disable any profiles created by earlier test cases so only these
+    // profiles participate in the sweep.
+    const theseIds = new Set([...slowProfiles.map((p) => p.id), normal.id]);
+    const others = createdProfileIds.filter((id) => !theseIds.has(id));
+    if (others.length) {
+      await db.update(integrationConnectionProfilesTable)
+        .set({ isHealthMonitoringEnabled: false })
+        .where(inArray(integrationConnectionProfilesTable.id, others));
+    }
 
     const started = Date.now();
     const result = await runHealthChecksOnce({ force: true });
     const elapsedMs = Date.now() - started;
 
-    const slowOutcome = result.outcomes.find((o) => o.profileId === slow.id);
+    // Every slow profile must have failed, the healthy one must have passed.
+    for (const slow of slowProfiles) {
+      const outcome = result.outcomes.find((o) => o.profileId === slow.id);
+      expect(outcome!.success).toBe(false);
+    }
     const normalOutcome = result.outcomes.find((o) => o.profileId === normal.id);
-    expect(slowOutcome!.success).toBe(false);
     expect(normalOutcome!.success).toBe(true);
 
-    // The sweep took at least the slow profile's backoff time...
+    // The sweep overall took at least the slow profiles' backoff time because
+    // it must wait for all of them to finish before returning.
     expect(elapsedMs).toBeGreaterThanOrEqual(1900);
 
-    // ...but the normal profile's check completed (row updated) right at the
-    // start of the sweep, not after the slow profile's retries.
-    const [slowRow] = await db.select().from(integrationConnectionProfilesTable)
-      .where(eq(integrationConnectionProfilesTable.id, slow.id));
+    // But the healthy profile's row was persisted long before the backoffs
+    // elapsed — it got a slot as soon as the first slow profile released its
+    // slot to sleep, not after the full ~2 s retry sequence.
     const [normalRow] = await db.select().from(integrationConnectionProfilesTable)
       .where(eq(integrationConnectionProfilesTable.id, normal.id));
     const normalDoneAfterMs = new Date(normalRow.updatedAt!).getTime() - started;
-    const slowDoneAfterMs = new Date(slowRow.updatedAt!).getTime() - started;
-    expect(normalDoneAfterMs).toBeLessThan(1000); // not held up by the slow profile
-    expect(slowDoneAfterMs).toBeGreaterThanOrEqual(1900);
+    expect(normalDoneAfterMs).toBeLessThan(1000); // well before any backoff completes
   });
 
   it("checks more profiles than the concurrency limit in one sweep, never exceeding the limit", async () => {
