@@ -34,6 +34,10 @@ actorUserId?: number | null;
 /**
  * @nullable
  */
+actorUserName?: string | null;
+/**
+ * @nullable
+ */
 from?: string | null;
 /**
  * @nullable

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, auditLogsTable, systemUsersTable } from "@workspace/db";
-import { eq, and, gte, lte, sql, inArray, ilike } from "drizzle-orm";
+import { eq, and, gte, lte, sql, inArray, ilike, or } from "drizzle-orm";
 import { ListAuditLogsQueryParams } from "@workspace/api-zod";
 
 const router = Router();
@@ -21,6 +21,24 @@ router.get("/audit-logs", async (req, res): Promise<void> => {
   if (q.entityLabel) conditions.push(ilike(auditLogsTable.entityLabel, `%${q.entityLabel}%`));
   if (q.ipAddress) conditions.push(ilike(auditLogsTable.ipAddress, `%${q.ipAddress}%`));
   if (q.actorUserId) conditions.push(eq(auditLogsTable.actorUserId, q.actorUserId));
+  if (q.actorUserName) {
+    // Find users whose name matches the search string, then filter audit logs by those IDs
+    const matchedUsers = await db
+      .select({ id: systemUsersTable.id })
+      .from(systemUsersTable)
+      .where(or(
+        ilike(systemUsersTable.fullNameEn, `%${q.actorUserName}%`),
+        ilike(systemUsersTable.fullNameAr, `%${q.actorUserName}%`),
+        ilike(systemUsersTable.username, `%${q.actorUserName}%`),
+      ));
+    const matchedIds = matchedUsers.map((u) => u.id);
+    if (matchedIds.length === 0) {
+      // No users match — return empty result immediately
+      res.json({ data: [], total: 0, page: q.page ?? 1, limit: q.limit ?? 50 });
+      return;
+    }
+    conditions.push(inArray(auditLogsTable.actorUserId, matchedIds));
+  }
   if (q.from) conditions.push(gte(auditLogsTable.createdAt, new Date(q.from)));
   if (q.to) {
     // When `to` is a date-only string (YYYY-MM-DD), treat it as end-of-day

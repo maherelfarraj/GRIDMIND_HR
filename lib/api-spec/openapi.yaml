@@ -708,6 +708,10 @@ paths:
           schema:
             type: [ "integer", "null" ]
         - in: query
+          name: actorUserName
+          schema:
+            type: [ "string", "null" ]
+        - in: query
           name: from
           schema:
             type: [ "string", "null" ]

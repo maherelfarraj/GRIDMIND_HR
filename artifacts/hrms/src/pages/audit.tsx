@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Shield, Search, Lock, KeyRound, FileKey, Network, X } from 'lucide-react';
+import { Shield, Search, Lock, KeyRound, FileKey, Network, X, User } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -66,12 +66,14 @@ function EmergencyResetDetail({ changesJson, lang }: { changesJson: string | nul
 export default function Audit() {
   const { t, lang } = useLanguage();
   const [actionFilter, setActionFilter] = useState<string>('all');
+  const [actorSearch, setActorSearch] = useState('');
   const [labelSearch, setLabelSearch] = useState('');
   const [ipSearch, setIpSearch] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [pageSize, setPageSize] = useState<PageSize>(50);
   const [page, setPage] = useState(1);
+  const debouncedActor = useDebounce(actorSearch, 300);
   const debouncedLabel = useDebounce(labelSearch, 300);
   const debouncedIp = useDebounce(ipSearch, 300);
 
@@ -79,6 +81,7 @@ export default function Audit() {
 
   const { data: auditData, isLoading } = useListAuditLogs({
     action: actionFilter === 'all' ? undefined : actionFilter === 'security' ? SECURITY_ACTIONS : actionFilter,
+    actorUserName: debouncedActor || undefined,
     entityLabel: debouncedLabel || undefined,
     ipAddress: debouncedIp || undefined,
     from: fromDate || undefined,
@@ -92,6 +95,11 @@ export default function Audit() {
 
   function handleActionChange(value: string) {
     setActionFilter(value);
+    setPage(1);
+  }
+
+  function handleActorChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setActorSearch(e.target.value);
     setPage(1);
   }
 
@@ -146,7 +154,7 @@ export default function Audit() {
       <Card>
         <CardHeader className="py-4 border-b">
           <div className="flex flex-col gap-3">
-            {/* Row 1: action, entity label, IP */}
+            {/* Row 1: action, actor, entity label, IP */}
             <div className="flex flex-col sm:flex-row gap-3">
               <Select value={actionFilter} onValueChange={handleActionChange}>
                 <SelectTrigger className="w-full sm:w-56" data-testid="select-action-filter">
@@ -162,12 +170,22 @@ export default function Audit() {
                   <SelectItem value="DELETE">{t('Delete', 'حذف')}</SelectItem>
                 </SelectContent>
               </Select>
+              <div className="relative w-full sm:max-w-[200px]">
+                <User className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={actorSearch}
+                  onChange={handleActorChange}
+                  placeholder={t('Filter by actor...', 'تصفية حسب الفاعل...')}
+                  className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
+                  data-testid="input-actor-username"
+                />
+              </div>
               <div className="relative w-full sm:max-w-xs">
                 <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   value={labelSearch}
                   onChange={handleLabelChange}
-                  placeholder={t('Filter by username / entity...', 'تصفية حسب اسم المستخدم / الكيان...')}
+                  placeholder={t('Filter by entity...', 'تصفية حسب الكيان...')}
                   className="ps-9 bg-muted/50 border-transparent focus-visible:bg-background"
                   data-testid="input-entity-label"
                 />

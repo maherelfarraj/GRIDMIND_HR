@@ -936,6 +936,7 @@ export const ListAuditLogsQueryParams = zod.object({
   "entityLabel": zod.coerce.string().nullish(),
   "ipAddress": zod.coerce.string().nullish(),
   "actorUserId": zod.coerce.number().int().nullish(),
+  "actorUserName": zod.coerce.string().nullish(),
   "from": zod.coerce.string().nullish(),
   "to": zod.coerce.string().nullish(),
   "page": zod.coerce.number().int().nullish(),
