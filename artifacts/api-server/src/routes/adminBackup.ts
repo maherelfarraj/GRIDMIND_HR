@@ -30,15 +30,12 @@ router.get("/admin/backup", async (req, res): Promise<void> => {
 router.get("/admin/backup-records", async (req, res): Promise<void> => {
   try {
     const { status, backupType } = req.query as Record<string, string>;
-
     const conditions = [];
     if (status) conditions.push(eq(backupRecordsTable.status, status));
     if (backupType) conditions.push(eq(backupRecordsTable.backupType, backupType));
-
     const rows = conditions.length
       ? await db.select().from(backupRecordsTable).where(and(...conditions)).orderBy(desc(backupRecordsTable.startedAt))
       : await db.select().from(backupRecordsTable).orderBy(desc(backupRecordsTable.startedAt));
-
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -50,29 +47,11 @@ router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
   try {
     const actorUserId = getActorUserId(req);
     const { backupType, notes } = req.body ?? {};
-
     if (!backupType) {
       res.status(400).json({ error: "backupType is required" });
       return;
     }
-
-    const record = await runBackup({ backupType, notes, initiatedByUserId: actorUserId });
-
-    await db.insert(auditLogsTable).values({
-      action: "create",
-      entityType: "backup_record",
-      entityId: record.id,
-      entityLabel: `Backup: ${record.backupType} — ${record.status}`,
-      actorUserId,
-      changesJson: JSON.stringify({
-        backupType: record.backupType,
-        status: record.status,
-        fileSizeBytes: record.fileSizeBytes,
-        checksum: record.checksum,
-        storageLocation: record.storageLocation,
-      }),
-    });
-
+    const record = await retryOffsiteUploadForRecord(id);
     if (record.status !== "completed") {
       res.status(500).json({ error: record.errorMessage ?? "Backup failed", record });
       return;
@@ -97,10 +76,6 @@ router.post("/admin/backup-records/retry-offsite", async (req, res): Promise<voi
 router.post("/admin/backup-records/:id/retry-offsite", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id, 10);
-    if (!Number.isInteger(id)) {
-      res.status(404).json({ error: "Not found" });
-      return;
-    }
     const record = await retryOffsiteUploadForRecord(id);
     res.json(record);
   } catch (err: any) {
@@ -111,16 +86,11 @@ router.post("/admin/backup-records/:id/retry-offsite", async (req, res): Promise
   }
 });
 
-// PATCH /admin/backup-records/:id/verify — mark a backup record as manually verified
-router.patch("/admin/backup-records/:id/verify", async (req, res): Promise<void> => {
+// POST /admin/backup-records/:id/verify — mark a backup as verified
+router.post("/admin/backup-records/:id/verify", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id, 10);
-    if (!Number.isInteger(id)) {
-      res.status(404).json({ error: "Backup record not found" });
-      return;
-    }
     const { verificationNotes, restoreTestResult } = req.body ?? {};
-
     const [row] = await db
       .update(backupRecordsTable)
       .set({
@@ -131,7 +101,6 @@ router.patch("/admin/backup-records/:id/verify", async (req, res): Promise<void>
       })
       .where(eq(backupRecordsTable.id, id))
       .returning();
-
     if (!row) {
       res.status(404).json({ error: "Backup record not found" });
       return;

@@ -8693,4 +8693,3 @@ templateType?: string | null;
 export type CreateOrgReportTemplateBody = { [key: string]: unknown };
 
 export type UpsertOrganizationBrandingBody = { [key: string]: unknown };
-

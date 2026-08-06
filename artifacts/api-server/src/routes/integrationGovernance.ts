@@ -12,7 +12,7 @@ import { testSmtpConnection } from "../lib/smtp-adapter.js";
 import { testDeviceConnection } from "../lib/device-adapter.js";
 import { runHealthChecksOnce, raiseHealthRecoveryIfAlerted } from "../lib/health-monitor.js";
 import { resolveProfileConnection } from "../lib/profile-connection.js";
-import { getSecurityEmailDeliveryStatus } from "../lib/email-alert-status.js";
+import { getSecurityEmailDeliveryStatus, emailAlertStatusReady } from "../lib/email-alert-status.js";
 import { getPepperRotationStatus } from "./attendanceGateway.js";
 
 const router = Router();
@@ -47,6 +47,9 @@ function withConfigured<T extends { vaultKeyRef: string }>(row: T): T & { config
 
 router.get("/integration-governance/security-email-status", async (_req, res): Promise<void> => {
   try {
+    // Ensure persisted state is hydrated before the first read after a restart.
+    // Mirrors the loginThrottleReady pattern used by the auth/users routes.
+    await emailAlertStatusReady;
     res.json(getSecurityEmailDeliveryStatus());
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });

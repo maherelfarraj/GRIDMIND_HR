@@ -90,7 +90,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   throttle.resetLoginThrottle();
-  watchdog.resetSecurityEmailDeliveryStatus();
+  await watchdog.resetSecurityEmailDeliveryStatus();
   vi.unstubAllEnvs();
   vi.resetModules();
   await deleteOutageNotifications().catch(() => {});
@@ -109,7 +109,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   throttle.resetLoginThrottle();
-  watchdog.resetSecurityEmailDeliveryStatus();
+  await watchdog.resetSecurityEmailDeliveryStatus();
   sendSmtpMail.mockClear();
   await deleteOutageNotifications();
 });
@@ -167,6 +167,65 @@ describe("login lockout with failing SMTP (end-to-end)", () => {
     ));
     expect(row.bodyEn).toContain("SMTP not configured");
     expect(row.bodyEn).toContain(USERNAME);
+  });
+});
+
+describe("persistence: status survives a module reload (simulated restart)", () => {
+  /**
+   * Each test simulates a real server restart without touching the `app` or
+   * outer `watchdog` reference (which must stay as the module `app` uses):
+   *
+   *  1. Record state via the original module — writes through to system_config.
+   *  2. vi.resetModules() clears the module registry cache so the next
+   *     import() re-executes the file, creating a brand-new instance.
+   *  3. Import the fresh module and await emailAlertStatusReady — exactly
+   *     what the first post-restart request triggers.
+   *  4. Assert the fresh module hydrated the persisted state.
+   *  5. Clean up: reset fresh module (deletes DB row) then reset the original
+   *     module's in-memory state so the HTTP tests that follow see a clean slate.
+   *     `watchdog` is NOT reassigned — it stays as the app's original module.
+   */
+  it("hydrates outage state from DB after a process restart", async () => {
+    // Persist an active outage via the original module.
+    await watchdog.recordSecurityEmailOutcome(
+      { success: false, message: "SMTP relay unreachable" }, "restart test");
+    expect(watchdog.getSecurityEmailDeliveryStatus().outageActive).toBe(true);
+
+    // Simulate restart: clear module registry, import a brand-new instance.
+    vi.resetModules();
+    const fresh = await import("../lib/email-alert-status");
+    await fresh.emailAlertStatusReady; // hydration fires on first request after restart
+
+    // Fresh module must have read the persisted outage from system_config.
+    const hydrated = fresh.getSecurityEmailDeliveryStatus();
+    expect(hydrated.outageActive).toBe(true);
+    expect(hydrated.lastFailureMessage).toBe("SMTP relay unreachable");
+    expect(hydrated.lastFailureAt).toBeTruthy();
+    expect(hydrated.outageSince).toBeTruthy();
+
+    // Clean up: delete DB row via fresh module, then blank the original
+    // module's in-memory state so the HTTP tests see a healthy baseline.
+    await fresh.resetSecurityEmailDeliveryStatus();
+    await watchdog.resetSecurityEmailDeliveryStatus(); // watchdog === original module === app's module
+  });
+
+  it("hydrates lastSuccessAt from DB after a process restart", async () => {
+    // Persist a failure-then-recovery sequence.
+    await watchdog.recordSecurityEmailOutcome({ success: false, message: "down" }, "restart test 2");
+    await watchdog.recordSecurityEmailOutcome({ success: true }, "restart test 2");
+
+    // Simulate restart.
+    vi.resetModules();
+    const fresh = await import("../lib/email-alert-status");
+    await fresh.emailAlertStatusReady;
+
+    const hydrated = fresh.getSecurityEmailDeliveryStatus();
+    expect(hydrated.outageActive).toBe(false);
+    expect(hydrated.lastSuccessAt).toBeTruthy();
+
+    // Clean up.
+    await fresh.resetSecurityEmailDeliveryStatus();
+    await watchdog.resetSecurityEmailDeliveryStatus();
   });
 });
 

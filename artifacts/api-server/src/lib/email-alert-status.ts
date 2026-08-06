@@ -13,8 +13,11 @@
  *  - A successful send closes the outage window, so a later failure raises a
  *    fresh warning.
  *
- * State is in-memory (per-process). After a restart the first failing send
- * simply re-raises the warning, which is the desired behavior anyway.
+ * Persistence: status is written through to system_config ("smtp.emailAlertStatus")
+ * on every mutation, so the indicator survives API server restarts. On startup,
+ * the persisted row is loaded back into memory before any request is served
+ * (await emailAlertStatusReady). In-process mutations that race the startup
+ * hydration take precedence — the flag `_mutatedBeforeHydrate` guards this.
  */
 import { and, eq, ilike } from "drizzle-orm";
 import {
@@ -22,6 +25,7 @@ import {
   notificationsTable,
   systemUsersTable,
   rolesTable,
+  systemConfigTable,
 } from "@workspace/db";
 
 export interface EmailDeliveryStatus {
@@ -37,6 +41,8 @@ export interface EmailDeliveryStatus {
   lastSuccessAt: string | null;
 }
 
+const CONFIG_KEY = "smtp.emailAlertStatus";
+
 let status: EmailDeliveryStatus = {
   outageActive: false,
   lastFailureMessage: null,
@@ -45,13 +51,103 @@ let status: EmailDeliveryStatus = {
   lastSuccessAt: null,
 };
 
+// ---------------------------------------------------------------------------
+// Write-through persistence
+// ---------------------------------------------------------------------------
+
+/**
+ * True once any in-process mutation has fired. If this is true when hydration
+ * completes, the persisted row is stale relative to in-memory state and must
+ * not overwrite it.
+ */
+let _mutatedBeforeHydrate = false;
+
+/** Single promise chain serialising all writes to the one config row. */
+let _writeChain: Promise<void> = Promise.resolve();
+
+function persistStatus(snapshot: EmailDeliveryStatus): void {
+  _mutatedBeforeHydrate = true;
+  const value = JSON.stringify(snapshot);
+  _writeChain = _writeChain
+    .then(() =>
+      db
+        .insert(systemConfigTable)
+        .values({
+          key: CONFIG_KEY,
+          value,
+          valueType: "json",
+          category: "smtp",
+          labelEn: "Security email delivery status",
+          labelAr: "حالة تسليم البريد الإلكتروني الأمني",
+        })
+        .onConflictDoUpdate({
+          target: systemConfigTable.key,
+          set: { value, updatedAt: new Date() },
+        })
+    )
+    .then(() => {})
+    .catch((err) => {
+      console.error("[emailAlertStatus] failed to persist status:", err);
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Hydration
+// ---------------------------------------------------------------------------
+
+/**
+ * Load the persisted delivery status from system_config. Called once at
+ * module load. Only applies the persisted value when no in-process mutation
+ * has already set a newer state (same guard as loginThrottle hydration).
+ */
+async function hydrateStatus(): Promise<void> {
+  try {
+    const [row] = await db
+      .select()
+      .from(systemConfigTable)
+      .where(eq(systemConfigTable.key, CONFIG_KEY));
+    if (row && !_mutatedBeforeHydrate) {
+      const persisted = JSON.parse(row.value) as Partial<EmailDeliveryStatus>;
+      status = {
+        outageActive: persisted.outageActive ?? false,
+        lastFailureMessage: persisted.lastFailureMessage ?? null,
+        lastFailureAt: persisted.lastFailureAt ?? null,
+        outageSince: persisted.outageSince ?? null,
+        lastSuccessAt: persisted.lastSuccessAt ?? null,
+      };
+    }
+  } catch (err) {
+    console.error("[emailAlertStatus] failed to hydrate status:", err);
+  }
+}
+
+/** Resolves once persisted state has been loaded (never rejects). */
+export const emailAlertStatusReady: Promise<void> = hydrateStatus();
+
+/**
+ * Test/diagnostic hook: flush pending DB writes, then re-run hydration against
+ * the current DB contents, overwriting in-memory state. Simulates a server
+ * restart: all in-flight writes land first, then the state is re-read as a
+ * fresh process would see it.
+ */
+export async function rehydrateSecurityEmailStatus(): Promise<void> {
+  // Drain the write chain so the DB row is up-to-date before we read it.
+  await _writeChain;
+  _mutatedBeforeHydrate = false;
+  await hydrateStatus();
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 /** Current delivery status (e.g. for a health/integrations endpoint). */
 export function getSecurityEmailDeliveryStatus(): EmailDeliveryStatus {
   return { ...status };
 }
 
 /** Test hook: reset the outage window between test cases. */
-export function resetSecurityEmailDeliveryStatus(): void {
+export async function resetSecurityEmailDeliveryStatus(): Promise<void> {
   status = {
     outageActive: false,
     lastFailureMessage: null,
@@ -59,6 +155,17 @@ export function resetSecurityEmailDeliveryStatus(): void {
     outageSince: null,
     lastSuccessAt: null,
   };
+  _mutatedBeforeHydrate = false;
+  // Drain pending writes before deleting so a straggling upsert cannot land
+  // after the delete and resurrect state.
+  const pending = _writeChain;
+  _writeChain = Promise.resolve();
+  try {
+    await pending;
+    await db.delete(systemConfigTable).where(eq(systemConfigTable.key, CONFIG_KEY)).then(() => {});
+  } catch (err) {
+    console.error("[emailAlertStatus] failed to reset persisted status:", err);
+  }
 }
 
 async function getActiveAdminIds(): Promise<number[]> {
@@ -83,6 +190,7 @@ export async function recordSecurityEmailOutcome(
     status.outageActive = false;
     status.outageSince = null;
     status.lastSuccessAt = nowIso;
+    persistStatus({ ...status });
     return false;
   }
 
@@ -92,9 +200,13 @@ export async function recordSecurityEmailOutcome(
 
   // One warning per outage window: if we already warned and no success has
   // happened since, stay quiet.
-  if (status.outageActive) return false;
+  if (status.outageActive) {
+    persistStatus({ ...status });
+    return false;
+  }
   status.outageActive = true;
   status.outageSince = nowIso;
+  persistStatus({ ...status });
 
   try {
     const adminIds = await getActiveAdminIds();

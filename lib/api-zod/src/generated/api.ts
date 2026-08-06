@@ -987,8 +987,7 @@ export const ListAttendanceQueryParams = zod.object({
   "limit": zod.coerce.number().int().nullish()
 })
 
-export const ListAttendanceResponse = zod.object({
-  "data": zod.array(zod.object({
+export const ListAttendanceResponseItem = zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeId": zod.number(),
@@ -1007,21 +1006,13 @@ export const ListAttendanceResponse = zod.object({
   "workingHours": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date().optional()
-})),
-  "total": zod.number(),
-  "page": zod.number(),
-  "limit": zod.number()
 })
+export const ListAttendanceResponse = zod.array(ListAttendanceResponseItem)
 
 
 /**
  * @summary Daily attendance summary by department
  */
-export const GetAttendanceDailySummaryQueryParams = zod.object({
-  "date": zod.coerce.string().nullish(),
-  "departmentId": zod.coerce.number().int().nullish()
-})
-
 export const GetAttendanceDailySummaryResponseItem = zod.object({
   "departmentId": zod.number(),
   "departmentNameEn": zod.string(),
@@ -1233,9 +1224,7 @@ export const RestartDeviceResponse = zod.object({
   "outcomeNotifiedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
-}).and(zod.object({
-  "gatewayOfflineWarning": zod.string().optional()
-}))
+})
 
 
 /**
@@ -14679,9 +14668,7 @@ export const ReconcileGatewayRegistrationResponse = zod.object({
   "outcomeNotifiedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
-}).and(zod.object({
-  "gatewayOfflineWarning": zod.string().optional()
-}))
+})
 
 
 /**
