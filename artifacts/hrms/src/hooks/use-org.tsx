@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { getActiveOrgId, setActiveOrgId } from '@/lib/org-fetch';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthMaybe } from '@/hooks/use-auth';
 
 export interface Organization {
   id: number;
@@ -26,7 +26,8 @@ interface OrgContextType {
 const OrgContext = createContext<OrgContextType | undefined>(undefined);
 
 export function OrgProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const auth = useAuthMaybe();
+  const user = auth?.user ?? null;
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [activeOrgId, setActiveOrgIdState] = useState<number | null>(getActiveOrgId());
   const [isLoading, setIsLoading] = useState(true);

@@ -22,6 +22,17 @@ vi.mock('expo-sharing', () => ({
   isAvailableAsync: vi.fn(async () => false),
   shareAsync: vi.fn(),
 }));
+// expo-file-system is imported by payslip-share for native file operations; the
+// web branch never calls File/Paths, but the import alone triggers
+// expo-modules-core's native bootstrap which crashes in jsdom.  Stub it out.
+vi.mock('expo-file-system', () => ({
+  File: class File { constructor(..._: any[]) {} },
+  Paths: { cache: '/tmp', document: '/tmp', downloads: '/tmp' },
+  getInfoAsync: vi.fn(async () => ({ exists: false })),
+  readAsStringAsync: vi.fn(async () => ''),
+  writeAsStringAsync: vi.fn(async () => {}),
+  deleteAsync: vi.fn(async () => {}),
+}));
 
 import { sharePayslip } from '../payslip-share';
 

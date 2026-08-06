@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as XLSX from 'xlsx';
-import { extractSheetData, parseCsvHeaders } from '@/pages/data-import';
+import { extractSheetData, parseCsvHeaders } from '@/lib/data-import-utils';
 
 /** Build a workbook with an empty cover sheet followed by a populated data sheet. */
 function buildWorkbook(): XLSX.WorkBook {

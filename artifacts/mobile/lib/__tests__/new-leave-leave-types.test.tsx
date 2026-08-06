@@ -126,12 +126,14 @@ const useSubmitLeaveRequestMock = vi.hoisted(() =>
 );
 const getListLeaveBalancesQueryKeyMock = vi.hoisted(() => vi.fn(() => ['leave-balances']));
 const getListLeaveRequestsQueryKeyMock = vi.hoisted(() => vi.fn(() => ['leave-requests']));
+const getListLeaveTypesQueryKeyMock = vi.hoisted(() => vi.fn(() => ['leave-types']));
 vi.mock('@workspace/api-client-react', () => ({
   useListLeaveTypes: useListLeaveTypesMock,
   useCreateLeaveRequest: useCreateLeaveRequestMock,
   useSubmitLeaveRequest: useSubmitLeaveRequestMock,
   getListLeaveBalancesQueryKey: getListLeaveBalancesQueryKeyMock,
   getListLeaveRequestsQueryKey: getListLeaveRequestsQueryKeyMock,
+  getListLeaveTypesQueryKey: getListLeaveTypesQueryKeyMock,
 }));
 
 // ---------------------------------------------------------------------------

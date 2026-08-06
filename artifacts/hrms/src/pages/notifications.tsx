@@ -47,7 +47,7 @@ const SECURITY_ALERT_CHANNELS = ['in_app', 'email', 'both'] as const;
 type SecurityAlertChannel = NotificationPreferenceInputSecurityAlertChannel;
 
 /** Normalize any stored/returned value to a valid channel; default "both". */
-export function normalizeSecurityAlertChannel(value: unknown): SecurityAlertChannel {
+function normalizeSecurityAlertChannel(value: unknown): SecurityAlertChannel {
   return SECURITY_ALERT_CHANNELS.includes(value as SecurityAlertChannel)
     ? (value as SecurityAlertChannel)
     : 'both';

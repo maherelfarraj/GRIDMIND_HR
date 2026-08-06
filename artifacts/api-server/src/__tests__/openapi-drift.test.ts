@@ -805,7 +805,7 @@ describe("OpenAPI ↔ drizzle schema drift", () => {
     const { execFileSync } = await import("node:child_process");
     const baselineRepoPath = "artifacts/api-server/src/__tests__/openapi-drift-baseline.ts";
     const git = (...args: string[]): string =>
-      execFileSync("git", args, { cwd: here, encoding: "utf8" }).trim();
+      execFileSync("git", args, { cwd: here, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
 
     // Prefer the branch point against the upstream main; fall back to the
     // previous commit so the ratchet still bites in a plain checkout.

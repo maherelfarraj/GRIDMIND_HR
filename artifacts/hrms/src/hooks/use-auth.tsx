@@ -138,3 +138,13 @@ export function useAuth() {
   }
   return context;
 }
+
+/**
+ * Safe variant for components (like OrgProvider) that sit inside AuthProvider
+ * in the real tree but may briefly render outside it during HMR module swaps.
+ * Returns null instead of throwing so callers can handle the unauthenticated
+ * state gracefully without a full page crash.
+ */
+export function useAuthMaybe() {
+  return useContext(AuthContext) ?? null;
+}

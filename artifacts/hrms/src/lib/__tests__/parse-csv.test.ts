@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCsv, parseCsvHeaders } from '../../pages/data-import';
+import { parseCsv, parseCsvHeaders } from '../../lib/data-import-utils';
 
 describe('parseCsv', () => {
   it('parses simple rows', () => {

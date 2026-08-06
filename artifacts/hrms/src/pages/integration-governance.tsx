@@ -34,7 +34,51 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw, Pencil, Trash2, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Network, Shield, Mail, MessageSquare, HardDrive, Database, FileSignature, Code2, RefreshCw, CheckCircle, XCircle, Clock, Loader2, User, Activity, HeartPulse, Settings2, Bot, RotateCcw, Pencil, Trash2, ChevronLeft, ChevronRight, Filter, Server } from 'lucide-react';
+
+/**
+ * Task #314 — Resolve the effective connection target that will be probed when
+ * the operator presses "Test" on a connection profile.
+ *
+ * Returns a label and a kind so the caller can apply appropriate styling:
+ *   'url'    — a concrete host/URL from the profile's connectionParamsJson
+ *   'global' — no host in the profile; the API server will fall back to its
+ *              process.env (e.g. LDAP_HOST / SMTP_HOST).  Shown as a warning
+ *              so operators know the test exercises the global default, not a
+ *              profile-specific endpoint.
+ *   'none'   — the integration type has no recognisable host field and no env
+ *              fallback is expected.  Treated as an amber "not configured" warning.
+ */
+function resolveTestTarget(
+  p: { integrationType: string; connectionParamsJson?: string | null },
+): { label: string; kind: 'url' | 'global' | 'none' } {
+  let params: Record<string, any> = {};
+  try { params = JSON.parse(p.connectionParamsJson || '{}'); } catch { /* ignore */ }
+
+  const type = p.integrationType ?? '';
+
+  if (type === 'ldap' || type === 'active_directory') {
+    if (params.host) {
+      return { label: `ldap://${params.host}:${params.port ?? 389}`, kind: 'url' };
+    }
+    return { label: 'Global default (LDAP_HOST)', kind: 'global' };
+  }
+  if (type === 'smtp') {
+    if (params.host) {
+      return { label: `${params.host}:${params.port ?? 587}`, kind: 'url' };
+    }
+    return { label: 'Global default (SMTP_HOST)', kind: 'global' };
+  }
+  if (type === 'attendance_device') {
+    if (params.baseUrl) return { label: params.baseUrl, kind: 'url' };
+    if (params.host) return { label: `http://${params.host}${params.port ? `:${params.port}` : ''}`, kind: 'url' };
+    return { label: 'No host configured', kind: 'none' };
+  }
+  // Generic / SSO / other types — use baseUrl if present
+  if (params.baseUrl) return { label: params.baseUrl, kind: 'url' };
+  if (params.host) return { label: params.host, kind: 'url' };
+  return { label: 'No host configured', kind: 'none' };
+}
 
 function intTypeIcon(type: string): React.ComponentType<{ className?: string }> {
   const map: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -1067,6 +1111,25 @@ export default function IntegrationGovernance() {
                             {p.lastTestMessage && <p className="text-[11px] text-slate-400 break-words">{p.lastTestMessage}</p>}
                           </div>
                         )}
+                        {/* Task #314: show the effective connection target before the operator presses Test */}
+                        {(() => {
+                          const target = resolveTestTarget(p);
+                          const colorClass =
+                            target.kind === 'url'    ? 'text-slate-200' :
+                            target.kind === 'global' ? 'text-amber-300 italic' :
+                                                       'text-amber-400 italic';
+                          return (
+                            <p
+                              className="text-[11px] text-slate-400 flex items-center gap-1 break-all"
+                              data-testid={`profile-test-target-${p.id}`}
+                            >
+                              <Server className="w-3 h-3 shrink-0 opacity-60" />
+                              {t('Will test:', 'سيختبر:')}
+                              {' '}
+                              <span className={`font-mono ${colorClass}`}>{target.label}</span>
+                            </p>
+                          );
+                        })()}
                         <div className="flex gap-1 flex-wrap">
                           <Button size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300 h-7 px-2 text-xs" onClick={() => { if (p.integrationType === 'smtp') { setSmtpRecipient(''); setSmtpTestTarget(p); } else { testConnection(p.id); } }} disabled={testing}>
                             {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5 me-1" />}{t('Test', 'اختبار')}
