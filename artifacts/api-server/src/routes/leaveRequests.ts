@@ -308,6 +308,10 @@ router.post("/leave-requests/:id/submit", async (req, res): Promise<void> => {
     priority: "normal",
     requestedByEmployeeId: r.employeeId,
     dueDate: r.startDate,
+    // Indexed entity link — enables O(1) lookup without scanning metadata.
+    entityType: "leave_request",
+    entityId: r.id,
+    // metadata retained for display (request_number, dates, etc.)
     metadata: JSON.stringify({
       leave_request_id: r.id,
       request_number: r.requestNumber,

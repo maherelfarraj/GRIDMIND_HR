@@ -10,6 +10,7 @@ import {
   useCancelLeaveRequest, useReturnToDuty, useRevokeLeaveRequest,
   useAddLeaveAttachment,
   useDeleteLeaveAttachment,
+  getLeaveAttachment,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

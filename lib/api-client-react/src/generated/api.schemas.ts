@@ -733,6 +733,10 @@ export interface Approval {
   dueDate?: string | null;
   /** @nullable */
   metadata?: string | null;
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityId?: number | null;
   createdAt: string;
 }
 
@@ -748,6 +752,10 @@ export interface ApprovalInput {
   dueDate?: string | null;
   /** @nullable */
   metadata?: string | null;
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityId?: number | null;
 }
 
 export interface ApprovalDecision {
@@ -1365,8 +1373,9 @@ export interface LeaveAttachmentMeta {
   fileSize?: number | null;
   uploadedAt: string;
 }
+
 /**
- * Full attachment including base64 file payload — returned only by the single-attachment endpoint.
+ * Full attachment with file payload — returned only by the single-attachment endpoint.
  */
 export interface LeaveAttachment {
   id: number;
@@ -2575,6 +2584,21 @@ export type BackupScheduleStatusLastPrune = {
   filesDeleted: number;
   errors: number;
 } | null;
+
+export interface BackupScheduleStatus {
+  enabled: boolean;
+  cronExpression: string;
+  valid: boolean;
+  running: boolean;
+  /** @nullable */
+  lastRunAt: string | null;
+  /** @nullable */
+  lastRunStatus: string | null;
+  /** @nullable */
+  lastRunError: string | null;
+  lastPrune: BackupScheduleStatusLastPrune;
+}
+
 export interface BranchServer {
   id: number;
   serverCode: string;
@@ -8638,16 +8662,3 @@ export type CreateOrgReportTemplateBody = { [key: string]: unknown };
 
 export type UpsertOrganizationBrandingBody = { [key: string]: unknown };
 
-export interface BackupScheduleStatus {
-  enabled: boolean;
-  cronExpression: string;
-  valid: boolean;
-  running: boolean;
-  /** @nullable */
-  lastRunAt: string | null;
-  /** @nullable */
-  lastRunStatus: string | null;
-  /** @nullable */
-  lastRunError: string | null;
-  lastPrune: BackupScheduleStatusLastPrune;
-}

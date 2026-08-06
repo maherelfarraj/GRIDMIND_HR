@@ -7,7 +7,7 @@
  */
 
 /**
- * Full attachment including base64 file payload — returned only by the single-attachment endpoint.
+ * Full attachment with file payload — returned only by the single-attachment endpoint.
  */
 export interface LeaveAttachment {
   id: number;

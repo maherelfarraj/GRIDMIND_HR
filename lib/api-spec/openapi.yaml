@@ -2031,6 +2031,27 @@ paths:
               schema: { $ref: "#/components/schemas/LeaveAttachment" }
 
   /leave-requests/{id}/attachments/{attachmentId}:
+    get:
+      tags: [ leave ]
+      summary: Fetch a single leave attachment including its file payload
+      operationId: getLeaveAttachment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: attachmentId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Attachment with file payload
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LeaveAttachment" }
+        "404":
+          description: Not found
     delete:
       tags: [ leave ]
       summary: Remove an attachment from a draft leave request
@@ -12040,6 +12061,8 @@ components:
         decisionNote: { type: [ "string", "null" ] }
         dueDate: { type: [ "string", "null" ] }
         metadata: { type: [ "string", "null" ] }
+        entityType: { type: [ "string", "null" ] }
+        entityId: { type: [ "integer", "null" ] }
         createdAt: { type: string }
       required:
         - id
@@ -12063,6 +12086,8 @@ components:
         assignedToUserId: { type: [ "integer", "null" ] }
         dueDate: { type: [ "string", "null" ] }
         metadata: { type: [ "string", "null" ] }
+        entityType: { type: [ "string", "null" ] }
+        entityId: { type: [ "integer", "null" ] }
       required: [ type, titleEn, titleAr, priority, requestedByEmployeeId ]
 
     ApprovalDecision:

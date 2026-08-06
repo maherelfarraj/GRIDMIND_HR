@@ -110,9 +110,14 @@ router.patch("/approvals/:id/decision", async (req, res): Promise<void> => {
   if (["approved", "rejected"].includes(parsed.data.status)) {
     const [existing] = await db.select().from(approvalsTable).where(eq(approvalsTable.id, id));
     if (!existing) { res.status(404).json({ error: "Not found" }); return; }
-    if (existing.type === "leave" && existing.metadata) {
+    if (existing.type === "leave") {
+      // Prefer the indexed entity_id column; fall back to metadata for legacy rows.
       let leaveRequestId: number | undefined;
-      try { leaveRequestId = JSON.parse(existing.metadata)?.leave_request_id; } catch { /* ignore */ }
+      if (typeof existing.entityId === "number") {
+        leaveRequestId = existing.entityId;
+      } else if (existing.metadata) {
+        try { leaveRequestId = JSON.parse(existing.metadata)?.leave_request_id; } catch { /* ignore */ }
+      }
       if (typeof leaveRequestId === "number") {
         try {
           const { request: leaveReq } = await decideLeaveStep({

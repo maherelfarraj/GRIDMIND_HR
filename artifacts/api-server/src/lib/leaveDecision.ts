@@ -2,7 +2,7 @@ import {
   db, leaveRequestsTable, leaveBalancesTable, leaveApprovalStepsTable,
   rostersTable, auditLogsTable, approvalsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte, sql, isNotNull, isNull } from "drizzle-orm";
 
 export class LeaveDecisionError extends Error {
   httpStatus: number;
@@ -30,8 +30,10 @@ function rosterMarker(requestNumber: string): string {
 }
 
 /**
- * Keep the /approvals queue entry linked to a leave request (via
- * metadata.leave_request_id) in step with the request's status.
+ * Keep the /approvals queue entry linked to a leave request in step with
+ * the request's status. Uses the indexed entity_type/entity_id columns for
+ * an O(1) lookup instead of scanning and JSON-parsing the whole table.
+ * Falls back to metadata scanning for legacy rows that predate the columns.
  * Only touches entries that are not already in the target status.
  */
 export async function syncLinkedApprovalStatus(
@@ -39,20 +41,37 @@ export async function syncLinkedApprovalStatus(
   status: "approved" | "rejected" | "cancelled" | "revoked",
   decisionNote?: string | null,
 ): Promise<void> {
-  const candidates = await db.select().from(approvalsTable)
-    .where(eq(approvalsTable.type, "leave"));
-  for (const a of candidates) {
+  const setClause = {
+    status,
+    decidedAt: new Date(),
+    ...(decisionNote !== undefined ? { decisionNote: decisionNote ?? null } : {}),
+  };
+
+  // Fast path: use the indexed entity link columns.
+  await db.update(approvalsTable)
+    .set(setClause)
+    .where(and(
+      eq(approvalsTable.entityType, "leave_request"),
+      eq(approvalsTable.entityId, leaveRequestId),
+    ));
+
+  // Legacy fallback: rows written before the entity columns existed (entity_id
+  // is NULL but the metadata JSON still carries leave_request_id).
+  const legacy = await db.select().from(approvalsTable)
+    .where(and(
+      eq(approvalsTable.type, "leave"),
+      isNotNull(approvalsTable.metadata),
+      // entity_id is null means it was never backfilled
+      isNull(approvalsTable.entityId),
+    ));
+  for (const a of legacy) {
     if (!a.metadata) continue;
     let meta: any;
     try { meta = JSON.parse(a.metadata); } catch { continue; }
     if (meta?.leave_request_id !== leaveRequestId) continue;
     if (a.status === status) continue;
     await db.update(approvalsTable)
-      .set({
-        status,
-        decidedAt: new Date(),
-        ...(decisionNote !== undefined ? { decisionNote: decisionNote ?? null } : {}),
-      })
+      .set(setClause)
       .where(eq(approvalsTable.id, a.id));
   }
 }
