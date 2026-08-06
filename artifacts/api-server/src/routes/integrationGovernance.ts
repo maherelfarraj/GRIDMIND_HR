@@ -518,18 +518,17 @@ router.delete("/integration-governance/governance-rules/:id", async (req, res): 
 
 router.get("/integration-governance/audit-log", async (req, res): Promise<void> => {
   try {
-    const { profileId, page: pageStr, pageSize: pageSizeStr } = req.query as Record<string, string>;
+    const { profileId, page: pageStr, pageSize: pageSizeStr, eventType } = req.query as Record<string, string>;
     const page = parseInt(pageStr ?? "1");
     const pageSize = parseInt(pageSizeStr ?? "50");
     const offset = (page - 1) * pageSize;
-    const rows = profileId
-      ? await db.select().from(integrationAuditLogTable)
-          .where(eq(integrationAuditLogTable.profileId, parseInt(profileId)))
-          .orderBy(desc(integrationAuditLogTable.occurredAt))
-          .limit(pageSize).offset(offset)
-      : await db.select().from(integrationAuditLogTable)
-          .orderBy(desc(integrationAuditLogTable.occurredAt))
-          .limit(pageSize).offset(offset);
+    const conditions: any[] = [];
+    if (profileId) conditions.push(eq(integrationAuditLogTable.profileId, parseInt(profileId)));
+    if (eventType) conditions.push(eq(integrationAuditLogTable.eventType, eventType));
+    const rows = await db.select().from(integrationAuditLogTable)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(desc(integrationAuditLogTable.occurredAt))
+      .limit(pageSize).offset(offset);
     res.json({ data: rows, page, pageSize });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });

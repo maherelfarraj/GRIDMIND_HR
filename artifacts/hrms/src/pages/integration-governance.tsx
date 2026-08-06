@@ -664,6 +664,7 @@ export default function IntegrationGovernance() {
   const [vault, setVault] = useState<any[]>([]);
   const [rules, setRules] = useState<any[]>([]);
   const [auditLog, setAuditLog] = useState<any[]>([]);
+  const [healthAlerts, setHealthAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [testingIds, setTestingIds] = useState<Set<number>>(new Set());
   const [suspendTarget, setSuspendTarget] = useState<any>(null);
@@ -682,11 +683,12 @@ export default function IntegrationGovernance() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, v, r, a, e, pep] = await Promise.allSettled([
+      const [p, v, r, a, ha, e, pep] = await Promise.allSettled([
         listConnectionProfiles(),
         listCredentialVaultRefs(),
         listGovernanceRules(),
         listIntegrationAuditLog(),
+        listIntegrationAuditLog({ eventType: 'health_alert', pageSize: 10 }),
         getSecurityEmailStatus(),
         getPepperRotationStatus(),
       ]);
@@ -698,6 +700,7 @@ export default function IntegrationGovernance() {
       setVault(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : []);
       setRules(r.status === 'fulfilled' && Array.isArray(r.value) ? r.value : []);
       setAuditLog(a.status === 'fulfilled' && Array.isArray(a.value?.data) ? a.value.data : []);
+      setHealthAlerts(ha.status === 'fulfilled' && Array.isArray(ha.value?.data) ? ha.value.data.slice(0, 5) : []);
     } finally { setLoading(false); }
   }, []);
 
@@ -772,7 +775,6 @@ export default function IntegrationGovernance() {
     } finally { setRunningHealthChecks(false); }
   }
 
-  const healthAlerts = auditLog.filter(a => a.eventType === 'health_alert').slice(0, 5);
 
   async function toggleRule(id: number, active: boolean) {
     try {
