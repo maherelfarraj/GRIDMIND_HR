@@ -107,6 +107,23 @@ function UserRow({
           )}
         </View>
       </View>
+      {item.lastOtpIssuedAt && (
+        <Text
+          testID={`text-otp-issued-${item.id}`}
+          style={{
+            color: colors.mutedForeground,
+            fontSize: 11,
+            fontFamily: 'Inter_400Regular',
+            marginTop: 6,
+          }}
+        >
+          {t('otpIssuedAtLabel')}{' '}
+          {new Date(item.lastOtpIssuedAt).toLocaleString()}
+          {item.lastOtpIssuedByName
+            ? ` · ${t('otpIssuedByLabel')} ${item.lastOtpIssuedByName}`
+            : ''}
+        </Text>
+      )}
       <View style={{ marginTop: 12, flexDirection: 'row', gap: 10 }}>
         <AppButton
           testID={`button-issue-otp-${item.id}`}

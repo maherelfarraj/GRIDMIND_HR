@@ -159,6 +159,8 @@ const strings = {
     en: 'Must change password',
     ar: 'يجب تغيير كلمة المرور',
   },
+  otpIssuedAtLabel: { en: 'OTP issued', ar: 'أُصدرت كلمة مرور' },
+  otpIssuedByLabel: { en: 'by', ar: 'بواسطة' },
   issueOtp: { en: 'Issue one-time password', ar: 'إصدار كلمة مرور لمرة واحدة' },
   issueOtpConfirmTitle: {
     en: 'Issue one-time password?',
