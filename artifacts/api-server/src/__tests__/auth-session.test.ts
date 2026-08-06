@@ -13,8 +13,9 @@
  */
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import request from "supertest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, employeesTable } from "@workspace/db";
+import { pool as pgPool } from "@workspace/db";
 import app from "../app";
 
 // Track employee IDs created during tests so we can clean up
@@ -231,6 +232,92 @@ describe("requireAuth middleware unit behavior", () => {
       if (prev === undefined) delete process.env.PILOT_AUTH;
       else process.env.PILOT_AUTH = prev;
     }
+  });
+});
+
+describe("rolling session expiry", () => {
+  // These tests verify that active sessions have their expire time pushed
+  // forward on each request (rolling: true), so mobile users working across
+  // an 8-hour window are never forced to re-login mid-shift.
+
+  it("session expire time is extended after a subsequent authenticated request", async () => {
+    // Login via bearer-token transport (mirrors the mobile flow).
+    const login = await request(app)
+      .post("/api/auth/login")
+      .set("x-session-transport", "bearer")
+      .send({ username: "admin", password: "anypassword" });
+    expect(login.status).toBe(200);
+    const token = login.body.sessionToken as string;
+    expect(typeof token).toBe("string");
+
+    // Capture the expire timestamp immediately after login.
+    const { rows: rows1 } = await pgPool.query<{ expire: Date }>(
+      "SELECT expire FROM session WHERE sid = $1",
+      [token],
+    );
+    expect(rows1.length).toBe(1);
+    const expireBefore = rows1[0].expire.getTime();
+
+    // Wait a short but measurable time, then make another authenticated
+    // request so express-session has a chance to call store.touch().
+    await new Promise((r) => setTimeout(r, 1200));
+
+    const me = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+    expect(me.status).toBe(200);
+
+    // The store should have updated the expire column (rolling touch).
+    const { rows: rows2 } = await pgPool.query<{ expire: Date }>(
+      "SELECT expire FROM session WHERE sid = $1",
+      [token],
+    );
+    expect(rows2.length).toBe(1);
+    const expireAfter = rows2[0].expire.getTime();
+
+    // expire must have moved forward (rolling reset).
+    expect(expireAfter).toBeGreaterThan(expireBefore);
+
+    // Clean up: destroy the test session.
+    await pgPool.query("DELETE FROM session WHERE sid = $1", [token]);
+  });
+
+  it("Set-Cookie is re-sent on every authenticated response (rolling re-sends the cookie)", async () => {
+    // Login via cookie transport (mirrors the web flow).
+    const agent = request.agent(app);
+    const loginRes = await agent
+      .post("/api/auth/login")
+      .send({ username: "admin", password: "anypassword" });
+    expect(loginRes.status).toBe(200);
+
+    // The login response must carry a Set-Cookie so the agent has a session.
+    const loginCookie: string = String(loginRes.headers["set-cookie"] ?? "");
+    expect(loginCookie).toMatch(/connect\.sid/i);
+
+    // express-session encodes the expiry as an Expires= date (not Max-Age).
+    // Capture the Expires timestamp from the login cookie.
+    const expiresMatch = loginCookie.match(/Expires=([^;]+)/i);
+    expect(expiresMatch).not.toBeNull();
+    const expiresBefore = new Date(expiresMatch![1]).getTime();
+    expect(expiresBefore).toBeGreaterThan(0);
+
+    // Wait a short but measurable time, then make a follow-up request.
+    await new Promise((r) => setTimeout(r, 1200));
+
+    const meRes = await agent.get("/api/auth/me");
+    expect(meRes.status).toBe(200);
+
+    // Under rolling: express-session re-sends Set-Cookie on every response so
+    // the Expires date is pushed forward relative to the login response.
+    const meCookie: string = String(meRes.headers["set-cookie"] ?? "");
+    expect(meCookie).toMatch(/connect\.sid/i);
+
+    const meExpiresMatch = meCookie.match(/Expires=([^;]+)/i);
+    expect(meExpiresMatch).not.toBeNull();
+    const expiresAfter = new Date(meExpiresMatch![1]).getTime();
+
+    // Rolling: the follow-up Expires must be later than the login Expires.
+    expect(expiresAfter).toBeGreaterThan(expiresBefore);
   });
 });
 

@@ -107,10 +107,16 @@ app.use(session({
   secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
+  // Rolling expiry: on every response the session's expire time is reset to
+  // now + maxAge, keeping active users signed in indefinitely while idle
+  // sessions still expire after 8 h.  Both cookie and store record are
+  // updated; connect-pg-simple implements touch() which updates the `expire`
+  // column without a full resave.  Web clients benefit equally.
+  rolling: true,
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    maxAge: 8 * 60 * 60 * 1000, // 8 hours
+    maxAge: 8 * 60 * 60 * 1000, // 8 hours; reset on every response (rolling)
     sameSite: "lax",
   },
 }));
