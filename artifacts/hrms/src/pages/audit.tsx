@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Shield, Search, Lock, KeyRound, FileKey, Network, X, User } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useState } from 'react';
+import { useSearch, useLocation } from 'wouter';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -69,13 +70,39 @@ export default function Audit() {
   const [actorSearch, setActorSearch] = useState('');
   const [labelSearch, setLabelSearch] = useState('');
   const [ipSearch, setIpSearch] = useState('');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  const [pageSize, setPageSize] = useState<PageSize>(50);
-  const [page, setPage] = useState(1);
   const debouncedActor = useDebounce(actorSearch, 300);
   const debouncedLabel = useDebounce(labelSearch, 300);
   const debouncedIp = useDebounce(ipSearch, 300);
+
+  // URL-synced filter state: date range, page size, page
+  const search = useSearch();
+  const [, navigate] = useLocation();
+
+  const params = new URLSearchParams(search);
+
+  const fromDate = params.get('from') ?? '';
+  const toDate = params.get('to') ?? '';
+
+  const rawPageSize = Number(params.get('pageSize'));
+  const pageSize: PageSize = (PAGE_SIZES as readonly number[]).includes(rawPageSize)
+    ? (rawPageSize as PageSize)
+    : 50;
+
+  const rawPage = Number(params.get('page'));
+  const page = Number.isInteger(rawPage) && rawPage >= 1 ? rawPage : 1;
+
+  function updateParams(updates: Record<string, string | null>) {
+    const next = new URLSearchParams(search);
+    for (const [key, val] of Object.entries(updates)) {
+      if (val === null || val === '') {
+        next.delete(key);
+      } else {
+        next.set(key, val);
+      }
+    }
+    const qs = next.toString();
+    navigate(qs ? `?${qs}` : '?', { replace: true });
+  }
 
   const hasDateFilter = fromDate || toDate;
 
@@ -95,43 +122,38 @@ export default function Audit() {
 
   function handleActionChange(value: string) {
     setActionFilter(value);
-    setPage(1);
+    updateParams({ page: null });
   }
 
   function handleActorChange(e: React.ChangeEvent<HTMLInputElement>) {
     setActorSearch(e.target.value);
-    setPage(1);
+    updateParams({ page: null });
   }
 
   function handleLabelChange(e: React.ChangeEvent<HTMLInputElement>) {
     setLabelSearch(e.target.value);
-    setPage(1);
+    updateParams({ page: null });
   }
 
   function handleIpChange(e: React.ChangeEvent<HTMLInputElement>) {
     setIpSearch(e.target.value);
-    setPage(1);
+    updateParams({ page: null });
   }
 
   function handleFromChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setFromDate(e.target.value);
-    setPage(1);
+    updateParams({ from: e.target.value || null, page: null });
   }
 
   function handleToChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setToDate(e.target.value);
-    setPage(1);
+    updateParams({ to: e.target.value || null, page: null });
   }
 
   function handleClearDates() {
-    setFromDate('');
-    setToDate('');
-    setPage(1);
+    updateParams({ from: null, to: null, page: null });
   }
 
   function handlePageSizeChange(value: string) {
-    setPageSize(Number(value) as PageSize);
-    setPage(1);
+    updateParams({ pageSize: value, page: null });
   }
 
   return (
@@ -345,7 +367,7 @@ export default function Audit() {
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => updateParams({ page: String(Math.max(1, page - 1)) })}
                   aria-disabled={page <= 1}
                   className={page <= 1 ? 'pointer-events-none opacity-40' : 'cursor-pointer'}
                 />
@@ -357,7 +379,7 @@ export default function Audit() {
               </PaginationItem>
               <PaginationItem>
                 <PaginationNext
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() => updateParams({ page: String(Math.min(totalPages, page + 1)) })}
                   aria-disabled={page >= totalPages}
                   className={page >= totalPages ? 'pointer-events-none opacity-40' : 'cursor-pointer'}
                 />
