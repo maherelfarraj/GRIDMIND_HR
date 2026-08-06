@@ -74,7 +74,10 @@ export default function Attendance() {
     departmentId: filterDepartmentId ?? undefined,
     date: filterDate ?? undefined,
   });
-  const { data: summaryData, isLoading: loadingSummary } = useGetAttendanceDailySummary();
+  const { data: summaryData, isLoading: loadingSummary } = useGetAttendanceDailySummary({
+    date: filterDate ?? undefined,
+    departmentId: filterDepartmentId ?? undefined,
+  });
 
   const filterDepartmentName = useMemo(() => {
     if (filterDepartmentId == null) return null;
@@ -186,15 +189,7 @@ export default function Attendance() {
     }
   };
 
-  const filteredSummaryData = useMemo(() => {
-    if (!summaryData) return summaryData;
-    return summaryData.filter((s) =>
-      (filterDepartmentId == null || s.departmentId === filterDepartmentId) &&
-      (filterDate == null || s.date === filterDate)
-    );
-  }, [summaryData, filterDepartmentId, filterDate]);
-
-  const summary = filteredSummaryData ? filteredSummaryData.reduce((acc, curr) => ({
+  const summary = summaryData ? summaryData.reduce((acc, curr) => ({
     present: acc.present + curr.present,
     absent: acc.absent + curr.absent,
     late: acc.late + curr.late,

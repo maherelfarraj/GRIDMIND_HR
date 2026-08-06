@@ -39,7 +39,7 @@ router.post("/", validateBody(CreateReportDefinitionBody), async (req, res): Pro
 router.get("/:id", async (req, res): Promise<void> => {
   try {
     const [row] = await db.select().from(reportDefinitionsTable)
-      .where(eq(reportDefinitionsTable.id, parseInt(req.params.id)));
+      .where(eq(reportDefinitionsTable.id, parseInt(req.params.id as string)));
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
@@ -48,7 +48,7 @@ router.get("/:id", async (req, res): Promise<void> => {
 // PATCH /:id — update (block if isSystemReport and trying to change reportType)
 router.patch("/:id", validateBody(UpdateReportDefinitionBody), async (req, res): Promise<void> => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const [existing] = await db.select().from(reportDefinitionsTable).where(eq(reportDefinitionsTable.id, id));
     if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
@@ -70,7 +70,7 @@ router.patch("/:id", validateBody(UpdateReportDefinitionBody), async (req, res):
 // POST /:id/run — run report and produce output
 router.post("/:id/run", async (req, res): Promise<void> => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const [def] = await db.select().from(reportDefinitionsTable).where(eq(reportDefinitionsTable.id, id));
     if (!def) { res.status(404).json({ error: "Report definition not found" }); return; }
 

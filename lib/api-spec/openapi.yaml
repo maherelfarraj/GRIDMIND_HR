@@ -785,6 +785,15 @@ paths:
       operationId: getAttendanceDailySummary
       tags: [ attendance ]
       summary: Daily attendance summary by department
+      parameters:
+        - in: query
+          name: date
+          schema:
+            type: [ "string", "null" ]
+        - in: query
+          name: departmentId
+          schema:
+            type: [ "integer", "null" ]
       responses:
         "200":
           description: Daily summary

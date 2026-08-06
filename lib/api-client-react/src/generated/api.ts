@@ -219,6 +219,7 @@ import type {
   GetAnalyticsTrainingComplianceParams,
   GetAnalyticsVacancies200Item,
   GetAnalyticsVacanciesParams,
+  GetAttendanceDailySummaryParams,
   GetConfigPackage200,
   GetConnectorHealthParams,
   GetDiagnostics200,
@@ -3279,20 +3280,27 @@ export function useListAttendance<TData = Awaited<ReturnType<typeof listAttendan
 
 
 
-export const getGetAttendanceDailySummaryUrl = () => {
+export const getGetAttendanceDailySummaryUrl = (params?: GetAttendanceDailySummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/attendance/daily-summary`
+  return stringifiedParams.length > 0 ? `/api/attendance/daily-summary?${stringifiedParams}` : `/api/attendance/daily-summary`
 }
 
 /**
  * @summary Daily attendance summary by department
  */
-export const getAttendanceDailySummary = async ( options?: Parameters<typeof customFetch>[1]): Promise<AttendanceDailySummary[]> => {
+export const getAttendanceDailySummary = async (params?: GetAttendanceDailySummaryParams, options?: Parameters<typeof customFetch>[1]): Promise<AttendanceDailySummary[]> => {
 
-  return customFetch<AttendanceDailySummary[]>(getGetAttendanceDailySummaryUrl(),
+  return customFetch<AttendanceDailySummary[]>(getGetAttendanceDailySummaryUrl(params),
   {
     ...options,
     method: 'GET'
@@ -3305,23 +3313,23 @@ export const getAttendanceDailySummary = async ( options?: Parameters<typeof cus
 
 
 
-export const getGetAttendanceDailySummaryQueryKey = () => {
+export const getGetAttendanceDailySummaryQueryKey = (params?: GetAttendanceDailySummaryParams,) => {
     return [
-    `/api/attendance/daily-summary`
+    `/api/attendance/daily-summary`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetAttendanceDailySummaryQueryOptions = <TData = Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetAttendanceDailySummaryQueryOptions = <TData = Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError = ErrorType<unknown>>(params?: GetAttendanceDailySummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetAttendanceDailySummaryQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetAttendanceDailySummaryQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAttendanceDailySummary>>> = ({ signal }) => getAttendanceDailySummary({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAttendanceDailySummary>>> = ({ signal }) => getAttendanceDailySummary(params, { signal, ...requestOptions });
 
 
 
@@ -3339,11 +3347,11 @@ export type GetAttendanceDailySummaryQueryError = ErrorType<unknown>
  */
 
 export function useGetAttendanceDailySummary<TData = Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetAttendanceDailySummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetAttendanceDailySummaryQueryOptions(options)
+  const queryOptions = getGetAttendanceDailySummaryQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

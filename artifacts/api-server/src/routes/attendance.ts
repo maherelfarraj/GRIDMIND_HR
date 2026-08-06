@@ -60,14 +60,36 @@ router.get("/attendance", async (req, res): Promise<void> => {
 
 router.get("/attendance/daily-summary", async (req, res): Promise<void> => {
   const today = new Date().toISOString().slice(0, 10);
+  const targetDate = typeof req.query.date === "string" && req.query.date ? req.query.date : today;
+  const filterDepartmentId = req.query.departmentId ? Number(req.query.departmentId) : null;
+
   const orgId = await resolveOrgId(req);
-  const depts = await db.select().from(departmentsTable);
+  const deptsAll = await db.select().from(departmentsTable);
+  const depts = filterDepartmentId != null
+    ? deptsAll.filter((d) => d.id === filterDepartmentId)
+    : deptsAll;
+
+  const recordConditions = [
+    eq(attendanceRecordsTable.date, targetDate),
+    eq(attendanceRecordsTable.orgId, orgId),
+  ];
+  if (filterDepartmentId != null) {
+    recordConditions.push(eq(attendanceRecordsTable.departmentId, filterDepartmentId));
+  }
   const records = await db.select().from(attendanceRecordsTable)
-    .where(and(eq(attendanceRecordsTable.date, today), eq(attendanceRecordsTable.orgId, orgId)));
+    .where(and(...recordConditions));
+
+  const empConditions = [
+    eq(employeesTable.status, "active"),
+    eq(employeesTable.orgId, orgId),
+  ];
+  if (filterDepartmentId != null) {
+    empConditions.push(eq(employeesTable.departmentId, filterDepartmentId));
+  }
   const empCounts = await db
     .select({ deptId: employeesTable.departmentId, c: count() })
     .from(employeesTable)
-    .where(and(eq(employeesTable.status, "active"), eq(employeesTable.orgId, orgId)))
+    .where(and(...empConditions))
     .groupBy(employeesTable.departmentId);
   const empCountMap = Object.fromEntries(empCounts.map((e) => [e.deptId, e.c]));
 
@@ -82,7 +104,7 @@ router.get("/attendance/daily-summary", async (req, res): Promise<void> => {
       departmentId: d.id,
       departmentNameEn: d.nameEn,
       departmentNameAr: d.nameAr,
-      date: today,
+      date: targetDate,
       totalEmployees: total,
       present,
       absent,

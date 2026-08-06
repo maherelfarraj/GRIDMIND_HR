@@ -1009,10 +1009,13 @@ export const ListAttendanceResponseItem = zod.object({
 })
 export const ListAttendanceResponse = zod.array(ListAttendanceResponseItem)
 
-
 /**
  * @summary Daily attendance summary by department
  */
+export const GetAttendanceDailySummaryQueryParams = zod.object({
+  "date": zod.coerce.string().nullish(),
+  "departmentId": zod.coerce.number().int().nullish()
+})
 export const GetAttendanceDailySummaryResponseItem = zod.object({
   "departmentId": zod.number(),
   "departmentNameEn": zod.string(),
@@ -1459,7 +1462,6 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
-
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1500,7 +1502,6 @@ export const UnlockUserResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
-
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -18792,5 +18793,4 @@ export const UpsertOrganizationBrandingResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
-
 

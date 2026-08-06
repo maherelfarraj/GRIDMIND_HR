@@ -243,6 +243,7 @@ export * from './getAnalyticsTrainingCompliance200Item';
 export * from './getAnalyticsTrainingComplianceParams';
 export * from './getAnalyticsVacancies200Item';
 export * from './getAnalyticsVacanciesParams';
+export * from './getAttendanceDailySummaryParams';
 export * from './getConfigPackage200';
 export * from './getConnectorHealthParams';
 export * from './getDiagnostics200';

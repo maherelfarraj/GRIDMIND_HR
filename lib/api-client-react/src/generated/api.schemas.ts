@@ -6574,6 +6574,16 @@ page?: number | null;
 limit?: number | null;
 };
 
+export type GetAttendanceDailySummaryParams = {
+/**
+ * @nullable
+ */
+date?: string | null;
+/**
+ * @nullable
+ */
+departmentId?: number | null;
+};
 export type ListAlertsParams = {
 /**
  * @nullable
@@ -8667,4 +8677,3 @@ templateType?: string | null;
 export type CreateOrgReportTemplateBody = { [key: string]: unknown };
 
 export type UpsertOrganizationBrandingBody = { [key: string]: unknown };
-

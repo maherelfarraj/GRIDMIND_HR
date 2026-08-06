@@ -42,7 +42,7 @@ router.post("/", validateBody(CreateJobRequisitionBody), async (req, res): Promi
 
 router.get("/:id", async (req, res): Promise<void> => {
   try {
-    const [row] = await db.select().from(jobRequisitionsTable).where(eq(jobRequisitionsTable.id, parseInt(req.params.id)));
+    const [row] = await db.select().from(jobRequisitionsTable).where(eq(jobRequisitionsTable.id, parseInt(req.params.id as string)));
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
@@ -50,7 +50,7 @@ router.get("/:id", async (req, res): Promise<void> => {
 
 router.patch("/:id", validateBody(UpdateJobRequisitionBody), async (req, res): Promise<void> => {
   try {
-    const [row] = await db.update(jobRequisitionsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(jobRequisitionsTable.id, parseInt(req.params.id))).returning();
+    const [row] = await db.update(jobRequisitionsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(jobRequisitionsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "job_requisition", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
@@ -61,7 +61,7 @@ router.patch("/:id/approve", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(jobRequisitionsTable)
       .set({ status: "approved", approvedByEmployeeId: (req as any).user?.employeeId, approvedAt: new Date(), updatedAt: new Date() })
-      .where(eq(jobRequisitionsTable.id, parseInt(req.params.id)))
+      .where(eq(jobRequisitionsTable.id, parseInt(req.params.id as string)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "approve", entityType: "job_requisition", entityId: row.id, changesJson: JSON.stringify({ status: "approved" }) });
@@ -74,7 +74,7 @@ router.patch("/:id/reject", async (req, res): Promise<void> => {
     const { rejectionReason } = req.body;
     const [row] = await db.update(jobRequisitionsTable)
       .set({ status: "rejected", rejectionReason, updatedAt: new Date() })
-      .where(eq(jobRequisitionsTable.id, parseInt(req.params.id)))
+      .where(eq(jobRequisitionsTable.id, parseInt(req.params.id as string)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "reject", entityType: "job_requisition", entityId: row.id, changesJson: JSON.stringify({ rejectionReason }) });

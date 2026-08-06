@@ -41,7 +41,7 @@ router.post("/", validateBody(CreateApplicantBody), async (req, res): Promise<vo
 
 router.get("/:id", async (req, res): Promise<void> => {
   try {
-    const [row] = await db.select().from(applicantsTable).where(eq(applicantsTable.id, parseInt(req.params.id)));
+    const [row] = await db.select().from(applicantsTable).where(eq(applicantsTable.id, parseInt(req.params.id as string)));
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
@@ -49,7 +49,7 @@ router.get("/:id", async (req, res): Promise<void> => {
 
 router.patch("/:id", validateBody(UpdateApplicantBody), async (req, res): Promise<void> => {
   try {
-    const [row] = await db.update(applicantsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(applicantsTable.id, parseInt(req.params.id))).returning();
+    const [row] = await db.update(applicantsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(applicantsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "applicant", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);

@@ -43,7 +43,7 @@ router.post("/", validateBody(CreateApplicationBody), async (req, res): Promise<
 
 router.get("/:id", async (req, res): Promise<void> => {
   try {
-    const [row] = await db.select().from(applicationsTable).where(eq(applicationsTable.id, parseInt(req.params.id)));
+    const [row] = await db.select().from(applicationsTable).where(eq(applicationsTable.id, parseInt(req.params.id as string)));
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
@@ -51,7 +51,7 @@ router.get("/:id", async (req, res): Promise<void> => {
 
 router.patch("/:id", validateBody(UpdateApplicationBody), async (req, res): Promise<void> => {
   try {
-    const [row] = await db.update(applicationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(applicationsTable.id, parseInt(req.params.id))).returning();
+    const [row] = await db.update(applicationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(applicationsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "update", entityType: "application", entityId: row.id, changesJson: JSON.stringify(req.body) });
     res.json(row);
@@ -62,7 +62,7 @@ router.post("/:id/shortlist", async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(applicationsTable)
       .set({ status: "shortlisted", shortlistedAt: new Date(), shortlistedByUserId: (req as any).user?.id ?? 0, updatedAt: new Date() })
-      .where(eq(applicationsTable.id, parseInt(req.params.id)))
+      .where(eq(applicationsTable.id, parseInt(req.params.id as string)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "shortlist", entityType: "application", entityId: row.id, changesJson: JSON.stringify({ status: "shortlisted" }) });
@@ -75,7 +75,7 @@ router.post("/:id/reject", async (req, res): Promise<void> => {
     const { reason } = req.body;
     const [row] = await db.update(applicationsTable)
       .set({ status: "rejected", rejectionReason: reason, rejectedAt: new Date(), updatedAt: new Date() })
-      .where(eq(applicationsTable.id, parseInt(req.params.id)))
+      .where(eq(applicationsTable.id, parseInt(req.params.id as string)))
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "reject", entityType: "application", entityId: row.id, changesJson: JSON.stringify({ reason }) });
