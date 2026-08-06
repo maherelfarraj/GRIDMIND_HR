@@ -81,6 +81,7 @@ export default function Devices() {
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmStatusOpen, setConfirmStatusOpen] = useState(false);
+  const [confirmRestartOpen, setConfirmRestartOpen] = useState(false);
   const [registerForm, setRegisterForm] = useState<AttendanceDeviceInput>(emptyDeviceForm);
   const [editForm, setEditForm] = useState({ name: '', ipAddress: '', location: '', locationAr: '', firmwareVersion: '', notes: '' });
 
@@ -417,7 +418,7 @@ export default function Devices() {
                       size="sm"
                       data-testid="button-restart-device"
                       disabled={restartDevice.isPending || restartInFlight}
-                      onClick={() => restartDevice.mutate({ id: deviceDetail.id })}
+                      onClick={() => setConfirmRestartOpen(true)}
                     >
                       {restartInFlight ? (
                         <Loader2 className="w-4 h-4 me-2 animate-spin" />
@@ -457,33 +458,50 @@ export default function Devices() {
                 </div>
 
                 {/* Restart command feedback */}
-                {latestRestart && (
-                  <div
-                    className={`flex items-center gap-2 text-sm rounded-md border p-3 ${
-                      latestRestart.status === 'ACKNOWLEDGED'
-                        ? 'border-emerald-500/40 bg-emerald-500/5'
-                        : latestRestart.status === 'FAILED' || latestRestart.status === 'EXPIRED'
-                          ? 'border-destructive/40 bg-destructive/5'
-                          : 'border-border bg-muted/40'
-                    }`}
-                    data-testid="text-restart-status"
-                  >
-                    {latestRestart.status === 'ACKNOWLEDGED' ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                    ) : latestRestart.status === 'FAILED' || latestRestart.status === 'EXPIRED' ? (
-                      <XCircle className="w-4 h-4 text-destructive shrink-0" />
-                    ) : (
-                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                    )}
-                    <span>
-                      {latestRestart.status === 'PENDING' && t('Restart queued — waiting for the site gateway to pick it up.', 'إعادة التشغيل في قائمة الانتظار — بانتظار استلام بوابة الموقع.')}
-                      {latestRestart.status === 'DELIVERED' && t('Restart delivered to the gateway — waiting for confirmation.', 'تم تسليم إعادة التشغيل إلى البوابة — بانتظار التأكيد.')}
-                      {latestRestart.status === 'ACKNOWLEDGED' && t('Restart confirmed by the gateway', 'تم تأكيد إعادة التشغيل من البوابة') + (latestRestart.acknowledgedAt ? ` — ${new Date(latestRestart.acknowledgedAt).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US')}` : '')}
-                      {latestRestart.status === 'FAILED' && (t('Restart failed', 'فشلت إعادة التشغيل') + (latestRestart.resultMessage ? `: ${latestRestart.resultMessage}` : ''))}
-                      {latestRestart.status === 'EXPIRED' && t('Restart expired — the gateway never picked it up. Check the site gateway and try again.', 'انتهت صلاحية إعادة التشغيل — لم تستلمها البوابة. تحقق من بوابة الموقع وحاول مجددًا.')}
-                    </span>
-                  </div>
-                )}
+                {latestRestart && (() => {
+                  const isNotRegistered =
+                    latestRestart.status === 'FAILED' &&
+                    !!latestRestart.resultMessage &&
+                    /not registered/i.test(latestRestart.resultMessage);
+                  return (
+                    <div
+                      className={`flex items-start gap-2 text-sm rounded-md border p-3 ${
+                        latestRestart.status === 'ACKNOWLEDGED'
+                          ? 'border-emerald-500/40 bg-emerald-500/5'
+                          : isNotRegistered
+                            ? 'border-amber-500/60 bg-amber-500/10'
+                            : latestRestart.status === 'FAILED' || latestRestart.status === 'EXPIRED'
+                              ? 'border-destructive/40 bg-destructive/5'
+                              : 'border-border bg-muted/40'
+                      }`}
+                      data-testid="text-restart-status"
+                    >
+                      {latestRestart.status === 'ACKNOWLEDGED' ? (
+                        <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                      ) : isNotRegistered ? (
+                        <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      ) : latestRestart.status === 'FAILED' || latestRestart.status === 'EXPIRED' ? (
+                        <XCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                      ) : (
+                        <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5" />
+                      )}
+                      <span className={isNotRegistered ? 'text-amber-700 dark:text-amber-400' : undefined}>
+                        {latestRestart.status === 'PENDING' && t('Restart queued — waiting for the site gateway to pick it up.', 'إعادة التشغيل في قائمة الانتظار — بانتظار استلام بوابة الموقع.')}
+                        {latestRestart.status === 'DELIVERED' && t('Restart delivered to the gateway — waiting for confirmation.', 'تم تسليم إعادة التشغيل إلى البوابة — بانتظار التأكيد.')}
+                        {latestRestart.status === 'ACKNOWLEDGED' && t('Restart confirmed by the gateway', 'تم تأكيد إعادة التشغيل من البوابة') + (latestRestart.acknowledgedAt ? ` — ${new Date(latestRestart.acknowledgedAt).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US')}` : '')}
+                        {latestRestart.status === 'FAILED' && isNotRegistered && (
+                          <>
+                            <strong>{t('Terminal not registered on middleware', 'الجهاز غير مسجل في البرنامج الوسيط')}</strong>
+                            {` — ${latestRestart.resultMessage} `}
+                            {t('Verify the serial number mapped to this device matches the terminal registered in the gateway middleware.', 'تحقق من أن الرقم التسلسلي المرتبط بهذا الجهاز يطابق الجهاز المسجل في البرنامج الوسيط للبوابة.')}
+                          </>
+                        )}
+                        {latestRestart.status === 'FAILED' && !isNotRegistered && (t('Restart failed', 'فشلت إعادة التشغيل') + (latestRestart.resultMessage ? `: ${latestRestart.resultMessage}` : ''))}
+                        {latestRestart.status === 'EXPIRED' && t('Restart expired — the gateway never picked it up. Check the site gateway and try again.', 'انتهت صلاحية إعادة التشغيل — لم تستلمها البوابة. تحقق من بوابة الموقع وحاول مجددًا.')}
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 {/* Specs Grid */}
                 <div>
@@ -816,6 +834,45 @@ export default function Devices() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Restart Confirmation */}
+      <AlertDialog open={confirmRestartOpen} onOpenChange={setConfirmRestartOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Restart this device?', 'إعادة تشغيل هذا الجهاز؟')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                'The site gateway will send a remote restart command to the terminal with the following serial number:',
+                'ستُرسل بوابة الموقع أمر إعادة تشغيل عن بُعد إلى الجهاز ذي الرقم التسلسلي التالي:'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2" data-testid="text-restart-serial">
+            <Cpu className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="font-mono text-sm font-semibold">{deviceDetail?.serialNumber ?? '—'}</span>
+            <span className="text-xs text-muted-foreground">({deviceDetail?.name})</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t(
+              'If this serial does not match the terminal registered in the middleware, the command will fail. Verify the mapping before confirming.',
+              'إذا كان هذا الرقم لا يطابق الجهاز المسجل في البرنامج الوسيط، فسيفشل الأمر. تحقق من التعيين قبل التأكيد.'
+            )}
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('Cancel', 'إلغاء')}</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-restart"
+              disabled={restartDevice.isPending}
+              onClick={() => {
+                setConfirmRestartOpen(false);
+                if (deviceDetail) restartDevice.mutate({ id: deviceDetail.id });
+              }}
+            >
+              {t('Send Restart', 'إرسال أمر إعادة التشغيل')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Deactivate Confirmation */}
       <AlertDialog open={confirmStatusOpen} onOpenChange={setConfirmStatusOpen}>
