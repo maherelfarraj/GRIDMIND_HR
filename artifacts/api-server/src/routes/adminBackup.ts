@@ -6,6 +6,10 @@ import { runBackup, retryOffsiteUploads, retryOffsiteUploadForRecord } from "../
 
 const router = Router();
 
+function actorId(req: any): number {
+  return req.session?.userId ?? 1;
+}
+
 // GET /admin/backup-schedule — live scheduler status
 router.get("/admin/backup-schedule", (req, res): void => {
   res.json(getBackupScheduleStatus());
@@ -13,40 +17,49 @@ router.get("/admin/backup-schedule", (req, res): void => {
 
 // GET /admin/backup — latest backup summary (used by pilot control center)
 router.get("/admin/backup", async (req, res): Promise<void> => {
-  const [backup] = await db
-    .select()
-    .from(backupRecordsTable)
-    .orderBy(desc(backupRecordsTable.startedAt))
-    .limit(1);
-  res.json({ backup: backup ?? null });
+  try {
+    const [backup] = await db
+      .select()
+      .from(backupRecordsTable)
+      .orderBy(desc(backupRecordsTable.startedAt))
+      .limit(1);
+    res.json({ backup: backup ?? null });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /admin/backup-records
 router.get("/admin/backup-records", async (req, res): Promise<void> => {
-  const { status, backupType } = req.query as Record<string, string>;
+  try {
+    const { status, backupType } = req.query as Record<string, string>;
 
-  const conditions = [];
-  if (status) conditions.push(eq(backupRecordsTable.status, status));
-  if (backupType) conditions.push(eq(backupRecordsTable.backupType, backupType));
+    const conditions = [];
+    if (status) conditions.push(eq(backupRecordsTable.status, status));
+    if (backupType) conditions.push(eq(backupRecordsTable.backupType, backupType));
 
-  const rows = conditions.length
-    ? await db.select().from(backupRecordsTable).where(and(...conditions)).orderBy(desc(backupRecordsTable.startedAt))
-    : await db.select().from(backupRecordsTable).orderBy(desc(backupRecordsTable.startedAt));
+    const rows = conditions.length
+      ? await db.select().from(backupRecordsTable).where(and(...conditions)).orderBy(desc(backupRecordsTable.startedAt))
+      : await db.select().from(backupRecordsTable).orderBy(desc(backupRecordsTable.startedAt));
 
-  res.json(rows);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /admin/backup-records/run — execute a REAL pg_dump backup
 router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
   try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
+    const actorUserId = actorId(req);
     const { backupType, notes } = req.body ?? {};
 
-    const record = await runBackup({
-      backupType: backupType ?? "full",
-      initiatedByUserId: actorUserId,
-      notes: notes ?? null,
-    });
+    if (!backupType) {
+      res.status(400).json({ error: "backupType is required" });
+      return;
+    }
+
+    const record = await runBackup({ backupType, notes: notes ?? null, initiatedByUserId: actorUserId });
 
     await db.insert(auditLogsTable).values({
       action: "create",
@@ -73,33 +86,6 @@ router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
   }
 });
 
-// POST /admin/backup-records — legacy endpoint (runs pg_dump)
-router.post("/admin/backup-records", async (req, res): Promise<void> => {
-  try {
-    const actorUserId: number = (req as any).session?.userId ?? 1;
-    const { backupType, notes } = req.body ?? {};
-
-    if (!backupType) {
-      res.status(400).json({ error: "backupType is required" });
-      return;
-    }
-
-    const record = await runBackup({
-      backupType,
-      initiatedByUserId: actorUserId,
-      notes: notes ?? null,
-    });
-
-    if (record.status !== "completed") {
-      res.status(500).json({ error: record.errorMessage ?? "Backup failed", record });
-      return;
-    }
-    res.status(201).json(record);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // POST /admin/backup-records/retry-offsite — bulk sweep: re-upload all failed/missing offsite copies
 router.post("/admin/backup-records/retry-offsite", async (req, res): Promise<void> => {
   try {
@@ -110,10 +96,14 @@ router.post("/admin/backup-records/retry-offsite", async (req, res): Promise<voi
   }
 });
 
-// POST /admin/backup-records/:id/retry-offsite — re-upload offsite copy for a single record
+// POST /admin/backup-records/:id/retry-offsite — retry offsite upload for a single record
 router.post("/admin/backup-records/:id/retry-offsite", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
     const record = await retryOffsiteUploadForRecord(id);
     res.json(record);
   } catch (err: any) {
@@ -124,27 +114,35 @@ router.post("/admin/backup-records/:id/retry-offsite", async (req, res): Promise
   }
 });
 
-// POST /admin/backup-records/:id/verify
-router.post("/admin/backup-records/:id/verify", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
-  const { verificationNotes, restoreTestResult } = req.body;
+// PATCH /admin/backup-records/:id/verify — mark a backup record as manually verified
+router.patch("/admin/backup-records/:id/verify", async (req, res): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) {
+      res.status(404).json({ error: "Backup record not found" });
+      return;
+    }
+    const { verificationNotes, restoreTestResult } = req.body ?? {};
 
-  const [row] = await db
-    .update(backupRecordsTable)
-    .set({
-      isVerified: true,
-      verifiedAt: new Date(),
-      verificationNotes: verificationNotes ?? null,
-      restoreTestResult: restoreTestResult ?? "restored_ok",
-    })
-    .where(eq(backupRecordsTable.id, id))
-    .returning();
+    const [row] = await db
+      .update(backupRecordsTable)
+      .set({
+        isVerified: true,
+        verifiedAt: new Date(),
+        verificationNotes: verificationNotes ?? null,
+        restoreTestResult: restoreTestResult ?? "restored_ok",
+      })
+      .where(eq(backupRecordsTable.id, id))
+      .returning();
 
-  if (!row) {
-    res.status(404).json({ error: "Backup record not found" });
-    return;
+    if (!row) {
+      res.status(404).json({ error: "Backup record not found" });
+      return;
+    }
+    res.json(row);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
-  res.json(row);
 });
 
 export default router;
