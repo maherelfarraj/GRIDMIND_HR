@@ -11,6 +11,7 @@ import {
   LoadingView,
   ScreenHeader,
 } from '@/components/ui';
+import { NotificationBell } from '@/components/NotificationBell';
 import { useColors } from '@/hooks/useColors';
 import { useI18n } from '@/lib/i18n';
 import {
@@ -148,7 +149,12 @@ export default function ApprovalsScreen() {
       <ScreenHeader
         title={t('approvals')}
         subtitle={`${t('pendingQueue')} · ${t('updatedLive')}`}
-        right={<LangToggle />}
+        right={
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <NotificationBell />
+            <LangToggle />
+          </View>
+        }
       />
       {approvals.isLoading ? (
         <LoadingView />

@@ -9,6 +9,7 @@ import {
   LoadingView,
   ScreenHeader,
 } from '@/components/ui';
+import { NotificationBell } from '@/components/NotificationBell';
 import { useColors } from '@/hooks/useColors';
 import { useI18n } from '@/lib/i18n';
 import { useListAnnouncements } from '@workspace/api-client-react';
@@ -86,7 +87,12 @@ export default function AnnouncementsScreen() {
       <ScreenHeader
         title={t('announcements')}
         subtitle={t('updatedLive')}
-        right={<LangToggle />}
+        right={
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <NotificationBell />
+            <LangToggle />
+          </View>
+        }
       />
       {announcements.isLoading ? (
         <LoadingView />
