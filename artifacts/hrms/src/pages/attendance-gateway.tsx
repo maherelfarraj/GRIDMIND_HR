@@ -114,15 +114,26 @@ export default function AttendanceGateway() {
 
   const reconcileNowMutation = useReconcileGatewayRegistration({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         queryClient.invalidateQueries({ queryKey: getListGatewayRegistrationsQueryKey() });
-        toast({
-          title: t('Reconcile queued', 'تمت جدولة المطابقة'),
-          description: t(
-            'The command will be delivered with the gateway\'s next heartbeat; the outcome appears here once the gateway acknowledges it.',
-            'سيتم تسليم الأمر مع نبضة البوابة التالية؛ ستظهر النتيجة هنا بمجرد تأكيد البوابة.',
-          ),
-        });
+        if (data.gatewayOfflineWarning) {
+          toast({
+            title: t('Reconcile queued — gateway offline', 'تمت جدولة المطابقة — البوابة غير متصلة'),
+            description: t(
+              'The command has been queued but the gateway appears offline. It will be delivered once the gateway reconnects.',
+              'تمت جدولة الأمر لكن البوابة تبدو غير متصلة. سيتم التسليم بمجرد إعادة اتصال البوابة.',
+            ),
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: t('Reconcile queued', 'تمت جدولة المطابقة'),
+            description: t(
+              'The command will be delivered with the gateway\'s next heartbeat; the outcome appears here once the gateway acknowledges it.',
+              'سيتم تسليم الأمر مع نبضة البوابة التالية؛ ستظهر النتيجة هنا بمجرد تأكيد البوابة.',
+            ),
+          });
+        }
       },
       onError: (e: Error) => {
         toast({

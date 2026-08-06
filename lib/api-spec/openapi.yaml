@@ -926,7 +926,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DeviceCommand"
+                allOf:
+                  - $ref: "#/components/schemas/DeviceCommand"
+                  - type: object
+                    properties:
+                      # Present when the gateway for this device appears offline; the command
+                      # has been queued but delivery is uncertain until the gateway reconnects.
+                      gatewayOfflineWarning:
+                        type: string
         "409":
           description: No active gateway for this device, or a restart is already pending
 
@@ -8514,7 +8521,14 @@ paths:
           description: Reconcile command queued
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DeviceCommand' }
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DeviceCommand'
+                  - type: object
+                    properties:
+                      # Present when the target gateway appears offline; the command has
+                      # been queued but delivery is uncertain until the gateway reconnects.
+                      gatewayOfflineWarning: { type: string }
         '401': { description: Authentication required }
         '404': { description: Not found }
         '409': { description: Gateway not ACTIVE or reconcile already in-flight }

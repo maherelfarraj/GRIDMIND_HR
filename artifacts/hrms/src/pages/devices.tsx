@@ -147,12 +147,23 @@ export default function Devices() {
 
   const restartDevice = useRestartDevice({
     mutation: {
-      onSuccess: (_data, vars) => {
+      onSuccess: (data, vars) => {
         queryClient.invalidateQueries({ queryKey: getListDeviceCommandsQueryKey(vars.id) });
-        toast({
-          title: t('Restart queued', 'تمت جدولة إعادة التشغيل'),
-          description: t('The site gateway will deliver the restart on its next check-in.', 'ستوصل بوابة الموقع أمر إعادة التشغيل عند التحقق التالي.'),
-        });
+        if (data.gatewayOfflineWarning) {
+          toast({
+            variant: 'destructive',
+            title: t('Restart queued — gateway offline', 'تمت جدولة إعادة التشغيل — البوابة غير متصلة'),
+            description: t(
+              'The command has been queued but the gateway appears offline. It will be delivered once the gateway reconnects.',
+              'تمت جدولة الأمر لكن البوابة تبدو غير متصلة. سيتم التسليم بمجرد إعادة اتصال البوابة.',
+            ),
+          });
+        } else {
+          toast({
+            title: t('Restart queued', 'تمت جدولة إعادة التشغيل'),
+            description: t('The site gateway will deliver the restart on its next check-in.', 'ستوصل بوابة الموقع أمر إعادة التشغيل عند التحقق التالي.'),
+          });
+        }
       },
       onError: (error: unknown) => {
         const status = (error as { status?: number })?.status;

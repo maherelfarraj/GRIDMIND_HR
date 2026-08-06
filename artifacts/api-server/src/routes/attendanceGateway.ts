@@ -1126,12 +1126,22 @@ gatewayAdminRouter.post("/gateway/registrations/:id/reconcile", async (req, res)
     actorUserId: session.userId ?? null,
     changesJson: JSON.stringify({ commandId: command.id }),
   });
+  // Warn the admin when the gateway appears offline so they know delivery may
+  // be delayed. Mirrors the same silent computation used in GET /gateway/registrations.
+  const now = Date.now();
+  const lastContact = reg.lastHeartbeatAt ?? reg.lastSeenAt ?? reg.createdAt;
+  const thresholdMs = effectiveSilenceThresholdMs(reg.silenceThresholdMinutes);
+  const silent = reg.status === "ACTIVE" && (!lastContact || now - new Date(lastContact).getTime() > thresholdMs);
+  const gatewayOfflineWarning = silent
+    ? "Gateway appears offline — this command has been queued but will not be delivered until the gateway reconnects."
+    : undefined;
   res.status(201).json({
     ...command,
     deliveredAt: command.deliveredAt ? command.deliveredAt.toISOString() : null,
     acknowledgedAt: command.acknowledgedAt ? command.acknowledgedAt.toISOString() : null,
     createdAt: command.createdAt.toISOString(),
     updatedAt: command.updatedAt.toISOString(),
+    ...(gatewayOfflineWarning !== undefined ? { gatewayOfflineWarning } : {}),
   });
 });
 

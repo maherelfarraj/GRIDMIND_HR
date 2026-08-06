@@ -986,6 +986,7 @@ export const ListAttendanceQueryParams = zod.object({
   "page": zod.coerce.number().int().nullish(),
   "limit": zod.coerce.number().int().nullish()
 })
+
 export const ListAttendanceResponse = zod.object({
   "data": zod.array(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
@@ -1012,6 +1013,7 @@ export const ListAttendanceResponse = zod.object({
   "limit": zod.number()
 })
 
+
 /**
  * @summary Daily attendance summary by department
  */
@@ -1019,6 +1021,7 @@ export const GetAttendanceDailySummaryQueryParams = zod.object({
   "date": zod.coerce.string().nullish(),
   "departmentId": zod.coerce.number().int().nullish()
 })
+
 export const GetAttendanceDailySummaryResponseItem = zod.object({
   "departmentId": zod.number(),
   "departmentNameEn": zod.string(),
@@ -1230,7 +1233,9 @@ export const RestartDeviceResponse = zod.object({
   "outcomeNotifiedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
-})
+}).and(zod.object({
+  "gatewayOfflineWarning": zod.string().optional()
+}))
 
 
 /**
@@ -1465,6 +1470,7 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
+
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1505,6 +1511,7 @@ export const UnlockUserResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
+
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -14672,7 +14679,9 @@ export const ReconcileGatewayRegistrationResponse = zod.object({
   "outcomeNotifiedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
-})
+}).and(zod.object({
+  "gatewayOfflineWarning": zod.string().optional()
+}))
 
 
 /**
@@ -18796,3 +18805,5 @@ export const UpsertOrganizationBrandingResponse = zod.object({
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
+
+

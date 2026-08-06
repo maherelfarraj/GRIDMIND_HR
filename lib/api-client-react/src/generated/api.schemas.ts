@@ -830,6 +830,7 @@ export interface AttendanceListResponse {
   page: number;
   limit: number;
 }
+
 export interface AttendanceDailySummary {
   departmentId: number;
   departmentNameEn: string;
@@ -6590,6 +6591,11 @@ date?: string | null;
  */
 departmentId?: number | null;
 };
+
+export type RestartDevice201 = DeviceCommand & {
+  gatewayOfflineWarning?: string;
+};
+
 export type ListAlertsParams = {
 /**
  * @nullable
@@ -7769,6 +7775,10 @@ export type CreateGatewayRegistration201 = GatewayRegistration & {
   secret?: string;
 };
 
+export type ReconcileGatewayRegistration201 = DeviceCommand & {
+  gatewayOfflineWarning?: string;
+};
+
 export type CancelGatewayConnectionTest200 = GatewayRegistration & {
   /** True if connTestRequestedAt was cleared; false if it was already null */
   cancelled?: boolean;
@@ -8683,3 +8693,4 @@ templateType?: string | null;
 export type CreateOrgReportTemplateBody = { [key: string]: unknown };
 
 export type UpsertOrganizationBrandingBody = { [key: string]: unknown };
+

@@ -12,7 +12,7 @@ import {
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { CreateDeviceBody, UpdateDeviceBody } from "@workspace/api-zod";
 import { requireAuth, getActorUserId } from "../middleware/requireAuth.js";
-import { deviceConnectivityVerdict } from "../lib/gatewayDeviceAlerts.js";
+import { deviceConnectivityVerdict, effectiveSilenceThresholdMs } from "../lib/gatewayDeviceAlerts.js";
 import { notifyCommandOutcomes, DEVICE_COMMAND_TTL_MS } from "../lib/deviceCommandNotifications.js";
 export { DEVICE_COMMAND_TTL_MS };
 
@@ -341,7 +341,19 @@ router.post("/devices/:id/restart", async (req, res): Promise<void> => {
     actorUserId,
     changesJson: JSON.stringify({ commandId: command.id, registrationId: reg.id }),
   });
-  res.status(201).json(serializeCommand(command));
+  // Warn the admin when the gateway appears offline so they know delivery may
+  // be delayed. Mirrors the same silent computation used in GET /gateway/registrations.
+  const now = Date.now();
+  const lastContact = reg.lastHeartbeatAt ?? reg.lastSeenAt ?? reg.createdAt;
+  const thresholdMs = effectiveSilenceThresholdMs(reg.silenceThresholdMinutes);
+  const silent = reg.status === "ACTIVE" && (!lastContact || now - new Date(lastContact).getTime() > thresholdMs);
+  const gatewayOfflineWarning = silent
+    ? "Gateway appears offline — this command has been queued but will not be delivered until the gateway reconnects."
+    : undefined;
+  res.status(201).json({
+    ...serializeCommand(command),
+    ...(gatewayOfflineWarning !== undefined ? { gatewayOfflineWarning } : {}),
+  });
 });
 
 // GET /devices/:id/commands — recent commands (restart feedback for the UI)
