@@ -2,18 +2,21 @@ import { useLanguage } from '@/hooks/use-language';
 import { localName, localFullName } from '@/lib/localise';
 import { useAuth } from '@/hooks/use-auth';
 import { useListEmployees, useCreateEmployee } from '@workspace/api-client-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Search, Filter, Plus, FileDown, MoreHorizontal, User } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search, Plus, FileDown, MoreHorizontal, CalendarX2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { useState } from 'react';
 
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
+
+type StatusFilter = 'all' | 'active' | 'on_leave' | 'terminated';
 
 export default function Employees() {
   const { t, lang } = useLanguage();
@@ -22,11 +25,13 @@ export default function Employees() {
   // Role IDs: 1=super_admin, 2=hr_manager, 3=payroll_admin, 4=supervisor, 5=employee
   const isAdmin = user ? user.roleId <= 2 : false; // admin/hr_manager only
   const [search, setSearch] = useState('');
-  
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+
   const { data: employeesData, isLoading } = useListEmployees({
-    search: search || undefined
+    search: search || undefined,
+    status: statusFilter === 'all' ? undefined : statusFilter,
   });
-  
+
   const createEmployee = useCreateEmployee();
 
   const getStatusBadge = (status: string) => {
@@ -40,6 +45,16 @@ export default function Employees() {
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  const formatTerminationDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    // Use locale-aware formatting
+    return date.toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
   };
 
   return (
@@ -68,17 +83,24 @@ export default function Employees() {
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input 
+              <Input
                 placeholder={t('Search by name, ID, or email...', 'ابحث بالاسم أو الهوية أو البريد...')}
                 className="ps-9"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <Button variant="outline" className="shrink-0">
-              <Filter className="w-4 h-4 me-2" />
-              {t('Filters', 'تصنيف')}
-            </Button>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+              <SelectTrigger className="w-full sm:w-44 shrink-0">
+                <SelectValue placeholder={t('Filter by status', 'تصنيف حسب الحالة')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('All employees', 'جميع الموظفين')}</SelectItem>
+                <SelectItem value="active">{t('Active', 'نشط')}</SelectItem>
+                <SelectItem value="on_leave">{t('On leave', 'في إجازة')}</SelectItem>
+                <SelectItem value="terminated">{t('Leavers', 'المغادرون')}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -145,7 +167,18 @@ export default function Employees() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {getStatusBadge(employee.status)}
+                      <div className="flex flex-col gap-1">
+                        {getStatusBadge(employee.status)}
+                        {employee.terminationDate && (
+                          <span className="flex items-center gap-1 text-xs text-destructive/80 mt-0.5">
+                            <CalendarX2 className="w-3 h-3 shrink-0" />
+                            {t(
+                              `Leaving ${formatTerminationDate(employee.terminationDate)}`,
+                              `مغادرة ${formatTerminationDate(employee.terminationDate)}`
+                            )}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-end">
                       {isAdmin && (
@@ -159,7 +192,7 @@ export default function Employees() {
               )}
             </TableBody>
           </Table>
-          
+
           </div>
           {!isLoading && employeesData && (
             <div className="p-4 border-t text-sm text-muted-foreground flex justify-between items-center">
