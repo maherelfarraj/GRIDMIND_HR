@@ -27,7 +27,9 @@ import {
   Building2,
   BadgeCheck,
   Clock,
+  Download,
 } from 'lucide-react';
+import { buildWebPayslipHtml, printPayslipHtml } from '@/lib/payslip-pdf-html';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -110,6 +112,14 @@ export default function PayrollPayslip() {
   const { employee, period, summary, earnings, deductions, hasException, exceptionNote, calculatedAt } = payslip;
   const currency = summary.currency || 'SAR';
 
+  const handleDownloadPdf = () => {
+    const periodLabel = lang === 'ar' && period.nameAr ? period.nameAr : period.nameEn;
+    const empLabel = lang === 'ar' ? employee.fullNameAr || employee.fullNameEn : employee.fullNameEn;
+    const html = buildWebPayslipHtml(payslip, lang, t);
+    const filename = `${t('Payslip', 'قسيمة-الراتب')} - ${empLabel} - ${periodLabel}`;
+    printPayslipHtml(html, filename);
+  };
+
   const totalEarnings = parseFloat(summary.totalEarnings ?? summary.grossSalary);
   const totalDeductions = parseFloat(summary.totalDeductions);
   const netSalary = parseFloat(summary.netSalary);
@@ -133,10 +143,16 @@ export default function PayrollPayslip() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           {t('Back to Payroll', 'العودة إلى الرواتب')}
         </Button>
-        <Button size="sm" onClick={() => window.print()}>
-          <Printer className="h-4 w-4 mr-2" />
-          {t('Print', 'طباعة')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={handleDownloadPdf}>
+            <Download className="h-4 w-4 mr-2" />
+            {t('Download PDF', 'تنزيل PDF')}
+          </Button>
+          <Button size="sm" onClick={() => window.print()}>
+            <Printer className="h-4 w-4 mr-2" />
+            {t('Print', 'طباعة')}
+          </Button>
+        </div>
       </div>
 
       {/* ── Printable card ── */}
@@ -389,6 +405,10 @@ export default function PayrollPayslip() {
               <Button variant="outline" onClick={() => navigate('/payroll')}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 {t('Back', 'رجوع')}
+              </Button>
+              <Button variant="outline" onClick={handleDownloadPdf}>
+                <Download className="h-4 w-4 mr-2" />
+                {t('Download PDF', 'تنزيل PDF')}
               </Button>
               <Button onClick={() => window.print()}>
                 <Printer className="h-4 w-4 mr-2" />

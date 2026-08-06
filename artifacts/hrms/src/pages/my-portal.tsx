@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'wouter';
 import { useLanguage } from '@/hooks/use-language';
 import { localName } from '@/lib/localise';
 import { useQueryClient } from '@tanstack/react-query';
@@ -30,7 +31,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { User, CalendarOff, Receipt, FileText, Bell } from 'lucide-react';
+import { User, CalendarOff, Receipt, FileText, Bell, FileDown } from 'lucide-react';
 
 function fmtDate(d?: string | null) {
   if (!d) return '—';
@@ -112,6 +113,7 @@ function NewRequestDialog({ open, onClose, employeeId }: { open: boolean; onClos
 export default function MyPortal() {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
+  const [, navigate] = useLocation();
   const employeeId = user?.employeeId ?? 0;
   const [showNewRequest, setShowNewRequest] = useState(false);
 
@@ -235,11 +237,12 @@ export default function MyPortal() {
                     <TableHead>{t('Period ID', 'رقم الفترة')}</TableHead>
                     <TableHead>{t('Status', 'الحالة')}</TableHead>
                     <TableHead>{t('Calculated At', 'تاريخ الاحتساب')}</TableHead>
+                    <TableHead className="text-right">{t('Actions', 'الإجراءات')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {payrollRuns.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">{t('No payroll runs found', 'لا توجد دورات رواتب')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">{t('No payroll runs found', 'لا توجد دورات رواتب')}</TableCell></TableRow>
                   ) : payrollRuns.map((p: any) => (
                     <TableRow key={p.id}>
                       <TableCell>#{p.id}</TableCell>
@@ -248,6 +251,17 @@ export default function MyPortal() {
                         <Badge variant="outline" className="capitalize text-xs">{p.status}</Badge>
                       </TableCell>
                       <TableCell>{fmtDate(p.calculatedAt)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigate(`/payroll/payslip/${p.id}`)}
+                          disabled={p.status !== 'calculated' && p.status !== 'approved' && p.status !== 'paid'}
+                        >
+                          <FileDown className="h-3.5 w-3.5 mr-1" />
+                          {t('View PDF', 'عرض PDF')}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
