@@ -2,6 +2,7 @@ import { and, eq, gte, ilike, inArray } from "drizzle-orm";
 import { db, gatewayRegistrationsTable, notificationsTable, systemUsersTable, rolesTable } from "@workspace/db";
 import { logger } from "./logger.js";
 import { expireStaleDeviceCommandsOnce, backfillMissedCommandOutcomeNotifications } from "./deviceCommandNotifications.js";
+import { sendSmtpMail } from "./smtp-adapter.js";
 
 /**
  * Gateway device warning notifications.
@@ -55,14 +56,26 @@ interface NextState {
   adapterConnMessage?: string;
 }
 
+/**
+ * Alert types that warrant an email as well as an in-app notification.
+ * SDK-missing and clock-skew are lower-severity warnings; batch-discrepancy
+ * alerts are their own category. The three below indicate that punch
+ * collection has stopped completely.
+ */
+const EMAIL_ALERT_TYPES = new Set([
+  GATEWAY_SILENT_ALERT_TYPE,
+  GATEWAY_AUTH_FAILED_ALERT_TYPE,
+  GATEWAY_UNREACHABLE_ALERT_TYPE,
+]);
+
 /** Active system users whose role name contains "admin" (System Administrator, HR Admin, ...). */
-async function getAdminUserIds(): Promise<number[]> {
+async function getAdminUsers(): Promise<Array<{ id: number; email: string }>> {
   const rows = await db
-    .select({ id: systemUsersTable.id })
+    .select({ id: systemUsersTable.id, email: systemUsersTable.email })
     .from(systemUsersTable)
     .innerJoin(rolesTable, eq(systemUsersTable.roleId, rolesTable.id))
     .where(and(eq(systemUsersTable.isActive, true), ilike(rolesTable.nameEn, "%admin%")));
-  return rows.map((r) => r.id);
+  return rows;
 }
 
 async function raiseAlert(
@@ -73,10 +86,10 @@ async function raiseAlert(
   bodyEn: string,
   bodyAr: string,
 ): Promise<void> {
-  const adminIds = await getAdminUserIds();
-  if (!adminIds.length) return;
+  const admins = await getAdminUsers();
+  if (!admins.length) return;
   await db.insert(notificationsTable).values(
-    adminIds.map((userId) => ({
+    admins.map(({ id: userId }) => ({
       recipientUserId: userId,
       notificationType,
       titleEn,
@@ -92,6 +105,24 @@ async function raiseAlert(
     })),
   );
   logger.warn({ registrationId: reg.id, notificationType }, "Gateway device alert raised");
+
+  // Send an email for critical failure types (unreachable / auth failed / silent).
+  // SMTP being unconfigured or failing must never break the heartbeat or sweep.
+  if (EMAIL_ALERT_TYPES.has(notificationType)) {
+    const to = admins.map((a) => a.email);
+    sendSmtpMail({ to, subject: `[HRMS Gateway Alert] ${titleEn}`, text: bodyEn })
+      .then((result) => {
+        if (!result.success) {
+          logger.warn(
+            { registrationId: reg.id, notificationType, reason: result.message },
+            "Gateway alert email not delivered",
+          );
+        }
+      })
+      .catch((err) => {
+        logger.error({ err, registrationId: reg.id, notificationType }, "Gateway alert email send threw unexpectedly");
+      });
+  }
 }
 
 /** Auto-resolve (dismiss) all open alerts of a given type for this registration. */
