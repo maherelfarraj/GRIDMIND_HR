@@ -322,7 +322,17 @@ router.post("/auth/change-password", async (req, res): Promise<void> => {
       await tx.update(systemUsersTable)
         .set({ passwordHash, mustChangePassword: false })
         .where(eq(systemUsersTable.id, user.id));
-      await revokeUserSessions(tx, user.id, req.session.id);
+      const revokedCount = await revokeUserSessions(tx, user.id, req.session.id);
+      await tx.insert(auditLogsTable).values({
+        action: "session.revoked",
+        entityType: "system_user",
+        entityId: user.id,
+        entityLabel: user.username,
+        actorUserId: user.id,
+        ipAddress: req.ip ?? null,
+        userAgent: req.get("user-agent") ?? null,
+        changesJson: JSON.stringify({ reason: "password_changed", sessionsRevoked: revokedCount }),
+      });
     });
   } catch (err) {
     console.error("Password change failed (rolled back):", err);

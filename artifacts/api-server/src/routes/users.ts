@@ -242,7 +242,17 @@ router.post("/users/:id/password", async (req, res): Promise<void> => {
       await tx.update(systemUsersTable)
         .set({ passwordHash, mustChangePassword: true })
         .where(eq(systemUsersTable.id, id));
-      await revokeUserSessions(tx, id, actorId === id ? req.session?.id : undefined);
+      const revokedCount = await revokeUserSessions(tx, id, actorId === id ? req.session?.id : undefined);
+      await tx.insert(auditLogsTable).values({
+        action: "session.revoked",
+        entityType: "system_user",
+        entityId: user.id,
+        entityLabel: user.username,
+        actorUserId: actorId,
+        ipAddress: req.ip ?? null,
+        userAgent: req.get("user-agent") ?? null,
+        changesJson: JSON.stringify({ reason: "password_reset_by_admin", sessionsRevoked: revokedCount }),
+      });
     });
   } catch (err) {
     console.error("Password reset failed (rolled back):", err);
