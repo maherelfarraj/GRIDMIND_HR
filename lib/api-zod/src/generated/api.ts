@@ -987,7 +987,8 @@ export const ListAttendanceQueryParams = zod.object({
   "limit": zod.coerce.number().int().nullish()
 })
 
-export const ListAttendanceResponseItem = zod.object({
+export const ListAttendanceResponse = zod.object({
+  "data": zod.array(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "id": zod.number(),
   "employeeId": zod.number(),
@@ -1006,13 +1007,21 @@ export const ListAttendanceResponseItem = zod.object({
   "workingHours": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.coerce.date().optional()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
 })
-export const ListAttendanceResponse = zod.array(ListAttendanceResponseItem)
 
 
 /**
  * @summary Daily attendance summary by department
  */
+export const GetAttendanceDailySummaryQueryParams = zod.object({
+  "date": zod.coerce.string().nullish(),
+  "departmentId": zod.coerce.number().int().nullish()
+})
+
 export const GetAttendanceDailySummaryResponseItem = zod.object({
   "departmentId": zod.number(),
   "departmentNameEn": zod.string(),
@@ -1224,7 +1233,9 @@ export const RestartDeviceResponse = zod.object({
   "outcomeNotifiedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
-})
+}).and(zod.object({
+  "gatewayOfflineWarning": zod.string().optional()
+}))
 
 
 /**
@@ -1459,6 +1470,7 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
+
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1499,6 +1511,7 @@ export const UnlockUserResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
+
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -3156,7 +3169,7 @@ export const AddLeaveAttachmentResponse = zod.object({
 
 
 /**
- * @summary Retrieve a single attachment with full file payload
+ * @summary Retrieve full attachment record including file payload
  */
 export const GetLeaveAttachmentParams = zod.object({
   "id": zod.coerce.number(),
@@ -3913,6 +3926,7 @@ export const GetPayrollPeriodOtSummaryResponse = zod.object({
 })).describe('Per-department OT pay split by bucket, sorted by premium (weekend + holiday) OT descending')
 })
 
+
 /**
  * @summary Per-employee OT pay breakdown for one department in a payroll period
  */
@@ -3920,6 +3934,28 @@ export const GetPayrollPeriodOtDepartmentParams = zod.object({
   "id": zod.coerce.number(),
   "departmentId": zod.coerce.string().describe('Numeric department ID, or the string \"null\" for employees with no department assigned')
 })
+
+export const GetPayrollPeriodOtDepartmentResponse = zod.object({
+  "departmentId": zod.number().nullable(),
+  "departmentNameEn": zod.string(),
+  "departmentNameAr": zod.string(),
+  "weekday": zod.string(),
+  "weekend": zod.string(),
+  "holiday": zod.string(),
+  "total": zod.string(),
+  "employees": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "employeeNameEn": zod.string(),
+  "employeeNameAr": zod.string(),
+  "weekday": zod.string(),
+  "weekend": zod.string(),
+  "holiday": zod.string(),
+  "total": zod.string()
+})).describe('Per-employee OT pay split by weekday\/weekend\/holiday, sorted by premium (weekend + holiday) OT descending')
+})
+
+
 /**
  * @summary List detected no-show days per employee for a payroll period
  */
@@ -6536,10 +6572,12 @@ export const ListJobRequisitionsResponse = zod.object({
   "limit": zod.number()
 })
 
+
 /**
  * @summary Create job requisition
  */
 export const createJobRequisitionBodyPriorityDefault = `medium`;
+
 export const CreateJobRequisitionBody = zod.object({
   "requisitionNumber": zod.string().nullish(),
   "jobTitleEn": zod.string(),
@@ -6630,6 +6668,7 @@ export const UpdateJobRequisitionParams = zod.object({
 })
 
 export const updateJobRequisitionBodyPriorityDefault = `medium`;
+
 export const UpdateJobRequisitionBody = zod.object({
   "requisitionNumber": zod.string().nullish(),
   "jobTitleEn": zod.string(),
@@ -9699,10 +9738,12 @@ export const ListDisciplinaryRecordsResponse = zod.object({
   "limit": zod.number()
 })
 
+
 /**
  * @summary Create disciplinary record
  */
 export const createDisciplinaryRecordBodySeverityDefault = `minor`;
+
 export const CreateDisciplinaryRecordBody = zod.object({
   "employeeId": zod.number(),
   "incidentDate": zod.string(),
@@ -9788,6 +9829,7 @@ export const UpdateDisciplinaryRecordParams = zod.object({
 })
 
 export const updateDisciplinaryRecordBodySeverityDefault = `minor`;
+
 export const UpdateDisciplinaryRecordBody = zod.object({
   "employeeId": zod.number(),
   "incidentDate": zod.string(),
@@ -14694,7 +14736,9 @@ export const ReconcileGatewayRegistrationResponse = zod.object({
   "outcomeNotifiedAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
-})
+}).and(zod.object({
+  "gatewayOfflineWarning": zod.string().optional()
+}))
 
 
 /**
@@ -18166,8 +18210,7 @@ export const ListIntegrationAuditLogResponse = zod.object({
   "occurredAt": zod.string()
 })),
   "page": zod.number(),
-  "pageSize": zod.number(),
-  "total": zod.number()
+  "pageSize": zod.number()
 })
 
 
@@ -18820,22 +18863,3 @@ export const UpsertOrganizationBrandingResponse = zod.object({
 })
 
 
-export const GetPayrollPeriodOtDepartmentResponse = zod.object({
-  "departmentId": zod.number().nullable(),
-  "departmentNameEn": zod.string(),
-  "departmentNameAr": zod.string(),
-  "weekday": zod.string(),
-  "weekend": zod.string(),
-  "holiday": zod.string(),
-  "total": zod.string(),
-  "employees": zod.array(zod.object({
-  "employeeId": zod.number(),
-  "employeeNumber": zod.string(),
-  "employeeNameEn": zod.string(),
-  "employeeNameAr": zod.string(),
-  "weekday": zod.string(),
-  "weekend": zod.string(),
-  "holiday": zod.string(),
-  "total": zod.string()
-})).describe('Per-employee OT pay split by weekday\/weekend\/holiday, sorted by premium (weekend + holiday) OT descending')
-})

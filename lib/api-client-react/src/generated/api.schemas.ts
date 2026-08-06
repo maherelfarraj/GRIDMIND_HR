@@ -1740,6 +1740,20 @@ export interface PayrollPeriodOtEmployee {
   holiday: string;
   total: string;
 }
+
+export interface PayrollPeriodOtDepartmentBreakdown {
+  /** @nullable */
+  departmentId: number | null;
+  departmentNameEn: string;
+  departmentNameAr: string;
+  weekday: string;
+  weekend: string;
+  holiday: string;
+  total: string;
+  /** Per-employee OT pay split by weekday/weekend/holiday, sorted by premium (weekend + holiday) OT descending */
+  employees: PayrollPeriodOtEmployee[];
+}
+
 export interface PayrollNoShowDay {
   date: string;
   excused: boolean;
@@ -2821,6 +2835,15 @@ export interface JobRequisition {
 }
 
 export type JobRequisitionInputPriority = typeof JobRequisitionInputPriority[keyof typeof JobRequisitionInputPriority];
+
+
+export const JobRequisitionInputPriority = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  urgent: 'urgent',
+} as const;
+
 export interface JobRequisitionInput {
   /** @nullable */
   requisitionNumber?: string | null;
@@ -3793,6 +3816,15 @@ export interface DisciplinaryRecord {
 }
 
 export type DisciplinaryRecordInputSeverity = typeof DisciplinaryRecordInputSeverity[keyof typeof DisciplinaryRecordInputSeverity];
+
+
+export const DisciplinaryRecordInputSeverity = {
+  minor: 'minor',
+  moderate: 'moderate',
+  major: 'major',
+  gross_misconduct: 'gross_misconduct',
+} as const;
+
 export interface DisciplinaryRecordInput {
   employeeId: number;
   incidentDate: string;
@@ -8718,29 +8750,3 @@ export type CreateOrgReportTemplateBody = { [key: string]: unknown };
 
 export type UpsertOrganizationBrandingBody = { [key: string]: unknown };
 
-export const DisciplinaryRecordInputSeverity = {
-  minor: 'minor',
-  moderate: 'moderate',
-  major: 'major',
-  gross_misconduct: 'gross_misconduct',
-} as const;
-
-export interface PayrollPeriodOtDepartmentBreakdown {
-  /** @nullable */
-  departmentId: number | null;
-  departmentNameEn: string;
-  departmentNameAr: string;
-  weekday: string;
-  weekend: string;
-  holiday: string;
-  total: string;
-  /** Per-employee OT pay split by weekday/weekend/holiday, sorted by premium (weekend + holiday) OT descending */
-  employees: PayrollPeriodOtEmployee[];
-}
-
-export const JobRequisitionInputPriority = {
-  low: 'low',
-  medium: 'medium',
-  high: 'high',
-  urgent: 'urgent',
-} as const;
