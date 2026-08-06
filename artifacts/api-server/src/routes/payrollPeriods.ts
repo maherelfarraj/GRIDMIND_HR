@@ -1117,13 +1117,16 @@ router.post("/payroll-periods/:id/excused-absences", async (req, res): Promise<v
 
   // Auto-recalculate so run totals reflect the excusal without a manual step.
   // (Closed periods were rejected above; periods without runs stay untouched.)
+  const wasApproved = period.status === "first_approved" || period.status === "second_approved";
   let recalculated = false;
+  let approvalsReset = false;
   if (await periodHasRuns(periodId)) {
     await recalculatePeriodRuns(period, actorUserId);
     recalculated = true;
+    approvalsReset = wasApproved;
   }
 
-  res.status(201).json({ ...created, recalculated });
+  res.status(201).json({ ...created, recalculated, approvalsReset });
 });
 
 // DELETE /payroll-periods/:id/excused-absences/:excusedId — undo an excusal
@@ -1152,13 +1155,16 @@ router.delete("/payroll-periods/:id/excused-absences/:excusedId", async (req, re
   });
 
   // Auto-recalculate so the reinstated deduction shows up without a manual step.
+  const wasApproved = period.status === "first_approved" || period.status === "second_approved";
   let recalculated = false;
+  let approvalsReset = false;
   if (await periodHasRuns(periodId)) {
     await recalculatePeriodRuns(period, actorUserId);
     recalculated = true;
+    approvalsReset = wasApproved;
   }
 
-  res.json({ deleted: true, id: excusedId, recalculated });
+  res.json({ deleted: true, id: excusedId, recalculated, approvalsReset });
 });
 
 // POST /payroll-periods/:id/approve — first/second approval step

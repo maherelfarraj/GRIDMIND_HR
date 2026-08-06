@@ -36,6 +36,16 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -327,7 +337,7 @@ function CloseConfirmDialog({
 
 // ─── No-Show Review Card ──────────────────────────────────────────────────────
 
-function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boolean }) {
+function NoShowsCard({ periodId, isClosed, periodStatus }: { periodId: number; isClosed: boolean; periodStatus: PeriodStatus }) {
   const { t, lang } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -336,6 +346,9 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
 
   const [excuseTarget, setExcuseTarget] = useState<null | { employeeId: number; employeeName: string; date: string }>(null);
   const [reason, setReason] = useState('');
+  const [unexcuseConfirm, setUnexcuseConfirm] = useState<null | { excusedId: number }>(null);
+
+  const isApproved = periodStatus === 'first_approved' || periodStatus === 'second_approved';
 
   const invalidate = (recalculated: boolean) => {
     queryClient.invalidateQueries({ queryKey: [`/api/payroll-periods/${periodId}/no-shows`] });
@@ -351,11 +364,14 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
     mutation: {
       onSuccess: (result: any) => {
         const recalculated = !!result?.recalculated;
+        const approvalsReset = !!result?.approvalsReset;
         toast({
           title: t('Day excused', 'تم إعفاء اليوم'),
-          description: recalculated
-            ? t('Payroll was recalculated automatically — deductions are up to date.', 'أعيد حساب الرواتب تلقائيًا — الاستقطاعات محدثة.')
-            : t('The excused day will be skipped when payroll is calculated.', 'سيتم استثناء اليوم المعفى عند حساب الرواتب.'),
+          description: approvalsReset
+            ? t('Payroll was recalculated — previous approvals were reset and re-approval is required.', 'أعيد حساب الرواتب — تمت إعادة تعيين الموافقات السابقة ويلزم الاعتماد من جديد.')
+            : recalculated
+              ? t('Payroll was recalculated automatically — deductions are up to date.', 'أعيد حساب الرواتب تلقائيًا — الاستقطاعات محدثة.')
+              : t('The excused day will be skipped when payroll is calculated.', 'سيتم استثناء اليوم المعفى عند حساب الرواتب.'),
         });
         invalidate(recalculated);
         setExcuseTarget(null);
@@ -371,11 +387,14 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
     mutation: {
       onSuccess: (result: any) => {
         const recalculated = !!result?.recalculated;
+        const approvalsReset = !!result?.approvalsReset;
         toast({
           title: t('Excusal removed', 'تمت إزالة الإعفاء'),
-          description: recalculated
-            ? t('Payroll was recalculated automatically — the deduction was reinstated.', 'أعيد حساب الرواتب تلقائيًا — أعيد الخصم.')
-            : undefined,
+          description: approvalsReset
+            ? t('Payroll was recalculated — previous approvals were reset and re-approval is required.', 'أعيد حساب الرواتب — تمت إعادة تعيين الموافقات السابقة ويلزم الاعتماد من جديد.')
+            : recalculated
+              ? t('Payroll was recalculated automatically — the deduction was reinstated.', 'أعيد حساب الرواتب تلقائيًا — أعيد الخصم.')
+              : undefined,
         });
         invalidate(recalculated);
       },
@@ -402,6 +421,17 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
             'أيام عمل بدون بصمة أو سجل حضور أو إجازة معتمدة. إعفاء يوم أو إلغاء إعفائه يحدّث خصم الغياب تلقائيًا إذا كانت الرواتب قد حُسبت.'
           )}
         </p>
+        {isApproved && !isClosed && (
+          <Alert className="mt-2 border-orange-400/40 bg-orange-50 dark:bg-orange-950/20">
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
+            <AlertDescription className="text-orange-700 dark:text-orange-400">
+              {t(
+                'This period has existing approvals. Excusing or un-excusing a day will trigger recalculation and reset all approvals — re-approval will be required.',
+                'هذه الفترة لديها موافقات قائمة. إعفاء يوم أو إلغاء إعفائه سيؤدي إلى إعادة الحساب وإعادة تعيين جميع الموافقات — سيكون الاعتماد مجددًا مطلوبًا.'
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
       </CardHeader>
       <CardContent className="p-0">
         {isLoading ? (
@@ -459,7 +489,13 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
                               <button
                                 className="ml-1 hover:text-foreground"
                                 title={t('Undo excusal', 'تراجع عن الإعفاء')}
-                                onClick={() => unexcuseMutation.mutate({ id: periodId, excusedId: day.excusedId! })}
+                                onClick={() => {
+                                  if (isApproved) {
+                                    setUnexcuseConfirm({ excusedId: day.excusedId! });
+                                  } else {
+                                    unexcuseMutation.mutate({ id: periodId, excusedId: day.excusedId! });
+                                  }
+                                }}
                                 disabled={unexcuseMutation.isPending}
                               >
                                 <Undo2 className="h-3 w-3" />
@@ -490,6 +526,17 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
               )}
             </DialogDescription>
           </DialogHeader>
+          {isApproved && (
+            <Alert className="border-orange-400/40 bg-orange-50 dark:bg-orange-950/20 py-2">
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
+              <AlertDescription className="text-orange-700 dark:text-orange-400 text-xs">
+                {t(
+                  'This will recalculate payroll and reset existing approvals. Re-approval will be required.',
+                  'سيؤدي هذا إلى إعادة حساب الرواتب وإعادة تعيين الموافقات القائمة. سيكون الاعتماد مجددًا مطلوبًا.'
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="flex flex-col gap-1 py-2">
             <label className="text-sm font-medium text-muted-foreground">{t('Reason', 'السبب')}</label>
             <Textarea
@@ -519,6 +566,37 @@ function NoShowsCard({ periodId, isClosed }: { periodId: number; isClosed: boole
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Undo-excusal confirmation (only shown when period has approvals that will be reset) */}
+      <AlertDialog
+        open={unexcuseConfirm !== null}
+        onOpenChange={v => { if (!v) setUnexcuseConfirm(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Reset approvals?', 'إعادة تعيين الموافقات؟')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                'Removing this excusal will recalculate payroll and reset all existing approvals for this period. Approvers will need to re-approve before the period can be closed.',
+                'سيؤدي إلغاء هذا الإعفاء إلى إعادة حساب الرواتب وإعادة تعيين جميع الموافقات القائمة لهذه الفترة. سيحتاج المعتمدون إلى إعادة الاعتماد قبل إغلاق الفترة.'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('Cancel', 'إلغاء')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (unexcuseConfirm) {
+                  unexcuseMutation.mutate({ id: periodId, excusedId: unexcuseConfirm.excusedId });
+                  setUnexcuseConfirm(null);
+                }
+              }}
+            >
+              {t('Remove excusal', 'إزالة الإعفاء')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
@@ -772,7 +850,7 @@ function PeriodDetail({
         </div>
 
         {/* No-show review */}
-        <NoShowsCard periodId={period.id} isClosed={isClosed} />
+        <NoShowsCard periodId={period.id} isClosed={isClosed} periodStatus={period.status as PeriodStatus} />
 
         {/* Employee runs table */}
         <Card>
