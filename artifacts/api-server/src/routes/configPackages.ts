@@ -194,6 +194,17 @@ router.post("/config-packages/:id/apply", async (req, res): Promise<void> => {
     if (!pkg) return void res.status(404).json({ error: "Not found" });
     if (pkg.status !== "imported") return void res.status(400).json({ error: "Only imported packages can be applied" });
 
+    // Re-verify the stored signature against the stored payload before applying.
+    // This prevents a tampered-in-DB payload from being executed even if import
+    // originally succeeded.
+    if (!pkg.signature) {
+      return void res.status(400).json({ error: "Package has no signature; cannot apply an unsigned package" });
+    }
+    const expectedSig = computeSignature(pkg.payloadJson ?? "");
+    if (pkg.signature !== expectedSig) {
+      return void res.status(400).json({ error: "Signature verification failed: stored payload does not match stored signature" });
+    }
+
     const items = await db.select().from(configPackageItemsTable).where(eq(configPackageItemsTable.packageId, id));
 
     // Apply each item

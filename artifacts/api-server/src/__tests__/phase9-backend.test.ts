@@ -598,6 +598,43 @@ describe("Config Package lifecycle: create → sign → export → import → ap
     expect(res.body.package.status).toBe("applied");
   });
 
+  it("POST /config-packages/:id/apply — rejects a tampered stored package", async () => {
+    // Build a fresh valid signed import so we have a clean 'imported' package
+    const payloadJson = JSON.stringify({ branding: { color: "#00FF00" } });
+    const { createHmac: _hmac } = await import("crypto");
+    const secret = process.env.SESSION_SECRET ?? "default-secret";
+    const validSig = _hmac("sha256", secret).update(payloadJson).digest("hex");
+
+    const importRes = await request(app)
+      .post("/api/config-packages/import")
+      .send({
+        packageJson: {
+          packageName: "Tamper-at-apply Test Package",
+          packageType: "branding",
+          version: "1.0.0",
+          sourceEnvironment: "development",
+          targetEnvironment: "production",
+          payloadJson,
+          signature: validSig,
+          items: [],
+        },
+      });
+    expect(importRes.status).toBe(201);
+    const tamperedPkgId: number = importRes.body.id;
+    createdPackageIds.push(tamperedPkgId);
+
+    // Tamper the stored payloadJson directly in the DB (simulates a rogue DB edit)
+    await db
+      .update(configPackagesTable)
+      .set({ payloadJson: JSON.stringify({ branding: { color: "#EVIL00" } }) })
+      .where(eq(configPackagesTable.id, tamperedPkgId));
+
+    // apply must now reject with 400 — the stored payload no longer matches the signature
+    const applyRes = await request(app).post(`/api/config-packages/${tamperedPkgId}/apply`);
+    expect(applyRes.status).toBe(400);
+    expect(applyRes.body.error).toMatch(/signature verification failed/i);
+  });
+
   it("POST /config-packages/:id/reject — rejects a package", async () => {
     // Create a new package to reject
     const createRes = await request(app)
