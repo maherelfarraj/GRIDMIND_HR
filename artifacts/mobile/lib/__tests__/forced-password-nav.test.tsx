@@ -89,6 +89,7 @@ vi.mock('react-native', () => {
 });
 
 // expo-router primitives: Redirect renders an inspectable marker.
+let mockPathname = '/(tabs)';
 vi.mock('expo-router', () => {
   const React = require('react');
   const Tabs = ({ children }: any) =>
@@ -102,6 +103,11 @@ vi.mock('expo-router', () => {
       }),
     Tabs,
     useRouter: () => routerMock,
+    usePathname: () => mockPathname,
+    Stack: Object.assign(
+      ({ children }: any) => React.createElement('div', null, children),
+      { Screen: () => null },
+    ),
   };
 });
 vi.mock('expo-router/unstable-native-tabs', () => {

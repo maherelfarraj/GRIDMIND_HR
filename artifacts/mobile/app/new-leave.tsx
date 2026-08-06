@@ -39,12 +39,17 @@ function daysBetweenInclusive(start: string, end: string): number | null {
 export default function NewLeaveScreen() {
   const colors = useColors();
   const { t, lang } = useI18n();
-  const { user } = useAuth();
+  const { user, isLoading: authIsLoading } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
-  const leaveTypes = useListLeaveTypes();
+  // Do not fire the query while the auth bootstrap is still resolving — if
+  // currentToken is null the request goes out without an Authorization header
+  // and the server returns 401, which the 401 handler silently drops (because
+  // sessionLiveRef is false during bootstrap). Gate on authIsLoading so the
+  // query only starts once the token is in place.
+  const leaveTypes = useListLeaveTypes({ query: { enabled: !authIsLoading } });
   const createRequest = useCreateLeaveRequest();
   const submitRequest = useSubmitLeaveRequest();
 
@@ -164,6 +169,19 @@ export default function NewLeaveScreen() {
           <Text style={[styles.label, { color: colors.mutedForeground }]}>
             {t('leaveType')}
           </Text>
+          {leaveTypes.isError ? (
+            <Text
+              testID="leave-types-error"
+              style={{
+                color: colors.destructive,
+                fontSize: 13,
+                fontFamily: 'Inter_500Medium',
+                marginBottom: 8,
+              }}
+            >
+              {t('loadFailed')}
+            </Text>
+          ) : null}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {activeTypes.map((lt) => {
               const selected = lt.id === leaveTypeId;

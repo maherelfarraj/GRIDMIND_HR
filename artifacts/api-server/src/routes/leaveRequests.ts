@@ -380,7 +380,7 @@ router.post("/leave-requests/:id/cancel", async (req, res): Promise<void> => {
     return;
   }
 
-  // Task #179: run the cancel atomically.
+  // Run the cancel atomically.
   // 1. Lock the request row (SELECT … FOR UPDATE) so that two concurrent
   //    cancels — or a cancel racing a decide — read a consistent status.
   // 2. Only submitted/under_review requests hold a pending reservation;
@@ -630,7 +630,7 @@ router.post("/leave-requests/:id/return", async (req, res): Promise<void> => {
 router.post("/leave-requests/:id/attachments", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
 
-  // 404 if request doesn't exist (also enforces org ownership via router.param guard above)
+  // 404 if request doesn't exist (org ownership enforced by router.param guard above)
   const [existing] = await db.select({ id: leaveRequestsTable.id, status: leaveRequestsTable.status })
     .from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Leave request not found" }); return; }
@@ -659,24 +659,21 @@ router.post("/leave-requests/:id/attachments", async (req, res): Promise<void> =
   res.status(201).json(att);
 });
 
-// GET /leave-requests/:id/attachments/:attachmentId — fetch one attachment including the file payload
+// GET /leave-requests/:id/attachments/:attachmentId — retrieve full attachment record (including fileUrl)
+// The list endpoint returns metadata only; fetch here to get the actual file payload.
 router.get("/leave-requests/:id/attachments/:attachmentId", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const attachmentId = parseInt(req.params.attachmentId, 10);
-
   if (!Number.isInteger(attachmentId)) {
     res.status(400).json({ error: "Invalid attachmentId" });
     return;
   }
-
   const [att] = await db.select().from(leaveAttachmentsTable).where(
     and(eq(leaveAttachmentsTable.id, attachmentId), eq(leaveAttachmentsTable.leaveRequestId, id))
   );
   if (!att) { res.status(404).json({ error: "Attachment not found" }); return; }
-
   res.json(att);
 });
-
 // DELETE /leave-requests/:id/attachments/:attachmentId — remove a wrongly-attached document from a draft
 router.delete("/leave-requests/:id/attachments/:attachmentId", async (req, res): Promise<void> => {
   const actor = await getActorInfo(req);
