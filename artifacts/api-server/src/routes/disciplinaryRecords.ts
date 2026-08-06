@@ -1,6 +1,12 @@
 import { Router } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, disciplinaryRecordsTable, commendationRecordsTable, promotionRecommendationsTable, auditLogsTable } from "@workspace/db";
+import {
+  CreateDisciplinaryRecordBody, UpdateDisciplinaryRecordBody,
+  CreateCommendationRecordBody, UpdateCommendationRecordBody,
+  CreatePromotionRecommendationBody, UpdatePromotionRecommendationBody,
+} from "@workspace/api-zod";
+import { validateBody } from "../middleware/validateBody.js";
 
 // Disciplinary Records Router
 const disciplinaryRecordsRouter = Router();
@@ -31,7 +37,7 @@ disciplinaryRecordsRouter.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-disciplinaryRecordsRouter.post("/", async (req, res): Promise<void> => {
+disciplinaryRecordsRouter.post("/", validateBody(CreateDisciplinaryRecordBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(disciplinaryRecordsTable).values(req.body).returning();
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "disciplinary_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
@@ -47,7 +53,7 @@ disciplinaryRecordsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-disciplinaryRecordsRouter.patch("/:id", async (req, res): Promise<void> => {
+disciplinaryRecordsRouter.patch("/:id", validateBody(UpdateDisciplinaryRecordBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(disciplinaryRecordsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(disciplinaryRecordsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -84,7 +90,7 @@ commendationRecordsRouter.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-commendationRecordsRouter.post("/", async (req, res): Promise<void> => {
+commendationRecordsRouter.post("/", validateBody(CreateCommendationRecordBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(commendationRecordsTable).values(req.body).returning();
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "commendation_record", entityId: row.id, changesJson: JSON.stringify(req.body) });
@@ -100,7 +106,7 @@ commendationRecordsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-commendationRecordsRouter.patch("/:id", async (req, res): Promise<void> => {
+commendationRecordsRouter.patch("/:id", validateBody(UpdateCommendationRecordBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(commendationRecordsTable).set(req.body).where(eq(commendationRecordsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -138,7 +144,7 @@ promotionRecommendationsRouter.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-promotionRecommendationsRouter.post("/", async (req, res): Promise<void> => {
+promotionRecommendationsRouter.post("/", validateBody(CreatePromotionRecommendationBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(promotionRecommendationsTable).values(req.body).returning();
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "promotion_recommendation", entityId: row.id, changesJson: JSON.stringify(req.body) });
@@ -154,7 +160,7 @@ promotionRecommendationsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-promotionRecommendationsRouter.patch("/:id", async (req, res): Promise<void> => {
+promotionRecommendationsRouter.patch("/:id", validateBody(UpdatePromotionRecommendationBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(promotionRecommendationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(promotionRecommendationsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }

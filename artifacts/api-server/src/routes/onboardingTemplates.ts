@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, onboardingTemplatesTable, onboardingTemplateItemsTable, auditLogsTable } from "@workspace/db";
+import { CreateOnboardingTemplateBody, UpdateOnboardingTemplateBody } from "@workspace/api-zod";
+import { validateBody } from "../middleware/validateBody.js";
 
 const router = Router();
 
@@ -19,7 +21,7 @@ router.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-router.post("/", async (req, res): Promise<void> => {
+router.post("/", validateBody(CreateOnboardingTemplateBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(onboardingTemplatesTable).values(req.body).returning();
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "onboarding_template", entityId: row.id, changesJson: JSON.stringify(req.body) });
@@ -35,7 +37,7 @@ router.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-router.patch("/:id", async (req, res): Promise<void> => {
+router.patch("/:id", validateBody(UpdateOnboardingTemplateBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(onboardingTemplatesTable).set({ ...req.body, updatedAt: new Date() }).where(eq(onboardingTemplatesTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }

@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { eq, and, asc, sql } from "drizzle-orm";
 import { db, reportDefinitionsTable, reportOutputsTable, auditLogsTable } from "@workspace/db";
+import { CreateReportDefinitionBody, UpdateReportDefinitionBody } from "@workspace/api-zod";
+import { validateBody } from "../middleware/validateBody.js";
 
 const router = Router();
 
@@ -20,7 +22,7 @@ router.get("/", async (req, res): Promise<void> => {
 });
 
 // POST / — create (set isSystemReport:false for user-created)
-router.post("/", async (req, res): Promise<void> => {
+router.post("/", validateBody(CreateReportDefinitionBody), async (req, res): Promise<void> => {
   try {
     const userId = (req as any).session?.userId ?? null;
     const [row] = await db.insert(reportDefinitionsTable).values({
@@ -44,7 +46,7 @@ router.get("/:id", async (req, res): Promise<void> => {
 });
 
 // PATCH /:id — update (block if isSystemReport and trying to change reportType)
-router.patch("/:id", async (req, res): Promise<void> => {
+router.patch("/:id", validateBody(UpdateReportDefinitionBody), async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const [existing] = await db.select().from(reportDefinitionsTable).where(eq(reportDefinitionsTable.id, id));

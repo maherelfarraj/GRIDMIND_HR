@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, applicationsTable, auditLogsTable } from "@workspace/db";
+import { CreateApplicationBody, UpdateApplicationBody } from "@workspace/api-zod";
+import { validateBody } from "../middleware/validateBody.js";
 import { nestedInterviewScoresRouter } from "./interviewScores.js";
 
 const router = Router();
@@ -31,7 +33,7 @@ router.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-router.post("/", async (req, res): Promise<void> => {
+router.post("/", validateBody(CreateApplicationBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(applicationsTable).values(req.body).returning();
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "application", entityId: row.id, changesJson: JSON.stringify(req.body) });
@@ -47,7 +49,7 @@ router.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-router.patch("/:id", async (req, res): Promise<void> => {
+router.patch("/:id", validateBody(UpdateApplicationBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(applicationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(applicationsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }

@@ -1,6 +1,12 @@
 import { Router } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, employeeRequestsTable, announcementsTable, approvalDelegationsTable, auditLogsTable } from "@workspace/db";
+import {
+  CreateEmployeeRequestBody, UpdateEmployeeRequestBody,
+  CreateAnnouncementBody, UpdateAnnouncementBody,
+  CreateApprovalDelegationBody, UpdateApprovalDelegationBody,
+} from "@workspace/api-zod";
+import { validateBody } from "../middleware/validateBody.js";
 
 // Employee Requests Router
 const employeeRequestsRouter = Router();
@@ -31,7 +37,7 @@ employeeRequestsRouter.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-employeeRequestsRouter.post("/", async (req, res): Promise<void> => {
+employeeRequestsRouter.post("/", validateBody(CreateEmployeeRequestBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(employeeRequestsTable).values(req.body).returning();
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "employee_request", entityId: row.id, changesJson: JSON.stringify(req.body) });
@@ -47,7 +53,7 @@ employeeRequestsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-employeeRequestsRouter.patch("/:id", async (req, res): Promise<void> => {
+employeeRequestsRouter.patch("/:id", validateBody(UpdateEmployeeRequestBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(employeeRequestsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(employeeRequestsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -96,7 +102,7 @@ announcementsRouter.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-announcementsRouter.post("/", async (req, res): Promise<void> => {
+announcementsRouter.post("/", validateBody(CreateAnnouncementBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(announcementsTable).values(req.body).returning();
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "announcement", entityId: row.id, changesJson: JSON.stringify(req.body) });
@@ -112,7 +118,7 @@ announcementsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-announcementsRouter.patch("/:id", async (req, res): Promise<void> => {
+announcementsRouter.patch("/:id", validateBody(UpdateAnnouncementBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(announcementsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(announcementsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -162,7 +168,7 @@ approvalDelegationsRouter.get("/", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-approvalDelegationsRouter.post("/", async (req, res): Promise<void> => {
+approvalDelegationsRouter.post("/", validateBody(CreateApprovalDelegationBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.insert(approvalDelegationsTable).values(req.body).returning();
     await db.insert(auditLogsTable).values({ actorUserId: (req as any).session?.userId ?? null, action: "create", entityType: "approval_delegation", entityId: row.id, changesJson: JSON.stringify(req.body) });
@@ -178,7 +184,7 @@ approvalDelegationsRouter.get("/:id", async (req, res): Promise<void> => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-approvalDelegationsRouter.patch("/:id", async (req, res): Promise<void> => {
+approvalDelegationsRouter.patch("/:id", validateBody(UpdateApprovalDelegationBody), async (req, res): Promise<void> => {
   try {
     const [row] = await db.update(approvalDelegationsTable).set({ ...req.body, updatedAt: new Date() }).where(eq(approvalDelegationsTable.id, parseInt(req.params.id))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
