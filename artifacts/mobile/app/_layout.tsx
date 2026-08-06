@@ -39,6 +39,7 @@ function RootLayoutNav() {
       <Stack.Screen name="admin-users" />
       <Stack.Screen name="privileged-sessions" />
       <Stack.Screen name="privileged-session/[id]" />
+      <Stack.Screen name="payroll-period-ot/[id]" />
     </Stack>
   );
 }

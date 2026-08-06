@@ -342,79 +342,114 @@ function EmployeeContent({ employeeId }: { employeeId: number }) {
         <EmptyState icon="file-text" message={t('noPayslips')} />
       ) : (
         payslips.map((run: PayrollRunSummary) => (
-          <Pressable
-            key={run.id}
-            testID={`row-payslip-${run.id}`}
-            onPress={() =>
-              router.push({
-                pathname: '/payslip/[id]',
-                params: { id: String(run.id) },
-              })
-            }
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-            accessibilityRole="button"
-          >
-          <Card style={{ marginBottom: 10 }}>
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
+          <Card key={run.id} style={{ marginBottom: 10 }}>
+            <Pressable
+              testID={`row-payslip-${run.id}`}
+              onPress={() =>
+                router.push({
+                  pathname: '/payslip/[id]',
+                  params: { id: String(run.id) },
+                })
+              }
+              style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+              accessibilityRole="button"
             >
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    color: colors.foreground,
-                    fontSize: 15,
-                    fontFamily: 'Inter_600SemiBold',
-                  }}
-                  numberOfLines={1}
-                >
-                  {periodName(run.payrollPeriodId)}
-                </Text>
-                <Text
-                  style={{
-                    color: colors.mutedForeground,
-                    fontSize: 12,
-                    fontFamily: 'Inter_400Regular',
-                    marginTop: 4,
-                  }}
-                >
-                  {t('gross')} {Number(run.grossSalary).toLocaleString()} ·{' '}
-                  {t('deductions')}{' '}
-                  {Number(run.totalDeductions).toLocaleString()}
-                </Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: colors.foreground,
+                      fontSize: 15,
+                      fontFamily: 'Inter_600SemiBold',
+                    }}
+                    numberOfLines={1}
+                  >
+                    {periodName(run.payrollPeriodId)}
+                  </Text>
+                  <Text
+                    style={{
+                      color: colors.mutedForeground,
+                      fontSize: 12,
+                      fontFamily: 'Inter_400Regular',
+                      marginTop: 4,
+                    }}
+                  >
+                    {t('gross')} {Number(run.grossSalary).toLocaleString()} ·{' '}
+                    {t('deductions')}{' '}
+                    {Number(run.totalDeductions).toLocaleString()}
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text
+                    style={{
+                      color: colors.primary,
+                      fontSize: 17,
+                      fontFamily: 'Inter_700Bold',
+                    }}
+                  >
+                    {Number(run.netSalary).toLocaleString()}
+                  </Text>
+                  <Text
+                    style={{
+                      color: colors.mutedForeground,
+                      fontSize: 11,
+                      fontFamily: 'Inter_400Regular',
+                    }}
+                  >
+                    {t('net')} · {run.currency}
+                  </Text>
+                </View>
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color={colors.mutedForeground}
+                  style={{ marginStart: 8 }}
+                />
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text
-                  style={{
-                    color: colors.primary,
-                    fontSize: 17,
-                    fontFamily: 'Inter_700Bold',
-                  }}
-                >
-                  {Number(run.netSalary).toLocaleString()}
-                </Text>
-                <Text
-                  style={{
-                    color: colors.mutedForeground,
-                    fontSize: 11,
-                    fontFamily: 'Inter_400Regular',
-                  }}
-                >
-                  {t('net')} · {run.currency}
-                </Text>
-              </View>
-              <Feather
-                name="chevron-right"
-                size={18}
-                color={colors.mutedForeground}
-                style={{ marginStart: 8 }}
-              />
-            </View>
+            </Pressable>
+
+            {/* Department OT breakdown link — lets admins drill into period-level OT spend */}
+            <Pressable
+              testID={`row-payslip-dept-ot-${run.id}`}
+              onPress={() =>
+                router.push({
+                  pathname: '/payroll-period-ot/[id]' as any,
+                  params: { id: String(run.payrollPeriodId) },
+                })
+              }
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.6 : 1,
+                marginTop: 10,
+                paddingTop: 8,
+                borderTopWidth: 0.5,
+                borderTopColor: colors.border,
+                flexDirection: 'row',
+                alignItems: 'center',
+              })}
+              accessibilityRole="button"
+              accessibilityLabel={t('deptOtBreakdown')}
+            >
+              <Feather name="bar-chart-2" size={13} color={colors.primary} />
+              <Text
+                style={{
+                  color: colors.primary,
+                  fontSize: 12,
+                  fontFamily: 'Inter_500Medium',
+                  marginStart: 5,
+                  flex: 1,
+                }}
+              >
+                {t('deptOtBreakdown')}
+              </Text>
+              <Feather name="chevron-right" size={13} color={colors.primary} />
+            </Pressable>
           </Card>
-          </Pressable>
         ))
       )}
     </ScrollView>

@@ -254,6 +254,15 @@ const strings = {
     ar: 'لا توجد إجازات رسمية قادمة',
   },
   recurringHolidayNote: { en: 'Recurring', ar: 'متكرر سنوياً' },
+  deptOtBreakdown: { en: 'Dept OT Breakdown', ar: 'عمل إضافي بالأقسام' },
+  deptOtTitle: { en: 'Department OT Summary', ar: 'ملخص العمل الإضافي للأقسام' },
+  weekdayOt: { en: 'Weekday', ar: 'أيام العمل' },
+  weekendOt: { en: 'Weekend', ar: 'عطلة نهاية الأسبوع' },
+  holidayOt: { en: 'Holiday', ar: 'إجازة رسمية' },
+  totalOt: { en: 'Total', ar: 'الإجمالي' },
+  periodTotals: { en: 'Period Totals', ar: 'إجماليات الفترة' },
+  byDepartment: { en: 'By Department', ar: 'حسب القسم' },
+  noDeptOtData: { en: 'No overtime recorded for this period', ar: 'لا يوجد عمل إضافي مسجل لهذه الفترة' },
 } as const;
 
 export type StringKey = keyof typeof strings;
