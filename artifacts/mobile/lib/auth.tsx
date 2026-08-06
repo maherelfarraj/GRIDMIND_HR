@@ -19,12 +19,9 @@ import {
   setUnauthorizedHandler,
   setPasswordChangeRequiredHandler,
 } from '@workspace/api-client-react';
-import type { AuthUser as GeneratedAuthUser } from '@workspace/api-client-react';
+import type { AuthUser } from '@workspace/api-client-react';
 
-// The API includes must_change_password state on auth responses and flags
-// blocked requests with 403 PASSWORD_CHANGE_REQUIRED; the generated schema
-// does not carry the flag yet, so extend it locally.
-export type AuthUser = GeneratedAuthUser & { mustChangePassword?: boolean };
+export type { AuthUser };
 
 // Cached profile for instant paint while the token is validated. Never
 // trusted on its own: without a valid session token the user is signed out.

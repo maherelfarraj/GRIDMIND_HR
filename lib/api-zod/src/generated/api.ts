@@ -1562,6 +1562,7 @@ export const LoginUserResponse = zod.object({
   "preferredLanguage": zod.string(),
   "lastLoginAt": zod.string().nullish(),
   "canSwitchOrg": zod.boolean().optional(),
+  "mustChangePassword": zod.boolean(),
   "sessionToken": zod.string().optional()
 })
 

@@ -24,5 +24,6 @@ export interface AuthUser {
   /** @nullable */
   lastLoginAt?: string | null;
   canSwitchOrg?: boolean;
+  mustChangePassword: boolean;
   sessionToken?: string;
 }

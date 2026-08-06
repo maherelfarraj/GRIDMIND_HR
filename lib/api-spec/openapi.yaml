@@ -16355,11 +16355,12 @@ components:
         preferredLanguage: { type: string }
         lastLoginAt: { type: [ "string", "null" ] }
         canSwitchOrg: { type: boolean }
+        mustChangePassword: { type: boolean }
         # Present only when the client requests bearer-token transport
         # (x-session-transport: bearer), e.g. the mobile app storing the
         # session token in SecureStore instead of relying on cookies.
         sessionToken: { type: string }
-      required: [ id, username, email, fullNameEn, roleId, isActive, mfaEnabled, preferredLanguage ]
+      required: [ id, username, email, fullNameEn, roleId, isActive, mfaEnabled, preferredLanguage, mustChangePassword ]
 
     Announcement:
       type: object

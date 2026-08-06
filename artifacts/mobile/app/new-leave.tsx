@@ -18,6 +18,7 @@ import { useI18n } from '@/lib/i18n';
 import {
   getListLeaveBalancesQueryKey,
   getListLeaveRequestsQueryKey,
+  getListLeaveTypesQueryKey,
   useCreateLeaveRequest,
   useListLeaveTypes,
   useSubmitLeaveRequest,
@@ -49,7 +50,7 @@ export default function NewLeaveScreen() {
   // and the server returns 401, which the 401 handler silently drops (because
   // sessionLiveRef is false during bootstrap). Gate on authIsLoading so the
   // query only starts once the token is in place.
-  const leaveTypes = useListLeaveTypes({ query: { enabled: !authIsLoading } });
+  const leaveTypes = useListLeaveTypes({ query: { enabled: !authIsLoading, queryKey: getListLeaveTypesQueryKey() } });
   const createRequest = useCreateLeaveRequest();
   const submitRequest = useSubmitLeaveRequest();
 
