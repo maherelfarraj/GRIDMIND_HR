@@ -96,3 +96,15 @@ export async function downloadBackupFromOffsite(
   }
   await file.download({ destination: localPath });
 }
+
+/**
+ * Delete an offsite backup object. No-ops if the object no longer exists.
+ * Throws on unexpected errors.
+ */
+export async function deleteBackupOffsite(offsiteUri: string): Promise<void> {
+  const { bucketName, objectName } = fileForUri(offsiteUri);
+  const file = objectStorageClient.bucket(bucketName).file(objectName);
+  const [exists] = await file.exists();
+  if (!exists) return;
+  await file.delete();
+}

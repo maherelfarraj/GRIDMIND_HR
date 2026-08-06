@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import {
   db,
   backupRecordsTable,
@@ -18,6 +18,7 @@ import {
   isOffsiteConfigured,
   uploadBackupOffsite,
   downloadBackupFromOffsite,
+  deleteBackupOffsite,
 } from "./backupOffsite";
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
@@ -172,16 +173,32 @@ export async function runBackup(opts: {
 
 // ─── Retention pruning ─────────────────────────────────────────────────────────
 // Deletes dump files whose age exceeds the record's retention_days and marks the
-// records "expired". Records whose file is already gone are expired too.
+// records "expired". Removes both the local file and the offsite object.
+// The most recent verified backup is always kept regardless of age.
 export interface PruneResult {
   scanned: number;
   expired: number;
   filesDeleted: number;
+  offsiteDeleted: number;
   errors: Array<{ id: number; error: string }>;
 }
 
 export async function pruneExpiredBackups(): Promise<PruneResult> {
   const now = Date.now();
+
+  // Find the most recent verified backup so we can protect it unconditionally.
+  const [latestVerified] = await db
+    .select()
+    .from(backupRecordsTable)
+    .where(
+      and(
+        eq(backupRecordsTable.isVerified, true),
+        sql`${backupRecordsTable.status} IN ('verified')`
+      )
+    )
+    .orderBy(desc(backupRecordsTable.startedAt))
+    .limit(1);
+
   const candidates = await db
     .select()
     .from(backupRecordsTable)
@@ -189,26 +206,52 @@ export async function pruneExpiredBackups(): Promise<PruneResult> {
       sql`${backupRecordsTable.status} IN ('completed', 'verified', 'failed')`
     );
 
-  const result: PruneResult = { scanned: candidates.length, expired: 0, filesDeleted: 0, errors: [] };
+  const result: PruneResult = {
+    scanned: candidates.length,
+    expired: 0,
+    filesDeleted: 0,
+    offsiteDeleted: 0,
+    errors: [],
+  };
 
   for (const rec of candidates) {
+    // Always keep the most recent verified backup regardless of age.
+    if (latestVerified && rec.id === latestVerified.id) continue;
+
     const anchor = rec.completedAt ?? rec.startedAt;
     const ageMs = now - new Date(anchor).getTime();
     const retentionMs = rec.retentionDays * 24 * 60 * 60 * 1000;
     if (ageMs <= retentionMs) continue;
 
     try {
+      // Delete the local file.
       if (rec.storageLocation && fs.existsSync(rec.storageLocation)) {
         await fsp.unlink(rec.storageLocation);
         result.filesDeleted++;
       }
+
+      // Delete the offsite object.
+      if (rec.offsiteLocation && rec.offsiteStatus === "uploaded") {
+        try {
+          await deleteBackupOffsite(rec.offsiteLocation);
+          result.offsiteDeleted++;
+        } catch (offsiteErr: any) {
+          // Offsite deletion failure is recorded in the error list but does
+          // not prevent the record from being marked expired — the local copy
+          // has already been removed.
+          result.errors.push({
+            id: rec.id,
+            error: `Offsite deletion failed: ${String(offsiteErr?.message || offsiteErr)}`,
+          });
+        }
+      }
+
+      const pruneNote = `Expired by retention pruning (retention ${rec.retentionDays}d; local and offsite copies removed)`;
       await db
         .update(backupRecordsTable)
         .set({
           status: "expired",
-          notes: rec.notes
-            ? `${rec.notes} | Expired by retention pruning (retention ${rec.retentionDays}d)`
-            : `Expired by retention pruning (retention ${rec.retentionDays}d)`,
+          notes: rec.notes ? `${rec.notes} | ${pruneNote}` : pruneNote,
         })
         .where(eq(backupRecordsTable.id, rec.id));
       result.expired++;
