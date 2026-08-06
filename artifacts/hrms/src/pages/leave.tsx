@@ -679,6 +679,7 @@ function RequestsTab() {
                             <TableCell colSpan={9}>
                               <ApprovalStepsInline requestId={req.id} />
                               <AttachmentsInline
+                                requestId={req.id}
                                 attachments={(req as any).attachments ?? []}
                                 isDraft={req.status === 'draft'}
                                 onRemove={(attachmentId) => handleRemoveAttachment(req.id, attachmentId)}
@@ -825,12 +826,57 @@ function ApprovalStepsInline({ requestId }: { requestId: number }) {
   );
 }
 
+function AttachmentLink({ requestId, attachment }: { requestId: number; attachment: any }) {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+
+  async function handleOpen() {
+    setLoading(true);
+    try {
+      const full = await getLeaveAttachment(requestId, attachment.id);
+      if (!full.fileUrl) {
+        toast({ title: t('No file available', 'لا يوجد ملف'), variant: 'destructive' });
+        return;
+      }
+      if (full.fileUrl.startsWith('data:')) {
+        // Create a temporary link and trigger download
+        const link = document.createElement('a');
+        link.href = full.fileUrl;
+        link.download = attachment.fileName;
+        link.click();
+      } else {
+        window.open(full.fileUrl, '_blank', 'noreferrer');
+      }
+    } catch {
+      toast({ title: t('Error loading file', 'خطأ في تحميل الملف'), variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleOpen}
+      disabled={loading}
+      className="flex items-center gap-1.5 text-xs bg-background border rounded px-2.5 py-1.5 hover:bg-muted text-blue-600 disabled:opacity-50 disabled:cursor-wait"
+    >
+      <Paperclip className="w-3 h-3" />
+      <span>{attachment.fileName}</span>
+      {attachment.fileSize != null && (
+        <span className="text-muted-foreground">({(attachment.fileSize / 1024).toFixed(0)} KB)</span>
+      )}
+    </button>
+  );
+}
 function AttachmentsInline({
+  requestId,
   attachments,
   isDraft = false,
   onRemove,
   busy = false,
 }: {
+  requestId: number;
   attachments: any[];
   isDraft?: boolean;
   onRemove?: (attachmentId: number) => void;
@@ -843,23 +889,7 @@ function AttachmentsInline({
       <span className="text-xs font-medium text-muted-foreground">{t('Attachments', 'المرفقات')}:</span>
       {attachments.map((a: any) => (
         <div key={a.id} className="flex items-center gap-1">
-          <a
-            href={a.fileUrl ?? undefined}
-            download={a.fileUrl?.startsWith('data:') ? a.fileName : undefined}
-            target={a.fileUrl && !a.fileUrl.startsWith('data:') ? '_blank' : undefined}
-            rel="noreferrer"
-            className={cn(
-              'flex items-center gap-1.5 text-xs bg-background border rounded px-2.5 py-1.5',
-              a.fileUrl ? 'hover:bg-muted text-blue-600' : 'text-muted-foreground cursor-default'
-            )}
-            onClick={e => { if (!a.fileUrl) e.preventDefault(); }}
-          >
-            <Paperclip className="w-3 h-3" />
-            <span>{a.fileName}</span>
-            {a.fileSize != null && (
-              <span className="text-muted-foreground">({(a.fileSize / 1024).toFixed(0)} KB)</span>
-            )}
-          </a>
+          <AttachmentLink requestId={requestId} attachment={a} />
           {isDraft && onRemove && (
             <button
               disabled={busy}

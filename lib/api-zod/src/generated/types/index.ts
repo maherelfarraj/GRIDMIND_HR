@@ -302,6 +302,7 @@ export * from './jobRequisitionInput';
 export * from './leaveApprovalStep';
 export * from './leaveAttachment';
 export * from './leaveAttachmentInput';
+export * from './leaveAttachmentMeta';
 export * from './leaveBalance';
 export * from './leaveBalanceInput';
 export * from './leaveCalendarEntry';

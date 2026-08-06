@@ -7,9 +7,9 @@
  */
 
 /**
- * Full attachment including base64 file payload — returned only by the single-attachment endpoint.
+ * Attachment metadata returned in list responses — no file payload.
  */
-export interface LeaveAttachment {
+export interface LeaveAttachmentMeta {
   id: number;
   leaveRequestId: number;
   fileName: string;
@@ -17,7 +17,5 @@ export interface LeaveAttachment {
   fileType?: string | null;
   /** @nullable */
   fileSize?: number | null;
-  /** @nullable */
-  fileUrl?: string | null;
   uploadedAt: string;
 }

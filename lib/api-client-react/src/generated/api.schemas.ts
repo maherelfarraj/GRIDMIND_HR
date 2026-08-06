@@ -1352,6 +1352,22 @@ export interface LeaveApprovalStep {
   createdAt?: string;
 }
 
+/**
+ * Attachment metadata returned in list responses — no file payload.
+ */
+export interface LeaveAttachmentMeta {
+  id: number;
+  leaveRequestId: number;
+  fileName: string;
+  /** @nullable */
+  fileType?: string | null;
+  /** @nullable */
+  fileSize?: number | null;
+  uploadedAt: string;
+}
+/**
+ * Full attachment including base64 file payload — returned only by the single-attachment endpoint.
+ */
 export interface LeaveAttachment {
   id: number;
   leaveRequestId: number;
@@ -1399,7 +1415,7 @@ export interface LeaveRequestSummary {
   /** @nullable */
   decidedAt?: string | null;
   createdAt: string;
-  attachments?: LeaveAttachment[];
+  attachments?: LeaveAttachmentMeta[];
 }
 
 export type LeaveRequestDetail = LeaveRequestSummary & ({

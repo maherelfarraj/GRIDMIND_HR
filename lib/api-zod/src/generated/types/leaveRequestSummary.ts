@@ -5,7 +5,7 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
-import type { LeaveAttachment } from './leaveAttachment';
+import type { LeaveAttachmentMeta } from './leaveAttachmentMeta';
 
 export interface LeaveRequestSummary {
   id: number;
@@ -31,5 +31,5 @@ export interface LeaveRequestSummary {
   /** @nullable */
   decidedAt?: string | null;
   createdAt: string;
-  attachments?: LeaveAttachment[];
+  attachments?: LeaveAttachmentMeta[];
 }

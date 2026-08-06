@@ -1449,7 +1449,6 @@ export const SetUserPasswordParams = zod.object({
 export const setUserPasswordBodyPasswordMin = 8;
 
 
-
 export const SetUserPasswordBody = zod.object({
   "password": zod.string().min(setUserPasswordBodyPasswordMin)
 })
@@ -1490,7 +1489,6 @@ export const UnlockUserResponse = zod.object({
  */
 
 export const changeMyPasswordBodyNewPasswordMin = 8;
-
 
 
 export const ChangeMyPasswordBody = zod.object({
@@ -2577,9 +2575,8 @@ export const ListLeaveRequestsResponseItem = zod.object({
   "fileName": zod.string(),
   "fileType": zod.string().nullish(),
   "fileSize": zod.number().nullish(),
-  "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional()
+}).describe('Attachment metadata returned in list responses — no file payload.')).optional()
 })
 export const ListLeaveRequestsResponse = zod.array(ListLeaveRequestsResponseItem)
 
@@ -2627,9 +2624,8 @@ export const CreateLeaveRequestResponse = zod.object({
   "fileName": zod.string(),
   "fileType": zod.string().nullish(),
   "fileSize": zod.number().nullish(),
-  "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional()
+}).describe('Attachment metadata returned in list responses — no file payload.')).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -2661,7 +2657,7 @@ export const CreateLeaveRequestResponse = zod.object({
   "fileSize": zod.number().nullish(),
   "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional(),
+}).describe('Full attachment including base64 file payload — returned only by the single-attachment endpoint.')).optional(),
   "halfDayPeriod": zod.string().nullish(),
   "updatedAt": zod.coerce.date().optional()
 }))
@@ -2701,9 +2697,8 @@ export const GetLeaveRequestResponse = zod.object({
   "fileName": zod.string(),
   "fileType": zod.string().nullish(),
   "fileSize": zod.number().nullish(),
-  "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional()
+}).describe('Attachment metadata returned in list responses — no file payload.')).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -2735,7 +2730,7 @@ export const GetLeaveRequestResponse = zod.object({
   "fileSize": zod.number().nullish(),
   "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional(),
+}).describe('Full attachment including base64 file payload — returned only by the single-attachment endpoint.')).optional(),
   "halfDayPeriod": zod.string().nullish(),
   "updatedAt": zod.coerce.date().optional()
 }))
@@ -2775,9 +2770,8 @@ export const SubmitLeaveRequestResponse = zod.object({
   "fileName": zod.string(),
   "fileType": zod.string().nullish(),
   "fileSize": zod.number().nullish(),
-  "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional()
+}).describe('Attachment metadata returned in list responses — no file payload.')).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -2809,7 +2803,7 @@ export const SubmitLeaveRequestResponse = zod.object({
   "fileSize": zod.number().nullish(),
   "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional(),
+}).describe('Full attachment including base64 file payload — returned only by the single-attachment endpoint.')).optional(),
   "halfDayPeriod": zod.string().nullish(),
   "updatedAt": zod.coerce.date().optional()
 }))
@@ -2856,9 +2850,8 @@ export const DecideLeaveRequestResponse = zod.object({
   "fileName": zod.string(),
   "fileType": zod.string().nullish(),
   "fileSize": zod.number().nullish(),
-  "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional()
+}).describe('Attachment metadata returned in list responses — no file payload.')).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -2890,7 +2883,7 @@ export const DecideLeaveRequestResponse = zod.object({
   "fileSize": zod.number().nullish(),
   "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional(),
+}).describe('Full attachment including base64 file payload — returned only by the single-attachment endpoint.')).optional(),
   "halfDayPeriod": zod.string().nullish(),
   "updatedAt": zod.coerce.date().optional()
 }))
@@ -2930,9 +2923,8 @@ export const CancelLeaveRequestResponse = zod.object({
   "fileName": zod.string(),
   "fileType": zod.string().nullish(),
   "fileSize": zod.number().nullish(),
-  "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional()
+}).describe('Attachment metadata returned in list responses — no file payload.')).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -2964,7 +2956,7 @@ export const CancelLeaveRequestResponse = zod.object({
   "fileSize": zod.number().nullish(),
   "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional(),
+}).describe('Full attachment including base64 file payload — returned only by the single-attachment endpoint.')).optional(),
   "halfDayPeriod": zod.string().nullish(),
   "updatedAt": zod.coerce.date().optional()
 }))
@@ -3010,9 +3002,8 @@ export const RevokeLeaveRequestResponse = zod.object({
   "fileName": zod.string(),
   "fileType": zod.string().nullish(),
   "fileSize": zod.number().nullish(),
-  "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional()
+}).describe('Attachment metadata returned in list responses — no file payload.')).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -3044,7 +3035,7 @@ export const RevokeLeaveRequestResponse = zod.object({
   "fileSize": zod.number().nullish(),
   "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional(),
+}).describe('Full attachment including base64 file payload — returned only by the single-attachment endpoint.')).optional(),
   "halfDayPeriod": zod.string().nullish(),
   "updatedAt": zod.coerce.date().optional()
 }))
@@ -3089,9 +3080,8 @@ export const ReturnToDutyResponse = zod.object({
   "fileName": zod.string(),
   "fileType": zod.string().nullish(),
   "fileSize": zod.number().nullish(),
-  "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional()
+}).describe('Attachment metadata returned in list responses — no file payload.')).optional()
 }).and(zod.object({
   "orgId": zod.number().nullish().describe('Owning organization (tenant); null on legacy\/global rows.'),
   "reasonEn": zod.string().nullish(),
@@ -3123,7 +3113,7 @@ export const ReturnToDutyResponse = zod.object({
   "fileSize": zod.number().nullish(),
   "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
-})).optional(),
+}).describe('Full attachment including base64 file payload — returned only by the single-attachment endpoint.')).optional(),
   "halfDayPeriod": zod.string().nullish(),
   "updatedAt": zod.coerce.date().optional()
 }))
@@ -3151,6 +3141,14 @@ export const AddLeaveAttachmentResponse = zod.object({
   "fileSize": zod.number().nullish(),
   "fileUrl": zod.string().nullish(),
   "uploadedAt": zod.string()
+}).describe('Full attachment including base64 file payload — returned only by the single-attachment endpoint.')
+
+/**
+ * @summary Fetch a single attachment including its file payload
+ */
+export const GetLeaveAttachmentParams = zod.object({
+  "id": zod.coerce.number(),
+  "attachmentId": zod.coerce.number()
 })
 
 
@@ -18750,4 +18748,12 @@ export const UpsertOrganizationBrandingResponse = zod.object({
   "updatedAt": zod.string()
 })
 
-
+export const GetLeaveAttachmentResponse = zod.object({
+  "id": zod.number(),
+  "leaveRequestId": zod.number(),
+  "fileName": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "fileUrl": zod.string().nullish(),
+  "uploadedAt": zod.string()
+}).describe('Full attachment including base64 file payload — returned only by the single-attachment endpoint.')

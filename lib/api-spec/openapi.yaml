@@ -12701,8 +12701,21 @@ components:
           format: date-time
       required: [ id, leaveRequestId, stepNumber, status ]
 
+    LeaveAttachmentMeta:
+      type: object
+      description: Attachment metadata returned in list responses — no file payload.
+      properties:
+        id: { type: number }
+        leaveRequestId: { type: number }
+        fileName: { type: string }
+        fileType: { type: [ "string", "null" ] }
+        fileSize: { type: [ "number", "null" ] }
+        uploadedAt: { type: string }
+      required: [ id, leaveRequestId, fileName, uploadedAt ]
+
     LeaveAttachment:
       type: object
+      description: Full attachment with file payload — returned only by the single-attachment endpoint.
       properties:
         id: { type: number }
         leaveRequestId: { type: number }
@@ -12747,7 +12760,7 @@ components:
         createdAt: { type: string }
         attachments:
           type: array
-          items: { $ref: "#/components/schemas/LeaveAttachment" }
+          items: { $ref: "#/components/schemas/LeaveAttachmentMeta" }
       required: [ id, requestNumber, employeeId, employeeNameEn, leaveTypeId, leaveTypeNameEn, startDate, endDate, totalDays, status, returnedToWork, createdAt ]
 
     LeaveRequestDetail:

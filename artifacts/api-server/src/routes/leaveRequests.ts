@@ -89,7 +89,8 @@ async function enrichRequest(r: typeof leaveRequestsTable.$inferSelect) {
       ...s,
       decidedAt: s.decidedAt ? s.decidedAt.toISOString() : null,
     })),
-    attachments,
+    // Return metadata only — no base64 payload. Fetch full file via GET /leave-requests/:id/attachments/:attachmentId
+    attachments: attachments.map(({ fileUrl: _omit, ...meta }) => meta),
   };
 }
 
@@ -151,7 +152,8 @@ router.get("/leave-requests", async (req, res): Promise<void> => {
       submittedAt: r.submittedAt ? r.submittedAt.toISOString() : null,
       decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
       createdAt: r.createdAt.toISOString(),
-      attachments: attachmentsByRequest[r.id] ?? [],
+      // Return metadata only — no base64 payload
+      attachments: (attachmentsByRequest[r.id] ?? []).map(({ fileUrl: _omit, ...meta }) => meta),
     };
   });
 
@@ -741,21 +743,6 @@ router.post("/leave-requests/:id/return", async (req, res): Promise<void> => {
     .set({ returnedToWork: true, returnDate: returnDate ?? null, returnNotes: returnNotes ?? null, updatedAt: new Date() })
     .where(eq(leaveRequestsTable.id, id))
     .returning();
-
-  await db.insert(auditLogsTable).values({
-    action: "leave.returned",
-    entityType: "leave_request",
-    entityId: id,
-    entityLabel: r.requestNumber,
-    actorUserId,
-    changesJson: JSON.stringify({ returnDate }),
-  });
-
-  res.json(await enrichRequest(updated));
-});
-
-// POST /leave-requests/:id/attachments — upload a supporting document (medical cert etc.)
-router.post("/leave-requests/:id/attachments", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
 
   // 404 if request doesn't exist (also enforces org ownership via router.param guard above)

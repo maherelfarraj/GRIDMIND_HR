@@ -7964,6 +7964,89 @@ export const useDeleteLeaveAttachment = <TError = ErrorType<void>,
       return useMutation(getDeleteLeaveAttachmentMutationOptions(options));
     }
 
+
+export const getGetLeaveAttachmentUrl = (id: number,
+    attachmentId: number,) => {
+
+
+
+
+  return `/api/leave-requests/${id}/attachments/${attachmentId}`
+}
+
+/**
+ * @summary Fetch a single attachment including its file payload
+ */
+export const getLeaveAttachment = async (id: number,
+    attachmentId: number, options?: Parameters<typeof customFetch>[1]): Promise<LeaveAttachment> => {
+
+  return customFetch<LeaveAttachment>(getGetLeaveAttachmentUrl(id,attachmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLeaveAttachmentQueryKey = (id: number,
+    attachmentId: number,) => {
+    return [
+    `/api/leave-requests/${id}/attachments/${attachmentId}`
+    ] as const;
+    }
+
+
+export const getGetLeaveAttachmentQueryOptions = <TData = Awaited<ReturnType<typeof getLeaveAttachment>>, TError = ErrorType<void>>(id: number,
+    attachmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeaveAttachment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLeaveAttachmentQueryKey(id,attachmentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLeaveAttachment>>> = ({ signal }) => getLeaveAttachment(id,attachmentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && attachmentId !== null && attachmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLeaveAttachment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLeaveAttachmentQueryResult = NonNullable<Awaited<ReturnType<typeof getLeaveAttachment>>>
+export type GetLeaveAttachmentQueryError = ErrorType<void>
+
+
+/**
+ * @summary Fetch a single attachment including its file payload
+ */
+
+export function useGetLeaveAttachment<TData = Awaited<ReturnType<typeof getLeaveAttachment>>, TError = ErrorType<void>>(
+ id: number,
+    attachmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeaveAttachment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLeaveAttachmentQueryOptions(id,attachmentId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetLeaveCalendarUrl = (params?: GetLeaveCalendarParams,) => {
   const normalizedParams = new URLSearchParams();
 
