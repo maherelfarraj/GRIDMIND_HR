@@ -115,8 +115,10 @@ function DocumentsTab() {
         const q = search.toLowerCase();
         return (
           (d as any).titleEn?.toLowerCase().includes(q) ||
+          (d as any).titleAr?.toLowerCase().includes(q) ||
           (d as any).documentNumber?.toLowerCase().includes(q) ||
-          (d as any).employeeNameEn?.toLowerCase().includes(q)
+          (d as any).employeeNameEn?.toLowerCase().includes(q) ||
+          (d as any).employeeNameAr?.toLowerCase().includes(q)
         );
       }
       return true;

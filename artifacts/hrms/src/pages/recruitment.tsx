@@ -164,7 +164,9 @@ export default function Recruitment() {
   const filled = requisitions.filter(r => r.status === 'filled').length;
 
   const filteredReqs = requisitions.filter(r => {
-    const matchSearch = !search || (r.jobTitleEn ?? '').toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search ||
+      (r.jobTitleEn ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      ((r as any).jobTitleAr ?? '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || r.status === statusFilter;
     return matchSearch && matchStatus;
   });
