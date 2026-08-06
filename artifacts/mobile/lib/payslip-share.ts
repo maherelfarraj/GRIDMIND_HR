@@ -1,4 +1,5 @@
 import { Platform, Share } from 'react-native';
+import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { Payslip } from '@workspace/api-client-react';
@@ -89,15 +90,30 @@ export async function sharePayslip(
       return await printPayslipHtmlOnWeb(html);
     }
 
-    const { uri } = await Print.printToFileAsync({ html });
+    const { uri: tempUri } = await Print.printToFileAsync({ html });
+
+    // Move the random-named temp file to a recognisable name before handing
+    // it to the share sheet (e.g. "payslip-2026-07-EMP-0007.pdf").
+    const fileName = `payslip-${data.period.periodCode}-${data.employee.employeeNumber}.pdf`;
+    const namedFile = new File(Paths.cache, fileName);
+    new File(tempUri).move(namedFile);
+
     if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(uri, {
-        mimeType: 'application/pdf',
-        UTI: 'com.adobe.pdf',
-        dialogTitle: title,
-      });
+      try {
+        await Sharing.shareAsync(namedFile.uri, {
+          mimeType: 'application/pdf',
+          UTI: 'com.adobe.pdf',
+          dialogTitle: title,
+        });
+      } finally {
+        // Clean up after the share sheet is dismissed.
+        namedFile.delete();
+      }
       return true;
     }
+
+    // Named copy is no longer needed if file sharing is unavailable.
+    namedFile.delete();
 
     // Fallback: device cannot share files — share the formatted text instead.
     const text = buildPayslipText(data, lang, t);
