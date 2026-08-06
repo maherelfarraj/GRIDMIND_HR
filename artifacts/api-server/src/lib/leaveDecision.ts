@@ -36,7 +36,7 @@ function rosterMarker(requestNumber: string): string {
  */
 export async function syncLinkedApprovalStatus(
   leaveRequestId: number,
-  status: "approved" | "rejected" | "cancelled",
+  status: "approved" | "rejected" | "cancelled" | "revoked",
   decisionNote?: string | null,
 ): Promise<void> {
   const candidates = await db.select().from(approvalsTable)
@@ -52,6 +52,29 @@ export async function syncLinkedApprovalStatus(
         status,
         decidedAt: new Date(),
         ...(decisionNote !== undefined ? { decisionNote: decisionNote ?? null } : {}),
+      })
+      .where(eq(approvalsTable.id, a.id));
+  }
+}
+
+/**
+ * For partial revokes: keep the approvals entry "approved" but update the
+ * metadata dates and total_days to reflect the shortened range.
+ */
+export async function refreshLinkedApprovalMetadata(
+  leaveRequestId: number,
+  patch: { dates: string; total_days: string },
+): Promise<void> {
+  const candidates = await db.select().from(approvalsTable)
+    .where(eq(approvalsTable.type, "leave"));
+  for (const a of candidates) {
+    if (!a.metadata) continue;
+    let meta: any;
+    try { meta = JSON.parse(a.metadata); } catch { continue; }
+    if (meta?.leave_request_id !== leaveRequestId) continue;
+    await db.update(approvalsTable)
+      .set({
+        metadata: JSON.stringify({ ...meta, ...patch }),
       })
       .where(eq(approvalsTable.id, a.id));
   }
