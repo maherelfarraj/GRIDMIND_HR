@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { type ZodObject, type ZodRawShape, type UnknownKeysParam, type ZodTypeAny, ZodIssueCode } from "zod";
 
 /**
@@ -18,7 +18,7 @@ import { type ZodObject, type ZodRawShape, type UnknownKeysParam, type ZodTypeAn
  */
 export function validateBody(
   schema: ZodObject<ZodRawShape, UnknownKeysParam, ZodTypeAny>,
-) {
+): RequestHandler {
   // Build the strict variant once at registration time, not per request.
   const strict = schema.strict();
 

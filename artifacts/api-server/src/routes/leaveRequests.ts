@@ -508,92 +508,159 @@ router.post("/leave-requests/:id/revoke", async (req, res): Promise<void> => {
     }
   }
 
-  const totalDays = parseFloat(r.totalDays);
-  const allDates = datesInRange(r.startDate, r.endDate);
-  const revokedDates = isPartial
-    ? allDates.filter(d => d > newEndDate)
-    : allDates;
-  // Credit back days proportionally to the calendar days being revoked
-  const creditedDays = isPartial
-    ? Math.round((totalDays * revokedDates.length / allDates.length) * 10) / 10
-    : totalDays;
-  const remainingDays = Math.max(0, Math.round((totalDays - creditedDays) * 10) / 10);
-
   const marker = rosterMarker(r.requestNumber);
-  const revokedStart = revokedDates[0];
-  const revokedEnd = revokedDates[revokedDates.length - 1];
 
-  const updated = await db.transaction(async (tx) => {
-    // 1. Credit balance back
-    const year = new Date(r.startDate).getFullYear();
-    const [balance] = await tx.select().from(leaveBalancesTable).where(
-      and(
-        eq(leaveBalancesTable.employeeId, r.employeeId),
-        eq(leaveBalancesTable.leaveTypeId, r.leaveTypeId),
-        eq(leaveBalancesTable.year, year),
-      )
-    ).for("update");
-    if (balance) {
-      const newUsed = Math.max(0, parseFloat(balance.used) - creditedDays);
-      await tx.update(leaveBalancesTable)
-        .set({ used: String(newUsed), updatedAt: new Date() })
-        .where(eq(leaveBalancesTable.id, balance.id));
-    }
+  let updated: typeof leaveRequestsTable.$inferSelect | undefined;
+  try {
+    updated = await db.transaction(async (tx) => {
+      // 0. Lock the request row to serialize concurrent revokes.
+      //    All date/day calculations are derived from lockedReq (not the
+      //    pre-lock snapshot `r`) so two racing transactions can't both
+      //    succeed on stale data.
+      const [lockedReq] = await tx.select().from(leaveRequestsTable)
+        .where(eq(leaveRequestsTable.id, id))
+        .for("update");
 
-    // 2. Restore roster for revoked dates: delete rows created by the approval,
-    //    revert others marked "leave" back to "scheduled"
-    const rosterRows = await tx.select().from(rostersTable).where(
-      and(
-        eq(rostersTable.employeeId, r.employeeId),
-        gte(rostersTable.date, revokedStart),
-        lte(rostersTable.date, revokedEnd),
-      )
-    );
-    for (const row of rosterRows) {
-      if (row.notes === marker) {
-        await tx.delete(rostersTable).where(eq(rostersTable.id, row.id));
-      } else if (row.status === "leave") {
-        await tx.update(rostersTable)
-          .set({ status: "scheduled", notes: `Reverted — leave revoked (${r.requestNumber})`, updatedAt: new Date() })
-          .where(eq(rostersTable.id, row.id));
+      if (!lockedReq || lockedReq.status !== "approved") {
+        throw Object.assign(
+          new Error("Leave was already revoked or is no longer in approved state"),
+          { httpStatus: 409 },
+        );
       }
-    }
 
-    // 3. Update the request itself
-    const [u] = await tx.update(leaveRequestsTable)
-      .set(isPartial
-        ? { endDate: newEndDate, totalDays: String(remainingDays), updatedAt: new Date() }
-        : { status: "revoked", updatedAt: new Date() })
-      .where(eq(leaveRequestsTable.id, id))
-      .returning();
+      // Re-validate the partial-revoke range against the *locked* endDate.
+      // This catches a racing partial revoke that already shortened the range:
+      // after TX1 commits, TX2's newEndDate would be >= lockedReq.endDate.
+      if (isPartial && (newEndDate < lockedReq.startDate || newEndDate >= lockedReq.endDate)) {
+        throw Object.assign(
+          new Error("newEndDate must be within the current leave range and before the current end date"),
+          { httpStatus: 409 },
+        );
+      }
 
-    // 4. Audit trail
-    await tx.insert(auditLogsTable).values({
-      action: isPartial ? "leave.revoked_partial" : "leave.revoked",
-      entityType: "leave_request",
-      entityId: id,
-      entityLabel: r.requestNumber,
-      actorUserId,
-      changesJson: JSON.stringify({
-        reason,
-        // Attributed to the authenticated actor, never a client-supplied id.
-        revokedByEmployeeId: actor.employeeId ?? null,
-        revokedFrom: revokedStart,
-        revokedTo: revokedEnd,
-        creditedDays,
-        ...(isPartial ? { newEndDate, remainingDays } : {}),
-      }),
+      // Derive all date/day figures from the locked row.
+      const lockedTotalDays = parseFloat(lockedReq.totalDays);
+      const allDates = datesInRange(lockedReq.startDate, lockedReq.endDate);
+      const revokedDates = isPartial
+        ? allDates.filter(d => d > newEndDate)
+        : allDates;
+      const creditedDays = isPartial
+        ? Math.round((lockedTotalDays * revokedDates.length / allDates.length) * 10) / 10
+        : lockedTotalDays;
+      const remainingDays = Math.max(0, Math.round((lockedTotalDays - creditedDays) * 10) / 10);
+      const revokedStart = revokedDates[0];
+      const revokedEnd = revokedDates[revokedDates.length - 1];
+
+      // 1. Claim the status/range change atomically.
+      //    Full revoke: WHERE status = 'approved' — once flipped to 'revoked',
+      //      the second concurrent revoke's claim returns no rows → 409.
+      //    Partial revoke: status stays 'approved', so use the current endDate
+      //      as a version predicate. After TX1 shortens the range, TX2's
+      //      locked endDate no longer matches the original, so its claim fails.
+      const claimWhere = isPartial
+        ? and(
+            eq(leaveRequestsTable.id, id),
+            eq(leaveRequestsTable.status, "approved"),
+            eq(leaveRequestsTable.endDate, lockedReq.endDate),
+          )
+        : and(
+            eq(leaveRequestsTable.id, id),
+            eq(leaveRequestsTable.status, "approved"),
+          );
+
+      const [claimed] = isPartial
+        ? await tx.update(leaveRequestsTable)
+            .set({ endDate: newEndDate, totalDays: String(remainingDays), updatedAt: new Date() })
+            .where(claimWhere)
+            .returning()
+        : await tx.update(leaveRequestsTable)
+            .set({ status: "revoked", updatedAt: new Date() })
+            .where(claimWhere)
+            .returning();
+
+      if (!claimed) {
+        throw Object.assign(
+          new Error("Leave was already revoked or is no longer in approved state"),
+          { httpStatus: 409 },
+        );
+      }
+
+      // 2. Credit balance back — only when the status claim succeeded.
+      //    GREATEST prevents the used counter from going negative on any
+      //    unexpected state (mirrors the cancel pattern for pending).
+      const year = new Date(lockedReq.startDate).getFullYear();
+      await tx.select().from(leaveBalancesTable)
+        .where(and(
+          eq(leaveBalancesTable.employeeId, lockedReq.employeeId),
+          eq(leaveBalancesTable.leaveTypeId, lockedReq.leaveTypeId),
+          eq(leaveBalancesTable.year, year),
+        ))
+        .for("update");
+      await tx.update(leaveBalancesTable)
+        .set({
+          used: sql`GREATEST(${leaveBalancesTable.used} - ${String(creditedDays)}::numeric, 0)`,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(leaveBalancesTable.employeeId, lockedReq.employeeId),
+          eq(leaveBalancesTable.leaveTypeId, lockedReq.leaveTypeId),
+          eq(leaveBalancesTable.year, year),
+        ));
+
+      // 3. Restore roster for revoked dates: delete rows created by the approval,
+      //    revert others marked "leave" back to "scheduled"
+      const rosterRows = await tx.select().from(rostersTable).where(
+        and(
+          eq(rostersTable.employeeId, lockedReq.employeeId),
+          gte(rostersTable.date, revokedStart),
+          lte(rostersTable.date, revokedEnd),
+        )
+      );
+      for (const row of rosterRows) {
+        if (row.notes === marker) {
+          await tx.delete(rostersTable).where(eq(rostersTable.id, row.id));
+        } else if (row.status === "leave") {
+          await tx.update(rostersTable)
+            .set({ status: "scheduled", notes: `Reverted — leave revoked (${lockedReq.requestNumber})`, updatedAt: new Date() })
+            .where(eq(rostersTable.id, row.id));
+        }
+      }
+
+      // 4. Audit trail
+      await tx.insert(auditLogsTable).values({
+        action: isPartial ? "leave.revoked_partial" : "leave.revoked",
+        entityType: "leave_request",
+        entityId: id,
+        entityLabel: lockedReq.requestNumber,
+        actorUserId,
+        changesJson: JSON.stringify({
+          reason,
+          // Attributed to the authenticated actor, never a client-supplied id.
+          revokedByEmployeeId: actor.employeeId ?? null,
+          revokedFrom: revokedStart,
+          revokedTo: revokedEnd,
+          creditedDays,
+          ...(isPartial ? { newEndDate, remainingDays } : {}),
+        }),
+      });
+
+      return claimed;
     });
-
-    return u;
-  });
+  } catch (err: any) {
+    if (err?.httpStatus) {
+      res.status(err.httpStatus).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 
   // Keep the approvals queue entry in sync with the revocation outcome.
   if (isPartial) {
     // Partial revoke: entry stays "approved" but reflects the shortened range.
+    // updated.totalDays holds the post-revoke remaining days written by the transaction.
     await refreshLinkedApprovalMetadata(id, {
       dates: `${r.startDate} → ${newEndDate}`,
-      total_days: String(remainingDays),
+      total_days: updated?.totalDays ?? "0",
     });
   } else {
     // Full revoke: flip the queue entry to "revoked".
