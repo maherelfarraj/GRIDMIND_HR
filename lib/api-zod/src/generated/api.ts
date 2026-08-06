@@ -3155,6 +3155,17 @@ export const AddLeaveAttachmentResponse = zod.object({
 
 
 /**
+ * @summary Remove an attachment from a draft leave request
+ */
+export const DeleteLeaveAttachmentParams = zod.object({
+  "id": zod.coerce.number(),
+  "attachmentId": zod.coerce.number()
+})
+
+export const DeleteLeaveAttachmentResponse = zod.void()
+
+
+/**
  * @summary Get approved/pending leaves for calendar overlay
  */
 export const GetLeaveCalendarQueryParams = zod.object({

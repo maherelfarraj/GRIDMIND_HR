@@ -7891,6 +7891,79 @@ export const useAddLeaveAttachment = <TError = ErrorType<unknown>,
       return useMutation(getAddLeaveAttachmentMutationOptions(options));
     }
 
+export const getDeleteLeaveAttachmentUrl = (id: number,
+    attachmentId: number,) => {
+
+
+
+
+  return `/api/leave-requests/${id}/attachments/${attachmentId}`
+}
+
+/**
+ * @summary Remove an attachment from a draft leave request
+ */
+export const deleteLeaveAttachment = async (id: number,
+    attachmentId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteLeaveAttachmentUrl(id,attachmentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteLeaveAttachmentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLeaveAttachment>>, TError,{id: number;attachmentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteLeaveAttachment>>, TError,{id: number;attachmentId: number}, TContext> => {
+
+const mutationKey = ['deleteLeaveAttachment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteLeaveAttachment>>, {id: number;attachmentId: number}> = (props) => {
+          const {id,attachmentId} = props ?? {};
+
+          return  deleteLeaveAttachment(id,attachmentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteLeaveAttachmentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteLeaveAttachment>>>
+
+    export type DeleteLeaveAttachmentMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove an attachment from a draft leave request
+ */
+export const useDeleteLeaveAttachment = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLeaveAttachment>>, TError,{id: number;attachmentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteLeaveAttachment>>,
+        TError,
+        {id: number;attachmentId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteLeaveAttachmentMutationOptions(options));
+    }
+
 export const getGetLeaveCalendarUrl = (params?: GetLeaveCalendarParams,) => {
   const normalizedParams = new URLSearchParams();
 

@@ -2030,6 +2030,28 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/LeaveAttachment" }
 
+  /leave-requests/{id}/attachments/{attachmentId}:
+    delete:
+      tags: [ leave ]
+      summary: Remove an attachment from a draft leave request
+      operationId: deleteLeaveAttachment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: attachmentId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+        "409":
+          description: Leave request is not in draft status
+
   /leave-calendar:
     get:
       tags: [ leave ]

@@ -645,6 +645,78 @@ router.post("/leave-requests/:id/attachments", async (req, res): Promise<void> =
   res.status(201).json(att);
 });
 
+// DELETE /leave-requests/:id/attachments/:attachmentId — remove a wrongly-attached document from a draft
+router.delete("/leave-requests/:id/attachments/:attachmentId", async (req, res): Promise<void> => {
+  const actor = await getActorInfo(req);
+  const actorUserId: number = actor.userId;
+  const id = parseInt(req.params.id, 10);
+  const attachmentId = parseInt(req.params.attachmentId, 10);
+
+  if (!Number.isInteger(attachmentId)) {
+    res.status(400).json({ error: "Invalid attachmentId" });
+    return;
+  }
+
+  // Authorization: only the request owner or a privileged user (approvals.decide) may remove.
+  // We need the full request to check ownership, so fetch it first.
+  const [rFull] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, id));
+  if (!rFull) { res.status(404).json({ error: "Leave request not found" }); return; }
+
+  const isOwnRequest = actor.employeeId != null && actor.employeeId === rFull.employeeId;
+  if (!isOwnRequest && !actor.permissions.includes(DECIDE_PERMISSION)) {
+    res.status(403).json({ error: "You do not have permission to remove this attachment", code: "FORBIDDEN" });
+    return;
+  }
+
+  // Row-lock the request inside a transaction so the draft check and delete are atomic.
+  // This prevents a concurrent submit from racing the removal and leaving the submitted
+  // request with no attachment despite a requiresAttachment leave type.
+  let attachmentFileName: string;
+  try {
+    attachmentFileName = await db.transaction(async (tx) => {
+      const [locked] = await tx.select().from(leaveRequestsTable)
+        .where(eq(leaveRequestsTable.id, id))
+        .for("update");
+
+      if (!locked || locked.status !== "draft") {
+        throw Object.assign(
+          new Error("Attachments can only be removed from draft leave requests"),
+          { httpStatus: 409, code: "NOT_DRAFT" },
+        );
+      }
+
+      // Confirm the attachment belongs to this leave request
+      const [att] = await tx.select().from(leaveAttachmentsTable).where(
+        and(eq(leaveAttachmentsTable.id, attachmentId), eq(leaveAttachmentsTable.leaveRequestId, id))
+      );
+      if (!att) {
+        throw Object.assign(new Error("Attachment not found"), { httpStatus: 404 });
+      }
+
+      await tx.delete(leaveAttachmentsTable).where(eq(leaveAttachmentsTable.id, attachmentId));
+
+      return att.fileName;
+    });
+  } catch (err: any) {
+    if (err?.httpStatus) {
+      res.status(err.httpStatus).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+      return;
+    }
+    throw err;
+  }
+
+  await db.insert(auditLogsTable).values({
+    action: "leave.attachment_removed",
+    entityType: "leave_request",
+    entityId: id,
+    entityLabel: rFull.requestNumber,
+    actorUserId,
+    changesJson: JSON.stringify({ attachmentId, fileName: attachmentFileName }),
+  });
+
+  res.status(204).end();
+});
+
 // GET /leave-calendar?startDate=&endDate=&departmentId= — calendar overlay data
 router.get("/leave-calendar", async (req, res): Promise<void> => {
   const orgId = await resolveOrgId(req);

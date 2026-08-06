@@ -9,6 +9,7 @@ import {
   useCreateLeaveRequest, useSubmitLeaveRequest, useDecideLeaveRequest,
   useCancelLeaveRequest, useReturnToDuty, useRevokeLeaveRequest,
   useAddLeaveAttachment,
+  useDeleteLeaveAttachment,
 } from '@workspace/api-client-react';
 import { AnimatedPage } from '@/components/layout/AnimatedPage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,7 +30,7 @@ import {
   Plus, ChevronDown, ChevronRight, ChevronLeft,
   Calendar, Users, Clock, CheckCircle, FileText,
   ThumbsUp, ThumbsDown, XCircle, ArrowRightCircle,
-  Paperclip, ShieldAlert, Undo2,
+  Paperclip, ShieldAlert, Undo2, Trash2,
 } from 'lucide-react';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -344,6 +345,7 @@ function RequestsTab() {
   const returnMut = useReturnToDuty();
   const revokeMut = useRevokeLeaveRequest();
   const addAttachmentMut = useAddLeaveAttachment();
+  const removeAttachmentMut = useDeleteLeaveAttachment();
 
   const filtered = useMemo(() => {
     const list = requests ?? [];
@@ -472,6 +474,19 @@ function RequestsTab() {
     } finally {
       setActioning(null);
       setAttachTargetId(null);
+    }
+  }
+
+  async function handleRemoveAttachment(leaveRequestId: number, attachmentId: number) {
+    setActioning(leaveRequestId);
+    try {
+      await removeAttachmentMut.mutateAsync({ id: leaveRequestId, attachmentId });
+      queryClient.invalidateQueries({ queryKey: ['/api/leave-requests'] });
+      toast({ title: t('Attachment removed', 'تم حذف المرفق') });
+    } catch (e: any) {
+      toast({ title: t('Error', 'خطأ'), description: e?.message, variant: 'destructive' });
+    } finally {
+      setActioning(null);
     }
   }
 
@@ -663,7 +678,12 @@ function RequestsTab() {
                           <TableRow className="bg-muted/20">
                             <TableCell colSpan={9}>
                               <ApprovalStepsInline requestId={req.id} />
-                              <AttachmentsInline attachments={(req as any).attachments ?? []} />
+                              <AttachmentsInline
+                                attachments={(req as any).attachments ?? []}
+                                isDraft={req.status === 'draft'}
+                                onRemove={(attachmentId) => handleRemoveAttachment(req.id, attachmentId)}
+                                busy={busy}
+                              />
                             </TableCell>
                           </TableRow>
                         )}
@@ -805,31 +825,52 @@ function ApprovalStepsInline({ requestId }: { requestId: number }) {
   );
 }
 
-function AttachmentsInline({ attachments }: { attachments: any[] }) {
+function AttachmentsInline({
+  attachments,
+  isDraft = false,
+  onRemove,
+  busy = false,
+}: {
+  attachments: any[];
+  isDraft?: boolean;
+  onRemove?: (attachmentId: number) => void;
+  busy?: boolean;
+}) {
   const { t } = useLanguage();
   if (!attachments.length) return null;
   return (
     <div className="flex gap-2 py-2 flex-wrap items-center">
       <span className="text-xs font-medium text-muted-foreground">{t('Attachments', 'المرفقات')}:</span>
       {attachments.map((a: any) => (
-        <a
-          key={a.id}
-          href={a.fileUrl ?? undefined}
-          download={a.fileUrl?.startsWith('data:') ? a.fileName : undefined}
-          target={a.fileUrl && !a.fileUrl.startsWith('data:') ? '_blank' : undefined}
-          rel="noreferrer"
-          className={cn(
-            'flex items-center gap-1.5 text-xs bg-background border rounded px-2.5 py-1.5',
-            a.fileUrl ? 'hover:bg-muted text-blue-600' : 'text-muted-foreground cursor-default'
+        <div key={a.id} className="flex items-center gap-1">
+          <a
+            href={a.fileUrl ?? undefined}
+            download={a.fileUrl?.startsWith('data:') ? a.fileName : undefined}
+            target={a.fileUrl && !a.fileUrl.startsWith('data:') ? '_blank' : undefined}
+            rel="noreferrer"
+            className={cn(
+              'flex items-center gap-1.5 text-xs bg-background border rounded px-2.5 py-1.5',
+              a.fileUrl ? 'hover:bg-muted text-blue-600' : 'text-muted-foreground cursor-default'
+            )}
+            onClick={e => { if (!a.fileUrl) e.preventDefault(); }}
+          >
+            <Paperclip className="w-3 h-3" />
+            <span>{a.fileName}</span>
+            {a.fileSize != null && (
+              <span className="text-muted-foreground">({(a.fileSize / 1024).toFixed(0)} KB)</span>
+            )}
+          </a>
+          {isDraft && onRemove && (
+            <button
+              disabled={busy}
+              onClick={() => onRemove(a.id)}
+              title={t('Remove attachment', 'إزالة المرفق')}
+              className="p-1 rounded hover:bg-red-50 text-red-400 hover:text-red-600 disabled:opacity-50 transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
           )}
-          onClick={e => { if (!a.fileUrl) e.preventDefault(); }}
-        >
-          <Paperclip className="w-3 h-3" />
-          <span>{a.fileName}</span>
-          {a.fileSize != null && (
-            <span className="text-muted-foreground">({(a.fileSize / 1024).toFixed(0)} KB)</span>
-          )}
-        </a>
+        </div>
       ))}
     </div>
   );
