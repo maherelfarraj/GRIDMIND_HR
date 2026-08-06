@@ -679,6 +679,7 @@ export default function IntegrationGovernance() {
   const [editVaultTarget, setEditVaultTarget] = useState<any>(null);
   const [deleteVaultTarget, setDeleteVaultTarget] = useState<any>(null);
   const [editProfile, setEditProfile] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState('profiles');
 
   // Audit tab — independent state so filters/pagination don't reload the whole page
   const [auditTabLog, setAuditTabLog] = useState<any[]>([]);
@@ -840,10 +841,17 @@ export default function IntegrationGovernance() {
           </div>
         </div>
 
-        <Tabs defaultValue="profiles">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-slate-800 border border-slate-700">
             <TabsTrigger value="profiles" className="data-[state=active]:bg-slate-700">{t('Connection Profiles', 'ملفات الاتصال')}</TabsTrigger>
-            <TabsTrigger value="vault" className="data-[state=active]:bg-slate-700">{t('Credential Vault', 'خزنة الاعتماد')}</TabsTrigger>
+            <TabsTrigger value="vault" className="data-[state=active]:bg-slate-700">
+              {t('Credential Vault', 'خزنة الاعتماد')}
+              {!loading && vault.filter(v => !v.configured).length > 0 && (
+                <span className="ms-1.5 inline-flex items-center justify-center rounded-full bg-amber-500 text-slate-900 text-[10px] font-bold w-4 h-4 shrink-0" data-testid="vault-tab-missing-badge">
+                  {vault.filter(v => !v.configured).length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="rules" className="data-[state=active]:bg-slate-700">{t('Governance Rules', 'قواعد الحوكمة')}</TabsTrigger>
             <TabsTrigger value="audit" className="data-[state=active]:bg-slate-700">{t('Audit Log', 'سجل التدقيق')}</TabsTrigger>
           </TabsList>
@@ -953,6 +961,27 @@ export default function IntegrationGovernance() {
                   })}
                 </CardContent>
               </Card>
+            )}
+            {!loading && vault.filter(v => !v.configured).length > 0 && (
+              <button
+                type="button"
+                className="w-full text-start rounded-md border border-amber-700 bg-amber-900/25 p-3 flex items-start gap-2 hover:bg-amber-900/40 transition-colors cursor-pointer"
+                onClick={() => setActiveTab('vault')}
+                data-testid="vault-missing-overview-banner"
+              >
+                <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-amber-300 text-sm font-medium">
+                    {vault.filter(v => !v.configured).length === 1
+                      ? t('1 credential vault ref is missing its environment variable', '١ مرجع خزنة اعتماد غير مُهيَّأ متغير بيئته')
+                      : t(`${vault.filter(v => !v.configured).length} credential vault refs are missing their environment variables`, `${vault.filter(v => !v.configured).length} مراجع خزنة اعتماد غير مُهيَّأة متغيرات بيئتها`)}
+                  </p>
+                  <p className="text-amber-400/70 text-xs mt-0.5">
+                    {t('Integrations using these refs cannot authenticate until the variables are set. Click to open the Credential Vault tab.', 'لن تتمكن التكاملات التي تستخدم هذه المراجع من المصادقة حتى يتم ضبط المتغيرات. انقر لفتح تبويب خزنة الاعتماد.')}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-amber-400/60 mt-0.5 shrink-0" />
+              </button>
             )}
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-36 bg-slate-700 rounded-lg" />)}</div>
