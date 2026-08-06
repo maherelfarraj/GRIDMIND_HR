@@ -36,17 +36,18 @@ router.get("/admin/backup-records", async (req, res): Promise<void> => {
   res.json(rows);
 });
 
-// POST /admin/backup-records/run — execute a REAL pg_dump backup
+// POST /admin/backup-records/run — execute a pg_dump backup
 router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
     const { backupType, notes } = req.body ?? {};
 
-    const record = await runBackup({
-      backupType: backupType ?? "full",
-      initiatedByUserId: actorUserId,
-      notes: notes ?? null,
-    });
+    if (!backupType) {
+      res.status(400).json({ error: "backupType is required" });
+      return;
+    }
+
+    const record = await runBackup({ backupType, initiatedByUserId: actorUserId, notes });
 
     await db.insert(auditLogsTable).values({
       action: "create",
@@ -73,8 +74,7 @@ router.post("/admin/backup-records/run", async (req, res): Promise<void> => {
   }
 });
 
-// POST /admin/backup-records — execute a real backup (legacy record-creation
-// endpoint upgraded: this now runs pg_dump instead of just inserting a row).
+// POST /admin/backup-records — legacy record-creation endpoint (runs pg_dump)
 router.post("/admin/backup-records", async (req, res): Promise<void> => {
   try {
     const actorUserId: number = (req as any).session?.userId ?? 1;
@@ -85,11 +85,7 @@ router.post("/admin/backup-records", async (req, res): Promise<void> => {
       return;
     }
 
-    const record = await runBackup({
-      backupType,
-      initiatedByUserId: actorUserId,
-      notes: notes ?? null,
-    });
+    const record = await runBackup({ backupType, initiatedByUserId: actorUserId, notes });
 
     if (record.status !== "completed") {
       res.status(500).json({ error: record.errorMessage ?? "Backup failed", record });
@@ -125,8 +121,8 @@ router.post("/admin/backup-records/:id/retry-offsite", async (req, res): Promise
   }
 });
 
-// POST /admin/backup-records/:id/verify
-router.post("/admin/backup-records/:id/verify", async (req, res): Promise<void> => {
+// PATCH /admin/backup-records/:id/verify — mark a backup record as verified
+router.patch("/admin/backup-records/:id/verify", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const { verificationNotes, restoreTestResult } = req.body;
 

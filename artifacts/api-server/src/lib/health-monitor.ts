@@ -161,6 +161,18 @@ export async function raiseHealthRecoveryIfAlerted(
       .from(systemUsersTable)
       .innerJoin(rolesTable, eq(systemUsersTable.roleId, rolesTable.id))
       .where(and(eq(systemUsersTable.isActive, true), ilike(rolesTable.nameEn, "%admin%")));
+    // Retire the earlier urgent health-alert notifications so admins are not
+    // left with stale "requires action" items after the connection recovers.
+    await tx
+      .update(notificationsTable)
+      .set({ requiresAction: false })
+      .where(and(
+        eq(notificationsTable.entityType, "connection_profile"),
+        eq(notificationsTable.entityId, profile.id),
+        eq(notificationsTable.requiresAction, true),
+        eq(notificationsTable.severity, "urgent"),
+      ));
+
     if (adminRows.length) {
       await tx.insert(notificationsTable).values(adminRows.map(({ id: userId }) => ({
         recipientUserId: userId,

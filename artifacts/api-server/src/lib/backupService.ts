@@ -11,15 +11,14 @@ import {
   restoreTestResultsTable,
   type BackupRecord,
 } from "@workspace/db";
-
-const execFileAsync = promisify(execFile);
-
 import {
   isOffsiteConfigured,
   uploadBackupOffsite,
   downloadBackupFromOffsite,
   deleteBackupOffsite,
-} from "./backupOffsite";
+} from "./backupOffsite.js";
+
+const execFileAsync = promisify(execFile);
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 // Backups are written to BACKUP_DIR (defaults to <cwd>/backups). Point this at a

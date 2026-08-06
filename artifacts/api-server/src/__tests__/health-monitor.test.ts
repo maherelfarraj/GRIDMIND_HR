@@ -4,12 +4,14 @@
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, ilike, inArray } from "drizzle-orm";
 import {
   db,
   integrationConnectionProfilesTable,
   integrationAuditLogTable,
   notificationsTable,
+  systemUsersTable,
+  rolesTable,
 } from "@workspace/db";
 import app from "../app";
 import { runHealthChecksOnce, HEALTH_CHECK_CONCURRENCY_LIMIT } from "../lib/health-monitor";
@@ -253,6 +255,60 @@ describe("connection health monitor", () => {
         eq(integrationAuditLogTable.eventType, "health_recovered"),
       ));
     expect(auditAfter.length).toBe(1);
+  });
+
+  it("alert → recovery: original urgent notifications are retired (requiresAction cleared)", async () => {
+    // Seed a profile that already has an outstanding health_alert audit event
+    // and the matching urgent in-app notifications (requiresAction: true).
+    const profile = await createProfile({ integrationType: "internal_api", consecutiveFailures: 3 });
+
+    // Simulate the alert notifications that would have been created by the earlier sweep.
+    const [adminRow] = await db
+      .select({ id: systemUsersTable.id })
+      .from(systemUsersTable)
+      .innerJoin(rolesTable, eq(systemUsersTable.roleId, rolesTable.id))
+      .where(and(eq(systemUsersTable.isActive, true), ilike(rolesTable.nameEn, "%admin%")))
+      .limit(1);
+    expect(adminRow).toBeDefined(); // seed DB must have at least one admin
+
+    const [alertNotif] = await db.insert(notificationsTable).values({
+      recipientUserId: adminRow.id,
+      notificationType: "security_alert",
+      titleEn: `Integration health alert: ${profile.profileName}`,
+      titleAr: `تنبيه صحة التكامل: ${profile.profileName}`,
+      bodyEn: "seeded alert body",
+      severity: "urgent",
+      requiresAction: true,
+      entityType: "connection_profile",
+      entityId: profile.id,
+      actionUrl: "/integration-governance",
+      actionLabelEn: "View connection profiles",
+    }).returning();
+
+    await db.insert(integrationAuditLogTable).values({
+      profileId: profile.id, integrationType: profile.integrationType,
+      eventType: "health_alert", outcome: "failure", message: "seeded alert", actorUserId: null,
+    });
+
+    // Successful sweep → recovery raised.
+    const result = await runHealthChecksOnce({ force: true });
+    const outcome = result.outcomes.find((o) => o.profileId === profile.id);
+    expect(outcome!.success).toBe(true);
+    expect(outcome!.recoveryRaised).toBe(true);
+
+    // The original alert notification must no longer require action.
+    const [updated] = await db.select().from(notificationsTable)
+      .where(eq(notificationsTable.id, alertNotif.id));
+    expect(updated.requiresAction).toBe(false);
+
+    // The recovery notification itself does not require action either.
+    const recoveryNotifs = await db.select().from(notificationsTable).where(and(
+      eq(notificationsTable.entityType, "connection_profile"),
+      eq(notificationsTable.entityId, profile.id),
+      eq(notificationsTable.severity, "success"),
+    ));
+    expect(recoveryNotifs.length).toBeGreaterThan(0);
+    expect(recoveryNotifs.every((n) => !n.requiresAction)).toBe(true);
   });
 
   it("does not raise a recovery notice for profiles that never crossed the threshold", async () => {
