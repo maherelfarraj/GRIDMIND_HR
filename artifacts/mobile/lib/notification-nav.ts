@@ -34,8 +34,8 @@ type RouteEntry = SimpleRouteEntry | TransformRouteEntry;
 const WEB_TO_MOBILE_ROUTES: RouteEntry[] = [
   // device_command_outcome (restart acknowledged/failed/expired)
   { webPath: '/attendance-devices', mobileRoute: '/devices' },
-  // attendance-gateway credential / silence alerts
-  { webPath: '/attendance-gateway', mobileRoute: '/devices' },
+  // attendance-gateway credential / silence / reconcile alerts
+  { webPath: '/attendance-gateway', mobileRoute: '/gateway' },
   // security_alert lockouts deep-link to /users?highlight=<username>; the
   // mobile users screen honors the same highlight param.
   { webPath: '/users', mobileRoute: '/admin-users', preserveQuery: true },

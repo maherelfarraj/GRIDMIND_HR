@@ -33,13 +33,13 @@ describe('mobileRouteForNotification', () => {
 
   // ── attendance gateway ────────────────────────────────────────────────────
 
-  it('maps gateway credential / silence alerts to the devices screen', () => {
+  it('maps gateway credential / silence / reconcile alerts to the gateway screen', () => {
     expect(
       mobileRouteForNotification({ actionUrl: '/attendance-gateway' }),
-    ).toBe('/devices');
+    ).toBe('/gateway');
     expect(
       mobileRouteForNotification({ actionUrl: '/attendance-gateway?tab=alerts' }),
-    ).toBe('/devices');
+    ).toBe('/gateway');
   });
 
   // ── security lockouts ─────────────────────────────────────────────────────
