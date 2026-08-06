@@ -703,29 +703,49 @@ export async function processPepperRotationWindowAlert(status: {
   }
 }
 
-/** Starts the background silent-gateway scheduler. Called from index.ts (not from tests). */
-export function startGatewaySilenceMonitor(): void {
+/**
+ * Default sweep chain for the gateway silence monitor: silence sweep →
+ * command expiry → outcome-notification backfill.  Extracted so the
+ * start function can use it as its default `sweepFn` while tests can
+ * substitute a controlled function without touching the DB.
+ */
+async function defaultGatewaySilenceSweep(): Promise<void> {
+  try {
+    const r = await runMonitoredGatewaySilenceSweep();
+    void r; // result already logged inside runMonitoredGatewaySilenceSweep
+  } catch (err) {
+    logger.error({ err }, "Gateway silence sweep failed unexpectedly");
+  }
+  try {
+    const expired = await expireStaleDeviceCommandsOnce();
+    if (expired > 0) logger.info({ expired }, "Stale device commands expired by sweep");
+  } catch (err) {
+    logger.error({ err }, "Device command expiry sweep failed");
+  }
+  try {
+    const backfilled = await backfillMissedCommandOutcomeNotifications();
+    if (backfilled > 0) logger.info({ backfilled }, "Missed command outcome notifications backfilled");
+  } catch (err) {
+    logger.error({ err }, "Command outcome notification backfill failed");
+  }
+}
+
+/**
+ * Starts the background silent-gateway scheduler. Called from index.ts (not from tests).
+ *
+ * `sweepFn` is injectable for tests: pass a controlled function to drive the
+ * start/stop contract without touching the DB.  Production callers omit it
+ * to get the real sweep chain (silence + command expiry + backfill).
+ */
+export function startGatewaySilenceMonitor(
+  sweepFn: () => Promise<void> = defaultGatewaySilenceSweep,
+): void {
   if (silenceTimer) return;
   silenceTimer = setInterval(() => {
     if (silenceSweeping) return; // never overlap sweeps
     silenceSweeping = true;
-    inFlightSilenceSweep = runMonitoredGatewaySilenceSweep()
-      .then(() => undefined)
-      .catch((err) => logger.error({ err }, "Gateway silence sweep failed unexpectedly"))
-      // Server-side command expiry: stale restart commands must expire (and
-      // notify their requester) even when nobody has the device page open.
-      .then(() => expireStaleDeviceCommandsOnce())
-      .then((expired) => {
-        if (expired > 0) logger.info({ expired }, "Stale device commands expired by sweep");
-      })
-      .catch((err) => logger.error({ err }, "Device command expiry sweep failed"))
-      // Safety net: re-deliver any outcome notification lost to a restart in
-      // the window between the response and the deferred insert.
-      .then(() => backfillMissedCommandOutcomeNotifications())
-      .then((backfilled) => {
-        if (backfilled > 0) logger.info({ backfilled }, "Missed command outcome notifications backfilled");
-      })
-      .catch((err) => logger.error({ err }, "Command outcome notification backfill failed"))
+    inFlightSilenceSweep = sweepFn()
+      .catch((err) => logger.error({ err }, "Gateway silence monitor sweep chain failed unexpectedly"))
       .finally(() => { silenceSweeping = false; inFlightSilenceSweep = null; });
   }, SILENCE_SWEEP_INTERVAL_MS);
   silenceTimer.unref?.();

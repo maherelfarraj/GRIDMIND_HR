@@ -82,22 +82,28 @@ export async function runSweepOnce(
   return alerter.runMonitored(sweepFn);
 }
 
-/** Starts the background sweeper. Called from index.ts (not from tests). */
-export function startPrivilegedSessionSweeper(): void {
+/**
+ * Starts the background sweeper. Called from index.ts (not from tests).
+ *
+ * `sweepFn` is injectable for tests: pass a controlled function to drive the
+ * start/stop contract without touching the DB.  Production callers omit it
+ * to get the real monitored sweep.
+ */
+export function startPrivilegedSessionSweeper(
+  sweepFn: () => Promise<void> = () => runSweepOnce().then(() => undefined),
+): void {
   if (timer) return;
+  const doSweep = (label: string) => {
+    sweeping = true;
+    inFlightSweep = sweepFn()
+      .catch((err) => logger.error({ err }, `Privileged-session ${label} failed unexpectedly`))
+      .finally(() => { sweeping = false; inFlightSweep = null; });
+  };
   // Close anything that lapsed while the server was down, right away.
-  sweeping = true;
-  inFlightSweep = runSweepOnce()
-    .then(() => undefined)
-    .catch((err) => logger.error({ err }, "Privileged-session startup sweep failed"))
-    .finally(() => { sweeping = false; inFlightSweep = null; });
+  doSweep("startup sweep");
   timer = setInterval(() => {
     if (sweeping) return; // never overlap sweeps
-    sweeping = true;
-    inFlightSweep = runSweepOnce()
-      .then(() => undefined)
-      .catch((err) => logger.error({ err }, "Privileged-session sweep failed unexpectedly"))
-      .finally(() => { sweeping = false; inFlightSweep = null; });
+    doSweep("sweep");
   }, SWEEP_INTERVAL_MS);
   timer.unref?.();
   logger.info({ sweepIntervalMs: SWEEP_INTERVAL_MS }, "Privileged-session sweeper started");

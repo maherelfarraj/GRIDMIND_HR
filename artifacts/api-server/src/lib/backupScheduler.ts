@@ -94,6 +94,21 @@ export function _resetBackupAlerterForTests(): void {
   alerter._resetForTests();
 }
 
+/**
+ * Test-only: simulate the cron callback firing with an injectable cycle
+ * function.  This is the only way to get `inFlightCycle` set in a test
+ * environment where the real cron expression never fires.  Never call from
+ * production code.
+ */
+export function _triggerBackupCycleForTest(
+  cycleFn: () => Promise<void> = runScheduledBackupCycle,
+): void {
+  if (inFlightCycle) return; // honour the "never overlap" invariant
+  inFlightCycle = cycleFn()
+    .catch((err) => logger.error({ err }, "Scheduled backup cycle failed unexpectedly"))
+    .finally(() => { inFlightCycle = null; });
+}
+
 export function getBackupScheduleStatus(): BackupScheduleStatus {
   return { ...status };
 }

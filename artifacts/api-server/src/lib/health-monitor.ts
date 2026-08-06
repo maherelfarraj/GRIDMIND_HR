@@ -543,14 +543,21 @@ export async function runMonitoredHealthSweep(
   return sweepAlerter.runMonitored(sweepFn);
 }
 
-/** Starts the background scheduler. Called from index.ts (not from tests). */
-export function startHealthMonitor(): void {
+/**
+ * Starts the background scheduler. Called from index.ts (not from tests).
+ *
+ * `sweepFn` is injectable for tests: pass a controlled function to drive the
+ * start/stop contract without touching the DB.  Production callers omit it
+ * to get the real monitored sweep.
+ */
+export function startHealthMonitor(
+  sweepFn: () => Promise<void> = () => runMonitoredHealthSweep().then(() => undefined),
+): void {
   if (timer) return;
   timer = setInterval(() => {
     if (sweeping) return; // never overlap sweeps
     sweeping = true;
-    inFlightSweep = runMonitoredHealthSweep()
-      .then(() => undefined)
+    inFlightSweep = sweepFn()
       .catch((err) => logger.error({ err }, "Health monitor sweep failed unexpectedly"))
       .finally(() => { sweeping = false; inFlightSweep = null; });
   }, SWEEP_INTERVAL_MS);
