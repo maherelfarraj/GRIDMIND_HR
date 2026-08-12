@@ -397,6 +397,46 @@ test.describe('Login flow', () => {
     ).toBe(ADMIN_USERNAME);
   });
 
+  // ── Arabic wrong-credentials ───────────────────────────────────────────────
+
+  test('Arabic mode → wrong credentials show Arabic error alert and page stays on /login', async ({ page }) => {
+    await page.goto('/login');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+
+    await expect(page.locator('#username')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#password')).toBeVisible({ timeout: 5_000 });
+
+    // Switch the form to Arabic/RTL mode.
+    const langToggle = page.getByRole('button', { name: /العربية/i });
+    await expect(langToggle).toBeVisible({ timeout: 5_000 });
+    await langToggle.click();
+
+    // Confirm RTL mode is active before submitting.
+    await expect(page.locator('label[for="username"]')).toContainText('اسم المستخدم', { timeout: 5_000 });
+
+    // Submit deliberately wrong credentials (nonexistent user avoids lockout
+    // on the real admin account).
+    await page.fill('#username', `no-such-user-${Date.now()}`);
+    await page.fill('#password', 'definitely-wrong');
+    await page.click('button[type="submit"]');
+
+    // An error alert must appear containing Arabic text.
+    const alert = page.locator('[role="alert"]');
+    await expect(alert).toBeVisible({ timeout: 10_000 });
+    // The alert must contain at least one Arabic character (Unicode Arabic block).
+    const alertText = await alert.textContent();
+    expect(
+      alertText,
+      'Error alert in Arabic mode must contain Arabic text, not just an English fallback',
+    ).toMatch(/[\u0600-\u06FF]/);
+
+    // Must remain on the login page.
+    expect(
+      page.url(),
+      'Expected to stay on /login after a failed authentication attempt in Arabic mode',
+    ).toContain('/login');
+  });
+
   // ── Sad path ───────────────────────────────────────────────────────────────
 
   test('wrong password for valid user → error alert visible and page stays on /login', async ({ page }) => {

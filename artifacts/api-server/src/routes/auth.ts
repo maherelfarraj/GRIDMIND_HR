@@ -198,7 +198,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     if (accountLockedNow || ipLockedNow) {
       await notifyAdminsOfLockout(username, ip, lockScope);
     }
-    res.status(401).json({ error: "Invalid credentials" });
+    res.status(401).json({ error: "Invalid credentials", errorAr: "بيانات الاعتماد غير صحيحة" });
   };
 
   const [user] = await db.select().from(systemUsersTable)
