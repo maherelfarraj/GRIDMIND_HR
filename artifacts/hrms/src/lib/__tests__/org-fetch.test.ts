@@ -9,7 +9,7 @@
  * user who previously selected an org.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ORG_STORAGE_KEY, getActiveOrgId } from '../org-fetch';
+import { ORG_STORAGE_KEY, getActiveOrgId, setActiveOrgId } from '../org-fetch';
 
 // We re-import the module fresh each test to reset the `installed` flag.
 // vitest's module isolation via vi.resetModules() + dynamic import achieves this.
@@ -161,6 +161,62 @@ describe('getActiveOrgId — localStorage value validation', () => {
 
   it('returns null when nothing is stored', () => {
     // key was never set
+    expect(getActiveOrgId()).toBeNull();
+  });
+});
+
+describe('setActiveOrgId — storage contract', () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+    });
+  });
+
+  it('stores a valid positive integer under the expected key', () => {
+    setActiveOrgId(5);
+    expect(store[ORG_STORAGE_KEY]).toBe('5');
+  });
+
+  it('removes the key when called with null', () => {
+    store[ORG_STORAGE_KEY] = '5';
+    setActiveOrgId(null);
+    expect(store[ORG_STORAGE_KEY]).toBeUndefined();
+  });
+
+  it('round-trip: set then get returns the same valid positive integer', () => {
+    setActiveOrgId(42);
+    expect(getActiveOrgId()).toBe(42);
+  });
+
+  it('round-trip: set null then get returns null', () => {
+    setActiveOrgId(5);
+    setActiveOrgId(null);
+    expect(getActiveOrgId()).toBeNull();
+  });
+
+  it('does NOT store 0 — removes the key and get returns null', () => {
+    store[ORG_STORAGE_KEY] = '5';   // pre-existing value
+    setActiveOrgId(0);
+    expect(store[ORG_STORAGE_KEY]).toBeUndefined();  // key removed, not "0"
+    expect(getActiveOrgId()).toBeNull();
+  });
+
+  it('does NOT store a negative value — removes the key and get returns null', () => {
+    store[ORG_STORAGE_KEY] = '5';   // pre-existing value
+    setActiveOrgId(-3);
+    expect(store[ORG_STORAGE_KEY]).toBeUndefined();  // key removed, not "-3"
+    expect(getActiveOrgId()).toBeNull();
+  });
+
+  it('does NOT store a non-integer float — removes the key and get returns null', () => {
+    store[ORG_STORAGE_KEY] = '5';   // pre-existing value
+    setActiveOrgId(2.7);
+    expect(store[ORG_STORAGE_KEY]).toBeUndefined();
     expect(getActiveOrgId()).toBeNull();
   });
 });

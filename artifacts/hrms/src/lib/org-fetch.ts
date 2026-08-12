@@ -13,8 +13,18 @@ export function getActiveOrgId(): number | null {
 }
 
 export function setActiveOrgId(orgId: number | null): void {
-  if (orgId === null) localStorage.removeItem(ORG_STORAGE_KEY);
-  else localStorage.setItem(ORG_STORAGE_KEY, String(orgId));
+  if (orgId === null) {
+    localStorage.removeItem(ORG_STORAGE_KEY);
+    return;
+  }
+  // Guard: only persist positive finite integers. Anything else (0, negative,
+  // float, NaN, Infinity) would be silently dropped by getActiveOrgId on the
+  // next read, breaking org-scoped requests without any visible error.
+  if (!Number.isInteger(orgId) || orgId <= 0) {
+    localStorage.removeItem(ORG_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(ORG_STORAGE_KEY, String(orgId));
 }
 
 let installed = false;
