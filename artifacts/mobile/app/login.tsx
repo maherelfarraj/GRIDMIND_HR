@@ -32,7 +32,7 @@ function formatRetryDuration(seconds: number, lang: 'en' | 'ar'): string {
 export default function LoginScreen() {
   const colors = useColors();
   const { t, lang } = useI18n();
-  const { user, login, expiredReturnTo, clearExpiredReturnTo } = useAuth();
+  const { user, login, expiredReturnTo, clearExpiredReturnTo, sessionExpiredBanner, clearSessionExpiredBanner } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -86,6 +86,7 @@ export default function LoginScreen() {
       // isn't replayed if they later log out and back in manually.
       const destination = expiredReturnTo ?? '/(tabs)';
       clearExpiredReturnTo();
+      clearSessionExpiredBanner();
       router.replace(destination as Parameters<typeof router.replace>[0]);
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
@@ -160,7 +161,7 @@ export default function LoginScreen() {
           </Text>
         </View>
 
-        {expiredReturnTo !== null ? (
+        {sessionExpiredBanner ? (
           <View
             testID="session-expired-notice"
             style={{

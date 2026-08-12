@@ -91,6 +91,15 @@ interface AuthContextValue {
   logoutToast: boolean;
   /** Dismiss the logout toast (called by the auto-dismiss timer). */
   clearLogoutToast: () => void;
+  /**
+   * True when the user was signed out by an involuntary 401 (session expiry).
+   * The login screen uses this to show a "session expired" banner. Unlike
+   * expiredReturnTo, this is set even when the user was on an auth screen
+   * (where expiredReturnTo is null) so the banner always appears on expiry.
+   */
+  sessionExpiredBanner: boolean;
+  /** Dismiss the session-expired banner (called after a successful login). */
+  clearSessionExpiredBanner: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -100,6 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [expiredReturnTo, setExpiredReturnTo] = useState<string | null>(null);
   const [logoutToast, setLogoutToast] = useState<boolean>(false);
+  const [sessionExpiredBanner, setSessionExpiredBanner] = useState<boolean>(false);
 
   const router = useRouter();
 
@@ -138,6 +148,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const route = pathnameRef.current;
       const isAuthScreen = route === '/login' || route === '/change-password';
       setExpiredReturnTo(isAuthScreen ? null : route || null);
+      // Always show the session-expired banner on login, regardless of whether
+      // there is a meaningful return-to destination (e.g. expiry on the
+      // change-password screen still warrants a "your session expired" notice).
+      setSessionExpiredBanner(true);
       currentToken = null;
       setUser(null);
       clearToken().catch(() => {});
@@ -274,6 +288,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLogoutToast(false);
   }, []);
 
+  const clearSessionExpiredBanner = useCallback(() => {
+    setSessionExpiredBanner(false);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -285,8 +303,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearExpiredReturnTo,
       logoutToast,
       clearLogoutToast,
+      sessionExpiredBanner,
+      clearSessionExpiredBanner,
     }),
-    [user, isLoading, login, logout, markPasswordChanged, expiredReturnTo, clearExpiredReturnTo, logoutToast, clearLogoutToast],
+    [user, isLoading, login, logout, markPasswordChanged, expiredReturnTo, clearExpiredReturnTo, logoutToast, clearLogoutToast, sessionExpiredBanner, clearSessionExpiredBanner],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

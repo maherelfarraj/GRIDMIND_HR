@@ -399,6 +399,68 @@ describe('AuthProvider 401 session-expiry handling', () => {
   });
 });
 
+describe('AuthProvider sessionExpiredBanner', () => {
+  it('is set to true when a 401 fires from a non-auth endpoint', async () => {
+    mockPathname = '/(tabs)';
+    await renderSignedIn();
+
+    await fire401('https://api.example.com/employees/me');
+
+    await waitFor(() => {
+      expect(latestAuth?.sessionExpiredBanner).toBe(true);
+    });
+  });
+
+  it('is set to true even when expiredReturnTo is null (user was on an auth screen)', async () => {
+    // When the user is on /change-password and their session expires the 401
+    // handler sets expiredReturnTo to null (auth screen isn't a useful
+    // return destination), but the session-expired banner must still show.
+    mockPathname = '/change-password';
+    await renderSignedIn();
+
+    await fire401('https://api.example.com/employees/me');
+
+    await waitFor(() => { expect(latestAuth?.user).toBeNull(); });
+    expect(latestAuth?.expiredReturnTo).toBeNull();
+    expect(latestAuth?.sessionExpiredBanner).toBe(true);
+  });
+
+  it('is not set on a credential-check 401 (/auth/login)', async () => {
+    mockPathname = '/(tabs)';
+    await renderSignedIn();
+
+    await fire401('https://api.example.com/auth/login');
+
+    expect(latestAuth?.sessionExpiredBanner).toBe(false);
+  });
+
+  it('is not set on a credential-check 401 (/auth/change-password)', async () => {
+    mockPathname = '/(tabs)';
+    await renderSignedIn();
+
+    await fire401('https://api.example.com/auth/change-password');
+
+    expect(latestAuth?.sessionExpiredBanner).toBe(false);
+  });
+
+  it('is not set on a voluntary logout', async () => {
+    await renderSignedIn();
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline'); }));
+    await act(async () => { await latestAuth!.logout(); });
+    expect(latestAuth?.sessionExpiredBanner).toBe(false);
+  });
+
+  it('clearSessionExpiredBanner resets the value to false', async () => {
+    mockPathname = '/(tabs)';
+    await renderSignedIn();
+    await fire401('https://api.example.com/employees/me');
+    await waitFor(() => { expect(latestAuth?.sessionExpiredBanner).toBe(true); });
+
+    await act(async () => { latestAuth!.clearSessionExpiredBanner(); });
+    expect(latestAuth?.sessionExpiredBanner).toBe(false);
+  });
+});
+
 describe('AuthProvider expiredReturnTo', () => {
   it('captures the current route as expiredReturnTo on session expiry', async () => {
     mockPathname = '/notifications';
