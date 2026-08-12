@@ -17,7 +17,7 @@ A production-grade, offline-first Human Resources Management System built for co
 
 ## Screenshot
 
-![HRMS Login / Change-Password Screen](attached_assets/image_1785869890630.png)
+![HRMS Login Screen](screenshots/login.jpg)
 
 ---
 
