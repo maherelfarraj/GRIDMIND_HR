@@ -17,6 +17,18 @@ import { eq, sql } from "drizzle-orm";
 import { db, employeesTable } from "@workspace/db";
 import { pool as pgPool } from "@workspace/db";
 import app from "../app";
+import { resetLoginThrottle, loginThrottleReady, flushLoginThrottle } from "../lib/loginThrottle.js";
+
+// Clear any throttle state persisted from previous test runs so login tests
+// that expect 401 (not 429) are not flaky across repeated local runs.
+// Sequence: (1) await hydration so the DB load is complete, (2) wipe all
+// in-memory + persisted state, (3) await flush so the DB DELETE settles
+// before any test fires a login request.
+beforeAll(async () => {
+  await loginThrottleReady;
+  resetLoginThrottle();
+  await flushLoginThrottle();
+});
 
 // Track employee IDs created during tests so we can clean up
 const createdEmployeeIds: number[] = [];
@@ -170,6 +182,80 @@ describe("POST /auth/logout", () => {
     const res = await agent.get("/api/auth/me");
     // In demo mode (PILOT_AUTH not true), should still return first active user
     expect(res.status).toBe(200);
+  });
+
+  it("sequential double logout is idempotent — second call returns 200, not 500", async () => {
+    // Login via bearer token so the session id is known and controllable.
+    const login = await request(app)
+      .post("/api/auth/login")
+      .set("x-session-transport", "bearer")
+      .send({ username: "admin", password: "anypassword" });
+    expect(login.status).toBe(200);
+    const token = login.body.sessionToken as string;
+
+    const first = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${token}`);
+    expect(first.status).toBe(200);
+    expect(first.body.success).toBe(true);
+
+    // Second logout: the session row is gone from the store.
+    // The session middleware loads an empty session (no userId), so the
+    // handler takes the "no active session" early-return path → 200.
+    const second = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${token}`);
+    expect(second.status).toBe(200);
+    expect(second.body.success).toBe(true);
+  });
+
+  it("concurrent double logout (two tabs at the same time) — both return 200 and session is gone", async () => {
+    // Login via bearer token so both requests can share the same credential.
+    const login = await request(app)
+      .post("/api/auth/login")
+      .set("x-session-transport", "bearer")
+      .send({ username: "admin", password: "anypassword" });
+    expect(login.status).toBe(200);
+    const token = login.body.sessionToken as string;
+
+    // Verify the session row exists in the store before logout.
+    const { rows: before } = await pgPool.query<{ sid: string }>(
+      "SELECT sid FROM session WHERE sid = $1",
+      [token],
+    );
+    expect(before.length).toBe(1);
+
+    // Fire both logout requests simultaneously before either resolves.
+    // connect-pg-simple issues a DELETE; the second DELETE hits no row and
+    // succeeds silently, so both destroy() calls complete without error.
+    const [r1, r2] = await Promise.all([
+      request(app)
+        .post("/api/auth/logout")
+        .set("Authorization", `Bearer ${token}`),
+      request(app)
+        .post("/api/auth/logout")
+        .set("Authorization", `Bearer ${token}`),
+    ]);
+
+    expect(r1.status).toBe(200);
+    expect(r1.body.success).toBe(true);
+    expect(r2.status).toBe(200);
+    expect(r2.body.success).toBe(true);
+
+    // Conclusively verify the session row is gone from the store — no row
+    // means the credential is revoked regardless of demo-mode fallbacks.
+    const { rows: after } = await pgPool.query<{ sid: string }>(
+      "SELECT sid FROM session WHERE sid = $1",
+      [token],
+    );
+    expect(after.length).toBe(0);
+  });
+
+  it("logout without any session returns 200 (e.g. unauthenticated back-button replay)", async () => {
+    // Fresh request with no cookie at all — no session to destroy.
+    const res = await request(app).post("/api/auth/logout");
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
   });
 });
 

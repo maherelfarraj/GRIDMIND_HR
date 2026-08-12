@@ -345,10 +345,26 @@ router.post("/auth/change-password", async (req, res): Promise<void> => {
   res.json({ ...(await userResponse(updated)), success: true });
 });
 
-// POST /auth/logout — destroys session, clears cookie
+// POST /auth/logout — destroys session, clears cookie.
+// Idempotent for the "already logged out" case: if no authenticated session
+// is present the cookie is cleared and 200 is returned immediately, so
+// double-clicks, back-button replays, and unauthenticated calls never land
+// on an error screen.  Real session-store failures (DB outage, etc.) are
+// still surfaced as 500 so an active server-side session is never silently
+// left alive while the client believes it has been revoked.
 router.post("/auth/logout", (req, res): void => {
+  // No authenticated session — nothing to destroy.  Clear the cookie anyway
+  // so stale/expired cookies are swept up, then respond with success.
+  if (!req.session?.userId) {
+    res.clearCookie("connect.sid");
+    res.json({ success: true });
+    return;
+  }
   req.session.destroy((err) => {
     if (err) {
+      // A real store error (e.g. DB outage): the server-side session may
+      // still be valid, so we must not tell the client it logged out.
+      console.error("session.destroy error on logout:", err);
       res.status(500).json({ error: "Logout failed" });
       return;
     }
