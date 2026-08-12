@@ -105,6 +105,23 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hrms_test
 
+      # Explicit schema-drift gate: runs immediately after the DB is ready
+      # (whether restored from the dump cache or freshly pushed).  A dedicated
+      # step here surfaces drift as a named CI failure with a clear title rather
+      # than letting it silently corrupt later test output.  The check compares
+      # every table/column declared in lib/db/src/schema/ against
+      # information_schema on the live test DB — if the cache contained a stale
+      # dump that doesn't match the committed schema, this step fails loudly
+      # before any regression suite runs.
+      - name: Verify schema matches live database
+        run: |
+          pnpm run typecheck:libs
+          cd artifacts/api-server
+          npx vitest run src/__tests__/schema-drift.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hrms_test
+          NODE_ENV: test
+
       - name: Run regression suite
         run: bash scripts/regression.sh
 
