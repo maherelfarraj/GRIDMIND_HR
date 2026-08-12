@@ -158,6 +158,86 @@ test.describe('Login flow', () => {
     ).toBe(401);
   });
 
+  // ── Session-expiry banner ──────────────────────────────────────────────────
+
+  test('?expired=1 → session-expiry banner is visible on the login page', async ({ page }) => {
+    await page.goto('/login?expired=1');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+
+    // The login form must render before we assert the banner.
+    await expect(page.locator('#username')).toBeVisible({ timeout: 10_000 });
+
+    // The session-expiry alert must be present and contain the expected text.
+    const banner = page.locator('[role="alert"]');
+    await expect(banner).toBeVisible({ timeout: 5_000 });
+    await expect(banner).toContainText(/session expired/i);
+  });
+
+  // ── Post-login redirect via ?next= ─────────────────────────────────────────
+
+  test('?next=/policy-governance → post-login redirect lands on /policy-governance', async ({ page }) => {
+    const password = getAdminPassword();
+
+    await page.goto('/login?next=/policy-governance');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+
+    await expect(page.locator('#username')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#password')).toBeVisible({ timeout: 5_000 });
+
+    await page.fill('#username', ADMIN_USERNAME);
+    await page.fill('#password', password);
+
+    // Submit and wait for the redirect to complete.
+    await Promise.all([
+      page.waitForURL((url) => url.pathname === '/policy-governance', {
+        timeout: 25_000,
+      }),
+      page.click('button[type="submit"]'),
+    ]);
+
+    expect(
+      page.url(),
+      'Expected post-login redirect to land on /policy-governance',
+    ).toContain('/policy-governance');
+  });
+
+  // ── Open-redirect guard ────────────────────────────────────────────────────
+
+  test('?next=https://evil.com → open-redirect is blocked; redirect falls back to /', async ({ page }) => {
+    const password = getAdminPassword();
+
+    await page.goto('/login?next=https://evil.com');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+
+    await expect(page.locator('#username')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#password')).toBeVisible({ timeout: 5_000 });
+
+    await page.fill('#username', ADMIN_USERNAME);
+    await page.fill('#password', password);
+
+    // Submit and wait for a redirect away from /login.
+    await Promise.all([
+      page.waitForURL((url) => !url.pathname.includes('/login'), {
+        timeout: 25_000,
+      }),
+      page.click('button[type="submit"]'),
+    ]);
+
+    const finalUrl = new URL(page.url());
+
+    // Must NOT have been redirected to the external host.
+    expect(
+      finalUrl.hostname,
+      'Open-redirect must not send the user to an external host',
+    ).not.toBe('evil.com');
+
+    // The sanitised fallback is the app root ('/').
+    expect(
+      finalUrl.pathname,
+      'Open-redirect guard must fall back to / when ?next= is an external URL',
+    ).toBe('/');
+  });
+
   // ── Sad path ───────────────────────────────────────────────────────────────
 
   test('wrong password for valid user → error alert visible and page stays on /login', async ({ page }) => {
