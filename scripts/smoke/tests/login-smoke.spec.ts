@@ -322,6 +322,81 @@ test.describe('Login flow', () => {
     await expect(page.locator('label[for="password"]')).toContainText('كلمة المرور');
   });
 
+  // ── Arabic end-to-end login ────────────────────────────────────────────────
+
+  test('Arabic mode → full login submission creates session and redirects away from /login', async ({ page }) => {
+    const password = getAdminPassword();
+
+    // Capture any auth-API errors before or during the login exchange.
+    const authErrors: { status: number; url: string }[] = [];
+    page.on('response', (res) => {
+      if (res.status() < 400) return;
+      const url = res.url();
+      if (
+        url.includes('/api/auth/') &&
+        !url.includes('/@vite') &&
+        !url.endsWith('/favicon.ico')
+      ) {
+        authErrors.push({ status: res.status(), url });
+      }
+    });
+
+    await page.goto('/login');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+
+    // The login form must be visible before we interact with the toggle.
+    await expect(page.locator('#username')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#password')).toBeVisible({ timeout: 5_000 });
+
+    // Click the language toggle button (shows 'العربية' when the UI is in English).
+    const langToggle = page.getByRole('button', { name: /العربية/i });
+    await expect(langToggle).toBeVisible({ timeout: 5_000 });
+    await langToggle.click();
+
+    // Verify labels switched to Arabic — confirms the RTL mode is active
+    // before we attempt to type into the inputs.
+    await expect(page.locator('label[for="username"]')).toContainText('اسم المستخدم', { timeout: 5_000 });
+    await expect(page.locator('label[for="password"]')).toContainText('كلمة المرور', { timeout: 5_000 });
+
+    // Fill in the credentials while the form is in Arabic/RTL mode.
+    await page.fill('#username', ADMIN_USERNAME);
+    await page.fill('#password', password);
+
+    // Submit and wait for the page to navigate away from /login.
+    await Promise.all([
+      page.waitForURL((url) => !url.pathname.includes('/login'), {
+        timeout: 25_000,
+      }),
+      page.click('button[type="submit"]'),
+    ]);
+
+    // Confirm the redirect actually happened.
+    expect(
+      page.url(),
+      'Expected to be redirected away from /login after successful authentication in Arabic mode',
+    ).not.toContain('/login');
+
+    // Confirm no auth API errors were observed during the exchange.
+    expect(
+      authErrors,
+      `Auth API errors during Arabic-mode login:\n${authErrors.map((r) => `  ${r.status} ${r.url}`).join('\n')}`,
+    ).toHaveLength(0);
+
+    // Confirm the session is real: /api/auth/me must return 200 with the
+    // correct username.  This proves the backend issued a valid session even
+    // when the form was submitted while in Arabic/RTL mode.
+    const meRes = await page.request.get('/api/auth/me');
+    expect(
+      meRes.status(),
+      '/api/auth/me must return 200 after successful login in Arabic mode',
+    ).toBe(200);
+    const me = await meRes.json() as { username?: string };
+    expect(
+      me.username,
+      '/api/auth/me must identify the logged-in admin after Arabic-mode login',
+    ).toBe(ADMIN_USERNAME);
+  });
+
   // ── Sad path ───────────────────────────────────────────────────────────────
 
   test('wrong password for valid user → error alert visible and page stays on /login', async ({ page }) => {
