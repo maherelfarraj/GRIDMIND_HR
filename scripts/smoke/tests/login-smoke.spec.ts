@@ -114,6 +114,50 @@ test.describe('Login flow', () => {
     ).toBe(ADMIN_USERNAME);
   });
 
+  // ── Logout path ────────────────────────────────────────────────────────────
+
+  test('logout → session destroyed and subsequent API call returns 401', async ({ page }) => {
+    const password = getAdminPassword();
+
+    // ── Step 1: Establish a real session via the login API ──────────────────
+    const loginRes = await page.request.post('/api/auth/login', {
+      data: { username: ADMIN_USERNAME, password },
+    });
+    expect(
+      loginRes.status(),
+      '/api/auth/login must return 200 before the logout test can proceed',
+    ).toBe(200);
+
+    // ── Step 2: Confirm the session is active ───────────────────────────────
+    const meBefore = await page.request.get('/api/auth/me');
+    expect(
+      meBefore.status(),
+      '/api/auth/me must return 200 while the session is active',
+    ).toBe(200);
+    const meBefJson = await meBefore.json() as { username?: string };
+    expect(
+      meBefJson.username,
+      '/api/auth/me must identify the logged-in admin before logout',
+    ).toBe(ADMIN_USERNAME);
+
+    // ── Step 3: Trigger logout ───────────────────────────────────────────────
+    const logoutRes = await page.request.post('/api/auth/logout');
+    expect(
+      logoutRes.status(),
+      'POST /api/auth/logout must return 200',
+    ).toBe(200);
+
+    // ── Step 4: Confirm the session is gone ─────────────────────────────────
+    // With auth enforced (PILOT_AUTH=true, the default in CI) a subsequent
+    // /api/auth/me call must return 401 — the cookie was cleared by logout and
+    // no demo fallback is active.
+    const meAfter = await page.request.get('/api/auth/me');
+    expect(
+      meAfter.status(),
+      '/api/auth/me must return 401 after logout — the session cookie must be cleared',
+    ).toBe(401);
+  });
+
   // ── Sad path ───────────────────────────────────────────────────────────────
 
   test('wrong password for valid user → error alert visible and page stays on /login', async ({ page }) => {
