@@ -149,6 +149,42 @@ Run `bash scripts/run-smoke.sh` before and after any deployment or API change th
 admin routes to catch regressions early. The suite is intentionally NOT wired into `regression.sh`
 because it requires both app workflows running; `regression.sh` runs standalone.
 
+## Branch Protection (GitHub)
+
+The `main` branch on [maherelfarraj/GRIDMIND_HR](https://github.com/maherelfarraj/GRIDMIND_HR) has a protection rule requiring the **Regression Suite** CI status check to pass before any PR can be merged. Force-pushes and branch deletion are also blocked.
+
+### What the rule enforces
+
+| Setting | Value |
+|---|---|
+| Required status check | `Regression Suite` (defined in `.github/workflows/ci.yml`) |
+| Branches must be up to date | Yes (`strict: true`) |
+| Allow force-pushes | No |
+| Allow deletions | No |
+
+### Re-applying the rule (if it gets removed)
+
+Run the one-liner below from any shell that has a `GITHUB_TOKEN` with `repo` scope:
+
+```bash
+curl -s -X PUT \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  https://api.github.com/repos/maherelfarraj/GRIDMIND_HR/branches/main/protection \
+  -d '{
+    "required_status_checks": { "strict": true, "contexts": ["Regression Suite"] },
+    "enforce_admins": false,
+    "required_pull_request_reviews": null,
+    "restrictions": null,
+    "allow_force_pushes": false,
+    "allow_deletions": false
+  }'
+```
+
+Verify the rule is active at:
+https://github.com/maherelfarraj/GRIDMIND_HR/settings/branches
+
 ## Pilot auth password provisioning
 - Demo accounts (admin, fatima.zahrani, omar.ghamdi, aisha.otaibi) have bcrypt password hashes stored in the DB; admins can set/reset any password from the System Users page.
 - Optional re-provisioning at server boot is strictly opt-in: set `SEED_DEMO_PASSWORDS=true` and `DEMO_PILOT_PASSWORD=<value>` at runtime (never committed); it never overwrites an existing hash. In production it never provisions a known demo password: NULL-hash demo accounts get a random one-time password written to an operator-only 0600 handoff file (path via `ONE_TIME_PASSWORD_DIR`, default `.credentials/`; never logged) with must_change_password=true, and accounts still using the demo password are flagged to rotate at next login.
