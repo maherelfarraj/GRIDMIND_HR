@@ -9,7 +9,7 @@
  * user who previously selected an org.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ORG_STORAGE_KEY } from '../org-fetch';
+import { ORG_STORAGE_KEY, getActiveOrgId } from '../org-fetch';
 
 // We re-import the module fresh each test to reset the `installed` flag.
 // vitest's module isolation via vi.resetModules() + dynamic import achieves this.
@@ -116,5 +116,51 @@ describe('installOrgFetch — auth route exclusion', () => {
     });
 
     expect(capturedRequests[0].headers.get('X-Org-Id')).toBe('99');
+  });
+});
+
+describe('getActiveOrgId — localStorage value validation', () => {
+  beforeEach(() => {
+    const store: Record<string, string> = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+    });
+  });
+
+  it('returns null when stored value is a non-numeric string', () => {
+    localStorage.setItem(ORG_STORAGE_KEY, 'abc');
+    expect(getActiveOrgId()).toBeNull();
+  });
+
+  it('returns null when stored value parses to NaN (e.g. "xyz")', () => {
+    localStorage.setItem(ORG_STORAGE_KEY, 'xyz');
+    expect(getActiveOrgId()).toBeNull();
+  });
+
+  it('returns null when stored value is "0"', () => {
+    localStorage.setItem(ORG_STORAGE_KEY, '0');
+    expect(getActiveOrgId()).toBeNull();
+  });
+
+  it('returns null when stored value is a negative number', () => {
+    localStorage.setItem(ORG_STORAGE_KEY, '-5');
+    expect(getActiveOrgId()).toBeNull();
+  });
+
+  it('returns null when stored value is an empty string', () => {
+    localStorage.setItem(ORG_STORAGE_KEY, '');
+    expect(getActiveOrgId()).toBeNull();
+  });
+
+  it('returns the numeric value when stored value is a valid positive integer', () => {
+    localStorage.setItem(ORG_STORAGE_KEY, '7');
+    expect(getActiveOrgId()).toBe(7);
+  });
+
+  it('returns null when nothing is stored', () => {
+    // key was never set
+    expect(getActiveOrgId()).toBeNull();
   });
 });
