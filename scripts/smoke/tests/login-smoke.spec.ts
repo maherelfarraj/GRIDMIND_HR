@@ -295,6 +295,33 @@ test.describe('Login flow', () => {
     ).toBe(401);
   });
 
+  // ── Language toggle (Arabic) ───────────────────────────────────────────────
+
+  test('language toggle → Arabic expiry banner and form labels render correctly', async ({ page }) => {
+    await page.goto('/login?expired=1');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+
+    // The login form must be visible before we interact with the toggle.
+    await expect(page.locator('#username')).toBeVisible({ timeout: 10_000 });
+
+    // The session-expiry banner must first appear in English.
+    const banner = page.locator('[role="alert"]');
+    await expect(banner).toBeVisible({ timeout: 5_000 });
+    await expect(banner).toContainText(/session expired/i);
+
+    // Click the language toggle button (shows 'العربية' when the UI is in English).
+    const langToggle = page.getByRole('button', { name: /العربية/i });
+    await expect(langToggle).toBeVisible({ timeout: 5_000 });
+    await langToggle.click();
+
+    // The expiry alert must now contain Arabic text.
+    await expect(banner).toContainText(/انتهت الجلسة/, { timeout: 5_000 });
+
+    // The username and password labels must switch to Arabic.
+    await expect(page.locator('label[for="username"]')).toContainText('اسم المستخدم');
+    await expect(page.locator('label[for="password"]')).toContainText('كلمة المرور');
+  });
+
   // ── Sad path ───────────────────────────────────────────────────────────────
 
   test('wrong password for valid user → error alert visible and page stays on /login', async ({ page }) => {
