@@ -1,17 +1,23 @@
 /**
- * Auth-coverage guard — two layers of defence ensuring admin routes and other
+ * Auth-coverage guard — three layers of defence ensuring admin routes and other
  * privileged paths are always protected by `requireAuth`.
  *
  * LAYER 1 — STATIC (no DB, no server)
  *   Parse `routes/index.ts` and assert that every router.use(requireAuth) call
- *   appears BEFORE any admin router is mounted.  A PR that accidentally moves
- *   the global requireAuth call below an admin router, or removes it entirely,
- *   fails this check immediately without needing a running server.
+ *   appears BEFORE any admin or privileged router is mounted.  A PR that
+ *   accidentally moves the global requireAuth call below a router, or removes
+ *   it entirely, fails this check immediately without needing a running server.
  *
- * LAYER 2 — RUNTIME (live supertest, no DB needed)
+ * LAYER 2 — RUNTIME /admin/* (live supertest, no DB needed)
  *   Send unauthenticated requests to every /admin/* route with PILOT_AUTH=true
- *   and assert each returns 401.  requireAuth only reads req.session.userId, so
- *   no DB connection is required for these 401 checks.
+ *   and assert each returns 401.  Routes are discovered dynamically by scanning
+ *   the admin route source files, so new endpoints are covered automatically.
+ *
+ * LAYER 3 — RUNTIME privileged non-/admin/* (live supertest, no DB needed)
+ *   Send unauthenticated requests to the break-glass, dual-auth, and
+ *   privileged-sessions endpoints (which sit outside the /admin prefix) and
+ *   assert each returns 401.  These routers are mounted after the global
+ *   requireAuth gate in routes/index.ts, proving that gate covers them.
  *
  * This test is included in scripts/regression.sh (suite: api-auth-coverage)
  * so it blocks PRs automatically via branch protection.
@@ -196,6 +202,61 @@ describe("Runtime: every /admin/* route returns 401 when unauthenticated (PILOT_
   });
 
   for (const { method, path } of ADMIN_ROUTES) {
+    it(`${method.toUpperCase()} /api${path} → 401 with no session`, async () => {
+      const res = await (request(app) as any)[method](`/api${path}`).send({});
+      expect(res.status).toBe(401);
+    });
+  }
+});
+
+// ============================================================================
+// LAYER 3: Runtime — unauthenticated requests to privileged non-/admin/* paths
+// ============================================================================
+
+/**
+ * High-sensitivity endpoints that sit outside the /admin prefix but still
+ * require authentication.  These are covered separately because the /admin
+ * sweep only discovers paths that begin with /admin.
+ *
+ * All three routers (breakGlass, dualAuth, privilegedSessions) are mounted in
+ * routes/index.ts AFTER router.use(requireAuth), so the global auth gate
+ * applies to every endpoint they declare.  These assertions prove that a
+ * regression moving or removing that gate would be caught before production.
+ *
+ * The list is intentionally exhaustive: every route declared in the three
+ * source files is probed so that a new endpoint added without thought is
+ * caught here rather than in a production incident.
+ */
+const PRIVILEGED_NON_ADMIN_ROUTES: Array<{ method: HttpMethod; path: string }> = [
+  // breakGlass.ts
+  { method: "get",  path: "/break-glass" },
+  { method: "post", path: "/break-glass" },
+  { method: "post", path: "/break-glass/999/revoke" },
+  // dualAuth.ts
+  { method: "get",  path: "/dual-auth" },
+  { method: "post", path: "/dual-auth" },
+  { method: "post", path: "/dual-auth/999/approve" },
+  { method: "post", path: "/dual-auth/999/reject" },
+  // privilegedSessions.ts
+  { method: "get",  path: "/privileged-sessions" },
+  { method: "get",  path: "/privileged-sessions/999/activity" },
+  { method: "post", path: "/privileged-sessions/999/review" },
+];
+
+describe("Runtime: every privileged non-/admin/* route returns 401 when unauthenticated (PILOT_AUTH=true)", () => {
+  let app: Express;
+
+  beforeAll(async () => {
+    vi.stubEnv("PILOT_AUTH", "true");
+    vi.resetModules();
+    app = (await import("../app")).default;
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
+  for (const { method, path } of PRIVILEGED_NON_ADMIN_ROUTES) {
     it(`${method.toUpperCase()} /api${path} → 401 with no session`, async () => {
       const res = await (request(app) as any)[method](`/api${path}`).send({});
       expect(res.status).toBe(401);
