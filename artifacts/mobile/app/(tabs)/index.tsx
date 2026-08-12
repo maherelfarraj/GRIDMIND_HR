@@ -21,6 +21,7 @@ import {
 } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/lib/auth';
+import { useSignOut } from '@/hooks/useSignOut';
 import { useI18n } from '@/lib/i18n';
 import { canViewPrivilegedSessions } from '@/lib/privileged-session-review';
 import {
@@ -546,7 +547,8 @@ function SessionReviewButton() {
 export default function HomeScreen() {
   const colors = useColors();
   const { t, lang } = useI18n();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const signOut = useSignOut();
   const router = useRouter();
 
   const displayName = user
@@ -578,7 +580,7 @@ export default function HomeScreen() {
             </Pressable>
             <Pressable
               testID="button-signout"
-              onPress={logout}
+              onPress={signOut}
               style={({ pressed }) => ({
                 opacity: pressed ? 0.6 : 1,
                 padding: 8,
