@@ -201,11 +201,6 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-8 pt-6 border-t">
-            <p className="text-xs text-muted-foreground text-center leading-relaxed">
-              {t('Demo accounts: admin, fatima.zahrani, omar.ghamdi, aisha.otaibi', 'حسابات تجريبية: admin, fatima.zahrani, omar.ghamdi, aisha.otaibi')}
-            </p>
-          </div>
         </div>
       </div>
     </div>
