@@ -32,7 +32,10 @@ import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { getTableColumns } from "drizzle-orm";
-import * as dbSchema from "@workspace/db";
+// Import the schema-only entrypoint. The package root also constructs the
+// runtime connection pool and therefore requires DATABASE_URL, even though
+// this test is deliberately static and never touches a database.
+import * as dbSchema from "@workspace/db/schema";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
