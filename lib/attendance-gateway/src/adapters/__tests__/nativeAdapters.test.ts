@@ -717,7 +717,11 @@ describe("toIso", () => {
   });
 
   it("converts a vendor local-time string", () => {
-    expect(toIso("2024-03-15 08:30:00")).toMatch(/2024-03-15T08:30:00/);
+    expect(toIso("2024-03-15 08:30:00")).toBe("2024-03-15T08:30:00.000Z");
+  });
+
+  it("preserves an explicit vendor timezone offset", () => {
+    expect(toIso("2024-03-15T08:30:00+03:00")).toBe("2024-03-15T05:30:00.000Z");
   });
 
   it("returns null for empty string, non-string, or invalid date", () => {
