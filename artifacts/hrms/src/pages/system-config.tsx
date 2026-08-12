@@ -89,12 +89,12 @@ export default function SystemConfig() {
 
   // Feature keys
   const featureKeys = (configs ?? [])
-    .filter((c: any) => c.configKey.startsWith('features.'))
+    .filter((c: any) => c.configKey?.startsWith('features.'))
     .map((c: any) => c.configKey);
 
   // Security keys (excluding 'security.level' which is in Org section)
   const securityKeys = (configs ?? [])
-    .filter((c: any) => c.configKey.startsWith('security.') && c.configKey !== 'security.level')
+    .filter((c: any) => c.configKey?.startsWith('security.') && c.configKey !== 'security.level')
     .map((c: any) => c.configKey);
 
   if (isLoading) {
@@ -185,7 +185,7 @@ export default function SystemConfig() {
               </div>
               {/* Other org.* keys */}
               {(configs ?? [])
-                .filter((c: any) => c.configKey.startsWith('org.') && !['org.name', 'org.type'].includes(c.configKey))
+                .filter((c: any) => c.configKey?.startsWith('org.') && !['org.name', 'org.type'].includes(c.configKey))
                 .map((c: any) => (
                   <div key={c.configKey} className="space-y-1">
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">{c.configKey}</label>
