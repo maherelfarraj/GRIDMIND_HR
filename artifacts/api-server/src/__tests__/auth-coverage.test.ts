@@ -98,33 +98,86 @@ describe("Static: requireAuth must precede all admin router mounts in routes/ind
 // LAYER 2: Runtime — unauthenticated requests to /admin/* must return 401
 // ============================================================================
 
+// ---------------------------------------------------------------------------
+// Dynamic route discovery
+//
+// Instead of a hand-maintained list that silently misses new endpoints, we
+// scan each admin route source file at test-load time.  Any router.<method>()
+// call whose path starts with "/admin/" is extracted automatically, so a
+// developer who adds a new endpoint without auth middleware sees a failing
+// test, not a silent pass.
+//
+// Path parameters (e.g. :id, :serverId) are replaced with the probe stub
+// "999" — sufficient to reach the auth check, which fires before any DB
+// look-up.
+// ---------------------------------------------------------------------------
+
+type HttpMethod = "get" | "post" | "patch" | "put" | "delete";
+
 /**
- * Complete list of admin endpoints.  When a new /admin/* route file is added,
- * add its paths here so the coverage gap is caught by the test rather than by
- * a production incident.
+ * Scan a route source file and return every admin endpoint it declares.
+ * Matches lines of the form:
+ *   router.get("/admin/...",
+ *   router.post('/admin/...',
+ * (with optional whitespace around the opening paren / quote).
  */
-const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch"; path: string }> = [
-  // adminBackup
-  { method: "get",   path: "/admin/backup-schedule" },
-  { method: "get",   path: "/admin/backup" },
-  { method: "get",   path: "/admin/backup-records" },
-  { method: "post",  path: "/admin/backup-records/run" },
-  { method: "post",  path: "/admin/backup-records/retry-offsite" },
-  { method: "post",  path: "/admin/backup-records/999/retry-offsite" },
-  { method: "patch", path: "/admin/backup-records/999/verify" },
-  // adminBranches
-  { method: "get",   path: "/admin/branch-servers" },
-  { method: "post",  path: "/admin/branch-servers" },
-  { method: "get",   path: "/admin/branch-servers/999" },
-  { method: "patch", path: "/admin/branch-servers/999" },
-  { method: "get",   path: "/admin/sync-queue" },
-  { method: "post",  path: "/admin/sync-queue/999/resolve" },
-  { method: "get",   path: "/admin/sync-status" },
-  { method: "get",   path: "/admin/dr-status" },
-  // adminLicense
-  { method: "get",   path: "/admin/license" },
-  { method: "post",  path: "/admin/license" },
+function discoverAdminRoutes(
+  filePath: string,
+): Array<{ method: HttpMethod; path: string }> {
+  const source = readFileSync(filePath, "utf-8");
+  const METHOD_RE =
+    /router\.(get|post|patch|put|delete)\(\s*["']([^"']+)["']/g;
+  const routes: Array<{ method: HttpMethod; path: string }> = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = METHOD_RE.exec(source)) !== null) {
+    const method = match[1] as HttpMethod;
+    // Replace Express parameter tokens (:id, :serverId, …) with the stub "999"
+    const path = match[2].replace(/:[^/]+/g, "999");
+
+    if (path.startsWith("/admin/")) {
+      routes.push({ method, path });
+    }
+  }
+
+  return routes;
+}
+
+/**
+ * Admin route source files to scan.  Add new admin route files here so the
+ * test automatically discovers every endpoint they declare.
+ */
+const ADMIN_ROUTE_FILES = [
+  resolve(__dirname, "../routes/adminBackup.ts"),
+  resolve(__dirname, "../routes/adminBranches.ts"),
+  resolve(__dirname, "../routes/adminLicense.ts"),
 ];
+
+/**
+ * Dynamically discovered admin routes — replaces the old hardcoded list.
+ * Duplicate (method + path) pairs are deduplicated so parameterised routes
+ * that share the same stub path (e.g. two :id routes on the same verb) are
+ * only probed once.
+ */
+const seen = new Set<string>();
+const ADMIN_ROUTES: Array<{ method: HttpMethod; path: string }> = [];
+for (const file of ADMIN_ROUTE_FILES) {
+  for (const route of discoverAdminRoutes(file)) {
+    const key = `${route.method}:${route.path}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      ADMIN_ROUTES.push(route);
+    }
+  }
+}
+
+if (ADMIN_ROUTES.length === 0) {
+  throw new Error(
+    "auth-coverage: discoverAdminRoutes returned 0 routes — " +
+      "the regex may be broken or the route files have been moved. " +
+      "Fix the discovery logic before running auth coverage checks.",
+  );
+}
 
 describe("Runtime: every /admin/* route returns 401 when unauthenticated (PILOT_AUTH=true)", () => {
   let app: Express;
