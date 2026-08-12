@@ -1,0 +1,144 @@
+/**
+ * Login-flow smoke test.
+ *
+ * Verifies that the login form works end-to-end:
+ *   - valid credentials  → authenticated session + redirect away from /login
+ *   - wrong credentials  → error alert visible, page stays on /login
+ *
+ * These tests deliberately start WITHOUT any pre-existing auth state (the
+ * `storageState` override empties cookies + localStorage) so that the login
+ * form itself — and the /api/auth/login exchange it drives — are exercised,
+ * not bypassed.
+ *
+ * Credential resolution (first set wins):
+ *   SMOKE_ADMIN_PASSWORD → ADMIN_RESET_PASSWORD → DEMO_PILOT_PASSWORD
+ *
+ * The wrong-password test uses a non-existent username to avoid triggering
+ * a lockout on the real admin account.
+ */
+
+import { test, expect } from '@playwright/test';
+
+const ADMIN_USERNAME = process.env.SMOKE_ADMIN_USERNAME ?? 'admin';
+
+function getAdminPassword(): string {
+  const pw =
+    process.env.SMOKE_ADMIN_PASSWORD ??
+    process.env.ADMIN_RESET_PASSWORD ??
+    process.env.DEMO_PILOT_PASSWORD;
+  if (!pw) {
+    throw new Error(
+      '[login-smoke] No admin password found.\n' +
+        'Set one of: SMOKE_ADMIN_PASSWORD, ADMIN_RESET_PASSWORD, or DEMO_PILOT_PASSWORD.',
+    );
+  }
+  return pw;
+}
+
+test.describe('Login flow', () => {
+  // Start every test with a clean, unauthenticated browser context.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  // ── Happy path ─────────────────────────────────────────────────────────────
+
+  test('valid credentials → session created and redirect away from /login', async ({ page }) => {
+    const password = getAdminPassword();
+
+    // Capture any auth-API errors before or during the login exchange.
+    const authErrors: { status: number; url: string }[] = [];
+    page.on('response', (res) => {
+      if (res.status() < 400) return;
+      const url = res.url();
+      if (
+        url.includes('/api/auth/') &&
+        !url.includes('/@vite') &&
+        !url.endsWith('/favicon.ico')
+      ) {
+        authErrors.push({ status: res.status(), url });
+      }
+    });
+
+    await page.goto('/login');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+
+    // Login form must be visible before we interact with it.
+    await expect(page.locator('#username')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#password')).toBeVisible({ timeout: 5_000 });
+
+    await page.fill('#username', ADMIN_USERNAME);
+    await page.fill('#password', password);
+
+    // Submit and wait for the page to navigate away from /login.
+    await Promise.all([
+      page.waitForURL((url) => !url.pathname.includes('/login'), {
+        timeout: 25_000,
+      }),
+      page.click('button[type="submit"]'),
+    ]);
+
+    // Confirm the redirect actually happened.
+    expect(
+      page.url(),
+      'Expected to be redirected away from /login after successful authentication',
+    ).not.toContain('/login');
+
+    // Confirm no auth API errors were observed during the exchange.
+    expect(
+      authErrors,
+      `Auth API errors during login:\n${authErrors.map((r) => `  ${r.status} ${r.url}`).join('\n')}`,
+    ).toHaveLength(0);
+
+    // ── Verify the session is real and persists across a reload ────────────
+    // Reload the page once so the browser re-sends the session cookie.
+    // A regression where the cookie is never set (or set but not persisted)
+    // would cause the reload to land on /login again.
+    await page.reload();
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+    expect(
+      page.url(),
+      'Expected session to persist across a page reload (session cookie must survive)',
+    ).not.toContain('/login');
+
+    // Call /api/auth/me with the browser's session cookie and assert the
+    // server returns the seeded admin identity.  This proves the backend
+    // issued a real session, not just a client-side redirect.
+    const meRes = await page.request.get('/api/auth/me');
+    expect(
+      meRes.status(),
+      '/api/auth/me must return 200 after a successful login',
+    ).toBe(200);
+    const me = await meRes.json() as { username?: string };
+    expect(
+      me.username,
+      '/api/auth/me must identify the logged-in admin',
+    ).toBe(ADMIN_USERNAME);
+  });
+
+  // ── Sad path ───────────────────────────────────────────────────────────────
+
+  test('wrong password for valid user → error alert visible and page stays on /login', async ({ page }) => {
+    await page.goto('/login');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+
+    await expect(page.locator('#username')).toBeVisible({ timeout: 10_000 });
+
+    // Use the real admin username with a demonstrably wrong password.
+    // This exercises the bcrypt comparison path (PILOT_AUTH=true) and
+    // confirms that an incorrect credential is actually rejected — a
+    // nonexistent username would not prove the password-check logic works.
+    await page.fill('#username', ADMIN_USERNAME);
+    await page.fill('#password', `definitely-wrong-${Date.now()}`);
+    await page.click('button[type="submit"]');
+
+    // An error alert must appear.
+    await expect(page.locator('[role="alert"]')).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Must remain on the login page.
+    expect(
+      page.url(),
+      'Expected to stay on /login after a failed authentication attempt',
+    ).toContain('/login');
+  });
+});

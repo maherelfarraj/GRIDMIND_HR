@@ -1,0 +1,183 @@
+name: Login Smoke
+
+# End-to-end login verification: valid credentials → authenticated session →
+# redirect; wrong password → error, stays on login.
+#
+# This workflow runs on every PR targeting main so the "Login Flow Smoke Test"
+# status check is always emitted.  Path-filtered workflows leave the check
+# pending on non-matching PRs and block merges, so no path filter is used.
+#
+# ── ONE-TIME ADMIN SETUP (required for merge-blocking) ───────────────────────
+# After this workflow is merged to main, a repository administrator must add
+# "Login Flow Smoke Test" as a required status check on main:
+#
+#   GitHub → repository → Settings → Branches
+#     → Branch protection rules → Edit (main)
+#     → ✓ Require status checks to pass before merging
+#     → search: "Login Flow Smoke Test" → select it
+#     → Save changes
+#
+# Once configured, any PR where this job fails is blocked from merging.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  login-smoke:
+    name: Login Flow Smoke Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hrms_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hrms_ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - name: Get pnpm store path
+        id: pnpm-cache
+        run: echo "store=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.store }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Database ─────────────────────────────────────────────────────────
+      - name: Push database schema
+        run: pnpm --filter @workspace/db run push-force
+
+      # Generate ephemeral credentials at runtime — no repository secrets
+      # are needed, so the workflow works for fork PRs too.
+      #   CI_ADMIN_PASSWORD: meets the app password policy (≥8 chars, 4 classes)
+      #   CI_SESSION_SECRET: 256-bit random hex for HMAC cookie signing
+      - name: Generate ephemeral CI credentials
+        run: |
+          PW="CISm0ke!$(openssl rand -hex 6)Zz#"
+          SS="$(openssl rand -hex 32)"
+          echo "CI_ADMIN_PASSWORD=$PW" >> "$GITHUB_ENV"
+          echo "CI_SESSION_SECRET=$SS" >> "$GITHUB_ENV"
+          echo "[login-smoke] Ephemeral credentials generated (values not logged)"
+
+      # Seed the admin user BEFORE the API server starts so no startup-time
+      # seeding path can overwrite the known CI password.
+      - name: Seed CI admin user
+        run: node artifacts/api-server/seed-ci-admin.mjs
+
+      # ── Build API server ─────────────────────────────────────────────────
+      - name: Build API server
+        run: pnpm --filter @workspace/api-server run build
+        env:
+          NODE_ENV: development
+
+      # ── Start services ────────────────────────────────────────────────────
+      # PILOT_AUTH=true enforces bcrypt password verification — without it
+      # the login route accepts any password in demo mode, so a regression
+      # that breaks the bcrypt comparison would still pass the smoke test.
+      - name: Start API server
+        run: |
+          PORT=3001 \
+          PILOT_AUTH=true \
+          SESSION_SECRET="$CI_SESSION_SECRET" \
+          NODE_ENV=development \
+          node --enable-source-maps artifacts/api-server/dist/index.mjs &
+          echo "API_SERVER_PID=$!" >> "$GITHUB_ENV"
+
+      # Vite dev server on :3000; VITE_API_PROXY_TARGET forwards /api/* to
+      # the API server — no platform reverse proxy exists in CI.
+      - name: Start HRMS frontend
+        run: |
+          PORT=3000 \
+          BASE_PATH=/ \
+          VITE_API_PROXY_TARGET=http://localhost:3001 \
+          NODE_ENV=development \
+          pnpm --filter @workspace/hrms exec vite \
+            --config vite.config.ts \
+            --host 0.0.0.0 &
+          echo "HRMS_PID=$!" >> "$GITHUB_ENV"
+
+      # ── Readiness checks ─────────────────────────────────────────────────
+      - name: Wait for API server
+        run: |
+          echo "Waiting for API server on :3001 …"
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null http://localhost:3001/; then
+              echo "  API server ready (attempt $i)"; break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "ERROR: API server did not become reachable within 60 s" >&2
+              exit 1
+            fi
+            echo "  ($i/60) not yet reachable…"; sleep 1
+          done
+
+      - name: Wait for HRMS frontend
+        run: |
+          echo "Waiting for HRMS frontend on :3000 …"
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null http://localhost:3000/; then
+              echo "  HRMS frontend ready (attempt $i)"; break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "ERROR: HRMS frontend did not become reachable within 60 s" >&2
+              exit 1
+            fi
+            echo "  ($i/60) not yet reachable…"; sleep 1
+          done
+
+      # ── Playwright ───────────────────────────────────────────────────────
+      - name: Install smoke suite dependencies
+        run: npm install --no-audit --prefer-offline
+        working-directory: scripts/smoke
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+        working-directory: scripts/smoke
+
+      - name: Run login smoke test
+        run: npx playwright test --config playwright-login.config.ts
+        working-directory: scripts/smoke
+        env:
+          SMOKE_BASE_URL: 'http://localhost:3000'
+          SMOKE_ADMIN_USERNAME: 'admin'
+          SMOKE_ADMIN_PASSWORD: ${{ env.CI_ADMIN_PASSWORD }}
+
+      # ── Cleanup ──────────────────────────────────────────────────────────
+      - name: Stop background services
+        if: always()
+        run: |
+          [ -n "${API_SERVER_PID:-}" ] && kill "$API_SERVER_PID" 2>/dev/null || true
+          [ -n "${HRMS_PID:-}"       ] && kill "$HRMS_PID"       2>/dev/null || true

@@ -72,6 +72,20 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    // VITE_API_PROXY_TARGET: when set, proxy /api/* to that origin.
+    // Used in CI (login-smoke workflow) where the API server runs on a
+    // separate port and no platform-level reverse proxy is available.
+    // Never set in production or standard dev (the platform proxy handles it).
+    ...(process.env.VITE_API_PROXY_TARGET
+      ? {
+          proxy: {
+            '/api': {
+              target: process.env.VITE_API_PROXY_TARGET,
+              changeOrigin: true,
+            },
+          },
+        }
+      : {}),
   },
   preview: {
     port,
