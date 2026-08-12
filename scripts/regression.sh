@@ -52,6 +52,14 @@ else
     bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/schema-drift.test.ts src/__tests__/openapi-drift.test.ts src/__tests__/codegen-drift.test.ts"
 fi
 
+# Auth-coverage guard: static + runtime check that every /admin/* route is
+# protected by requireAuth.  The static layer (source analysis) has no DB
+# dependency and runs in all environments including publish builds.  The
+# runtime layer (unauthenticated HTTP probes) also requires no DB because
+# requireAuth blocks the request before any DB query is made.
+run_suite "api-auth-coverage" \
+  bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/auth-coverage.test.ts"
+
 if [[ "${SKIP_CODEGEN_CHECK:-}" == "1" ]]; then
   echo ""
   echo "==> SKIP_CODEGEN_CHECK=1: skipping codegen-committed suite"
