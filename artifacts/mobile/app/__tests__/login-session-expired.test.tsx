@@ -225,6 +225,68 @@ describe('Login screen — session-expired banner', () => {
     expect(routerMock.replace).not.toHaveBeenCalled();
   });
 
+  it('banner stays hidden after dismiss and remount (flag is not reset on screen mount)', async () => {
+    // This test mimics the real AuthContext: the sessionExpiredBanner flag
+    // lives in a provider that outlives individual screen mounts. Dismissing
+    // the banner must update that provider state (via clearSessionExpiredBanner)
+    // so that when LoginScreen unmounts and remounts (back-navigation) the
+    // banner is still absent — i.e. the flag is NOT reset on screen mount.
+
+    // A stateful wrapper that acts as the persistent AuthContext provider.
+    // It holds `banner` in React state so that clearSessionExpiredBanner
+    // triggers a genuine React re-render — not just a module-variable swap.
+    function AuthStateWrapper({ showLogin }: { showLogin: boolean }) {
+      const [banner, setBanner] = React.useState(true);
+
+      // Sync the React state to the module-level variable so useAuth() picks
+      // it up on every render of LoginScreen (reads mockSessionExpiredBanner).
+      mockSessionExpiredBanner = banner;
+
+      // Wire the mock dismiss callback to update React state, mirroring how
+      // clearSessionExpiredBanner calls setSessionExpiredBanner(false) in the
+      // real AuthProvider. This runs on first mount; no deps change after that.
+      React.useEffect(() => {
+        clearSessionExpiredBannerMock.mockImplementation(() => {
+          setBanner(false);
+        });
+        return () => {
+          // Restore the no-op default so other tests are unaffected.
+          clearSessionExpiredBannerMock.mockReset();
+        };
+      }, []);
+
+      // Swap LoginScreen in/out to simulate navigation away and back while
+      // keeping this wrapper (the "provider") mounted throughout.
+      return showLogin ? <LoginScreen /> : <div data-testid="other-screen" />;
+    }
+
+    const { rerender } = render(<AuthStateWrapper showLogin={true} />);
+
+    // Banner is visible on the first render.
+    expect(screen.getByTestId('session-expired-notice')).toBeDefined();
+
+    // User taps dismiss — this calls clearSessionExpiredBanner which (via the
+    // mock implementation above) calls setBanner(false), triggering a re-render.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('button-dismiss-session-expired'));
+    });
+
+    // Immediately after dismiss the banner must disappear (React state = false).
+    expect(screen.queryByTestId('session-expired-notice')).toBeNull();
+    expect(clearSessionExpiredBannerMock).toHaveBeenCalledTimes(1);
+
+    // Simulate navigating away — unmount LoginScreen but keep the wrapper alive.
+    rerender(<AuthStateWrapper showLogin={false} />);
+    expect(screen.getByTestId('other-screen')).toBeDefined();
+
+    // Navigate back — remount LoginScreen while the wrapper still holds banner=false.
+    rerender(<AuthStateWrapper showLogin={true} />);
+
+    // The banner must NOT reappear. The flag lives in context state (the wrapper),
+    // not in LoginScreen itself, so remounting the screen cannot reset it.
+    expect(screen.queryByTestId('session-expired-notice')).toBeNull();
+  });
+
   it('calls clearSessionExpiredBanner after a successful login', async () => {
     mockSessionExpiredBanner = true;
     mockExpiredReturnTo = '/approvals';
