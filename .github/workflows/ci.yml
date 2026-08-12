@@ -61,8 +61,47 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Push database schema
-        run: pnpm --filter @workspace/db run push-force
+      # Cache compiled lib/* dist outputs so tsc --build is incremental across CI runs.
+      # Keyed on lock file + all lib tsconfig/source files so the cache is invalidated
+      # whenever any shared-lib source changes.
+      - name: Restore lib dist cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            lib/db/dist
+            lib/db/*.tsbuildinfo
+            lib/api-client-react/dist
+            lib/api-client-react/*.tsbuildinfo
+            lib/api-zod/dist
+            lib/api-zod/*.tsbuildinfo
+            lib/attendance-gateway/dist
+            lib/attendance-gateway/*.tsbuildinfo
+            lib/session-activity/dist
+            lib/session-activity/*.tsbuildinfo
+          key: lib-dist-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml', 'lib/**/tsconfig*.json', 'lib/**/src/**') }}
+          restore-keys: |
+            lib-dist-${{ runner.os }}-
+
+      # Cache the schema as a pg_dump SQL file keyed on schema source + drizzle config.
+      # On a cache hit we restore the dump directly into the fresh Postgres service,
+      # skipping the slow drizzle push entirely.
+      # On a cache miss we run push-force then dump the result so the next run can use it.
+      - name: Restore schema dump cache
+        id: schema-cache
+        uses: actions/cache@v4
+        with:
+          path: .ci-schema-dump.sql
+          key: schema-dump-${{ runner.os }}-${{ hashFiles('lib/db/src/schema/**', 'lib/db/drizzle.config.ts', '**/pnpm-lock.yaml') }}
+
+      - name: Initialize database from cache
+        if: steps.schema-cache.outputs.cache-hit == 'true'
+        run: psql "$DATABASE_URL" < .ci-schema-dump.sql
+
+      - name: Push database schema and save dump
+        if: steps.schema-cache.outputs.cache-hit != 'true'
+        run: |
+          pnpm --filter @workspace/db run push-force
+          pg_dump --schema-only --no-owner --no-privileges "$DATABASE_URL" > .ci-schema-dump.sql
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hrms_test
 
