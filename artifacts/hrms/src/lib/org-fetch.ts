@@ -33,26 +33,49 @@ export function installOrgFetch(): void {
   if (installed) return;
   installed = true;
   const origFetch = window.fetch.bind(window);
-  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const orgId = getActiveOrgId();
-    if (orgId !== null) {
-      const url =
-        typeof input === 'string' ? input :
-        input instanceof URL ? input.toString() :
-        input.url;
-      // Never attach X-Org-Id to auth endpoints — the session doesn't
-      // exist yet (login) or is being torn down (logout/me on page load
-      // before the session hydrates), so the server will reject it as
-      // "Authentication required to select an organization context".
-      if (url.includes('/api/') && !url.includes('/api/auth/')) {
-        const headers = new Headers(
-          init?.headers ?? (input instanceof Request ? input.headers : undefined),
-        );
-        // Respect an explicitly-set header (admin pages may pin an org)
-        if (!headers.has('X-Org-Id')) headers.set('X-Org-Id', String(orgId));
-        init = { ...init, headers };
+    const url =
+      typeof input === 'string' ? input :
+      input instanceof URL ? input.toString() :
+      (input as Request).url;
+
+    const isApiCall = url.includes('/api/') && !url.includes('/api/auth/');
+
+    if (orgId !== null && isApiCall) {
+      const headers = new Headers(
+        init?.headers ?? (input instanceof Request ? input.headers : undefined),
+      );
+      // Respect an explicitly-set header (admin pages may pin an org)
+      if (!headers.has('X-Org-Id')) headers.set('X-Org-Id', String(orgId));
+      init = { ...init, headers };
+    }
+
+    const response = await origFetch(input, init);
+
+    // If the server rejected the org ID as unknown (e.g. after a data wipe or
+    // org deletion), clear the stale value and retry without it so the server
+    // falls back to the user's home org automatically.
+    if (response.status === 400 && isApiCall && orgId !== null) {
+      const clone = response.clone();
+      try {
+        const body = await clone.json();
+        if (body?.code === 'UNKNOWN_ORG') {
+          setActiveOrgId(null);
+          // Retry without X-Org-Id
+          const retryInit = { ...init };
+          if (retryInit.headers) {
+            const h = new Headers(retryInit.headers);
+            h.delete('X-Org-Id');
+            retryInit.headers = h;
+          }
+          return origFetch(input, retryInit);
+        }
+      } catch {
+        // body not JSON — fall through and return original response
       }
     }
-    return origFetch(input, init);
+
+    return response;
   };
 }
