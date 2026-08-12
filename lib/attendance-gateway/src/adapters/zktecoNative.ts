@@ -23,6 +23,7 @@
 import type { DeviceAdapter, GatewayPunch, AdapterTestResult, AdapterSdkInfo, PunchEventType } from "../types.js";
 import { sanitizeRaw } from "./genericRest.js";
 import { ZkTcpClient, type ZkRawRecord, type ZkClientOptions } from "./zktecoProtocol.js";
+import { toIsoTimestamp } from "./timestamp.js";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -41,10 +42,7 @@ function errMsg(e: unknown): string {
 }
 
 export function toIso(value: unknown): string | null {
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
-  if (typeof value !== "string" || !value) return null;
-  const d = new Date(value.includes("T") ? value : value.replace(" ", "T"));
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  return toIsoTimestamp(value);
 }
 
 // ─── Punch-state mapping ──────────────────────────────────────────────────────

@@ -64,9 +64,10 @@ Rules a native adapter MUST follow:
    (`CLOCK_IN`, `CLOCK_OUT`, `BREAK_START`, `BREAK_END`, `OVERTIME_START`,
    `OVERTIME_END`). ZKTeco native status codes 0–5 match the middleware
    mapping in `ZK_PUNCH_STATE`; Suprema T&A keys 1–6 match `BIOSTAR_TNA_KEY`.
-6. **Timestamps to ISO 8601.** Devices report second-granular local time;
-   convert with the same host-local convention as `toIso()` in
-   `vendorStubs.ts` so middleware and native paths agree.
+6. **Timestamps to ISO 8601.** Normalize timestamps with
+   `toIsoTimestamp()` so conversion is independent of the gateway host.
+   Timezone-less vendor values are treated as UTC; explicit `Z` or numeric
+   offsets are preserved and converted to UTC.
 
 ## Wiring
 

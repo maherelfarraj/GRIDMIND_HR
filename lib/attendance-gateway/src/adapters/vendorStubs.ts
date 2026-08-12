@@ -1,5 +1,6 @@
 import type { DeviceAdapter, GatewayPunch, AdapterTestResult, PunchEventType, RestartTarget } from "../types.js";
 import { sanitizeRaw } from "./genericRest.js";
+import { toIsoTimestamp } from "./timestamp.js";
 
 /**
  * ZKTeco / Suprema adapters — middleware REST implementations.
@@ -70,9 +71,7 @@ const SKEW_UNVERIFIED_NOTE =
 
 /** Parse vendor timestamps ("YYYY-MM-DD HH:MM:SS" or ISO) to ISO 8601, or null. */
 function toIso(value: unknown): string | null {
-  if (typeof value !== "string" || !value) return null;
-  const d = new Date(value.includes("T") ? value : value.replace(" ", "T"));
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  return toIsoTimestamp(value);
 }
 
 /**
@@ -335,15 +334,15 @@ export class ZktecoAdapter implements DeviceAdapter {
     const firstFromTime = (): string => {
       const u = new URL(`${this.config!.baseUrl}/iclock/api/transactions/`);
       u.searchParams.set("page_size", "200");
-      // inclusive start_time: same-timestamp events replay and are filtered via
-      // the id set. Formatted in host-local time to mirror toIso()'s parsing of
-      // ZKBioTime's local-time punch_time strings.
+      // Inclusive start_time: same-timestamp events replay and are filtered via
+      // the id set. Timezone-less vendor timestamps are normalized as UTC, so
+      // reconstruct the query watermark with UTC fields too.
       if (cur.t) {
         const d = new Date(cur.t);
         const p = (n: number): string => String(n).padStart(2, "0");
         u.searchParams.set(
           "start_time",
-          `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
+          `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`,
         );
       }
       return u.toString();
