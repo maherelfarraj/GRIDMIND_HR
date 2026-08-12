@@ -107,3 +107,51 @@ jobs:
 
       - name: Run regression suite
         run: bash scripts/regression.sh
+
+  mobile-tests:
+    name: Mobile Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10"
+
+      - name: Get pnpm store path
+        id: pnpm-cache
+        run: echo "store=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.store }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore lib dist cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            lib/api-client-react/dist
+            lib/api-client-react/*.tsbuildinfo
+            lib/api-zod/dist
+            lib/api-zod/*.tsbuildinfo
+          key: lib-dist-mobile-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml', 'lib/api-client-react/**', 'lib/api-zod/**') }}
+          restore-keys: |
+            lib-dist-mobile-${{ runner.os }}-
+
+      - name: Run mobile unit tests
+        run: pnpm --filter @workspace/mobile test
