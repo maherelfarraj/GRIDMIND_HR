@@ -252,6 +252,7 @@ const strings = {
     en: 'Your session has expired. Please sign in again.',
     ar: 'انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى.',
   },
+  dismiss: { en: 'Dismiss', ar: 'إغلاق' },
   upcomingHolidays: { en: 'Upcoming Holidays', ar: 'الإجازات الرسمية القادمة' },
   noUpcomingHolidays: {
     en: 'No upcoming public holidays',

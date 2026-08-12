@@ -35,6 +35,8 @@ vi.mock('react-native', () => {
         value: value ?? '',
         onChange: (e: any) => onChangeText?.(e.target.value),
       }),
+    Pressable: ({ children, testID, onPress, style: _style, ...rest }: any) =>
+      React.createElement('button', { 'data-testid': testID, onClick: onPress, ...rest }, children),
     Image: () => null,
     StyleSheet: { create: (s: any) => s },
     ActivityIndicator: () => null,
@@ -201,6 +203,26 @@ describe('Login screen — session-expired banner', () => {
     render(<LoginScreen />);
 
     expect(screen.queryByTestId('session-expired-notice')).toBeNull();
+  });
+
+  it('calls clearSessionExpiredBanner and clearExpiredReturnTo when the dismiss button is tapped', async () => {
+    mockSessionExpiredBanner = true;
+    mockExpiredReturnTo = '/notifications';
+
+    render(<LoginScreen />);
+
+    // The dismiss button must be present inside the banner.
+    const dismissBtn = screen.getByTestId('button-dismiss-session-expired');
+    expect(dismissBtn).toBeDefined();
+
+    await act(async () => {
+      fireEvent.click(dismissBtn);
+    });
+
+    expect(clearSessionExpiredBannerMock).toHaveBeenCalledTimes(1);
+    expect(clearExpiredReturnToMock).toHaveBeenCalledTimes(1);
+    // The router must NOT be called — dismissing just hides the notice.
+    expect(routerMock.replace).not.toHaveBeenCalled();
   });
 
   it('calls clearSessionExpiredBanner after a successful login', async () => {

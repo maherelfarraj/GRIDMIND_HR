@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Image,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -188,6 +189,19 @@ export default function LoginScreen() {
             >
               {t('sessionExpiredNotice')}
             </Text>
+            <Pressable
+              testID="button-dismiss-session-expired"
+              onPress={() => {
+                clearSessionExpiredBanner();
+                clearExpiredReturnTo();
+              }}
+              hitSlop={8}
+              style={{ marginLeft: 'auto', padding: 2 }}
+              accessibilityLabel={t('dismiss')}
+              accessibilityRole="button"
+            >
+              <Text style={{ color: '#b45309', fontSize: 16, lineHeight: 18 }}>×</Text>
+            </Pressable>
           </View>
         ) : null}
 
