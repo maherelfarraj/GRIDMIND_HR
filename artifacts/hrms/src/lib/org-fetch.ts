@@ -30,7 +30,11 @@ export function installOrgFetch(): void {
         typeof input === 'string' ? input :
         input instanceof URL ? input.toString() :
         input.url;
-      if (url.includes('/api/')) {
+      // Never attach X-Org-Id to auth endpoints — the session doesn't
+      // exist yet (login) or is being torn down (logout/me on page load
+      // before the session hydrates), so the server will reject it as
+      // "Authentication required to select an organization context".
+      if (url.includes('/api/') && !url.includes('/api/auth/')) {
         const headers = new Headers(
           init?.headers ?? (input instanceof Request ? input.headers : undefined),
         );
