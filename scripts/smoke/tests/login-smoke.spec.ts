@@ -238,6 +238,63 @@ test.describe('Login flow', () => {
     ).toBe('/');
   });
 
+  // ── UI logout path ─────────────────────────────────────────────────────────
+
+  test('logout button in sidebar → browser redirects to /login', async ({ page }) => {
+    const password = getAdminPassword();
+
+    // ── Step 1: Log in via the UI form ─────────────────────────────────────
+    await page.goto('/login');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+
+    await expect(page.locator('#username')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#password')).toBeVisible({ timeout: 5_000 });
+
+    await page.fill('#username', ADMIN_USERNAME);
+    await page.fill('#password', password);
+
+    await Promise.all([
+      page.waitForURL((url) => !url.pathname.includes('/login'), {
+        timeout: 25_000,
+      }),
+      page.click('button[type="submit"]'),
+    ]);
+
+    // Confirm we're authenticated and no longer on the login page.
+    expect(
+      page.url(),
+      'Expected to be redirected away from /login after successful authentication',
+    ).not.toContain('/login');
+
+    // ── Step 2: Click the logout button in the sidebar ─────────────────────
+    // The sidebar renders a Button with the text "Sign Out" that calls
+    // useAuth().logout() on click.
+    const logoutBtn = page.getByRole('button', { name: /sign out/i });
+    await expect(logoutBtn).toBeVisible({ timeout: 10_000 });
+
+    await Promise.all([
+      page.waitForURL((url) => url.pathname.includes('/login'), {
+        timeout: 25_000,
+      }),
+      logoutBtn.click(),
+    ]);
+
+    // ── Step 3: Confirm the redirect arrived on /login ──────────────────────
+    expect(
+      page.url(),
+      'Expected the sidebar logout button to redirect to /login',
+    ).toContain('/login');
+
+    // ── Step 4: Confirm the session is truly gone ───────────────────────────
+    // /api/auth/me must return 401 — the cookie was cleared on the server
+    // by POST /api/auth/logout, which the hook fires before clearing state.
+    const meAfter = await page.request.get('/api/auth/me');
+    expect(
+      meAfter.status(),
+      '/api/auth/me must return 401 after the sidebar logout button is clicked',
+    ).toBe(401);
+  });
+
   // ── Sad path ───────────────────────────────────────────────────────────────
 
   test('wrong password for valid user → error alert visible and page stays on /login', async ({ page }) => {
