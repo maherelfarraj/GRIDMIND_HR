@@ -1,0 +1,12 @@
+{
+  "name": "hrms-login-screenshot",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Captures the HRMS login-page screenshot for the README",
+  "scripts": {
+    "capture": "playwright test"
+  },
+  "dependencies": {
+    "@playwright/test": "1.44.0"
+  }
+}
