@@ -205,10 +205,19 @@ vi.mock('@workspace/api-client-react', async (importOriginal) => {
 });
 
 // ---------------------------------------------------------------------------
+// LogoutToast — the root-level toast component that survives navigation
+// ---------------------------------------------------------------------------
+
+// Minimal mock for useColors used inside LogoutToast (already mocked above).
+// LogoutToast is rendered outside HomeScreen to simulate the real app layout
+// where it lives in RootLayoutNav above the Stack router.
+
+// ---------------------------------------------------------------------------
 // Modules under test
 // ---------------------------------------------------------------------------
 
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { LogoutToast } from '@/components/LogoutToast';
 import HomeScreen from '../index';
 
 const PROFILE_KEY = 'hrms-mobile-session';
@@ -361,5 +370,83 @@ describe('HomeScreen sign-out button', () => {
     });
     expect(secureStoreMock.deleteItemAsync).toHaveBeenCalledWith(TOKEN_KEY);
     expect(asyncStorageMock.removeItem).toHaveBeenCalledWith(PROFILE_KEY);
+  });
+
+  /**
+   * Integration: simulate the real navigation flow where the tab-layout auth
+   * guard unmounts HomeScreen the moment user state clears.
+   *
+   * AppSimulator mirrors the production behaviour: it renders HomeScreen only
+   * while the user is signed in, then replaces it with nothing (as the real
+   * tab layout redirects to /login). LogoutToast is rendered outside
+   * AppSimulator, just as it lives outside the Stack router in _layout.tsx,
+   * so it stays mounted across the route change.
+   */
+  it('toast remains visible after HomeScreen unmounts on sign-out (simulated auth guard)', async () => {
+    // Seed signed-in state.
+    secureStoreMock.getItemAsync.mockResolvedValue('tok-hometest');
+    asyncStorageMock.getItem.mockResolvedValue(STORED_USER);
+    const stored = JSON.parse(STORED_USER) as Record<string, unknown>;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) =>
+      make200Response(String(input), stored),
+    ));
+
+    // AppSimulator unmounts HomeScreen when user becomes null —
+    // identical to the tab-layout Redirect to /login.
+    function AppSimulator() {
+      const { user } = useAuth();
+      return user ? <HomeScreen /> : null;
+    }
+
+    render(
+      <AuthProvider>
+        <Probe />
+        {/* LogoutToast lives outside AppSimulator, just as it does in
+            RootLayoutNav above the Stack router in production. */}
+        <LogoutToast />
+        <AppSimulator />
+      </AuthProvider>,
+    );
+
+    // Wait for bootstrap to finish.
+    await waitFor(() => {
+      expect(latestAuth?.isLoading).toBe(false);
+      expect(latestAuth?.user).not.toBeNull();
+    });
+
+    // Simulate offline: server logout call throws, local sign-out proceeds.
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Network request failed');
+    }));
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('button-signout'));
+    });
+
+    // HomeScreen is now unmounted (user === null → AppSimulator renders null),
+    // but LogoutToast must still be in the DOM.
+    await waitFor(() => {
+      expect(latestAuth?.user).toBeNull();
+      expect(screen.getByTestId('toast-signed-out')).toBeTruthy();
+    });
+  });
+
+  it('does NOT show the toast when the server call succeeds', async () => {
+    await renderHomeSignedIn();
+
+    // Server responds with 200 — clean sign-out, no toast needed.
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) =>
+      make200Response(String(input), {}),
+    ));
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('button-signout'));
+    });
+
+    await waitFor(() => {
+      expect(latestAuth?.user).toBeNull();
+    });
+
+    expect(screen.queryByTestId('toast-signed-out')).toBeNull();
   });
 });

@@ -69,7 +69,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: () => Promise<{ serverError: boolean }>;
   /**
    * Clear the mustChangePassword flag after a successful in-app password
    * change so the navigation guards let the user into the tabs again.
@@ -82,6 +82,15 @@ interface AuthContextValue {
   expiredReturnTo: string | null;
   /** Consume and clear the saved return-to route after navigating. */
   clearExpiredReturnTo: () => void;
+  /**
+   * True while the "Signed out" toast should be visible. Set when the
+   * server-side logout call fails (network error) so the user knows local
+   * sign-out still completed. Lives in context so it survives the
+   * tab-layout redirect to /login that unmounts the home screen.
+   */
+  logoutToast: boolean;
+  /** Dismiss the logout toast (called by the auto-dismiss timer). */
+  clearLogoutToast: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -90,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [expiredReturnTo, setExpiredReturnTo] = useState<string | null>(null);
+  const [logoutToast, setLogoutToast] = useState<boolean>(false);
 
   const router = useRouter();
 
@@ -226,17 +236,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   }, []);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (): Promise<{ serverError: boolean }> => {
     // Best-effort server-side session destruction; local sign-out always
     // proceeds even if the network call fails.
+    let serverError = false;
     try {
       await logoutUser();
     } catch {
       // Session may already be gone (expired/destroyed) — fine.
+      serverError = true;
     }
+    // Surface a toast when the server call fails so users know local
+    // sign-out still completed even though the network was unavailable.
+    // The flag lives in context (not the home screen) so it survives the
+    // tab-layout redirect to /login that unmounts the home screen.
+    if (serverError) setLogoutToast(true);
     currentToken = null;
     setUser(null);
     await Promise.all([clearToken(), AsyncStorage.removeItem(PROFILE_KEY)]);
+    return { serverError };
   }, []);
 
   const markPasswordChanged = useCallback(() => {
@@ -252,6 +270,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setExpiredReturnTo(null);
   }, []);
 
+  const clearLogoutToast = useCallback(() => {
+    setLogoutToast(false);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -261,8 +283,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       markPasswordChanged,
       expiredReturnTo,
       clearExpiredReturnTo,
+      logoutToast,
+      clearLogoutToast,
     }),
-    [user, isLoading, login, logout, markPasswordChanged, expiredReturnTo, clearExpiredReturnTo],
+    [user, isLoading, login, logout, markPasswordChanged, expiredReturnTo, clearExpiredReturnTo, logoutToast, clearLogoutToast],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

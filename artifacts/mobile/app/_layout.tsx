@@ -5,6 +5,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { LogoutToast } from '@/components/LogoutToast';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { I18nProvider } from '@/lib/i18n';
 import { setBaseUrl } from '@workspace/api-client-react';
@@ -43,20 +44,24 @@ export function RootLayoutNav() {
   }
 
   return (
-    <Stack screenOptions={{ headerBackTitle: 'Back', headerShown: false }}>
-      <Stack.Screen name="login" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="new-leave" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="payslip/[id]" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="notifications" />
-      <Stack.Screen name="devices" />
-      <Stack.Screen name="gateway" />
-      <Stack.Screen name="admin-users" />
-      <Stack.Screen name="privileged-sessions" />
-      <Stack.Screen name="privileged-session/[id]" />
-      <Stack.Screen name="payroll-period-ot/[id]" />
-    </Stack>
+    <>
+      <Stack screenOptions={{ headerBackTitle: 'Back', headerShown: false }}>
+        <Stack.Screen name="login" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="new-leave" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="payslip/[id]" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="notifications" />
+        <Stack.Screen name="devices" />
+        <Stack.Screen name="gateway" />
+        <Stack.Screen name="admin-users" />
+        <Stack.Screen name="privileged-sessions" />
+        <Stack.Screen name="privileged-session/[id]" />
+        <Stack.Screen name="payroll-period-ot/[id]" />
+      </Stack>
+      {/* Rendered outside the Stack so the toast survives route changes */}
+      <LogoutToast />
+    </>
   );
 }
 

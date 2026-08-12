@@ -72,6 +72,7 @@ const strings = {
   loadFailed: { en: 'Failed to load', ar: 'فشل التحميل' },
   retry: { en: 'Retry', ar: 'إعادة المحاولة' },
   signOut: { en: 'Sign Out', ar: 'تسجيل الخروج' },
+  signedOut: { en: 'Signed out', ar: 'تم تسجيل الخروج' },
   requestedBy: { en: 'Requested by', ar: 'مقدم الطلب' },
   cancel: { en: 'Cancel', ar: 'إلغاء' },
   noEmployee: {
