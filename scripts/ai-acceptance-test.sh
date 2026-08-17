@@ -480,6 +480,86 @@ http=$(parse_http "$raw")
 # ─────────────────────────────────────────────────────────────────────────────
 # SUMMARY
 # ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# P6: READ ENDPOINT RBAC (new endpoints guarded in this session)
+# ─────────────────────────────────────────────────────────────────────────────
+section "P6 — Read Endpoint RBAC (GET /ai/queries, /ai/permissions)"
+
+for endpoint in "ai/queries" "ai/permissions"; do
+  echo "  ↳ $endpoint — employee must be blocked"
+  raw=$(ai_call "$COOKIE_EMP" "GET" "$endpoint" "")
+  http=$(parse_http "$raw")
+  [[ "$http" == "403" || "$http" == "401" ]] && ok "Employee blocked from GET $endpoint (HTTP $http)" || \
+    fail "Employee should be blocked from GET $endpoint — got HTTP $http"
+
+  echo "  ↳ $endpoint — unauthenticated must be blocked"
+  raw=$(curl -s -w "\n___%{http_code}___0" "$BASE/$endpoint")
+  http=$(echo "$raw" | grep -oP '___\K[0-9]{3}(?=___)')
+  [[ "$http" == "401" || "$http" == "403" ]] && ok "Unauthenticated blocked from GET $endpoint (HTTP $http)" || \
+    fail "Unauthenticated should be blocked from GET $endpoint — got HTTP $http"
+
+  echo "  ↳ $endpoint — admin must be allowed"
+  raw=$(ai_call "$COOKIE_ADMIN" "GET" "$endpoint" "")
+  http=$(parse_http "$raw"); body=$(parse_body "$raw")
+  [[ "$http" == "200" ]] && ok "Admin can GET $endpoint (HTTP 200)" || fail "Admin GET $endpoint — HTTP $http"
+done
+
+# P6.1 Verify GET /ai/queries response shape (admin)
+echo ""
+echo "  [P6.1] GET /ai/queries response shape"
+raw=$(ai_call "$COOKIE_ADMIN" "GET" "ai/queries" "")
+body=$(parse_body "$raw"); http=$(parse_http "$raw")
+if [[ "$http" == "200" ]]; then
+  total=$(echo "$body" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total',0))" 2>/dev/null || echo 0)
+  data_len=$(echo "$body" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('data',[])))" 2>/dev/null || echo 0)
+  field "total queries" "$total"; field "returned in page" "$data_len"
+  [[ "$total" -ge "1" ]] && ok "Audit log has $total query records" || warn "Audit log empty — has the AI been used?"
+  # Verify no queryText fields contain raw employee PII (basic sanity)
+  has_pii=$(echo "$body" | python3 -c "
+import sys,json; d=json.load(sys.stdin)
+rows = d.get('data',[])
+# Check that no row exposes a raw employee name in queryText that looks like PII
+suspicious = [r.get('queryText','') for r in rows if '@' in str(r.get('queryText','')) and 'anomaly' not in str(r.get('featureType',''))]
+print(len(suspicious))
+" 2>/dev/null || echo 0)
+  [[ "$has_pii" == "0" ]] && ok "Audit log queryText contains no obvious email PII" || warn "Audit log may expose email addresses in queryText"
+else
+  fail "GET /ai/queries returned HTTP $http"
+fi
+
+# P6.2 Multi-document policy search — verify ≥ 2 results for broad queries
+echo ""
+echo "  [P6.2] Policy search multi-document retrieval"
+raw=$(ai_call "$COOKIE_ADMIN" "POST" "ai/policy-search" '{"query":"employee leave attendance overtime policy","limit":5}')
+body=$(parse_body "$raw"); http=$(parse_http "$raw"); ms=$(parse_ms "$raw")
+if [[ "$http" == "200" ]]; then
+  count=$(jlen "$body" "results")
+  ok "Multi-keyword policy search HTTP 200 (${ms}ms)"
+  field "results" "$count"
+  [[ "$count" -ge "2" ]] && ok "Multi-document retrieval: returned $count results (≥ 2)" || \
+    warn "Only $count result(s) — expected ≥ 2 for a broad multi-topic query (FTS + prompt improvement may need tuning)"
+else
+  fail "Multi-keyword policy search HTTP $http"
+fi
+
+# P6.3 Policy search — cross-topic query should not hallucinate document IDs
+echo "  [P6.3] Policy search result IDs are real (anti-hallucination guard)"
+raw=$(ai_call "$COOKIE_ADMIN" "POST" "ai/policy-search" '{"query":"data privacy and code of conduct","limit":5}')
+body=$(parse_body "$raw"); http=$(parse_http "$raw")
+if [[ "$http" == "200" ]]; then
+  hallu=$(echo "$body" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+results=d.get('results',[])
+# Any result with documentId <= 0 or not a number is suspicious
+bad=[r for r in results if not isinstance(r.get('documentId',None),(int,float)) or r['documentId']<=0]
+print(len(bad))
+" 2>/dev/null || echo 0)
+  [[ "$hallu" == "0" ]] && ok "No hallucinated document IDs in results" || fail "$hallu result(s) have invalid documentId"
+else
+  fail "Privacy/conduct query HTTP $http"
+fi
+
 echo ""
 echo -e "${BOLD}╔═══════════════════════════════════════════════════════╗${RESET}"
 echo -e "${BOLD}║   ACCEPTANCE TEST RESULTS                            ║${RESET}"

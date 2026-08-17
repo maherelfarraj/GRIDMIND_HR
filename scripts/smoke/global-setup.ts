@@ -190,9 +190,12 @@ export default async function globalSetup(): Promise<void> {
     let user: Record<string, unknown> | null = null;
     const attemptLog: string[] = [];
 
+    // SMOKE_ADMIN_USERNAME lets projects override the default 'admin' username.
+    const adminUsername = process.env.SMOKE_ADMIN_USERNAME ?? 'admin';
+
     for (const pw of unique) {
       const res = await ctx.post('/api/auth/login', {
-        data: { username: 'admin', password: pw },
+        data: { username: adminUsername, password: pw },
       });
 
       if (!res.ok()) {

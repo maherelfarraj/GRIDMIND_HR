@@ -178,31 +178,101 @@ router.post("/ai/policy-search", async (req, res): Promise<void> => {
     const model = resolveModel(cfg);
     const maxTokens = resolveMaxTokens(cfg);
 
-    // Fetch candidate documents — only non-sensitive fields, no employee PII
-    const docs = await db.select({
-      id: enterpriseDocumentsTable.id,
-      titleEn: enterpriseDocumentsTable.titleEn,
-      descriptionEn: enterpriseDocumentsTable.descriptionEn,
-      documentNumber: enterpriseDocumentsTable.documentNumber,
-      scope: enterpriseDocumentsTable.scope,
-    }).from(enterpriseDocumentsTable).limit(50);
+    // ── Two-phase document retrieval ─────────────────────────────────────────
+    // Phase 1: PostgreSQL FTS to pre-rank the most textually relevant documents.
+    //   Uses plainto_tsquery so multi-word queries work naturally (AND semantics).
+    //   Falls back to a full ORM scan silently if FTS throws (e.g. malformed query).
+    // Phase 2: Supplement FTS hits with recent documents when FTS returns fewer
+    //   candidates than the requested limit, so every query has context to draw on.
+    // The user query is always SQL-parameterised via the `sql` tagged template.
 
-    const docContext = docs.map(d =>
-      `[DOC_ID:${d.id}] ${d.documentNumber ?? ""} — ${d.titleEn ?? "Untitled"}: ${(d.descriptionEn ?? "").slice(0, 300)}`
-    ).join("\n");
+    type DocCandidate = {
+      id: number;
+      titleEn: string | null;
+      descriptionEn: string | null;
+      documentNumber: string | null;
+      scope: string | null;
+    };
 
-    const systemPrompt = `You are an HR policy search assistant for an enterprise HR system. 
-You help administrators find relevant HR policy documents based on their query.
-You will receive a list of document summaries and must identify the most relevant ones.
-Respond ONLY with a valid JSON object in this exact structure, no extra text:
+    const safeQuery = query.replace(/[;'"\\]/g, " ").slice(0, 500).trim();
+    let candidateIds = new Set<number>();
+    let candidates: DocCandidate[] = [];
+
+    try {
+      // FTS: rank by ts_rank, return up to 3× the requested limit for the AI to choose from
+      const ftsRows = await db.select({
+        id: enterpriseDocumentsTable.id,
+        titleEn: enterpriseDocumentsTable.titleEn,
+        descriptionEn: enterpriseDocumentsTable.descriptionEn,
+        documentNumber: enterpriseDocumentsTable.documentNumber,
+        scope: enterpriseDocumentsTable.scope,
+      }).from(enterpriseDocumentsTable)
+        .where(sql`to_tsvector('english',
+            coalesce(${enterpriseDocumentsTable.titleEn},'') || ' ' ||
+            coalesce(${enterpriseDocumentsTable.descriptionEn},''))
+          @@ plainto_tsquery('english', ${safeQuery})`)
+        .orderBy(sql`ts_rank(
+            to_tsvector('english',
+              coalesce(${enterpriseDocumentsTable.titleEn},'') || ' ' ||
+              coalesce(${enterpriseDocumentsTable.descriptionEn},'')),
+            plainto_tsquery('english', ${safeQuery})) DESC`)
+        .limit(limit * 3);
+
+      for (const r of ftsRows) {
+        candidateIds.add(r.id);
+        candidates.push(r);
+      }
+    } catch {
+      // FTS unavailable or query parse error — fall through to full scan below
+    }
+
+    // Phase 2: always supplement up to 50 total candidates so the AI has context
+    if (candidates.length < limit) {
+      const supplement = await db.select({
+        id: enterpriseDocumentsTable.id,
+        titleEn: enterpriseDocumentsTable.titleEn,
+        descriptionEn: enterpriseDocumentsTable.descriptionEn,
+        documentNumber: enterpriseDocumentsTable.documentNumber,
+        scope: enterpriseDocumentsTable.scope,
+      }).from(enterpriseDocumentsTable).orderBy(desc(enterpriseDocumentsTable.id)).limit(50);
+
+      for (const r of supplement) {
+        if (!candidateIds.has(r.id)) {
+          candidateIds.add(r.id);
+          candidates.push(r);
+        }
+      }
+    }
+
+    const docs = candidates.slice(0, 50);
+
+    // Increase snippet length for FTS-ranked docs (first limit*3) vs supplement docs
+    const ftsCount = Math.min(candidates.length, limit * 3);
+    const docContext = docs.map((d, idx) => {
+      const snippetLen = idx < ftsCount ? 600 : 300; // FTS hits get more context
+      return `[DOC_ID:${d.id}] ${d.documentNumber ?? ""} — ${d.titleEn ?? "Untitled"}:\n${(d.descriptionEn ?? "").slice(0, snippetLen)}`;
+    }).join("\n\n");
+
+    const systemPrompt = `You are an HR policy search assistant for an enterprise HR system.
+You help administrators find ALL policy documents relevant to their query and synthesise a complete answer.
+
+Instructions:
+1. Review every document in the list carefully
+2. Return EVERY document that contains information relevant to the query — do NOT return just one
+3. If multiple documents address different aspects of the query, include each one separately
+4. For each relevant document, write a 1-2 sentence excerpt of the specific content that answers the query
+5. Write a summary that synthesises findings across ALL relevant documents
+6. Assign a relevanceScore (0.0–1.0) reflecting how directly each document addresses the query
+
+Respond ONLY with a valid JSON object in this exact structure — no extra text, no markdown:
 {
   "results": [
-    { "documentId": <number>, "title": "<string>", "excerpt": "<relevant 1-2 sentence excerpt>", "relevanceScore": <0.0-1.0> }
+    { "documentId": <number>, "title": "<string>", "excerpt": "<1-2 sentence excerpt from this document>", "relevanceScore": <0.0-1.0> }
   ],
-  "summary": "<1-2 sentence answer to the query based on the documents found>"
+  "summary": "<synthesis across all relevant documents found, or a clear statement that none were found>"
 }
-Return at most ${limit} results. If no documents are relevant, return an empty results array.
-Never invent document IDs or content that is not in the provided list.`;
+Return at most ${limit} results. Return an empty results array only when no documents are relevant.
+Never invent document IDs or content not present in the provided list.`;
 
     const userPrompt = `Query: "${query}"\n\nAvailable documents:\n${docContext || "(no documents available)"}`;
 
@@ -639,6 +709,9 @@ Metrics: ${JSON.stringify(safeMetrics)}`;
 // ─── GET /ai/queries ──────────────────────────────────────────────────────────
 router.get("/ai/queries", async (req, res): Promise<void> => {
   try {
+    const { isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = (page - 1) * limit;
@@ -666,6 +739,8 @@ router.get("/ai/queries", async (req, res): Promise<void> => {
 // ─── GET /ai/permissions ──────────────────────────────────────────────────────
 router.get("/ai/permissions", async (req, res): Promise<void> => {
   try {
+    const { isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const rows = await db.select().from(aiPermissionsTable).orderBy(aiPermissionsTable.id);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: String(e) }); }
