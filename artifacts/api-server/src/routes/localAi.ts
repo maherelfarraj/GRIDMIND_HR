@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { getActorAdminStatus } from "../lib/adminAuth.js";
-import { eq, desc, and, sql, like, or } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
+import OpenAI from "openai";
+import type { AiConfig } from "@workspace/db";
 import {
   db,
   aiConfigTable,
@@ -13,11 +15,48 @@ import {
 
 const router = Router();
 
+// ─── OpenAI client factory ────────────────────────────────────────────────────
+// Instantiated per-request so a missing env var gives an admin-friendly error
+// rather than crashing the server at startup.
+
+class ConfigError extends Error {
+  constructor(message: string) { super(message); this.name = "ConfigError"; }
+}
+
+function getOpenAiClient(): OpenAI {
+  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  const apiKey  = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  if (!baseURL || !apiKey) {
+    throw new ConfigError(
+      "OpenAI integration is not provisioned. " +
+      "AI_INTEGRATIONS_OPENAI_BASE_URL and AI_INTEGRATIONS_OPENAI_API_KEY must be set. " +
+      "Contact your system administrator to configure the Replit OpenAI AI Integration."
+    );
+  }
+  return new OpenAI({ apiKey, baseURL });
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-async function getAiConfig() {
+const DEFAULT_MODEL = "gpt-5.6-terra";
+
+async function getAiConfig(): Promise<AiConfig | null> {
   const [cfg] = await db.select().from(aiConfigTable).where(eq(aiConfigTable.id, 1));
   return cfg ?? null;
+}
+
+/** Resolve the model name: use admin config if set, else DEFAULT_MODEL */
+function resolveModel(cfg: AiConfig | null): string {
+  return cfg?.modelName?.trim() || DEFAULT_MODEL;
+}
+
+/**
+ * max_completion_tokens: gpt-5+ ignores max_tokens; use max_completion_tokens.
+ * We respect the admin-configured maxTokens but clamp to a safe minimum of 512.
+ */
+function resolveMaxTokens(cfg: AiConfig | null): number {
+  const configured = cfg?.maxTokens ?? 0;
+  return Math.max(512, Math.min(configured > 0 ? configured : 8192, 8192));
 }
 
 async function logAiQuery(data: {
@@ -44,7 +83,7 @@ async function logAiQuery(data: {
     modelUsed: data.modelUsed ?? null,
     tokensUsed: data.tokensUsed ?? null,
     durationMs: data.durationMs ?? null,
-    wasSimulated: data.wasSimulated ?? true,
+    wasSimulated: data.wasSimulated ?? false,
     success: data.success ?? true,
     errorMessage: data.errorMessage ?? null,
     requestedByUserId: data.requestedByUserId ?? null,
@@ -55,12 +94,39 @@ async function logAiQuery(data: {
   return row;
 }
 
+/** Shared guard: is AI enabled and is the requested feature enabled? */
+function checkFeatureEnabled(
+  cfg: AiConfig | null,
+  feature: string
+): string | null {
+  if (!cfg?.isEnabled) return "AI is disabled. Enable it in the Local AI configuration panel.";
+  const features = parseFeatures(cfg.enabledFeatures);
+  if (features.length > 0 && !features.includes(feature)) {
+    return `The '${feature}' feature is not enabled. Enable it in the Local AI configuration panel.`;
+  }
+  return null;
+}
+
+function parseFeatures(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map(String);
+  } catch { /* fall through */ }
+  return raw.split(",").map(s => s.trim()).filter(Boolean);
+}
+
 // ─── GET /ai/config ───────────────────────────────────────────────────────────
 router.get("/ai/config", async (req, res): Promise<void> => {
   try {
     const cfg = await getAiConfig();
     if (!cfg) { res.status(404).json({ error: "AI config not initialised" }); return; }
-    res.json(cfg);
+    // Expose whether the integration is provisioned (without exposing the key itself)
+    const integrationProvisioned = !!(
+      process.env.AI_INTEGRATIONS_OPENAI_BASE_URL &&
+      process.env.AI_INTEGRATIONS_OPENAI_API_KEY
+    );
+    res.json({ ...cfg, integrationProvisioned });
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
@@ -69,8 +135,10 @@ router.patch("/ai/config", async (req, res): Promise<void> => {
   try {
     const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
     if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+    // Strip any attempt to set apiKey or secrets through this endpoint
+    const { apiKey: _apiKey, ...safeBody } = req.body as Record<string, unknown> & { apiKey?: unknown };
     const [row] = await db.update(aiConfigTable)
-      .set({ ...req.body, updatedAt: new Date(), updatedByUserId: actorUserId })
+      .set({ ...safeBody, updatedAt: new Date(), updatedByUserId: actorUserId })
       .where(eq(aiConfigTable.id, 1))
       .returning();
     if (!row) { res.status(404).json({ error: "AI config not found" }); return; }
@@ -80,7 +148,7 @@ router.patch("/ai/config", async (req, res): Promise<void> => {
       entityType: "ai_config",
       entityId: 1,
       entityLabel: "AI Configuration",
-      changesJson: JSON.stringify(req.body),
+      changesJson: JSON.stringify(safeBody), // never logs secrets
     });
     res.json(row);
   } catch (e) { res.status(500).json({ error: String(e) }); }
@@ -88,208 +156,339 @@ router.patch("/ai/config", async (req, res): Promise<void> => {
 
 // ─── POST /ai/policy-search ───────────────────────────────────────────────────
 router.post("/ai/policy-search", async (req, res): Promise<void> => {
-  try {
-    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
-    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
-    const { query, limit: limitParam } = req.body as { query: string; limit?: number };
-    const limit = limitParam ?? 5;
-    const start = Date.now();
-    const cfg = await getAiConfig();
-    const ipAddress = (req as any).ip ?? null;
+  const start = Date.now();
+  const cfg = await getAiConfig().catch(() => null);
+  const ipAddress = (req as any).ip ?? null;
+  let actorUserId: number | null = null;
 
-    // Always keyword search on enterpriseDocumentsTable
-    const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-    let docs = await db.select({
+  try {
+    const actor = await getActorAdminStatus(req);
+    if (!actor.isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+    actorUserId = actor.actorId;
+
+    const featureError = checkFeatureEnabled(cfg, "policy_search");
+    if (featureError) { res.status(422).json({ error: featureError }); return; }
+
+    const { query, limit: limitParam } = req.body as { query: string; limit?: number };
+    if (!query?.trim()) { res.status(400).json({ error: "query is required" }); return; }
+    const limit = Math.min(limitParam ?? 5, 10);
+
+    const model = resolveModel(cfg);
+    const maxTokens = resolveMaxTokens(cfg);
+
+    // Fetch candidate documents — only non-sensitive fields, no employee PII
+    const docs = await db.select({
       id: enterpriseDocumentsTable.id,
       titleEn: enterpriseDocumentsTable.titleEn,
       descriptionEn: enterpriseDocumentsTable.descriptionEn,
       documentNumber: enterpriseDocumentsTable.documentNumber,
       scope: enterpriseDocumentsTable.scope,
-    }).from(enterpriseDocumentsTable).limit(200);
+    }).from(enterpriseDocumentsTable).limit(50);
 
-    // Score by term match count
-    const scored = docs.map(doc => {
-      const haystack = ((doc.titleEn ?? "") + " " + (doc.descriptionEn ?? "")).toLowerCase();
-      const score = terms.filter(t => haystack.includes(t)).length;
-      return { doc, score };
-    }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, limit);
+    const docContext = docs.map(d =>
+      `[DOC_ID:${d.id}] ${d.documentNumber ?? ""} — ${d.titleEn ?? "Untitled"}: ${(d.descriptionEn ?? "").slice(0, 300)}`
+    ).join("\n");
 
-    const results = scored.map(({ doc, score }) => ({
-      documentId: doc.id,
-      title: doc.titleEn,
-      excerpt: doc.descriptionEn ? doc.descriptionEn.slice(0, 200) : doc.titleEn,
-      relevanceScore: score,
-      documentNumber: doc.documentNumber,
-    }));
+    const systemPrompt = `You are an HR policy search assistant for an enterprise HR system. 
+You help administrators find relevant HR policy documents based on their query.
+You will receive a list of document summaries and must identify the most relevant ones.
+Respond ONLY with a valid JSON object in this exact structure, no extra text:
+{
+  "results": [
+    { "documentId": <number>, "title": "<string>", "excerpt": "<relevant 1-2 sentence excerpt>", "relevanceScore": <0.0-1.0> }
+  ],
+  "summary": "<1-2 sentence answer to the query based on the documents found>"
+}
+Return at most ${limit} results. If no documents are relevant, return an empty results array.
+Never invent document IDs or content that is not in the provided list.`;
 
-    const citations = results.map(r => ({
-      source: r.title,
-      excerpt: r.excerpt,
-      page: null,
-    }));
+    const userPrompt = `Query: "${query}"\n\nAvailable documents:\n${docContext || "(no documents available)"}`;
 
+    const client = getOpenAiClient();
+    const completion = await client.chat.completions.create({
+      model,
+      max_completion_tokens: maxTokens,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user",   content: userPrompt },
+      ],
+    });
+
+    const rawContent = completion.choices[0]?.message?.content ?? "{}";
+    let parsed: { results?: unknown[]; summary?: string } = {};
+    try { parsed = JSON.parse(rawContent); } catch { /* fall through to empty */ }
+
+    // Validate: only return IDs that actually exist in our doc list
+    const validIds = new Set(docs.map(d => d.id));
+    const rawResults = Array.isArray(parsed.results) ? parsed.results : [];
+    const results = rawResults
+      .filter((r): r is { documentId: number; title: string; excerpt: string; relevanceScore: number } =>
+        r !== null && typeof r === "object" &&
+        "documentId" in (r as object) && validIds.has(Number((r as any).documentId))
+      )
+      .slice(0, limit)
+      .map(r => ({
+        documentId: Number(r.documentId),
+        title: String(r.title ?? ""),
+        excerpt: String(r.excerpt ?? "").slice(0, 500),
+        relevanceScore: Math.min(1, Math.max(0, Number(r.relevanceScore ?? 0.5))),
+        documentNumber: docs.find(d => d.id === Number(r.documentId))?.documentNumber ?? null,
+      }));
+
+    const citations = results.map(r => ({ source: r.title, excerpt: r.excerpt, page: null }));
+    const responseText = parsed.summary ?? (results.length > 0
+      ? `Found ${results.length} document(s) relevant to "${query}".`
+      : `No relevant documents found for "${query}".`);
     const durationMs = Date.now() - start;
-    const modelUsed = cfg?.modelName ?? "llama3.2";
-    const responseText = results.length > 0
-      ? `Found ${results.length} document(s) matching "${query}".`
-      : `No documents found matching "${query}".`;
+    const tokensUsed = completion.usage?.total_tokens ?? null;
 
     const auditRow = await logAiQuery({
       featureType: "policy_search",
       queryText: query,
       responseText,
       citationsJson: JSON.stringify(citations),
-      modelUsed,
-      tokensUsed: Math.floor(query.length / 4) + 50,
+      modelUsed: model,
+      tokensUsed,
       durationMs,
-      wasSimulated: true,
+      wasSimulated: false,
       success: true,
       requestedByUserId: actorUserId,
       ipAddress,
     });
 
-    res.json({ results, model: modelUsed, simulated: true, auditId: auditRow.id });
-  } catch (e) { res.status(500).json({ error: String(e) }); }
+    res.json({ results, summary: responseText, model, simulated: false, auditId: auditRow.id });
+
+  } catch (err) {
+    const isConfig = err instanceof ConfigError;
+    const message = err instanceof Error ? err.message : String(err);
+    const durationMs = Date.now() - start;
+    await logAiQuery({
+      featureType: "policy_search",
+      queryText: (req.body as any)?.query ?? "",
+      wasSimulated: false,
+      success: false,
+      errorMessage: isConfig ? "Integration not provisioned" : message.slice(0, 500),
+      modelUsed: resolveModel(cfg),
+      durationMs,
+      requestedByUserId: actorUserId,
+      ipAddress,
+    }).catch(() => {});
+    res.status(isConfig ? 503 : 502).json({ error: message });
+  }
 });
 
 // ─── POST /ai/report-query ────────────────────────────────────────────────────
+// Structured, constrained output — the model never generates or executes SQL.
+// It returns a report type identifier that is mapped to pre-defined reports only.
 router.post("/ai/report-query", async (req, res): Promise<void> => {
+  const start = Date.now();
+  const cfg = await getAiConfig().catch(() => null);
+  const ipAddress = (req as any).ip ?? null;
+  let actorUserId: number | null = null;
+
   try {
-    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
-    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
-    const { query, context } = req.body as { query: string; context?: string };
-    const start = Date.now();
-    const cfg = await getAiConfig();
-    const ipAddress = (req as any).ip ?? null;
-    const q = query.toLowerCase();
+    const actor = await getActorAdminStatus(req);
+    if (!actor.isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+    actorUserId = actor.actorId;
 
-    let interpretation = "";
-    let suggestedReport = "";
+    const featureError = checkFeatureEnabled(cfg, "report_query");
+    if (featureError) { res.status(422).json({ error: featureError }); return; }
+
+    const { query } = req.body as { query: string; context?: string };
+    if (!query?.trim()) { res.status(400).json({ error: "query is required" }); return; }
+
+    const model = resolveModel(cfg);
+    const maxTokens = resolveMaxTokens(cfg);
+
+    // Gather lightweight aggregated data — no individual PII
+    const [totalResult] = await db.select({ count: sql<number>`count(*)` }).from(employeesTable);
+    const [activeResult] = await db.select({ count: sql<number>`count(*)` }).from(employeesTable)
+      .where(eq(employeesTable.status, "active"));
+
+    const systemPrompt = `You are an HR analytics assistant. The user asks natural-language questions about workforce data.
+You must classify the question and respond ONLY with a valid JSON object — no extra text, no markdown, no SQL:
+{
+  "interpretation": "<1-2 sentence plain-English interpretation of what was asked>",
+  "suggestedReport": "<one of: employees_by_department | leave_balances_summary | payroll_runs_summary | expiring_contracts | overtime_summary | attendance_summary | headcount_trend | general_hr_summary>",
+  "reasoning": "<brief explanation of why this report fits>",
+  "keyMetrics": [{ "label": "<string>", "value": "<string>" }]
+}
+You must not generate, suggest, or imply any database queries or SQL statements.
+You must not access or reference individual employee personal data.
+Only use the summary figures provided to you.`;
+
+    const userPrompt = `Workforce summary (aggregate only, no PII):
+- Total employees: ${Number(totalResult?.count ?? 0)}
+- Active employees: ${Number(activeResult?.count ?? 0)}
+
+Question: "${query}"`;
+
+    const client = getOpenAiClient();
+    const completion = await client.chat.completions.create({
+      model,
+      max_completion_tokens: maxTokens,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user",   content: userPrompt },
+      ],
+    });
+
+    const rawContent = completion.choices[0]?.message?.content ?? "{}";
+    let parsed: {
+      interpretation?: string;
+      suggestedReport?: string;
+      reasoning?: string;
+      keyMetrics?: { label: string; value: string }[];
+    } = {};
+    try { parsed = JSON.parse(rawContent); } catch { /* fall through */ }
+
+    // Whitelist validation — never pass an arbitrary model-generated identifier
+    const ALLOWED_REPORTS = new Set([
+      "employees_by_department","leave_balances_summary","payroll_runs_summary",
+      "expiring_contracts","overtime_summary","attendance_summary",
+      "headcount_trend","general_hr_summary",
+    ]);
+    const suggestedReport = ALLOWED_REPORTS.has(parsed.suggestedReport ?? "")
+      ? parsed.suggestedReport!
+      : "general_hr_summary";
+
+    const interpretation = parsed.interpretation ?? `Query: "${query}"`;
+    const durationMs = Date.now() - start;
+
+    // Fetch preview rows for the whitelisted report type only
     let previewRows: object[] = [];
-
-    if (q.includes("headcount") || q.includes("employees") || q.includes("staff") || q.includes("department")) {
-      interpretation = "Headcount by department";
-      suggestedReport = "employees_by_department";
+    if (suggestedReport === "employees_by_department") {
       const employees = await db.select({
         id: employeesTable.id,
         firstNameEn: employeesTable.firstNameEn,
         lastNameEn: employeesTable.lastNameEn,
         jobTitleEn: employeesTable.jobTitleEn,
-        departmentId: employeesTable.departmentId,
         status: employeesTable.status,
-      }).from(employeesTable).where(eq(employeesTable.status, "active")).limit(3);
+      }).from(employeesTable).where(eq(employeesTable.status, "active")).limit(5);
       previewRows = employees;
-    } else if (q.includes("leave") || q.includes("absence") || q.includes("vacation")) {
-      interpretation = "Leave balances and requests";
-      suggestedReport = "leave_balances_summary";
-      previewRows = [
-        { employeeId: 1, leaveType: "Annual Leave", balance: 14, used: 16, pending: 0 },
-        { employeeId: 2, leaveType: "Annual Leave", balance: 22, used: 8, pending: 3 },
-        { employeeId: 3, leaveType: "Sick Leave", balance: 10, used: 4, pending: 0 },
-      ];
-    } else if (q.includes("payroll") || q.includes("salary") || q.includes("pay")) {
-      interpretation = "Payroll run summary";
-      suggestedReport = "payroll_runs_summary";
-      previewRows = [
-        { runId: 1, period: "2024-12", totalGross: 158000, totalNet: 132000, employeeCount: 48, status: "finalized" },
-        { runId: 2, period: "2024-11", totalGross: 154000, totalNet: 128000, employeeCount: 47, status: "finalized" },
-        { runId: 3, period: "2024-10", totalGross: 151000, totalNet: 126000, employeeCount: 46, status: "finalized" },
-      ];
-    } else if (q.includes("contract") || q.includes("expir")) {
-      interpretation = "Employees with expiring contracts";
-      suggestedReport = "expiring_contracts";
+    } else if (suggestedReport === "expiring_contracts") {
       const employees = await db.select({
         id: employeesTable.id,
         firstNameEn: employeesTable.firstNameEn,
         lastNameEn: employeesTable.lastNameEn,
         contractEndDate: employeesTable.contractEndDate,
         jobTitleEn: employeesTable.jobTitleEn,
-      }).from(employeesTable).limit(3);
+      }).from(employeesTable).limit(5);
       previewRows = employees;
-    } else if (q.includes("overtime") || q.includes("hours")) {
-      interpretation = "Overtime summary";
-      suggestedReport = "overtime_summary";
-      previewRows = [
-        { employeeId: 5, name: "Hassan Al-Nouri", overtimeHours: 18, weeklyAvg: 4.5, period: "2024-12" },
-        { employeeId: 12, name: "Fatima Al-Zahra", overtimeHours: 12, weeklyAvg: 3.0, period: "2024-12" },
-        { employeeId: 8, name: "Omar Khalil", overtimeHours: 9, weeklyAvg: 2.25, period: "2024-12" },
-      ];
-    } else {
-      interpretation = `General query: "${query}"`;
-      suggestedReport = "general_hr_summary";
-      previewRows = [
-        { note: "No specific pattern matched. Try: headcount, leave, payroll, contracts, overtime." },
-      ];
     }
-
-    const durationMs = Date.now() - start;
-    const modelUsed = cfg?.modelName ?? "llama3.2";
 
     const auditRow = await logAiQuery({
       featureType: "report_query",
       queryText: query,
       responseText: interpretation,
-      modelUsed,
-      tokensUsed: Math.floor(query.length / 4) + 80,
+      modelUsed: model,
+      tokensUsed: completion.usage?.total_tokens ?? null,
       durationMs,
-      wasSimulated: true,
+      wasSimulated: false,
       success: true,
       requestedByUserId: actorUserId,
       ipAddress,
     });
 
-    res.json({ interpretation, suggestedReport, previewRows, simulated: true, auditId: auditRow.id });
-  } catch (e) { res.status(500).json({ error: String(e) }); }
+    res.json({
+      interpretation,
+      suggestedReport,
+      reasoning: parsed.reasoning ?? null,
+      keyMetrics: Array.isArray(parsed.keyMetrics) ? parsed.keyMetrics.slice(0, 10) : [],
+      previewRows,
+      model,
+      simulated: false,
+      auditId: auditRow.id,
+    });
+
+  } catch (err) {
+    const isConfig = err instanceof ConfigError;
+    const message = err instanceof Error ? err.message : String(err);
+    const durationMs = Date.now() - start;
+    await logAiQuery({
+      featureType: "report_query",
+      queryText: (req.body as any)?.query ?? "",
+      wasSimulated: false,
+      success: false,
+      errorMessage: isConfig ? "Integration not provisioned" : message.slice(0, 500),
+      modelUsed: resolveModel(cfg),
+      durationMs,
+      requestedByUserId: actorUserId,
+      ipAddress,
+    }).catch(() => {});
+    res.status(isConfig ? 503 : 502).json({ error: message });
+  }
 });
 
 // ─── POST /ai/classify-document ───────────────────────────────────────────────
 router.post("/ai/classify-document", async (req, res): Promise<void> => {
+  const start = Date.now();
+  const cfg = await getAiConfig().catch(() => null);
+  const ipAddress = (req as any).ip ?? null;
+  let actorUserId: number | null = null;
+
   try {
-    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
-    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
-    const { documentId, title, content } = req.body as { documentId?: number; title: string; content?: string };
-    const start = Date.now();
-    const cfg = await getAiConfig();
-    const ipAddress = (req as any).ip ?? null;
+    const actor = await getActorAdminStatus(req);
+    if (!actor.isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+    actorUserId = actor.actorId;
 
-    const text = ((title ?? "") + " " + (content ?? "")).toLowerCase();
+    const featureError = checkFeatureEnabled(cfg, "document_classify");
+    if (featureError) { res.status(422).json({ error: featureError }); return; }
 
-    type Category = "HR Policy" | "Employment Contract" | "Training Record" | "Medical" | "Financial" | "Legal" | "Correspondence" | "Other";
+    const { documentId, title, content } = req.body as {
+      documentId?: number; title: string; content?: string;
+    };
+    if (!title?.trim()) { res.status(400).json({ error: "title is required" }); return; }
 
-    const categoryRules: { keywords: string[]; category: Category; confidence: number }[] = [
-      { keywords: ["contract", "employment", "appointment", "offer letter", "terms of employment"], category: "Employment Contract", confidence: 0.92 },
-      { keywords: ["medical", "health", "sick", "physician", "certificate", "diagnosis", "treatment"], category: "Medical", confidence: 0.90 },
-      { keywords: ["policy", "procedure", "hr policy", "regulation", "handbook", "guideline"], category: "HR Policy", confidence: 0.88 },
-      { keywords: ["training", "course", "certificate", "workshop", "learning", "completion"], category: "Training Record", confidence: 0.87 },
-      { keywords: ["financial", "finance", "invoice", "budget", "accounting", "payment", "salary", "payroll"], category: "Financial", confidence: 0.85 },
-      { keywords: ["legal", "law", "court", "litigation", "compliance", "audit", "legal notice"], category: "Legal", confidence: 0.86 },
-      { keywords: ["letter", "memo", "correspondence", "email", "notification", "circular"], category: "Correspondence", confidence: 0.80 },
-    ];
+    const model = resolveModel(cfg);
+    const maxTokens = resolveMaxTokens(cfg);
 
-    let suggestedCategory: Category = "Other";
-    let confidence = 0.50;
-    let reasoning = "No strong keyword match found; defaulting to 'Other'.";
+    // Truncate content to limit token use — admins only upload these docs
+    const contentSnippet = (content ?? "").slice(0, 1500);
 
-    for (const rule of categoryRules) {
-      const matchCount = rule.keywords.filter(k => text.includes(k)).length;
-      if (matchCount > 0 && rule.confidence > confidence) {
-        suggestedCategory = rule.category;
-        confidence = rule.confidence - (matchCount === 1 ? 0.05 : 0);
-        reasoning = `Matched keyword(s): ${rule.keywords.filter(k => text.includes(k)).join(", ")}.`;
-      }
-    }
+    const systemPrompt = `You are an HR document classification assistant.
+Classify the given document into exactly one category.
+Respond ONLY with a valid JSON object — no extra text:
+{
+  "suggestedCategory": "<one of: HR Policy | Employment Contract | Training Record | Medical | Financial | Legal | Correspondence | Other>",
+  "confidence": <number 0.0-1.0>,
+  "reasoning": "<brief explanation based only on the document title and content provided>"
+}`;
 
+    const userPrompt = `Document title: "${title}"\nContent preview: "${contentSnippet}"`;
+
+    const client = getOpenAiClient();
+    const completion = await client.chat.completions.create({
+      model,
+      max_completion_tokens: maxTokens,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user",   content: userPrompt },
+      ],
+    });
+
+    const rawContent = completion.choices[0]?.message?.content ?? "{}";
+    let parsed: { suggestedCategory?: string; confidence?: number; reasoning?: string } = {};
+    try { parsed = JSON.parse(rawContent); } catch { /* fall through */ }
+
+    const ALLOWED_CATEGORIES = new Set([
+      "HR Policy","Employment Contract","Training Record",
+      "Medical","Financial","Legal","Correspondence","Other",
+    ]);
+    const suggestedCategory = ALLOWED_CATEGORIES.has(parsed.suggestedCategory ?? "")
+      ? parsed.suggestedCategory!
+      : "Other";
+    const confidence = Math.min(1, Math.max(0, Number(parsed.confidence ?? 0.5)));
     const durationMs = Date.now() - start;
-    const modelUsed = cfg?.modelName ?? "llama3.2";
 
     const auditRow = await logAiQuery({
       featureType: "document_classify",
       queryText: title,
       responseText: `Category: ${suggestedCategory}`,
-      modelUsed,
-      tokensUsed: Math.floor((title.length + (content?.length ?? 0)) / 4) + 30,
+      modelUsed: model,
+      tokensUsed: completion.usage?.total_tokens ?? null,
       durationMs,
-      wasSimulated: true,
+      wasSimulated: false,
       success: true,
       requestedByUserId: actorUserId,
       entityType: documentId != null ? "enterprise_document" : null,
@@ -297,99 +496,116 @@ router.post("/ai/classify-document", async (req, res): Promise<void> => {
       ipAddress,
     });
 
-    res.json({ suggestedCategory, confidence, reasoning, simulated: true, auditId: auditRow.id });
-  } catch (e) { res.status(500).json({ error: String(e) }); }
+    res.json({ suggestedCategory, confidence, reasoning: parsed.reasoning ?? null, simulated: false, auditId: auditRow.id });
+
+  } catch (err) {
+    const isConfig = err instanceof ConfigError;
+    const message = err instanceof Error ? err.message : String(err);
+    const durationMs = Date.now() - start;
+    await logAiQuery({
+      featureType: "document_classify",
+      queryText: (req.body as any)?.title ?? "",
+      wasSimulated: false,
+      success: false,
+      errorMessage: isConfig ? "Integration not provisioned" : message.slice(0, 500),
+      modelUsed: resolveModel(cfg),
+      durationMs,
+      requestedByUserId: actorUserId,
+      ipAddress,
+    }).catch(() => {});
+    res.status(isConfig ? 503 : 502).json({ error: message });
+  }
 });
 
 // ─── POST /ai/explain-anomaly ─────────────────────────────────────────────────
+// Metrics are numbers only — no employee names or PII are sent to the model.
 router.post("/ai/explain-anomaly", async (req, res): Promise<void> => {
+  const start = Date.now();
+  const cfg = await getAiConfig().catch(() => null);
+  const ipAddress = (req as any).ip ?? null;
+  let actorUserId: number | null = null;
+
   try {
-    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
-    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+    const actor = await getActorAdminStatus(req);
+    if (!actor.isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
+    actorUserId = actor.actorId;
+
+    const featureError = checkFeatureEnabled(cfg, "anomaly_explain");
+    if (featureError) { res.status(422).json({ error: featureError }); return; }
+
     const { anomalyType, entityId, metrics } = req.body as {
       anomalyType: "attendance_high" | "overtime_spike" | "payroll_variance" | "leave_exposure";
       entityId?: number;
       metrics: Record<string, unknown>;
     };
-    const start = Date.now();
-    const cfg = await getAiConfig();
-    const ipAddress = (req as any).ip ?? null;
 
-    let explanation = "";
-    let riskLevel = "medium";
-    let recommendations: string[] = [];
-
-    switch (anomalyType) {
-      case "attendance_high": {
-        const absences = metrics.absences ?? "several";
-        const threshold = metrics.threshold ?? 3;
-        explanation = `Employee${entityId ? ` #${entityId}` : ""} has recorded ${absences} absences this period, which exceeds the ${threshold}-absence alert threshold. High absence rates can indicate personal health issues, disengagement, family pressures, or workplace dissatisfaction.`;
-        riskLevel = Number(absences) >= 8 ? "high" : "medium";
-        recommendations = [
-          "Schedule a welfare check-in with the employee's line manager.",
-          "Review attendance pattern over the last 3 months for recurring trends.",
-          "Check if any FMLA or medical leave applications are pending.",
-          "Consider an Employee Assistance Programme (EAP) referral if personal issues are indicated.",
-        ];
-        break;
-      }
-      case "overtime_spike": {
-        const hours = metrics.overtimeHours ?? "significant";
-        const avg = metrics.avgHours ?? "normal";
-        explanation = `Employee${entityId ? ` #${entityId}` : ""} has accumulated ${hours} overtime hours this period, significantly above the ${avg}-hour baseline average. Sustained spikes can signal workload imbalance, understaffing, or scope creep in the role.`;
-        riskLevel = Number(hours) >= 40 ? "high" : "medium";
-        recommendations = [
-          "Review whether the overtime was pre-approved and within policy limits.",
-          "Assess departmental workload distribution for signs of staffing gaps.",
-          "Monitor for burnout indicators over the next 4 weeks.",
-          "Consider temporary resource augmentation if the spike persists.",
-        ];
-        break;
-      }
-      case "payroll_variance": {
-        const variancePct = metrics.variancePct ?? "notable";
-        const prev = metrics.previousRun ?? "prior period";
-        const curr = metrics.currentRun ?? "current period";
-        explanation = `A payroll variance of ${variancePct}% was detected between the previous run (${prev}) and the current run (${curr}). Significant variances require investigation to confirm legitimacy before finalisation.`;
-        riskLevel = Number(variancePct) >= 10 ? "high" : "medium";
-        recommendations = [
-          "Compare employee headcount between both runs to identify joiners/leavers.",
-          "Review salary adjustments and regrading actions processed this cycle.",
-          "Check for overtime or bonus components added in this run.",
-          "Obtain approval from Finance before processing if variance exceeds policy tolerance.",
-        ];
-        break;
-      }
-      case "leave_exposure": {
-        const days = metrics.remainingDays ?? "high";
-        explanation = `Employee${entityId ? ` #${entityId}` : ""} has ${days} outstanding leave days remaining in the current cycle. High leave balances create year-end financial liability and operational risk if leave is taken in bulk.`;
-        riskLevel = Number(days) >= 20 ? "high" : "medium";
-        recommendations = [
-          "Notify the employee's manager to encourage phased leave planning.",
-          "Issue a leave-balance reminder to the employee via the self-service portal.",
-          "Assess if carry-forward limits apply and communicate the forfeiture date.",
-          "Consider mandatory leave scheduling in low-demand periods.",
-        ];
-        break;
-      }
-      default: {
-        explanation = `Anomaly of type '${anomalyType}' detected. Manual review recommended.`;
-        riskLevel = "medium";
-        recommendations = ["Review the flagged entity and consult HR Policy."];
-      }
+    const ALLOWED_ANOMALY_TYPES = new Set(["attendance_high","overtime_spike","payroll_variance","leave_exposure"]);
+    if (!ALLOWED_ANOMALY_TYPES.has(anomalyType)) {
+      res.status(400).json({ error: "Invalid anomalyType" }); return;
     }
 
+    const model = resolveModel(cfg);
+    const maxTokens = resolveMaxTokens(cfg);
+
+    // Strip any PII from metrics before sending — only numeric/type values
+    const safeMetrics = Object.fromEntries(
+      Object.entries(metrics ?? {}).filter(([, v]) => typeof v === "number" || typeof v === "string")
+        .map(([k, v]) => [k, typeof v === "string" ? v.slice(0, 100) : v])
+    );
+
+    const anomalyLabels: Record<string, string> = {
+      attendance_high: "High Absence Rate",
+      overtime_spike: "Overtime Spike",
+      payroll_variance: "Payroll Variance",
+      leave_exposure: "High Leave Balance Exposure",
+    };
+
+    const systemPrompt = `You are an HR risk analyst assistant. 
+An anomaly has been detected in the enterprise HR system.
+Provide a professional explanation and actionable recommendations.
+Respond ONLY with a valid JSON object — no extra text:
+{
+  "explanation": "<2-3 sentence professional explanation of the anomaly and its likely causes>",
+  "riskLevel": "<one of: low | medium | high | critical>",
+  "recommendations": ["<action 1>", "<action 2>", "<action 3>", "<action 4>"]
+}
+Do not reference any employee by name. Refer to individuals only as "the employee" or by role.
+Base your analysis only on the numeric metrics provided.`;
+
+    const userPrompt = `Anomaly type: ${anomalyLabels[anomalyType] ?? anomalyType}
+${entityId != null ? `Entity reference: record #${entityId}` : ""}
+Metrics: ${JSON.stringify(safeMetrics)}`;
+
+    const client = getOpenAiClient();
+    const completion = await client.chat.completions.create({
+      model,
+      max_completion_tokens: maxTokens,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user",   content: userPrompt },
+      ],
+    });
+
+    const rawContent = completion.choices[0]?.message?.content ?? "{}";
+    let parsed: { explanation?: string; riskLevel?: string; recommendations?: unknown[] } = {};
+    try { parsed = JSON.parse(rawContent); } catch { /* fall through */ }
+
+    const ALLOWED_RISK = new Set(["low","medium","high","critical"]);
+    const riskLevel = ALLOWED_RISK.has(parsed.riskLevel ?? "") ? parsed.riskLevel! : "medium";
+    const recommendations = (Array.isArray(parsed.recommendations) ? parsed.recommendations : [])
+      .slice(0, 6)
+      .map(r => String(r).slice(0, 300));
+    const explanation = parsed.explanation ?? `Anomaly type '${anomalyType}' detected. Manual review recommended.`;
     const durationMs = Date.now() - start;
-    const modelUsed = cfg?.modelName ?? "llama3.2";
 
     const auditRow = await logAiQuery({
       featureType: "anomaly_explain",
-      queryText: JSON.stringify({ anomalyType, entityId, metrics }),
+      queryText: JSON.stringify({ anomalyType, metrics: safeMetrics }),
       responseText: explanation,
-      modelUsed,
-      tokensUsed: Math.floor(explanation.length / 4) + 40,
+      modelUsed: model,
+      tokensUsed: completion.usage?.total_tokens ?? null,
       durationMs,
-      wasSimulated: true,
+      wasSimulated: false,
       success: true,
       requestedByUserId: actorUserId,
       entityType: entityId != null ? "employee" : null,
@@ -397,8 +613,25 @@ router.post("/ai/explain-anomaly", async (req, res): Promise<void> => {
       ipAddress,
     });
 
-    res.json({ explanation, riskLevel, recommendations, simulated: true, auditId: auditRow.id });
-  } catch (e) { res.status(500).json({ error: String(e) }); }
+    res.json({ explanation, riskLevel, recommendations, model, simulated: false, auditId: auditRow.id });
+
+  } catch (err) {
+    const isConfig = err instanceof ConfigError;
+    const message = err instanceof Error ? err.message : String(err);
+    const durationMs = Date.now() - start;
+    await logAiQuery({
+      featureType: "anomaly_explain",
+      queryText: JSON.stringify({ anomalyType: (req.body as any)?.anomalyType }),
+      wasSimulated: false,
+      success: false,
+      errorMessage: isConfig ? "Integration not provisioned" : message.slice(0, 500),
+      modelUsed: resolveModel(cfg),
+      durationMs,
+      requestedByUserId: actorUserId,
+      ipAddress,
+    }).catch(() => {});
+    res.status(isConfig ? 503 : 502).json({ error: message });
+  }
 });
 
 // ─── GET /ai/queries ──────────────────────────────────────────────────────────
