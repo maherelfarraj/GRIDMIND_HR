@@ -119,6 +119,8 @@ function parseFeatures(raw: string | null | undefined): string[] {
 // ─── GET /ai/config ───────────────────────────────────────────────────────────
 router.get("/ai/config", async (req, res): Promise<void> => {
   try {
+    const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
+    if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
     const cfg = await getAiConfig();
     if (!cfg) { res.status(404).json({ error: "AI config not initialised" }); return; }
     // Expose whether the integration is provisioned (without exposing the key itself)
