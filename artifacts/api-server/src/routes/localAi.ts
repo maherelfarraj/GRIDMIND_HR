@@ -496,7 +496,7 @@ Respond ONLY with a valid JSON object — no extra text:
       ipAddress,
     });
 
-    res.json({ suggestedCategory, confidence, reasoning: parsed.reasoning ?? null, simulated: false, auditId: auditRow.id });
+    res.json({ suggestedCategory, confidence, reasoning: parsed.reasoning ?? null, model, simulated: false, auditId: auditRow.id });
 
   } catch (err) {
     const isConfig = err instanceof ConfigError;

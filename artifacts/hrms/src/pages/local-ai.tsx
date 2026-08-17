@@ -3,12 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetAiConfig, useUpdateAiConfig, useListAiQueries,
   useAiPolicySearch, useAiReportQuery, useAiClassifyDocument, useUpdateDocument,
+  useAiExplainAnomaly,
   getGetAiConfigQueryKey,
 } from '@workspace/api-client-react';
 import type {
   AiConfig, AiConfigInput, AiQuery,
   AiPolicySearch200ResultsItem, AiReportQuery200, AiReportQuery200PreviewRowsItem,
-  AiClassifyDocument200,
+  AiClassifyDocument200, AiExplainAnomaly200,
 } from '@workspace/api-client-react';
 import { useLanguage } from '@/hooks/use-language';
 import { useToast } from '@/hooks/use-toast';
@@ -556,6 +557,254 @@ function ClassifyDocumentTab() {
   );
 }
 
+// ─── Anomaly Explain Tab ──────────────────────────────────────────────────────
+
+const ANOMALY_TYPES: {
+  value: 'attendance_high' | 'overtime_spike' | 'payroll_variance' | 'leave_exposure';
+  label: string;
+  labelAr: string;
+  description: string;
+  descriptionAr: string;
+  icon: string;
+  requiredMetrics: { key: string; label: string; placeholder: string }[];
+}[] = [
+  {
+    value: 'attendance_high',
+    label: 'High Absence Rate',
+    labelAr: 'معدل غياب مرتفع',
+    description: 'Explains a pattern of frequent absences or late arrivals for an employee or team.',
+    descriptionAr: 'يشرح نمط الغياب المتكرر أو التأخير لموظف أو فريق.',
+    icon: '🕐',
+    requiredMetrics: [
+      { key: 'absencesLast30Days',          label: 'Absences (last 30 days)',           placeholder: '3' },
+      { key: 'lateArrivalsLast30Days',       label: 'Late arrivals (last 30 days)',      placeholder: '8' },
+      { key: 'averageCheckInDelayMinutes',   label: 'Avg check-in delay (minutes)',      placeholder: '24' },
+    ],
+  },
+  {
+    value: 'overtime_spike',
+    label: 'Overtime Spike',
+    labelAr: 'ارتفاع مفاجئ في العمل الإضافي',
+    description: 'Explains a sudden or sustained surge in overtime hours beyond normal thresholds.',
+    descriptionAr: 'يشرح ارتفاعاً مفاجئاً أو مستداماً في ساعات العمل الإضافي.',
+    icon: '⚡',
+    requiredMetrics: [
+      { key: 'overtimeHoursLast30Days',      label: 'Overtime hours (last 30 days)',     placeholder: '42' },
+      { key: 'normalMonthlyOvertimeHours',   label: 'Normal monthly overtime (hours)',   placeholder: '8' },
+      { key: 'affectedHeadcount',            label: 'Affected headcount',                placeholder: '5' },
+    ],
+  },
+  {
+    value: 'payroll_variance',
+    label: 'Payroll Variance',
+    labelAr: 'تباين في الرواتب',
+    description: 'Explains an unexpected difference between expected and actual payroll figures.',
+    descriptionAr: 'يشرح الفرق غير المتوقع بين الأرقام المتوقعة والفعلية للرواتب.',
+    icon: '💰',
+    requiredMetrics: [
+      { key: 'varianceAmount',               label: 'Variance amount (currency units)',  placeholder: '1500' },
+      { key: 'variancePercentage',           label: 'Variance percentage (%)',           placeholder: '4.2' },
+      { key: 'affectedPayrollEntries',       label: 'Affected payroll entries',          placeholder: '3' },
+    ],
+  },
+  {
+    value: 'leave_exposure',
+    label: 'High Leave Balance Exposure',
+    labelAr: 'تعرض مرتفع لأرصدة الإجازات',
+    description: 'Explains a risk from employees carrying unusually large accrued leave balances.',
+    descriptionAr: 'يشرح مخاطر احتفاظ الموظفين بأرصدة إجازات مستحقة كبيرة بشكل غير معتاد.',
+    icon: '📅',
+    requiredMetrics: [
+      { key: 'totalAccruedDays',             label: 'Total accrued leave days',          placeholder: '60' },
+      { key: 'employeesAboveThreshold',      label: 'Employees above threshold',         placeholder: '7' },
+      { key: 'maxIndividualBalance',         label: 'Highest individual balance (days)', placeholder: '45' },
+    ],
+  },
+];
+
+function AnomalyExplainTab() {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const explainMut = useAiExplainAnomaly();
+  const [selectedType, setSelectedType] = useState<typeof ANOMALY_TYPES[0] | null>(null);
+  const [metrics, setMetrics] = useState<Record<string, string>>({});
+  const [entityId, setEntityId] = useState('');
+  const [result, setResult] = useState<(AiExplainAnomaly200 & { model?: string }) | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const loading = explainMut.isPending;
+
+  function selectType(type: typeof ANOMALY_TYPES[0]) {
+    setSelectedType(type);
+    setMetrics({});
+    setResult(null);
+    setError(null);
+  }
+
+  async function handleExplain() {
+    if (!selectedType) return;
+    setResult(null);
+    setError(null);
+    // Build numeric metrics from form values
+    const numericMetrics: Record<string, number> = {};
+    for (const m of selectedType.requiredMetrics) {
+      const v = parseFloat(metrics[m.key] ?? '');
+      if (!isNaN(v)) numericMetrics[m.key] = v;
+    }
+    try {
+      const data = await explainMut.mutateAsync({
+        data: {
+          anomalyType: selectedType.value,
+          entityId: entityId ? Number(entityId) : undefined,
+          metrics: numericMetrics,
+        },
+      });
+      setResult(data as typeof result);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      toast({ title: t('Explanation failed', 'فشل التفسير'), description: msg, variant: 'destructive' });
+    }
+  }
+
+  const RISK_STYLE: Record<string, string> = {
+    low:      'bg-emerald-100 text-emerald-800 border-emerald-300',
+    medium:   'bg-amber-100 text-amber-800 border-amber-300',
+    high:     'bg-orange-100 text-orange-800 border-orange-300',
+    critical: 'bg-red-100 text-red-800 border-red-300',
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Type selector */}
+      <div>
+        <p className="text-slate-400 text-sm mb-3">
+          {t(
+            'Select the type of anomaly you want explained. The AI will interpret the metrics you provide and give actionable recommendations.',
+            'اختر نوع الشذوذ الذي تريد تفسيره. سيحلل الذكاء الاصطناعي المقاييس التي تقدمها ويقدم توصيات قابلة للتنفيذ.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {ANOMALY_TYPES.map(type => (
+            <button
+              key={type.value}
+              onClick={() => selectType(type)}
+              className={`text-start rounded-lg border p-4 transition-all ${
+                selectedType?.value === type.value
+                  ? 'border-sky-500 bg-sky-950 ring-1 ring-sky-500'
+                  : 'border-slate-700 bg-slate-800 hover:border-slate-500 hover:bg-slate-750'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xl">{type.icon}</span>
+                <span className="text-white font-medium text-sm">{t(type.label, type.labelAr)}</span>
+                {selectedType?.value === type.value && (
+                  <CheckCircle className="w-4 h-4 text-sky-400 ms-auto" />
+                )}
+              </div>
+              <p className="text-slate-400 text-xs leading-relaxed">
+                {t(type.description, type.descriptionAr)}
+              </p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Metrics form — shown only after type is selected */}
+      {selectedType && (
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-white text-sm flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              {t('Enter Metrics', 'أدخل المقاييس')}
+              <span className="text-slate-400 font-normal ms-1">— {t(selectedType.label, selectedType.labelAr)}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {selectedType.requiredMetrics.map(m => (
+                <div key={m.key}>
+                  <Label className="text-slate-300 text-xs">{m.label}</Label>
+                  <Input
+                    type="number"
+                    className="bg-slate-700 border-slate-600 text-white mt-1 h-8 text-sm"
+                    placeholder={m.placeholder}
+                    value={metrics[m.key] ?? ''}
+                    onChange={e => setMetrics(prev => ({ ...prev, [m.key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="sm:w-48">
+              <Label className="text-slate-400 text-xs">{t('Record ID (optional)', 'معرف السجل (اختياري)')}</Label>
+              <Input
+                type="number"
+                className="bg-slate-700 border-slate-600 text-white mt-1 h-8 text-sm"
+                placeholder="e.g. 42"
+                value={entityId}
+                onChange={e => setEntityId(e.target.value)}
+              />
+            </div>
+            <p className="text-xs text-slate-500">
+              {t(
+                'No employee names or personal data are sent to the model — only the numeric metrics above.',
+                'لا يتم إرسال أسماء الموظفين أو البيانات الشخصية إلى النموذج — فقط المقاييس الرقمية أعلاه.',
+              )}
+            </p>
+            <Button
+              className="bg-[#1e3a5f] hover:bg-[#1e3a5f]/80 text-white"
+              onClick={handleExplain}
+              disabled={loading}
+            >
+              <Brain className="w-4 h-4 me-1" />
+              {loading ? t('Analysing…', 'جاري التحليل…') : t('Explain Anomaly', 'تفسير الشذوذ')}
+              {result && (result.simulated ? <SimBadge /> : <LiveBadge model={result.model} />)}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {error && <AiErrorBanner message={error} />}
+
+      {loading && <Skeleton className="h-40 w-full bg-slate-700" />}
+
+      {!loading && result && (
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-3">
+              <CardTitle className="text-white text-sm">{t('AI Analysis', 'تحليل الذكاء الاصطناعي')}</CardTitle>
+              {result.riskLevel && (
+                <Badge className={`text-xs capitalize ${RISK_STYLE[result.riskLevel] ?? RISK_STYLE.medium}`}>
+                  {result.riskLevel} {t('risk', 'مخاطرة')}
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {result.explanation && (
+              <p className="text-slate-300 text-sm leading-relaxed">{result.explanation}</p>
+            )}
+            {result.recommendations && result.recommendations.length > 0 && (
+              <div>
+                <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-2">
+                  {t('Recommended Actions', 'الإجراءات الموصى بها')}
+                </p>
+                <ul className="space-y-2">
+                  {result.recommendations.map((rec, i) => (
+                    <li key={i} className="flex gap-2 text-sm text-slate-300">
+                      <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      {rec}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ─── Configuration Tab ────────────────────────────────────────────────────────
 
 const FEATURE_KEYS = ['policy_search', 'report_query', 'document_classify', 'anomaly_explain'];
@@ -837,6 +1086,10 @@ export default function LocalAi() {
               <Tag className="w-4 h-4 me-2" />
               {t('Classify Document', 'تصنيف المستندات')}
             </TabsTrigger>
+            <TabsTrigger value="anomaly" className="data-[state=active]:bg-slate-700 text-slate-300">
+              <AlertTriangle className="w-4 h-4 me-2" />
+              {t('Anomaly Explain', 'تفسير الشذوذ')}
+            </TabsTrigger>
             <TabsTrigger value="config" className="data-[state=active]:bg-slate-700 text-slate-300">
               <Settings2 className="w-4 h-4 me-2" />
               {t('Configuration', 'الإعدادات')}
@@ -851,6 +1104,9 @@ export default function LocalAi() {
           </TabsContent>
           <TabsContent value="classify" className="mt-4">
             <ClassifyDocumentTab />
+          </TabsContent>
+          <TabsContent value="anomaly" className="mt-4">
+            <AnomalyExplainTab />
           </TabsContent>
           <TabsContent value="config" className="mt-4">
             <ConfigurationTab />
