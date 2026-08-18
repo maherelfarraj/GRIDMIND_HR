@@ -273,24 +273,37 @@ export default async function globalSetup(): Promise<void> {
     }
 
     const state = await ctx.storageState();
+    const localStorageEntries: { name: string; value: string }[] = [
+      {
+        name: 'hrms-session',
+        value: JSON.stringify({ ...user, mustChangePassword: false }),
+      },
+    ];
+    // Persist the active org so the browser's fetch interceptor (org-fetch.ts)
+    // attaches "X-Org-Id: <orgId>" to every non-auth API request.  Without this
+    // the interceptor sees no stored org and omits the header; resolveOrgId(req)
+    // then falls back to the user's home org for list endpoints but the
+    // router.param("id") guard on detail routes can resolve to a different org,
+    // causing legitimate period-detail and sub-route requests to 404.
+    if (typeof (user as any).orgId === 'number') {
+      localStorageEntries.push({
+        name: 'hrms-org-id',
+        value: String((user as any).orgId),
+      });
+    }
     const stateWithStorage = {
       ...state,
       origins: [
         {
           origin: BASE_URL,
-          localStorage: [
-            {
-              name: 'hrms-session',
-              value: JSON.stringify({ ...user, mustChangePassword: false }),
-            },
-          ],
+          localStorage: localStorageEntries,
         },
       ],
     };
 
     fs.writeFileSync(AUTH_FILE, JSON.stringify(stateWithStorage, null, 2));
     console.log(
-      `[smoke/global-setup] auth.json written (username: ${user.username}, roleId: ${user.roleId})`,
+      `[smoke/global-setup] auth.json written (username: ${user.username}, roleId: ${user.roleId}, orgId: ${(user as any).orgId ?? 'n/a'})`,
     );
   } finally {
     await ctx.dispose();

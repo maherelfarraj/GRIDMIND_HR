@@ -541,6 +541,15 @@ router.post("/payroll-periods", async (req, res): Promise<void> => {
   res.status(201).json(created);
 });
 
+// GET /payroll-periods/:id — fetch a single payroll period by id
+// Org-ownership is enforced by the router.param("id") guard above.
+router.get("/payroll-periods/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const [period] = await db.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, id));
+  if (!period) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(period);
+});
+
 // PATCH /payroll-periods/:id — edit draft period metadata
 router.patch("/payroll-periods/:id", async (req, res): Promise<void> => {
   const actorUserId: number = getActorUserId(req);

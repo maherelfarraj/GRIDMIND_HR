@@ -9,6 +9,7 @@ import {
   useGetPayrollPeriod,
   useGetPayrollPeriodOtSummary,
   useGetPayrollPeriodOtDepartment,
+  getGetPayrollPeriodOtDepartmentQueryKey,
   useCreatePayrollPeriod,
   useCalculatePayrollPeriod,
   useApprovePayrollPeriod,
@@ -658,9 +659,20 @@ function PeriodDetail({
     nameAr: string;
   } | null>(null);
 
+  // Guard: only fetch the department drill-down when the user has actually
+  // selected a department bar in the OT chart.  Without the enabled guard the
+  // hook fires with deptKey='' when selectedOtDept is null, which produces a
+  // trailing-slash URL (".../departments/") that the router cannot match (404).
+  const otDeptKey = selectedOtDept?.deptKey ?? '';
   const { data: otDeptBreakdown, isLoading: loadingOtDept } = useGetPayrollPeriodOtDepartment(
     periodId,
-    selectedOtDept?.deptKey ?? '',
+    otDeptKey,
+    {
+      query: {
+        enabled: selectedOtDept !== null,
+        queryKey: getGetPayrollPeriodOtDepartmentQueryKey(periodId, otDeptKey),
+      },
+    },
   );
 
   const [approvalDialog, setApprovalDialog] = useState<null | 'first' | 'second'>(null);

@@ -355,18 +355,40 @@ test('Approvals — loads and all tabs render without errors', async ({ page }) 
   await page.goto('/approvals');
   await waitForPageLoad(page);
 
-  // Pending tab (default) must have rendered a table or empty-state
+  // The approvals page renders one of two states on the Pending tab (default):
+  //   • <table> with <tbody> rows — when pending approvals exist in the queue
+  //   • A border-dashed empty-state card  — when the queue is empty
+  //
+  // Both states prove the GET /api/approvals fetch completed without error and
+  // the component mounted. Skeletons and network failures do NOT produce either
+  // element; if the API returns 4xx/5xx, assertNoMonitorFailures catches it.
+  //
+  // Note: the original selector used `[class*="text-slate-"]` for the empty
+  // state, but the approvals empty-state div uses `text-muted-foreground` and
+  // `border-dashed` — never `text-slate-*`. That mismatch caused the selector
+  // to time out whenever the queue was empty (commit 6538790 regression).
   await expect(
-    page.locator('table tbody, [class*="text-slate-"]').first(),
+    page.locator('table tbody, [class*="border-dashed"]').first(),
   ).toBeVisible({ timeout: 10_000 });
 
-  // Walk through the other two tabs — the approvals page has exactly three:
-  // Pending (default), Approved, Rejected.  There is no "All" tab.
-  // Decisions are irreversible state transitions so we only read.
+  // Structural integrity: all three tabs must be reachable (heading is visible).
+  for (const tabName of ['Pending', 'Approved', 'Rejected']) {
+    await expect(
+      page.getByRole('tab', { name: new RegExp(tabName, 'i') }).first(),
+    ).toBeVisible();
+  }
+
+  // Walk through Approved and Rejected tabs — each should resolve without
+  // leaving sticky skeleton loaders.  Decisions are irreversible so we only read.
   for (const tabName of ['Approved', 'Rejected']) {
     await page.getByRole('tab', { name: new RegExp(tabName, 'i') }).first().click();
     await page.waitForLoadState('networkidle', { timeout: 10_000 });
+    // After switching tabs the content is either a table or the border-dashed
+    // empty card — either is acceptable, but skeletons must be gone.
     await expect(page.locator('.animate-pulse.rounded-md')).toHaveCount(0, { timeout: 10_000 });
+    await expect(
+      page.locator('table tbody, [class*="border-dashed"]').first(),
+    ).toBeVisible({ timeout: 10_000 });
   }
 
   assertNoMonitorFailures(consoleErrors, failedRequests);
@@ -380,15 +402,24 @@ test('Payroll — period list loads and draft period detail renders', async ({ p
   await page.goto('/payroll');
   await waitForPageLoad(page);
 
-  // Periods table or empty-state must render
+  // The payroll page renders the period list as <button> rows inside a
+  // divide-y container — NOT as a <table>.  Each button carries the period
+  // name, code, dates, and a StatusBadge.  The status-badge CSS classes are
+  // status-specific (e.g. `text-emerald-600` for "closed", `text-blue-500`
+  // for "calculating") so `[class*="text-slate-"]` only matches "draft" or
+  // the unknown-status fallback — never "closed", the status of the seeded
+  // test period — causing the original selector to time out (commit 6538790).
+  //
+  // Correct selector: either a period button (data) or the centred empty-state
+  // card (py-16 + justify-center) — both prove skeletons resolved.
   await expect(
-    page.locator('table tbody, [class*="text-slate-"]').first(),
+    page.locator('[class*="divide-y"] > button, [class*="py-16"][class*="justify-center"]').first(),
   ).toBeVisible({ timeout: 10_000 });
 
-  // Drill into the July 2026 draft period (seeded as status="draft").
+  // Drill into any July 2026 period (seeded with various codes).
   // Period detail is state-based (no URL change) — clicking the row opens the
   // detail panel inside the same page.
-  const draftRow = page.getByText(/PAY-2026-07|July 2026/i).first();
+  const draftRow = page.getByText(/PAY-2026-07|TEST-2026-07|July 2026/i).first();
   const draftVisible = await draftRow.isVisible().catch(() => false);
 
   if (draftVisible) {
