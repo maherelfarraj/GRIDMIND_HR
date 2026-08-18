@@ -6,12 +6,11 @@ BioTime, no BioStar 2). It documents everything needed to implement and
 validate a native-protocol adapter as a plug-in, without touching the rest of
 the pipeline.
 
-> **Why this is on-site work.** The native protocols — ZKTeco "PUSH"/UDP port
-> 4370 and the Suprema BioStar device SDK (TCP) — require the licensed vendor
-> SDK installed on the gateway host **and** a physical device on the local
-> network to test against. Neither is possible in a cloud environment, which
-> is why the cloud-side work stopped at the middleware REST adapters in
-> `src/adapters/vendorStubs.ts`.
+> **Why this is on-site work.** Physical terminals must be tested on the local
+> network. The ZKTeco native adapter uses the implemented standalone protocol
+> client and requires device-specific validation; the Suprema native path also
+> requires a licensed, vendor-supported Device SDK binding. Neither can be
+> validated from a cloud environment.
 
 ## What already works (do not reimplement)
 
@@ -84,11 +83,9 @@ Rules a native adapter MUST follow:
 ## On-site prerequisites
 
 - Gateway host on the same L2/L3 network as the device(s); firewall open for
-  UDP/TCP 4370 (ZKTeco) or TCP 51211/51212 (Suprema).
-- Licensed vendor SDK installed on the gateway host:
-  - ZKTeco: PUSH SDK / standalone communication SDK matching the device
-    firmware line.
-  - Suprema: BioStar 2 Device SDK (native library + language binding).
+  TCP 4370 (ZKTeco) or TCP 51211/51212 (Suprema).
+- For Suprema native only: a licensed BioStar 2 Device SDK and a
+  vendor-supported language binding installed on the gateway host.
 - Device comm key / admin password from the site administrator.
 - At least one enrolled test user on the device.
 

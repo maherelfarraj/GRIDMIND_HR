@@ -62,6 +62,7 @@ export * from "./jobOffers";
 export * from "./employmentContracts";
 export * from "./onboardingTemplates";
 export * from "./employeeOnboarding";
+export * from "./employeeOffboarding";
 export * from "./probationRecords";
 export * from "./equipmentIssuances";
 export * from "./competencies";

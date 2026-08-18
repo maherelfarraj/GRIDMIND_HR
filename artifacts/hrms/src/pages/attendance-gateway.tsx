@@ -643,8 +643,8 @@ export default function AttendanceGateway() {
             </p>
             <p className="text-muted-foreground">
               {t(
-                'ZKTECO connects through the ZKBioTime/BioTime middleware REST API (set ZKTECO_API_URL, ZKTECO_USERNAME, ZKTECO_PASSWORD on the gateway host). SUPREMA connects through the BioStar 2 server REST API (set SUPREMA_API_URL, SUPREMA_LOGIN_ID, SUPREMA_PASSWORD). GENERIC_REST, CSV, and SIMULATOR are also fully operational. Native device protocols (ZKTeco PUSH, BioStar SDK) remain an optional on-site path requiring the licensed vendor SDK and physical hardware.',
-                'يتصل ZKTECO عبر واجهة REST لوسيط ZKBioTime/BioTime (اضبط ZKTECO_API_URL و ZKTECO_USERNAME و ZKTECO_PASSWORD على مضيف البوابة). يتصل SUPREMA عبر واجهة REST لخادم BioStar 2 (اضبط SUPREMA_API_URL و SUPREMA_LOGIN_ID و SUPREMA_PASSWORD). كما تعمل GENERIC_REST و CSV و SIMULATOR بالكامل. تبقى بروتوكولات الأجهزة الأصلية مسارًا اختياريًا في الموقع يتطلب SDK مرخصًا وأجهزة فعلية.'
+                'ZKTECO connects through the ZKBioTime/BioTime middleware REST API (set ZKTECO_API_URL, ZKTECO_USERNAME, ZKTECO_PASSWORD on the gateway host). SUPREMA connects through the BioStar 2 server REST API (set SUPREMA_API_URL, SUPREMA_LOGIN_ID, SUPREMA_PASSWORD). GENERIC_REST, CSV, and SIMULATOR are also fully operational. Direct ZKTeco TCP and Suprema Device SDK integration are on-site paths requiring physical validation; Suprema also requires a licensed vendor-supported SDK binding.',
+                'يتصل ZKTECO عبر واجهة REST لوسيط ZKBioTime/BioTime (اضبط ZKTECO_API_URL و ZKTECO_USERNAME و ZKTECO_PASSWORD على مضيف البوابة). يتصل SUPREMA عبر واجهة REST لخادم BioStar 2 (اضبط SUPREMA_API_URL و SUPREMA_LOGIN_ID و SUPREMA_PASSWORD). كما تعمل GENERIC_REST و CSV و SIMULATOR بالكامل. تكامل ZKTeco المباشر عبر TCP وSDK أجهزة Suprema مساران ميدانيان يتطلبان تحققًا على أجهزة فعلية؛ كما يتطلب Suprema رابط SDK مرخصًا ومدعومًا من المورد.'
               )}
             </p>
           </div>
@@ -1016,7 +1016,7 @@ export default function AttendanceGateway() {
                   <SelectItem value="SIMULATOR">SIMULATOR</SelectItem>
                   <SelectItem value="ZKTECO">ZKTECO (ZKBioTime middleware)</SelectItem>
                   <SelectItem value="SUPREMA">SUPREMA (BioStar 2 middleware)</SelectItem>
-                  <SelectItem value="ZKTECO_NATIVE">ZKTECO_NATIVE (on-site PUSH protocol)</SelectItem>
+                  <SelectItem value="ZKTECO_NATIVE">ZKTECO_NATIVE (direct terminal TCP)</SelectItem>
                   <SelectItem value="SUPREMA_NATIVE">SUPREMA_NATIVE (on-site BioStar SDK)</SelectItem>
                 </SelectContent>
               </Select>

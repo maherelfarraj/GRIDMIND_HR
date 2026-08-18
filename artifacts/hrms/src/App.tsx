@@ -45,6 +45,7 @@ import AdminAirgap from '@/pages/admin-airgap';
 import Recruitment from '@/pages/recruitment';
 import RecruitmentApplication from '@/pages/recruitment-application';
 import Onboarding from '@/pages/onboarding';
+import Offboarding from '@/pages/offboarding';
 import Probation from '@/pages/probation';
 import Performance from '@/pages/performance';
 import Disciplinary from '@/pages/disciplinary';
@@ -159,6 +160,7 @@ function ProtectedRouter() {
         <Route path="/recruitment/applications/:id" component={RecruitmentApplication} />
         <Route path="/recruitment" component={Recruitment} />
         <Route path="/onboarding" component={Onboarding} />
+        <Route path="/offboarding" component={Offboarding} />
         <Route path="/probation" component={Probation} />
         <Route path="/performance" component={Performance} />
         <Route path="/disciplinary" component={Disciplinary} />
