@@ -20,10 +20,10 @@ A production-grade, offline-first Human Resources Management System built for co
 |---|---|
 | **Bilingual** | English + Arabic, full RTL layout |
 | **Themes** | Dark executive + light operational |
-| **Modules** | Dashboard, Employee Directory, Org Chart, Roles & Permissions, Documents, Approvals, Attendance, Attendance Devices, Audit Log, Security Alerts, System Users |
-| **Coming soon** | Payroll, Leave Management, Recruitment |
+| **Modules** | Employee lifecycle, recruitment, onboarding, offboarding, attendance, leave, payroll, performance, training, succession, documents, reporting, self-service, government/military readiness, audit and security administration |
+| **Offboarding controls** | Knowledge handover, asset return, access revocation, credential return, final payroll settlement and exit interview |
 | **Air-gap ready** | No mandatory cloud-service dependencies |
-| **Attendance hardware** | ZKTeco, Hikvision, Suprema, Virdi (REST / OSDP / ZKAccess / Wiegand) |
+| **Attendance hardware** | ZKTeco (BioTime and native), Suprema (BioStar 2 and conditional native SDK), generic REST middleware, and offline CSV imports |
 | **IdP placeholder** | Keycloak / LDAP banner for enterprise SSO |
 
 ---

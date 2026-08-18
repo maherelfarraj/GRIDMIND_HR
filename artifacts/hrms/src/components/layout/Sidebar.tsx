@@ -20,6 +20,7 @@ import {
   Banknote,
   CalendarOff,
   UserPlus,
+  UserMinus,
   LogOut,
   X,
   Timer,
@@ -123,6 +124,7 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
 
   const onboardingDevItems = [
     { href: '/onboarding', icon: ClipboardList, labelEn: 'Onboarding', labelAr: 'الاستقطاب' },
+    { href: '/offboarding', icon: UserMinus, labelEn: 'Offboarding', labelAr: 'إنهاء الخدمة' },
     { href: '/probation', icon: Clock, labelEn: 'Probation', labelAr: 'فترة التجربة' },
     { href: '/training', icon: GraduationCap, labelEn: 'Training', labelAr: 'التدريب' },
     { href: '/skills', icon: BarChart3, labelEn: 'Skills', labelAr: 'المهارات' },

@@ -1,7 +1,7 @@
 /**
  * ZKTeco Native Protocol Adapter.
  *
- * Connects directly to ZKTeco fingerprint/face/card devices over TCP/UDP
+ * Connects directly to ZKTeco fingerprint/face/card devices over TCP
  * port 4370 using a standalone binary protocol client (no vendor SDK required;
  * only Node.js built-in `net` module is used). Handles:
  *   - Comm-key authentication (CMD_AUTH — required on secured devices)

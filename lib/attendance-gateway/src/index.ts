@@ -50,6 +50,36 @@ function optionalPositiveIntEnv(name: string): number | undefined {
   }
   return v;
 }
+
+/** Parse an interval and reject values that could create a hot polling loop. */
+function intervalEnv(name: string, fallback: number, minimum: number): number {
+  const value = optionalPositiveIntEnv(name) ?? fallback;
+  if (value < minimum) {
+    throw new Error(`${name} must be at least ${minimum} ms (got ${value})`);
+  }
+  return value;
+}
+
+function portEnv(name: string, fallback: number): number {
+  const value = optionalPositiveIntEnv(name) ?? fallback;
+  if (value < 1 || value > 65_535) {
+    throw new Error(`${name} must be a valid TCP port (got ${value})`);
+  }
+  return value;
+}
+
+/** The local operator API is intentionally loopback-only unless explicitly enabled. */
+function gatewayBindHost(): string {
+  const host = process.env.GATEWAY_BIND_HOST ?? "127.0.0.1";
+  const isLoopback = host === "127.0.0.1" || host === "::1" || host === "localhost";
+  if (!isLoopback && process.env.GATEWAY_ALLOW_REMOTE_ADMIN !== "true") {
+    throw new Error(
+      "Refusing to expose the gateway operator API beyond loopback. " +
+      "Set GATEWAY_ALLOW_REMOTE_ADMIN=true only behind an authenticated, encrypted management network.",
+    );
+  }
+  return host;
+}
 function buildAdapter(): DeviceAdapter {
   const kind = (process.env.GATEWAY_ADAPTER ?? "SIMULATOR").toUpperCase();
   switch (kind) {
@@ -65,8 +95,13 @@ function buildAdapter(): DeviceAdapter {
       return new ZktecoNativeAdapter(zktecoNativeConfigFromEnv());
     case "SUPREMA_NATIVE":
       return new SupremaNativeAdapter(supremaNativeConfigFromEnv());
-    default:
+    case "SIMULATOR":
       return new SimulatorAdapter();
+    default:
+      throw new Error(
+        `Unsupported GATEWAY_ADAPTER '${kind}'. ` +
+        "Supported values: SIMULATOR, GENERIC_REST, CSV, ZKTECO, SUPREMA, ZKTECO_NATIVE, SUPREMA_NATIVE.",
+      );
   }
 }
 
@@ -91,7 +126,7 @@ async function main(): Promise<void> {
   });
   await service.init();
 
-  const pollIntervalMs = parseInt(process.env.POLL_INTERVAL_MS ?? "60000", 10);
+  const pollIntervalMs = intervalEnv("POLL_INTERVAL_MS", 60_000, 5_000);
   // NUDGE_INTERVAL_MS: how long to wait before the next tick when a heartbeat
   // response carries testRequested=true (pending admin connection-test, result
   // pre-dated the request). Floored at MIN_NUDGE_INTERVAL_MS (5 s) to prevent
@@ -118,8 +153,8 @@ async function main(): Promise<void> {
   // Local operator API: loopback-only by default; mutating endpoints require
   // the operator token (see localApi.ts).
   const app = buildLocalApi({ service, adapter, adminToken: requiredEnv("GATEWAY_ADMIN_TOKEN") });
-  const port = parseInt(process.env.PORT ?? "9800", 10);
-  const host = process.env.GATEWAY_BIND_HOST ?? "127.0.0.1";
+  const port = portEnv("PORT", 9800);
+  const host = gatewayBindHost();
   app.listen(port, host, () => console.log(`[gateway] status API on ${host}:${port}, adapter=${adapter.type}`));
 }
 
