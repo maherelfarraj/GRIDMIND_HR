@@ -97,6 +97,7 @@ timeoutMs = 120000
 [userenv]
 
 [userenv.shared]
+SMOKE_ADMIN_USERNAME = "maher"
 
 [nix]
 channel = "stable-25_05"

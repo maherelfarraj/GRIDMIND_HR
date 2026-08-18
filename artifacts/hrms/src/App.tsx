@@ -79,6 +79,7 @@ import UATScripts from '@/pages/uat-scripts';
 import SecurityTests from '@/pages/security-tests';
 import ReadinessPage from '@/pages/readiness';
 import AttendanceGateway from '@/pages/attendance-gateway';
+import ProductionHealth from '@/pages/production-health';
 import { OrgProvider } from '@/hooks/use-org';
 
 const queryClient = new QueryClient();
@@ -191,6 +192,7 @@ function ProtectedRouter() {
         <Route path="/uat-scripts" component={UATScripts} />
         <Route path="/security-tests" component={SecurityTests} />
         <Route path="/readiness" component={ReadinessPage} />
+        <Route path="/production-health" component={ProductionHealth} />
         <Route component={NotFound} />
       </Switch>
     </Shell>

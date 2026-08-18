@@ -49,6 +49,11 @@ SMOKE_DIR="$ROOT/scripts/smoke"
 export SMOKE_BASE_URL="${SMOKE_BASE_URL:-http://localhost:80}"
 echo "==> Target: $SMOKE_BASE_URL"
 
+# ── 0a. Derive smoke password from ADMIN_RESET_PASSWORD if not set explicitly ─
+# SMOKE_ADMIN_PASSWORD is required by tests that do a fresh login (e.g. P9).
+# Fall back to ADMIN_RESET_PASSWORD which is always available as a secret.
+export SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-${ADMIN_RESET_PASSWORD:-}}"
+
 # ── 1. Locate Chromium in the nix store ──────────────────────────────────────
 # @playwright/test is pinned to 1.44.0 which expects chromium revision 1080,
 # matching the nix store package below.  We skip Playwright's browser download

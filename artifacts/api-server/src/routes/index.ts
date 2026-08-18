@@ -263,6 +263,8 @@ import migrationStatusRouter from "./migrationStatus.js";
 import restoreTestsRouter from "./restoreTests.js";
 import uatScriptsRouter from "./uatScripts.js";
 import securityTestsRouter from "./securityTests.js";
+// Phase 11 — Admin Production Health Dashboard
+import adminProductionHealthRouter from "./adminProductionHealth.js";
 
 router.use(goLiveGatesRouter);
 router.use(readinessScorecardRouter);
@@ -271,4 +273,5 @@ router.use(migrationStatusRouter);
 router.use(restoreTestsRouter);
 router.use(uatScriptsRouter);
 router.use(securityTestsRouter);
+router.use(adminProductionHealthRouter);
 export default router;

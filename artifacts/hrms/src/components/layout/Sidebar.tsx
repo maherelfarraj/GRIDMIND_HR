@@ -146,6 +146,7 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
 
   const systemPhase6Items = [
     { href: '/notifications', icon: Bell, labelEn: 'Notifications', labelAr: 'الإشعارات' },
+    { href: '/production-health', icon: Gauge, labelEn: 'Production Health', labelAr: 'صحة الإنتاج', highlight: true },
     { href: '/deployment', icon: Activity, labelEn: 'Deployment & Health', labelAr: 'النشر والصحة' },
     { href: '/production-readiness', icon: ClipboardCheck, labelEn: 'Readiness', labelAr: 'الجاهزية' },
     { href: '/local-ai', icon: Brain, labelEn: 'Local AI Assistant', labelAr: 'مساعد الذكاء الاصطناعي المحلي' },
