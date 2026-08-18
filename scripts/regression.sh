@@ -47,6 +47,14 @@ if [ -n "${REPLIT_DEPLOYMENT:-}" ] || [ -n "${PUBLISH_BUILD:-}" ]; then
   echo "==> Publish build detected: skipping live-DB schema-drift test"
   run_suite "api-openapi-drift" \
     bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/openapi-drift.test.ts src/__tests__/codegen-drift.test.ts"
+elif [ -z "${DATABASE_URL:-}" ]; then
+  # Local clones and lightweight review environments often have no Postgres
+  # instance. Keep all static contract checks active and skip only the test
+  # that actually queries information_schema. CI and configured development
+  # environments still run the complete live-schema comparison.
+  echo "==> DATABASE_URL is not set: skipping live-DB schema-drift test"
+  run_suite "api-static-drift" \
+    bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/openapi-drift.test.ts src/__tests__/codegen-drift.test.ts"
 else
   run_suite "api-schema-drift" \
     bash -c "cd '$ROOT/artifacts/api-server' && npx vitest run src/__tests__/schema-drift.test.ts src/__tests__/openapi-drift.test.ts src/__tests__/codegen-drift.test.ts"
