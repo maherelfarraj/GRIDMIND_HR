@@ -133,17 +133,35 @@ router.get("/ai/config", async (req, res): Promise<void> => {
 });
 
 // ─── PATCH /ai/config ─────────────────────────────────────────────────────────
+// Upsert semantics: creates the singleton row (id=1) on first call, then applies
+// the patch on subsequent calls.  This lets an operator initialise the config
+// through the admin UI on a fresh deployment without a separate seed step.
+//
+// Security: apiKey and id are stripped before touching the DB so callers cannot
+// inject secrets or shift the config to a different row.
 router.patch("/ai/config", async (req, res): Promise<void> => {
   try {
     const { actorId: actorUserId, isAdmin } = await getActorAdminStatus(req);
     if (!isAdmin) { res.status(403).json({ error: "Insufficient privileges" }); return; }
-    // Strip any attempt to set apiKey or secrets through this endpoint
-    const { apiKey: _apiKey, ...safeBody } = req.body as Record<string, unknown> & { apiKey?: unknown };
-    const [row] = await db.update(aiConfigTable)
-      .set({ ...safeBody, updatedAt: new Date(), updatedByUserId: actorUserId })
-      .where(eq(aiConfigTable.id, 1))
+    // Strip secret fields and the primary key from the caller-supplied body.
+    const { apiKey: _apiKey, id: _id, ...safeBody } = req.body as Record<string, unknown> & {
+      apiKey?: unknown; id?: unknown;
+    };
+    const now = new Date();
+    // INSERT the row with caller-supplied values + safe defaults, then on
+    // conflict (row already exists) apply the patch to the mutable columns only.
+    const [row] = await db.insert(aiConfigTable)
+      .values({
+        id: 1,
+        ...safeBody,
+        updatedAt: now,
+        updatedByUserId: actorUserId,
+      })
+      .onConflictDoUpdate({
+        target: aiConfigTable.id,
+        set: { ...safeBody, updatedAt: now, updatedByUserId: actorUserId },
+      })
       .returning();
-    if (!row) { res.status(404).json({ error: "AI config not found" }); return; }
     await db.insert(auditLogsTable).values({
       actorUserId,
       action: "update",
